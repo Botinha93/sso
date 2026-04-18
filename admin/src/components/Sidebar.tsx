@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { 
   LayoutDashboard, 
-  Apps, 
+  AppWindow, 
   Users, 
   Shield, 
   MonitorSmartphone, 
@@ -13,7 +13,7 @@ import {
 const Sidebar = () => {
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/clients', label: 'Clients', icon: Apps },
+    { path: '/clients', label: 'Clients', icon: AppWindow },
     { path: '/users', label: 'Users', icon: Users },
     { path: '/roles', label: 'Roles', icon: Shield },
     { path: '/sessions', label: 'Sessions', icon: MonitorSmartphone },
@@ -23,36 +23,36 @@ const Sidebar = () => {
   ]
 
   return (
-    <aside className="w-72 border-r border-border bg-card/80 backdrop-blur-xl sticky top-0 h-screen p-6 flex flex-col">
-      <div className="flex items-center gap-3 mb-10">
-        <div className="w-12 h-12 rounded-2xl bg-foreground flex items-center justify-center">
-          <span className="font-extrabold text-[hsl(40,100%,98%)] tracking-wider">NS</span>
+    <aside className="w-64 border-r border-sidebar bg-sidebar h-screen p-4 flex flex-col">
+      <div className="flex items-center gap-3 mb-8 px-2">
+        <div className="w-9 h-9 rounded-xl bg-sidebar-primary flex items-center justify-center">
+          <span className="font-extrabold text-sidebar-primary-foreground text-sm tracking-wider">NS</span>
         </div>
         <div>
-          <p className="text-[10px] font-extrabold uppercase tracking-widest text-primary">Identity Control</p>
-          <h1 className="font-bold text-xl">Northstar SSO</h1>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Identity Control</p>
+          <h1 className="font-semibold text-base">Northstar SSO</h1>
         </div>
       </div>
 
-      <nav className="flex-1 space-y-1">
+      <nav className="flex-1 space-y-1 px-1">
         {navItems.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
             className={({ isActive }) => `
-              flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm
+              flex items-center gap-3 px-3 py-2 rounded-md transition-all text-sm group
               ${isActive 
-                ? 'bg-primary/14 font-semibold text-foreground' 
-                : 'text-foreground/80 hover:bg-primary/8 hover:text-foreground'}
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium' 
+                : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'}
             `}
           >
-            <item.icon size={18} strokeWidth={2} />
+            <item.icon size={16} strokeWidth={2} className="opacity-80" />
             {item.label}
           </NavLink>
         ))}
       </nav>
 
-      <p className="text-muted-foreground text-sm leading-relaxed mt-8">
+      <p className="text-sidebar-foreground/60 text-xs leading-relaxed mt-auto p-2">
         Local-first identity workspace with SQLite durability and OAuth2/OIDC controls.
       </p>
     </aside>
