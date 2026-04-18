@@ -10,15 +10,27 @@
     "check": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.99.0",
+    "@vitejs/plugin-react": "^6.0.1",
     "better-sqlite3": "^11.10.0",
     "fastify": "^5.2.1",
     "jose": "^5.9.6",
+    "lucide-react": "^1.8.0",
     "nanoid": "^5.1.5",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "react-router-dom": "^7.14.1",
+    "tailwindcss-animate": "^1.0.7",
+    "vite": "^8.0.8",
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@shadcn/ui": "^0.0.4",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.13.9",
+    "autoprefixer": "^10.5.0",
+    "postcss": "^8.5.10",
+    "tailwindcss": "^4.2.2",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2"
   }

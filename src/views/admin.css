@@ -268,6 +268,67 @@ select {
   font-size: 0.82rem;
 }
 
+.meta span.success {
+  background: rgba(22, 163, 74, 0.12);
+  color: #166534;
+}
+
+.meta span.warning {
+  background: rgba(202, 138, 4, 0.12);
+  color: #a16207;
+}
+
+.meta span.danger {
+  background: rgba(220, 38, 38, 0.12);
+  color: #b91c1c;
+}
+
+.meta span.muted {
+  background: rgba(107, 114, 128, 0.12);
+  color: #4b5563;
+}
+
+.action-bar {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.action-bar button {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.action-bar button:hover {
+  background: var(--accent-soft);
+}
+
+.action-bar button.danger {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.2);
+  color: #dc2626;
+}
+
+.full-width {
+  grid-column: 1 / -1;
+}
+
+.nav a.active {
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.timestamp {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
 .code {
   min-height: 280px;
   overflow: auto;
@@ -329,6 +390,89 @@ select {
   .hero {
     min-height: auto;
   }
+}
+
+.view {
+  display: none;
+}
+
+.view.active {
+  display: block;
+  animation: reveal 400ms ease forwards;
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.btn-primary {
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: 14px;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 160ms ease, opacity 160ms ease;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  opacity: 0.92;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: none;
+  place-items: center;
+  z-index: 100;
+  backdrop-filter: blur(4px);
+}
+
+.modal-overlay.active {
+  display: grid;
+}
+
+.modal {
+  background: var(--surface-strong);
+  border-radius: 24px;
+  width: 90%;
+  max-width: 560px;
+  max-height: 85vh;
+  overflow: auto;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.2);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.modal-header button {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.modal-header button:hover {
+  background: var(--accent-soft);
+}
+
+.modal-body {
+  padding: 24px;
 }
 
 @media (max-width: 640px) {

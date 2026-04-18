@@ -84,15 +84,16 @@ const loadDashboard = async () => {
     <div class="meta"><span>${tenant.id}</span></div>
   `);
 
-  mountList("clients-list", clients, (client) => `
-    <h5>${client.name}</h5>
-    <p>${client.id}</p>
-    <div class="meta">
-      <span>${client.requirePkce ? "PKCE required" : "PKCE optional"}</span>
-      <span>${client.secretPreview}</span>
-      ${client.allowedScopes.map((scope) => `<span>${scope}</span>`).join("")}
-    </div>
-  `);
+   mountList("clients-list", clients, (client) => `
+     <h5>${client.name}</h5>
+     <p>${client.id}</p>
+     <div class="meta">
+       <span>${client.requirePkce ? "PKCE required" : "PKCE optional"}</span>
+       <span>${client.isPublic ? "Public" : "Confidential"}</span>
+       <span>${client.secretPreview}</span>
+       ${client.allowedScopes.map((scope) => `<span>${scope}</span>`).join("")}
+     </div>
+   `);
 };
 
 const formDataToJson = (form) => Object.fromEntries(new FormData(form).entries());
@@ -139,21 +140,46 @@ const bindForms = () => {
     await loadDashboard();
   });
 
-  document.getElementById("assignment-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const raw = formDataToJson(event.currentTarget);
-    await request("/role-assignments", {
-      method: "POST",
-      body: JSON.stringify({
-        userId: raw.userId,
-        roleId: raw.roleId,
-        tenantId: raw.tenantId || undefined
-      })
-    });
-    logActivity("Role assignment saved.");
-    event.currentTarget.reset();
-    await loadDashboard();
-  });
+   document.getElementById("assignment-form").addEventListener("submit", async (event) => {
+     event.preventDefault();
+     const raw = formDataToJson(event.currentTarget);
+     await request("/role-assignments", {
+       method: "POST",
+       body: JSON.stringify({
+         userId: raw.userId,
+         roleId: raw.roleId,
+         tenantId: raw.tenantId || undefined
+       })
+     });
+     logActivity("Role assignment saved.");
+     event.currentTarget.reset();
+     await loadDashboard();
+   });
+
+   document.getElementById("client-form").addEventListener("submit", async (event) => {
+     event.preventDefault();
+     const formData = new FormData(event.currentTarget);
+     const raw = Object.fromEntries(formData.entries());
+     
+     await request("/clients", {
+       method: "POST",
+       body: JSON.stringify({
+         name: raw.name,
+         redirectUris: String(raw.redirectUris).split(",").map(v => v.trim()).filter(Boolean),
+         allowedScopes: String(raw.allowedScopes).split(",").map(v => v.trim()).filter(Boolean),
+         requirePkce: formData.has("requirePkce"),
+         isPublic: formData.has("isPublic"),
+         brandName: raw.brandName,
+         brandLogoUrl: raw.brandLogoUrl,
+         brandPrimaryColor: raw.brandPrimaryColor,
+         loginPageMessage: raw.loginPageMessage
+       })
+     });
+     
+     event.currentTarget.reset();
+     logActivity("OAuth client created successfully.");
+     await loadDashboard();
+   });
 
   document.getElementById("login-form").addEventListener("submit", async (event) => {
     event.preventDefault();
