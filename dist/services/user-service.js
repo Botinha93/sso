@@ -49,6 +49,25 @@ export class UserService {
     findUserById(id) {
         return this.userRepository.findById(id);
     }
+    updateUserProfile(id, input) {
+        const existing = this.userRepository.findById(id);
+        if (!existing) {
+            throw new ValidationError("User not found");
+        }
+        if (input.email && input.email.toLowerCase() !== existing.email.toLowerCase()) {
+            const byEmail = this.userRepository.findByEmail(input.email);
+            if (byEmail && byEmail.id !== id) {
+                throw new ValidationError("A user with this email already exists");
+            }
+        }
+        if (input.username && input.username.toLowerCase() !== existing.username.toLowerCase()) {
+            const byUsername = this.userRepository.findByUsername(input.username);
+            if (byUsername && byUsername.id !== id) {
+                throw new ValidationError("A user with this username already exists");
+            }
+        }
+        return this.userRepository.updateProfile(id, input);
+    }
     setUserActive(id, active) {
         this.userRepository.setActive(id, active);
     }

@@ -1,4 +1,4 @@
-import { Plus, RefreshCw, Trash2, Users, Link2, X } from 'lucide-react'
+import { Link2, Pencil, Plus, RefreshCw, Trash2, Users, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
@@ -8,6 +8,7 @@ import {
   useDeleteGroup,
   useGroups,
   useRemoveRoleFromGroup,
+  useUpdateGroup,
   useRoles
 } from '../hooks/useApi'
 
@@ -31,8 +32,12 @@ const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slat
 const Groups = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [groupToDelete, setGroupToDelete] = useState<GroupItem | null>(null)
+  const [groupToEdit, setGroupToEdit] = useState<GroupItem | null>(null)
+  const [editModalOpen, setEditModalOpen] = useState(false)
   const [groupName, setGroupName] = useState('')
   const [groupDescription, setGroupDescription] = useState('')
+  const [editGroupName, setEditGroupName] = useState('')
+  const [editGroupDescription, setEditGroupDescription] = useState('')
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([])
   const [rolePickerByGroup, setRolePickerByGroup] = useState<Record<string, string>>({})
 
@@ -40,6 +45,7 @@ const Groups = () => {
   const { data: roles = [] } = useRoles()
   const createGroup = useCreateGroup()
   const deleteGroup = useDeleteGroup()
+  const updateGroup = useUpdateGroup()
   const assignRole = useAssignRoleToGroup()
   const removeRole = useRemoveRoleFromGroup()
 
@@ -75,6 +81,24 @@ const Groups = () => {
 
   const onDeleteGroup = (group: GroupItem) => {
     setGroupToDelete(group)
+  }
+
+  const onEditGroup = (group: GroupItem) => {
+    setGroupToEdit(group)
+    setEditGroupName(group.name)
+    setEditGroupDescription(group.description)
+    setEditModalOpen(true)
+  }
+
+  const onSaveGroupEdit = async () => {
+    if (!groupToEdit || !editGroupName || !editGroupDescription) return
+    await updateGroup.mutateAsync({
+      id: groupToEdit.id,
+      name: editGroupName,
+      description: editGroupDescription
+    })
+    setEditModalOpen(false)
+    setGroupToEdit(null)
   }
 
   const confirmDeleteGroup = () => {
@@ -173,14 +197,24 @@ const Groups = () => {
                         </button>
                       </div>
                     </div>
-                    <button
-                      onClick={() => onDeleteGroup(group)}
-                      disabled={deleteGroup.isPending}
-                      className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
-                      title="Delete group"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => onEditGroup(group)}
+                        disabled={updateGroup.isPending}
+                        className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+                        title="Edit group"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => onDeleteGroup(group)}
+                        disabled={deleteGroup.isPending}
+                        className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                        title="Delete group"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               )
@@ -241,6 +275,46 @@ const Groups = () => {
               className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
             >
               {createGroup.isPending ? 'Creating...' : 'Create Group'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} title={`Edit Group${groupToEdit ? `: ${groupToEdit.name}` : ''}`}>
+        <div className="space-y-4">
+          <div>
+            <label className={labelCls}>Group Name</label>
+            <input
+              type="text"
+              value={editGroupName}
+              onChange={(e) => setEditGroupName(e.target.value)}
+              className={fieldCls}
+              placeholder="Support Team"
+            />
+          </div>
+          <div>
+            <label className={labelCls}>Description</label>
+            <input
+              type="text"
+              value={editGroupDescription}
+              onChange={(e) => setEditGroupDescription(e.target.value)}
+              className={fieldCls}
+              placeholder="Handles user onboarding and support escalations"
+            />
+          </div>
+          <div className="flex gap-2 justify-end pt-2">
+            <button
+              onClick={() => setEditModalOpen(false)}
+              className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onSaveGroupEdit}
+              disabled={updateGroup.isPending || !editGroupName || !editGroupDescription}
+              className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+            >
+              {updateGroup.isPending ? 'Saving…' : 'Save Changes'}
             </button>
           </div>
         </div>

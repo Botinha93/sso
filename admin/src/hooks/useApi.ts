@@ -192,7 +192,16 @@ export function useCreateUser() {
 export function useUpdateUser() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; active?: boolean }) => jsonFetch(`${API_BASE}/users/${id}`, {
+    mutationFn: ({ id, ...data }: {
+      id: string
+      email?: string
+      username?: string
+      givenName?: string
+      familyName?: string
+      active?: boolean
+      groupIds?: string[]
+      customAttributes?: Record<string, string>
+    }) => jsonFetch(`${API_BASE}/users/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -283,6 +292,22 @@ export function useDeleteGroup() {
   })
 }
 
+export function useUpdateGroup() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; name?: string; description?: string }) =>
+      jsonFetch(`${API_BASE}/groups/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['groups'] })
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    }
+  })
+}
+
 export function useAssignRoleToGroup() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -357,6 +382,19 @@ export function useCreateTenant() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(tenant)
     }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tenants'] })
+  })
+}
+
+export function useUpdateTenant() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; slug?: string; name?: string; active?: boolean }) =>
+      jsonFetch(`${API_BASE}/tenants/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tenants'] })
   })
 }

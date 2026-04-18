@@ -756,6 +756,35 @@ export class SqliteUserRepository implements UserRepository {
     return row ? mapUser(row as DbRow) : undefined;
   }
 
+  updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName">>): User | undefined {
+    const current = this.findById(id);
+    if (!current) return undefined;
+
+    const updated = {
+      ...current,
+      email: input.email ?? current.email,
+      username: input.username ?? current.username,
+      givenName: input.givenName ?? current.givenName,
+      familyName: input.familyName ?? current.familyName,
+      updatedAt: new Date()
+    };
+
+    this.db.prepare(`
+      UPDATE users
+      SET email = ?, username = ?, given_name = ?, family_name = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      updated.email,
+      updated.username,
+      updated.givenName,
+      updated.familyName,
+      updated.updatedAt.toISOString(),
+      id
+    );
+
+    return updated;
+  }
+
   setActive(id: string, active: boolean): void {
     this.db.prepare("UPDATE users SET active = ?, updated_at = ? WHERE id = ?").run(active ? 1 : 0, new Date().toISOString(), id);
   }
@@ -961,6 +990,24 @@ export class SqliteTenantRepository implements TenantRepository {
     const row = this.db.prepare("SELECT * FROM tenants WHERE id = ?").get(id);
     return row ? mapTenant(row as DbRow) : undefined;
   }
+
+  update(id: string, input: Partial<Omit<Tenant, "id" | "createdAt">>): Tenant | undefined {
+    const existing = this.findById(id);
+    if (!existing) return undefined;
+
+    const updated: Tenant = {
+      ...existing,
+      slug: input.slug ?? existing.slug,
+      name: input.name ?? existing.name,
+      active: input.active ?? existing.active
+    };
+
+    this.db.prepare(`
+      UPDATE tenants SET slug = ?, name = ?, active = ? WHERE id = ?
+    `).run(updated.slug, updated.name, updated.active ? 1 : 0, id);
+
+    return updated;
+  }
 }
 
 export class SqliteGroupRepository implements GroupRepository {
@@ -983,6 +1030,23 @@ export class SqliteGroupRepository implements GroupRepository {
   findById(id: string): Group | undefined {
     const row = this.db.prepare("SELECT * FROM groups WHERE id = ?").get(id);
     return row ? mapGroup(row as DbRow) : undefined;
+  }
+
+  update(id: string, input: Partial<Omit<Group, "id" | "createdAt">>): Group | undefined {
+    const existing = this.findById(id);
+    if (!existing) return undefined;
+
+    const updated: Group = {
+      ...existing,
+      name: input.name ?? existing.name,
+      description: input.description ?? existing.description
+    };
+
+    this.db.prepare(`
+      UPDATE groups SET name = ?, description = ? WHERE id = ?
+    `).run(updated.name, updated.description, id);
+
+    return updated;
   }
 
   delete(id: string): void {

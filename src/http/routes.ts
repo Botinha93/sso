@@ -19,6 +19,7 @@ import {
   createEventHookSchema,
   createTenantSchema,
   createRoleSchema,
+  updateGroupSchema,
   updateRoleSchema,
   createUserSchema,
   introspectSchema,
@@ -36,6 +37,7 @@ import {
   updateEventHookSchema,
   updateFederationProviderSchema,
   updatePolicySchema,
+  updateTenantSchema,
   updateUserAttributeSchema,
   updateUserSchema
 } from "./schemas.js";
@@ -658,7 +660,10 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
   app.patch("/api/admin/users/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { active, groupIds, customAttributes } = updateUserSchema.parse(request.body);
+    const { email, username, givenName, familyName, active, groupIds, customAttributes } = updateUserSchema.parse(request.body);
+    if (email !== undefined || username !== undefined || givenName !== undefined || familyName !== undefined) {
+      deps.userService.updateUserProfile(id, { email, username, givenName, familyName });
+    }
     if (active !== undefined) deps.userService.setUserActive(id, active);
     if (customAttributes) deps.userService.setCustomAttributes(id, customAttributes);
     if (groupIds) {
@@ -674,7 +679,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         deps.groupService.assignUserToGroup({ userId: id, groupId });
       }
     }
-    return { id, active };
+    return { id, active, email, username, givenName, familyName };
   });
   app.delete("/api/admin/users/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -741,6 +746,11 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     reply.code(201);
     return deps.groupService.createGroup(input);
   });
+  app.put("/api/admin/groups/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const input = updateGroupSchema.parse(request.body);
+    return deps.groupService.updateGroup(id, input);
+  });
   app.delete("/api/admin/groups/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     deps.groupService.deleteGroup(id);
@@ -771,6 +781,11 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const input = createTenantSchema.parse(request.body);
     reply.code(201);
     return deps.tenantService.createTenant(input);
+  });
+  app.put("/api/admin/tenants/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const input = updateTenantSchema.parse(request.body);
+    return deps.tenantService.updateTenant(id, input);
   });
 
   app.get("/api/admin/sessions", async () => deps.authService.sessionRepository.list());

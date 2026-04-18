@@ -20,4 +20,17 @@ export class TenantService {
     findBySlug(slug) {
         return this.tenantRepository.findBySlug(slug);
     }
+    updateTenant(id, input) {
+        const existing = this.tenantRepository.findById(id);
+        if (!existing) {
+            throw new ValidationError("Tenant not found");
+        }
+        if (input.slug && input.slug !== existing.slug) {
+            const bySlug = this.tenantRepository.findBySlug(input.slug);
+            if (bySlug && bySlug.id !== id) {
+                throw new ValidationError("A tenant with this slug already exists");
+            }
+        }
+        return this.tenantRepository.update(id, input);
+    }
 }

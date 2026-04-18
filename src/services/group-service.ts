@@ -53,6 +53,14 @@ export class GroupService {
     });
   }
 
+  updateGroup(id: string, input: { name?: string; description?: string }) {
+    const updated = this.groupRepository.update(id, input);
+    if (!updated) {
+      throw new ValidationError("Group not found");
+    }
+    return updated;
+  }
+
   deleteGroup(id: string) {
     this.groupRepository.delete(id);
   }

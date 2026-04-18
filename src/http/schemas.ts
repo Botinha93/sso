@@ -26,6 +26,10 @@ export const createUserSchema = z.object({
 });
 
 export const updateUserSchema = z.object({
+  email: z.string().email().optional(),
+  username: z.string().min(3).optional(),
+  givenName: z.string().min(1).optional(),
+  familyName: z.string().min(1).optional(),
   active: z.boolean().optional(),
   groupIds: z.array(z.string()).optional(),
   customAttributes: z.record(z.string(), z.string()).optional()
@@ -35,6 +39,11 @@ export const createGroupSchema = z.object({
   name: z.string().min(2),
   description: z.string().min(2),
   roleIds: z.array(z.string()).default([])
+});
+
+export const updateGroupSchema = z.object({
+  name: z.string().min(2).optional(),
+  description: z.string().min(2).optional()
 });
 
 export const assignGroupRoleSchema = z.object({
@@ -109,6 +118,12 @@ export const introspectSchema = z.object({
 export const createTenantSchema = z.object({
   slug: z.string().min(2),
   name: z.string().min(2)
+});
+
+export const updateTenantSchema = z.object({
+  slug: z.string().min(2).optional(),
+  name: z.string().min(2).optional(),
+  active: z.boolean().optional()
 });
 
 export const assignRoleSchema = z.object({

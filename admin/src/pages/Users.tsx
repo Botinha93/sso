@@ -1,4 +1,4 @@
-import { Link2, Plus, RefreshCw, Trash2, UserCheck, UserX, X } from 'lucide-react'
+import { Link2, Pencil, Plus, RefreshCw, Trash2, UserCheck, UserX, X } from 'lucide-react'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
@@ -40,11 +40,21 @@ const defaultForm = () => ({
   groupIds: [] as string[]
 })
 
+const defaultEditForm = () => ({
+  email: '',
+  username: '',
+  givenName: '',
+  familyName: '',
+  customAttributesJson: '{}'
+})
+
 const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
 const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
 
 const Users = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [userToEdit, setUserToEdit] = useState<User | null>(null)
   const [userToDelete, setUserToDelete] = useState<{ id: string; email: string } | null>(null)
   const { data: users, isLoading, refetch } = useUsers()
   const createUser = useCreateUser()
@@ -55,7 +65,9 @@ const Users = () => {
   const removeUserGroup = useRemoveUserFromGroup()
   const [groupPickerByUser, setGroupPickerByUser] = useState<Record<string, string>>({})
   const [formData, setFormData] = useState(defaultForm)
+  const [editFormData, setEditFormData] = useState(defaultEditForm)
   const [createFormError, setCreateFormError] = useState<string>('')
+  const [editFormError, setEditFormError] = useState<string>('')
 
   const handleCreate = async () => {
     if (!formData.email || !formData.username || !formData.password) return
@@ -91,6 +103,50 @@ const Users = () => {
 
   const handleToggleActive = (user: User) => {
     updateUser.mutate({ id: user.id, active: !user.active })
+  }
+
+  const handleEdit = (user: User) => {
+    setUserToEdit(user)
+    setEditFormError('')
+    setEditFormData({
+      email: user.email,
+      username: user.username,
+      givenName: user.givenName,
+      familyName: user.familyName,
+      customAttributesJson: JSON.stringify(user.customAttributes ?? {}, null, 2)
+    })
+    setEditModalOpen(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!userToEdit) return
+    if (!editFormData.email || !editFormData.username || !editFormData.givenName || !editFormData.familyName) return
+
+    let parsedAttributes: Record<string, string> = {}
+    try {
+      const raw = JSON.parse(editFormData.customAttributesJson || '{}') as Record<string, unknown>
+      for (const [key, value] of Object.entries(raw)) {
+        if (typeof value === 'string') {
+          parsedAttributes[key] = value
+        }
+      }
+    } catch {
+      setEditFormError('Custom attributes must be valid JSON object')
+      return
+    }
+
+    setEditFormError('')
+    await updateUser.mutateAsync({
+      id: userToEdit.id,
+      email: editFormData.email,
+      username: editFormData.username,
+      givenName: editFormData.givenName,
+      familyName: editFormData.familyName,
+      customAttributes: parsedAttributes
+    })
+    setEditModalOpen(false)
+    setUserToEdit(null)
+    setEditFormData(defaultEditForm())
   }
 
   const handleDelete = (id: string, email: string) => {
@@ -210,6 +266,14 @@ const Users = () => {
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button
+                    onClick={() => handleEdit(user)}
+                    disabled={updateUser.isPending}
+                    className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+                    title="Edit user"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
                     onClick={() => handleToggleActive(user)}
                     disabled={updateUser.isPending}
                     className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
@@ -293,6 +357,51 @@ const Users = () => {
               className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
             >
               {createUser.isPending ? 'Creating…' : 'Create User'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} title={`Edit User${userToEdit ? `: ${userToEdit.email}` : ''}`}>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>First Name</label>
+              <input type="text" value={editFormData.givenName} onChange={e => setEditFormData(f => ({ ...f, givenName: e.target.value }))} className={fieldCls} placeholder="Jane" />
+            </div>
+            <div>
+              <label className={labelCls}>Last Name</label>
+              <input type="text" value={editFormData.familyName} onChange={e => setEditFormData(f => ({ ...f, familyName: e.target.value }))} className={fieldCls} placeholder="Doe" />
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Email Address</label>
+            <input type="email" value={editFormData.email} onChange={e => setEditFormData(f => ({ ...f, email: e.target.value }))} className={fieldCls} placeholder="jane@example.com" />
+          </div>
+          <div>
+            <label className={labelCls}>Username</label>
+            <input type="text" value={editFormData.username} onChange={e => setEditFormData(f => ({ ...f, username: e.target.value }))} className={`${fieldCls} font-mono`} placeholder="janedoe" />
+          </div>
+          <div>
+            <label className={labelCls}>Custom Attributes (JSON)</label>
+            <textarea
+              value={editFormData.customAttributesJson}
+              onChange={e => setEditFormData(f => ({ ...f, customAttributesJson: e.target.value }))}
+              className="w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 min-h-[88px] font-mono"
+              placeholder='{"department":"engineering","region":"eu-west"}'
+            />
+            {editFormError && <p className="mt-1 text-xs text-red-600">{editFormError}</p>}
+          </div>
+          <div className="flex gap-2 justify-end pt-2">
+            <button onClick={() => setEditModalOpen(false)} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveEdit}
+              disabled={updateUser.isPending || !editFormData.email || !editFormData.username || !editFormData.givenName || !editFormData.familyName}
+              className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+            >
+              {updateUser.isPending ? 'Saving…' : 'Save Changes'}
             </button>
           </div>
         </div>

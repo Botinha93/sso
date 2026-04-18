@@ -643,6 +643,25 @@ export class SqliteUserRepository {
         const row = this.db.prepare("SELECT * FROM users WHERE id = ?").get(id);
         return row ? mapUser(row) : undefined;
     }
+    updateProfile(id, input) {
+        const current = this.findById(id);
+        if (!current)
+            return undefined;
+        const updated = {
+            ...current,
+            email: input.email ?? current.email,
+            username: input.username ?? current.username,
+            givenName: input.givenName ?? current.givenName,
+            familyName: input.familyName ?? current.familyName,
+            updatedAt: new Date()
+        };
+        this.db.prepare(`
+      UPDATE users
+      SET email = ?, username = ?, given_name = ?, family_name = ?, updated_at = ?
+      WHERE id = ?
+    `).run(updated.email, updated.username, updated.givenName, updated.familyName, updated.updatedAt.toISOString(), id);
+        return updated;
+    }
     setActive(id, active) {
         this.db.prepare("UPDATE users SET active = ?, updated_at = ? WHERE id = ?").run(active ? 1 : 0, new Date().toISOString(), id);
     }
@@ -793,6 +812,21 @@ export class SqliteTenantRepository {
         const row = this.db.prepare("SELECT * FROM tenants WHERE id = ?").get(id);
         return row ? mapTenant(row) : undefined;
     }
+    update(id, input) {
+        const existing = this.findById(id);
+        if (!existing)
+            return undefined;
+        const updated = {
+            ...existing,
+            slug: input.slug ?? existing.slug,
+            name: input.name ?? existing.name,
+            active: input.active ?? existing.active
+        };
+        this.db.prepare(`
+      UPDATE tenants SET slug = ?, name = ?, active = ? WHERE id = ?
+    `).run(updated.slug, updated.name, updated.active ? 1 : 0, id);
+        return updated;
+    }
 }
 export class SqliteGroupRepository {
     db;
@@ -814,6 +848,20 @@ export class SqliteGroupRepository {
     findById(id) {
         const row = this.db.prepare("SELECT * FROM groups WHERE id = ?").get(id);
         return row ? mapGroup(row) : undefined;
+    }
+    update(id, input) {
+        const existing = this.findById(id);
+        if (!existing)
+            return undefined;
+        const updated = {
+            ...existing,
+            name: input.name ?? existing.name,
+            description: input.description ?? existing.description
+        };
+        this.db.prepare(`
+      UPDATE groups SET name = ?, description = ? WHERE id = ?
+    `).run(updated.name, updated.description, id);
+        return updated;
     }
     delete(id) {
         this.db.prepare("DELETE FROM groups WHERE id = ?").run(id);

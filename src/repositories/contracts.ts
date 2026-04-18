@@ -41,6 +41,7 @@ export interface UserRepository {
   findByEmail(email: string): User | undefined;
   findByUsername(username: string): User | undefined;
   findById(id: string): User | undefined;
+  updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName">>): User | undefined;
   setActive(id: string, active: boolean): void;
   setCustomAttributes(id: string, customAttributes: Record<string, string>): void;
   delete(id: string): void;
@@ -78,12 +79,14 @@ export interface TenantRepository {
   list(): Tenant[];
   findBySlug(slug: string): Tenant | undefined;
   findById(id: string): Tenant | undefined;
+  update(id: string, input: Partial<Omit<Tenant, "id" | "createdAt">>): Tenant | undefined;
 }
 
 export interface GroupRepository {
   create(input: Omit<Group, "id" | "createdAt">): Group;
   list(): Group[];
   findById(id: string): Group | undefined;
+  update(id: string, input: Partial<Omit<Group, "id" | "createdAt">>): Group | undefined;
   delete(id: string): void;
 }
 
