@@ -32,36 +32,23 @@ const makeConfig = (overrides: Partial<AppConfig> = {}): AppConfig => {
   };
 };
 
-test("repository factory requires DATABASE_URL for external providers", () => {
+test("repository factory requires DATABASE_URL for external providers", async () => {
   const config = makeConfig({ databaseProvider: "postgresql", externalDatabaseUrl: undefined });
 
-  assert.throws(
-    () => createRepositoryBundle(config),
+  await assert.rejects(
+    createRepositoryBundle(config),
     /DATABASE_URL is required when DATABASE_PROVIDER=postgresql/
   );
 });
 
-test("repository factory runs compatibility mode for external providers", () => {
+test("repository factory rejects external providers until runtime support is wired", async () => {
   const config = makeConfig({
     databaseProvider: "mysql",
     externalDatabaseUrl: "mysql://user:pass@localhost:3306/sso"
   });
 
-  const warnings: string[] = [];
-  const originalEmitWarning = process.emitWarning;
-  process.emitWarning = ((warning: string | Error) => {
-    warnings.push(typeof warning === "string" ? warning : warning.message);
-  }) as typeof process.emitWarning;
-
-  try {
-    const repositories = createRepositoryBundle(config);
-    assert.ok(repositories.userRepository);
-  } finally {
-    process.emitWarning = originalEmitWarning;
-  }
-
-  assert.ok(
-    warnings.some((message) => message.includes("compatibility mode")),
-    "Expected compatibility mode warning when using external provider"
+  await assert.rejects(
+    createRepositoryBundle(config),
+    /active runtime repository layer is still SQLite-only/
   );
 });

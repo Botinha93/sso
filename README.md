@@ -58,13 +58,15 @@ The platform is mid-rewrite to support both SQLite and external databases.
    - `POST /api/admin/settings/database/test`
    - `POST /api/admin/settings/database/migrate`
 - Current migration utility can test external connectivity and copy data from SQLite into PostgreSQL/MySQL.
+- Migration now creates schemas in dependency-safe order (tables, then foreign keys), preserving unique indexes and avoiding FK-order failures during PostgreSQL/MySQL imports.
 
 Transitional runtime behavior:
 
-- If `DATABASE_PROVIDER` is `postgresql` or `mysql`, the server currently runs in compatibility mode and still uses `DATABASE_PATH` for live runtime repositories while provider-specific repositories are being completed.
-- The configured external target (`DATABASE_URL`) is used by migration/test tooling.
+- Live runtime repositories are still SQLite-native.
+- If `DATABASE_PROVIDER` is `postgresql` or `mysql`, startup now fails fast instead of silently falling back to `DATABASE_PATH`.
+- The configured external target (`DATABASE_URL`) is currently used by migration/test tooling, not by the live repository layer.
 
-Note: Runtime repository execution is still in migration from SQLite-native repositories to multi-database repositories.
+Note: Runtime repository execution is still in migration from SQLite-native repositories to true multi-database repositories.
 
 ## Authentication Flows
 

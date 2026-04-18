@@ -49,23 +49,23 @@ export class SetupService {
     private readonly instanceSettingsService: InstanceSettingsService
   ) {}
 
-  status() {
-    const userCount = this.userService.listUsers().length;
-    const hasPlatformAdminRole = this.roleService.listRoles().some((role) => role.name === "platform_admin");
-    const settings = this.instanceSettingsService.getSettings();
+  async status() {
+    const users = await this.userService.listUsers();
+    const roles = await this.roleService.listRoles();
+    const settings = await this.instanceSettingsService.getSettings();
     return {
-      requiresSetup: userCount === 0 || !hasPlatformAdminRole,
+      requiresSetup: users.length === 0 || !roles.some((role) => role.name === "platform_admin"),
       databaseProvider: settings.databaseProvider
     };
   }
 
-  ensureSaneDefaults() {
-    const roleIds = this.ensureDefaultRoles();
-    this.ensureDefaultGroups(roleIds);
-    this.ensureDefaultPolicies();
+  async ensureSaneDefaults() {
+    const roleIds = await this.ensureDefaultRoles();
+    await this.ensureDefaultGroups(roleIds);
+    await this.ensureDefaultPolicies();
   }
 
-  initialize(input: {
+  async initialize(input: {
     name: string;
     email: string;
     username: string;
@@ -74,7 +74,7 @@ export class SetupService {
     databasePath?: string;
     externalDatabaseUrl?: string;
   }) {
-    const status = this.status();
+    const status = await this.status();
     if (!status.requiresSetup) {
       throw new ValidationError("Setup has already been completed");
     }
@@ -98,19 +98,19 @@ export class SetupService {
       throw new ValidationError("Admin username may only contain letters, numbers, _, ., and -");
     }
 
-    if (this.userService.findUserByEmail(email)) {
+    if (await this.userService.findUserByEmail(email)) {
       throw new ValidationError("A user with this email already exists");
     }
 
-    if (this.userService.findUserByUsername(username)) {
+    if (await this.userService.findUserByUsername(username)) {
       throw new ValidationError("A user with this username already exists");
     }
 
-    const roleIds = this.ensureDefaultRoles();
-    this.ensureDefaultGroups(roleIds);
-    this.ensureDefaultPolicies();
+    const roleIds = await this.ensureDefaultRoles();
+    await this.ensureDefaultGroups(roleIds);
+    await this.ensureDefaultPolicies();
 
-    this.instanceSettingsService.updateSettings({
+    await this.instanceSettingsService.updateSettings({
       databaseProvider: input.databaseProvider ?? "sqlite",
       databasePath: input.databasePath ?? "./data/sso.sqlite",
       externalDatabaseUrl: input.externalDatabaseUrl
@@ -119,7 +119,7 @@ export class SetupService {
     const [givenName, ...rest] = name.split(/\s+/).filter(Boolean);
     const familyName = rest.join(" ") || "Administrator";
 
-    const adminUser = this.userService.createUser({
+    const adminUser = await this.userService.createUser({
       email,
       username,
       password: input.password,
@@ -135,24 +135,24 @@ export class SetupService {
     };
   }
 
-  private ensureDefaultRoles() {
-    const existing = this.roleService.listRoles();
+  private async ensureDefaultRoles() {
+    const existing = await this.roleService.listRoles();
 
-    const platformAdmin = existing.find((role) => role.name === "platform_admin") ?? this.roleService.createRole({
+    const platformAdmin = existing.find((role) => role.name === "platform_admin") ?? await this.roleService.createRole({
       name: "platform_admin",
       description: "Full platform administration access",
       permissions: ["*:*", ...makeAllPermissions()],
       scope: "platform"
     });
 
-    const readOnly = existing.find((role) => role.name === "readonly") ?? this.roleService.createRole({
+    const readOnly = existing.find((role) => role.name === "readonly") ?? await this.roleService.createRole({
       name: "readonly",
       description: "View-only access to administration data",
       permissions: ALL_RESOURCES.map((resource) => `${resource}:view`),
       scope: "platform"
     });
 
-    const auditor = existing.find((role) => role.name === "auditor") ?? this.roleService.createRole({
+    const auditor = existing.find((role) => role.name === "auditor") ?? await this.roleService.createRole({
       name: "auditor",
       description: "Audit and session monitoring access",
       permissions: [
@@ -165,7 +165,7 @@ export class SetupService {
       scope: "platform"
     });
 
-    const helpdesk = existing.find((role) => role.name === "helpdesk") ?? this.roleService.createRole({
+    const helpdesk = existing.find((role) => role.name === "helpdesk") ?? await this.roleService.createRole({
       name: "helpdesk",
       description: "Operational user support with limited write access",
       permissions: [
@@ -189,11 +189,11 @@ export class SetupService {
     };
   }
 
-  private ensureDefaultGroups(roleIds: { platformAdmin: string; readOnly: string; auditor: string; helpdesk: string }) {
-    const groups = this.groupService.listGroups();
+  private async ensureDefaultGroups(roleIds: { platformAdmin: string; readOnly: string; auditor: string; helpdesk: string }) {
+    const groups = await this.groupService.listGroups();
 
     if (!groups.some((group) => group.name === "Administrators")) {
-      this.groupService.createGroup({
+      await this.groupService.createGroup({
         name: "Administrators",
         description: "Platform administrators",
         roleIds: [roleIds.platformAdmin]
@@ -201,7 +201,7 @@ export class SetupService {
     }
 
     if (!groups.some((group) => group.name === "Auditors")) {
-      this.groupService.createGroup({
+      await this.groupService.createGroup({
         name: "Auditors",
         description: "Security and compliance review users",
         roleIds: [roleIds.auditor]
@@ -209,7 +209,7 @@ export class SetupService {
     }
 
     if (!groups.some((group) => group.name === "Helpdesk")) {
-      this.groupService.createGroup({
+      await this.groupService.createGroup({
         name: "Helpdesk",
         description: "Operational support users",
         roleIds: [roleIds.helpdesk]
@@ -217,7 +217,7 @@ export class SetupService {
     }
 
     if (!groups.some((group) => group.name === "Read Only")) {
-      this.groupService.createGroup({
+      await this.groupService.createGroup({
         name: "Read Only",
         description: "Read-only observers",
         roleIds: [roleIds.readOnly]
@@ -225,15 +225,15 @@ export class SetupService {
     }
   }
 
-  private ensureDefaultPolicies() {
-    this.policyService.ensureBuiltIns();
+  private async ensureDefaultPolicies() {
+    await this.policyService.ensureBuiltIns();
 
-    const policies = this.policyService.listPolicies();
+    const policies = await this.policyService.listPolicies();
     const byKey = new Map(policies.map((policy) => [policy.key, policy]));
 
     const passwordRequirements = byKey.get("password_requirements");
     if (passwordRequirements) {
-      this.policyService.setAssignment({
+      await this.policyService.setAssignment({
         policyId: passwordRequirements.id,
         scopeType: "global",
         enabled: true,
@@ -249,7 +249,7 @@ export class SetupService {
 
     const passwordExpiration = byKey.get("password_expiration_days");
     if (passwordExpiration) {
-      this.policyService.setAssignment({
+      await this.policyService.setAssignment({
         policyId: passwordExpiration.id,
         scopeType: "global",
         enabled: false,
@@ -261,7 +261,7 @@ export class SetupService {
 
     const uniqueEmail = byKey.get("unique_email");
     if (uniqueEmail) {
-      this.policyService.setAssignment({
+      await this.policyService.setAssignment({
         policyId: uniqueEmail.id,
         scopeType: "global",
         enabled: true,
@@ -271,7 +271,7 @@ export class SetupService {
 
     const twoFactor = byKey.get("two_factor_required");
     if (twoFactor) {
-      this.policyService.setAssignment({
+      await this.policyService.setAssignment({
         policyId: twoFactor.id,
         scopeType: "global",
         enabled: false,
@@ -290,18 +290,18 @@ export class SetupService {
       { name: "roles", description: "Read role claims" }
     ];
 
-    const existingScopes = this.scopeService.listScopes().map((scope) => scope.name);
+    const existingScopes = (await this.scopeService.listScopes()).map((scope) => scope.name);
     const known = new Set(existingScopes);
     for (const scope of defaults) {
       if (!known.has(scope.name)) {
-        this.scopeService.createScope(scope);
+        await this.scopeService.createScope(scope);
       }
     }
 
-    // Ensure a default "Account Portal" app exists
-    const existingApps = this.appService.listApps();
-    if (!existingApps.some(a => a.name === "Account Portal")) {
-      this.appService.createApp({
+    // Ensure a default "Account Portal" app exists.
+    const existingApps = await this.appService.listApps();
+    if (!existingApps.some((app) => app.name === "Account Portal")) {
+      await this.appService.createApp({
         name: "Account Portal",
         description: "Default self-service user portal",
         icon: "👤",

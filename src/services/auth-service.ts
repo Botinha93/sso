@@ -59,10 +59,10 @@ export class AuthService {
     scope: string[];
     tenantSlug?: string;
   }) {
-    this.authenticationFlowService.assertGrantSupported("authorization_code");
-    this.authenticationFlowService.assertStageEnabled("password");
+    await this.authenticationFlowService.assertGrantSupported("authorization_code");
+    await this.authenticationFlowService.assertStageEnabled("password");
 
-    const user = this.validateUserCredentials(input.email, input.password);
+    const user = await this.validateUserCredentials(input.email, input.password);
     return this.completeLoginForUser({
       userId: user.id,
       clientId: input.clientId,
@@ -71,10 +71,10 @@ export class AuthService {
     });
   }
 
-  validateUserCredentials(identifier: string, password: string): User {
+  async validateUserCredentials(identifier: string, password: string): Promise<User> {
     const normalized = identifier.trim();
-    this.securityService.assertLoginAllowed(normalized);
-    const user = this.userService.findUserByEmail(normalized) ?? this.userService.findUserByUsername(normalized);
+    await this.securityService.assertLoginAllowed(normalized);
+    const user = await this.userService.findUserByEmail(normalized) ?? await this.userService.findUserByUsername(normalized);
 
     if (!user || !user.active || !verifyPassword(password, user.passwordHash)) {
       throw new AuthenticationError("Invalid credentials");
@@ -91,17 +91,17 @@ export class AuthService {
     ip?: string;
     userAgent?: string;
   }) {
-    const user = this.userService.findUserById(input.userId);
+    const user = await this.userService.findUserById(input.userId);
     if (!user || !user.active) {
       throw new AuthenticationError("User no longer exists");
     }
 
-    const client = this.requireClient(input.clientId);
-    this.assertClientSupportsActiveFlow(client);
+    const client = await this.requireClient(input.clientId);
+    await await this.assertClientSupportsActiveFlow(client);
     const allowedScope = input.scope.filter((scope) => client.allowedScopes.includes(scope));
-    const tenant = input.tenantSlug ? this.tenantRepository.findBySlug(input.tenantSlug) : undefined;
+    const tenant = input.tenantSlug ? await this.tenantRepository.findBySlug(input.tenantSlug) : undefined;
 
-    const session = this.sessionRepository.create({
+    const session = await this.sessionRepository.create({
       userId: user.id,
       clientId: client.id,
       createdAt: new Date(),
@@ -116,7 +116,7 @@ export class AuthService {
       tenantId: tenant?.id
     });
 
-    this.auditRepository.log({
+    await await this.auditRepository.log({
       type: "login",
       actorId: user.id,
       actorType: "user",
@@ -141,7 +141,7 @@ export class AuthService {
     };
   }
 
-  createAuthorizationCode(input: {
+  async createAuthorizationCode(input: {
     clientId: string;
     userId: string;
     redirectUri: string;
@@ -150,8 +150,8 @@ export class AuthService {
     codeChallengeMethod?: "S256";
   }) {
     this.authenticationFlowService.assertGrantSupported("authorization_code");
-    const client = this.requireClient(input.clientId);
-    this.assertClientSupportsActiveFlow(client);
+    const client = await this.requireClient(input.clientId);
+    await this.assertClientSupportsActiveFlow(client);
 
     if (!client.redirectUris.includes(input.redirectUri)) {
       throw new ValidationError("Invalid redirect_uri for client");
@@ -188,7 +188,7 @@ export class AuthService {
     ip?: string;
     userAgent?: string;
   }) {
-    const authorizationCode = this.authorizationCodeRepository.consume(input.code);
+    const authorizationCode = await this.authorizationCodeRepository.consume(input.code);
 
     if (!authorizationCode) {
       throw new ValidationError("Authorization code is invalid or already used");
@@ -198,7 +198,7 @@ export class AuthService {
       throw new ValidationError("Authorization code has expired");
     }
 
-    const client = this.requireClient(input.clientId);
+    const client = await this.requireClient(input.clientId);
 
     if (client.secret !== input.clientSecret) {
       throw new AuthenticationError("Invalid client credentials");
@@ -222,13 +222,13 @@ export class AuthService {
       }
     }
 
-    const user = this.userService.findUserById(authorizationCode.userId);
+    const user = await this.userService.findUserById(authorizationCode.userId);
 
     if (!user) {
       throw new AuthenticationError("User no longer exists");
     }
 
-    const session = this.sessionRepository.create({
+    const session = await this.sessionRepository.create({
       userId: user.id,
       clientId: client.id,
       createdAt: new Date(),
@@ -251,8 +251,8 @@ export class AuthService {
     });
   }
 
-  requireClient(clientId: string) {
-    const client = this.clientRepository.findById(clientId);
+  async requireClient(clientId: string) {
+    const client = await this.clientRepository.findById(clientId);
 
     if (!client) {
       throw new AuthenticationError("Unknown client");
@@ -261,8 +261,8 @@ export class AuthService {
     return client;
   }
 
-  private assertClientSupportsActiveFlow(client: ReturnType<AuthService["requireClient"]>) {
-    const activeFlow = this.authenticationFlowService.getActiveFlow();
+  private async assertClientSupportsActiveFlow(client: Awaited<ReturnType<AuthService["requireClient"]>>) {
+    const activeFlow = await this.authenticationFlowService.getActiveFlow();
     if (!activeFlow) {
       return;
     }
@@ -277,7 +277,7 @@ export class AuthService {
     clientId: string;
     clientSecret: string;
   }) {
-    const client = this.requireClient(input.clientId);
+    const client = await this.requireClient(input.clientId);
 
     if (client.secret !== input.clientSecret) {
       throw new AuthenticationError("Invalid client credentials");
@@ -289,21 +289,21 @@ export class AuthService {
       throw new AuthenticationError("Invalid refresh token");
     }
 
-    const refreshRecord = this.refreshTokenRepository.findActiveByHash(hashOpaqueToken(input.refreshToken));
+    const refreshRecord = await this.refreshTokenRepository.findActiveByHash(hashOpaqueToken(input.refreshToken));
 
     if (!refreshRecord) {
-      this.refreshTokenRepository.revokeTokenFamily(String(payload.jti), new Date());
+      await this.refreshTokenRepository.revokeTokenFamily(String(payload.jti), new Date());
       throw new AuthenticationError("Refresh token was revoked or already used");
     }
 
     if (refreshRecord.expiresAt.getTime() < Date.now()) {
-      this.refreshTokenRepository.revokeByTokenId(refreshRecord.tokenId, new Date());
+      await this.refreshTokenRepository.revokeByTokenId(refreshRecord.tokenId, new Date());
       throw new AuthenticationError("Refresh token has expired");
     }
 
-    this.refreshTokenRepository.markConsumed(refreshRecord.tokenId, new Date());
+    await this.refreshTokenRepository.markConsumed(refreshRecord.tokenId, new Date());
 
-    const user = this.userService.findUserById(String(payload.sub));
+    const user = await this.userService.findUserById(String(payload.sub));
 
     if (!user) {
       throw new AuthenticationError("User no longer exists");
@@ -324,7 +324,7 @@ export class AuthService {
     clientSecret: string;
     scope?: string;
   }) {
-    const client = this.requireClient(input.clientId);
+    const client = await this.requireClient(input.clientId);
 
     if (client.secret !== input.clientSecret) {
       throw new AuthenticationError("Invalid client credentials");
@@ -345,7 +345,7 @@ export class AuthService {
     });
 
     // No DB session for client_credentials (machine-to-machine)
-    this.auditRepository.log({
+    await this.auditRepository.log({
       type: "token_issued",
       actorType: "client",
       clientId: client.id,
@@ -364,28 +364,28 @@ export class AuthService {
     ip?: string;
     userAgent?: string;
   }) {
-    this.authenticationFlowService.assertGrantSupported("password");
-    this.authenticationFlowService.assertStageEnabled("password");
-    const client = this.requireClient(input.clientId);
-    this.assertClientSupportsActiveFlow(client);
+    await this.authenticationFlowService.assertGrantSupported("password");
+    await this.authenticationFlowService.assertStageEnabled("password");
+    const client = await this.requireClient(input.clientId);
+    await await this.assertClientSupportsActiveFlow(client);
 
     if (client.secret !== input.clientSecret) {
       throw new AuthenticationError("Invalid client credentials");
     }
 
     const identifier = input.username.trim();
-    this.securityService.assertLoginAllowed(identifier);
-    const user = this.userService.findUserByEmail(identifier) ?? this.userService.findUserByUsername(identifier);
+    await this.securityService.assertLoginAllowed(identifier);
+    const user = await this.userService.findUserByEmail(identifier) ?? await this.userService.findUserByUsername(identifier);
     if (!user || !user.active || !verifyPassword(input.password, user.passwordHash)) {
       throw new AuthenticationError("Invalid credentials");
     }
 
-    this.securityService.clearLoginFailures(identifier);
+    await this.securityService.clearLoginFailures(identifier);
 
     const requestedScope = input.scope ? input.scope.split(" ") : client.allowedScopes;
     const allowedScope = requestedScope.filter((scope) => client.allowedScopes.includes(scope));
 
-    const session = this.sessionRepository.create({
+    const session = await this.sessionRepository.create({
       userId: user.id,
       clientId: client.id,
       createdAt: new Date(),
@@ -407,7 +407,7 @@ export class AuthService {
       scope: allowedScope
     });
 
-    this.auditRepository.log({
+    await await this.auditRepository.log({
       type: "token_issued",
       actorId: user.id,
       actorType: "user",
@@ -425,14 +425,14 @@ export class AuthService {
     };
   }
 
-  createDeviceAuthorization(input: {
+  async createDeviceAuthorization(input: {
     clientId: string;
     clientSecret: string;
     scope?: string;
   }) {
     this.authenticationFlowService.assertGrantSupported("device_code");
-    const client = this.requireClient(input.clientId);
-    this.assertClientSupportsActiveFlow(client);
+    const client = await this.requireClient(input.clientId);
+    await this.assertClientSupportsActiveFlow(client);
 
     if (client.secret !== input.clientSecret) {
       throw new AuthenticationError("Invalid client credentials");
@@ -471,7 +471,7 @@ export class AuthService {
     };
   }
 
-  verifyDeviceUserCode(input: {
+  async verifyDeviceUserCode(input: {
     userCode: string;
     username: string;
     password: string;
@@ -489,7 +489,7 @@ export class AuthService {
     }
 
     const identifier = input.username.trim();
-    const user = this.userService.findUserByEmail(identifier) ?? this.userService.findUserByUsername(identifier);
+    const user = await this.userService.findUserByEmail(identifier) ?? await this.userService.findUserByUsername(identifier);
     if (!user || !user.active || !verifyPassword(input.password, user.passwordHash)) {
       throw new AuthenticationError("Invalid credentials");
     }
@@ -512,7 +512,7 @@ export class AuthService {
     ip?: string;
     userAgent?: string;
   }) {
-    const client = this.requireClient(input.clientId);
+    const client = await this.requireClient(input.clientId);
 
     if (client.secret !== input.clientSecret) {
       throw new AuthenticationError("Invalid client credentials");
@@ -559,13 +559,13 @@ export class AuthService {
       return { error: "invalid_grant", error_description: "Approved device code is missing user identity" } as const;
     }
 
-    const user = this.userService.findUserById(record.userId);
+    const user = await this.userService.findUserById(record.userId);
     if (!user || !user.active) {
       this.deviceAuthorizations.delete(input.deviceCode);
       return { error: "invalid_grant", error_description: "User not available" } as const;
     }
 
-    const session = this.sessionRepository.create({
+    const session = await this.sessionRepository.create({
       userId: user.id,
       clientId: client.id,
       createdAt: new Date(),
@@ -589,7 +589,7 @@ export class AuthService {
 
     record.status = "consumed";
 
-    this.auditRepository.log({
+    await this.auditRepository.log({
       type: "token_issued",
       actorId: user.id,
       actorType: "user",
@@ -627,17 +627,17 @@ export class AuthService {
     ip?: string;
     userAgent?: string;
   }) {
-    const user = this.userService.findUserById(input.userId);
+    const user = await this.userService.findUserById(input.userId);
     if (!user || !user.active) {
       throw new AuthenticationError("User is not available for implicit flow");
     }
 
-    const client = this.requireClient(input.clientId);
-    this.assertClientSupportsActiveFlow(client);
+    const client = await this.requireClient(input.clientId);
+    await this.assertClientSupportsActiveFlow(client);
 
     const allowedScope = input.scope.filter((scope) => client.allowedScopes.includes(scope));
 
-    const session = this.sessionRepository.create({
+    const session = await this.sessionRepository.create({
       userId: user.id,
       clientId: client.id,
       createdAt: new Date(),
@@ -662,7 +662,7 @@ export class AuthService {
       tenantId: input.tenantId
     });
 
-    this.accessTokenRepository.create({
+    await this.accessTokenRepository.create({
       tokenId: accessTokenId,
       userId: user.id,
       clientId: client.id,
@@ -670,7 +670,7 @@ export class AuthService {
       expiresAt: new Date(Date.now() + 1000 * 60 * 15)
     });
 
-    this.auditRepository.log({
+    await this.auditRepository.log({
       type: "token_issued",
       actorId: user.id,
       actorType: "user",
@@ -690,7 +690,7 @@ export class AuthService {
     try {
       const payload = await this.jwtService.verifyAccessToken(token);
       const tokenId = payload.jti;
-      if (!tokenId || this.accessTokenRepository.isRevoked(String(tokenId))) {
+      if (!tokenId || await this.accessTokenRepository.isRevoked(String(tokenId))) {
         return { active: false };
       }
       return { active: true, ...payload };
@@ -699,12 +699,12 @@ export class AuthService {
     }
   }
 
-  revokeAccessToken(tokenId: string) {
-    this.accessTokenRepository.revokeByTokenId(tokenId, new Date());
+  async revokeAccessToken(tokenId: string) {
+    await await this.accessTokenRepository.revokeByTokenId(tokenId, new Date());
   }
 
-  revokeRefreshToken(tokenId: string) {
-    this.refreshTokenRepository.revokeByTokenId(tokenId, new Date());
+  async revokeRefreshToken(tokenId: string) {
+    await await this.refreshTokenRepository.revokeByTokenId(tokenId, new Date());
   }
 
   async getUserInfoFromAccessToken(accessToken: string) {
@@ -716,11 +716,11 @@ export class AuthService {
       throw new AuthenticationError("Access token subject is missing");
     }
 
-    if (!tokenId || this.accessTokenRepository.isRevoked(String(tokenId))) {
+    if (!tokenId || await this.accessTokenRepository.isRevoked(String(tokenId))) {
       throw new AuthenticationError("Access token has been revoked");
     }
 
-    const user = this.userService.findUserById(subject);
+    const user = await this.userService.findUserById(subject);
 
     if (!user) {
       throw new AuthenticationError("User not found for access token");
@@ -777,7 +777,7 @@ export class AuthService {
       tenantId: input.tenantId
     });
 
-    this.accessTokenRepository.create({
+    await this.accessTokenRepository.create({
       tokenId: accessTokenId,
       userId: input.user.id,
       clientId: input.client.id,
@@ -785,7 +785,7 @@ export class AuthService {
       expiresAt: new Date(Date.now() + 1000 * 60 * 15)
     });
 
-    this.refreshTokenRepository.create({
+    await this.refreshTokenRepository.create({
       tokenId: refreshTokenId,
       tokenHash: hashOpaqueToken(tokens.refreshToken),
       userId: input.user.id,

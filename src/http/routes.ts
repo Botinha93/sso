@@ -124,7 +124,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return value;
   }
 
-  function getSession(request: any) {
+  async function getSession(request: any) {
     const sid = request.cookies?.sid;
     if (!sid) return null;
     const session = deps.authService.sessionRepository.findById(sid);
@@ -232,14 +232,14 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     }
   }
 
-  function requireSessionUser(request: any, reply: any) {
-    const session = getSession(request);
+  async function requireSessionUser(request: any, reply: any) {
+    const session = await getSession(request);
     if (!session) {
       reply.status(401).send({ error: "unauthorized" });
       return null;
     }
 
-    const user = deps.userService.findUserById(session.userId);
+    const user = await deps.userService.findUserById(session.userId);
     if (!user) {
       reply.status(401).send({ error: "unauthorized" });
       return null;
@@ -248,34 +248,34 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return { session, user };
   }
 
-  function resolveTenantId(tenantSlug: string | undefined) {
+  async function resolveTenantId(tenantSlug: string | undefined) {
     if (!tenantSlug) {
       return undefined;
     }
-    return deps.tenantService.listTenants().find((item) => item.slug === tenantSlug)?.id;
+    return (await deps.tenantService.listTenants()).find((item) => item.slug === tenantSlug)?.id;
   }
 
-  function isStageEnabledForDesignation(designation: FlowDesignation, stage: AuthenticationStageType) {
+  async function isStageEnabledForDesignation(designation: FlowDesignation, stage: AuthenticationStageType) {
     return deps.authenticationFlowService.isStageEnabledForDesignation(designation, stage);
   }
 
-  function enforcePoliciesForStage(input: {
+  async function enforcePoliciesForStage(input: {
     stage: AuthenticationStageType;
     user: User;
     tenantSlug?: string;
     clientId?: string;
     ip?: string;
   }) {
-    deps.policyService.enforceStagePolicies({
+    await deps.policyService.enforceStagePolicies({
       stage: input.stage,
       user: input.user,
-      tenantId: resolveTenantId(input.tenantSlug),
+      tenantId: await resolveTenantId(input.tenantSlug),
       clientId: input.clientId,
       ip: input.ip
     });
   }
 
-  function enforcePreCredentialStages(input: {
+  async function enforcePreCredentialStages(input: {
     user: User;
     tenantSlug?: string;
     clientId?: string;
@@ -283,10 +283,10 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     captchaToken?: string;
     promptAcknowledged?: boolean;
   }) {
-    deps.authenticationFlowService.assertStageEnabled("password");
+    await deps.authenticationFlowService.assertStageEnabled("password");
 
-    if (deps.authenticationFlowService.isStageEnabled("risk_check")) {
-      enforcePoliciesForStage({
+    if (await deps.authenticationFlowService.isStageEnabled("risk_check")) {
+      await enforcePoliciesForStage({
         stage: "risk_check",
         user: input.user,
         tenantSlug: input.tenantSlug,
@@ -295,11 +295,11 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       });
     }
 
-    if (deps.authenticationFlowService.isStageEnabled("captcha") && !input.captchaToken) {
+    if (await deps.authenticationFlowService.isStageEnabled("captcha") && !input.captchaToken) {
       throw new AuthenticationError("Captcha verification is required");
     }
 
-    enforcePoliciesForStage({
+    await enforcePoliciesForStage({
       stage: "password",
       user: input.user,
       tenantSlug: input.tenantSlug,
@@ -307,22 +307,22 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       ip: input.ip
     });
 
-    if (deps.authenticationFlowService.isStageEnabled("prompt") && input.promptAcknowledged !== true) {
+    if (await deps.authenticationFlowService.isStageEnabled("prompt") && input.promptAcknowledged !== true) {
       throw new AuthenticationError("Interactive prompt acknowledgement is required");
     }
   }
 
-  function enforcePostLoginStage(input: {
+  async function enforcePostLoginStage(input: {
     user: User;
     tenantSlug?: string;
     clientId?: string;
     ip?: string;
   }) {
-    if (!deps.authenticationFlowService.isStageEnabled("user_login")) {
+    if (!await deps.authenticationFlowService.isStageEnabled("user_login")) {
       return;
     }
 
-    enforcePoliciesForStage({
+    await enforcePoliciesForStage({
       stage: "user_login",
       user: input.user,
       tenantSlug: input.tenantSlug,
@@ -331,17 +331,17 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     });
   }
 
-  function enforceInvalidationForSession(input: { session: { userId: string; clientId: string }; ip?: string }) {
-    if (!isStageEnabledForDesignation("invalidation", "user_logout")) {
+  async function enforceInvalidationForSession(input: { session: { userId: string; clientId: string }; ip?: string }) {
+    if (!await isStageEnabledForDesignation("invalidation", "user_logout")) {
       return;
     }
 
-    const user = deps.userService.findUserById(input.session.userId);
+    const user = await deps.userService.findUserById(input.session.userId);
     if (!user) {
       return;
     }
 
-    enforcePoliciesForStage({
+    await enforcePoliciesForStage({
       stage: "user_logout",
       user,
       clientId: input.session.clientId,
@@ -387,12 +387,12 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     }
 
     if (path.startsWith("/api/admin")) {
-      const session = getSession(request);
+      const session = await getSession(request);
       if (!session) {
         return reply.status(401).send({ error: "unauthorized" });
       }
 
-      const user = deps.userService.findUserById(session.userId);
+      const user = await deps.userService.findUserById(session.userId);
       if (!user) {
         return reply.status(401).send({ error: "unauthorized" });
       }
@@ -403,7 +403,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
       const resource = toResource(path);
       const action = toAction(request.method);
-      const permissions = deps.roleService.resolvePermissionsForUser(user.id);
+      const permissions = await deps.roleService.resolvePermissionsForUser(user.id);
       const hasGlobal = permissions.includes("*:*");
       const hasResourceWildcard = resource ? permissions.includes(`${resource}:*`) : false;
       const hasAction = resource && action ? permissions.includes(`${resource}:${action}`) : false;
@@ -417,7 +417,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.get("/api/setup/status", async () => deps.setupService.status());
   app.post("/api/setup/initialize", async (request, reply) => {
     const input = setupInitializeSchema.parse(request.body);
-    const result = deps.setupService.initialize(input);
+    const result = await deps.setupService.initialize(input);
     reply.code(201);
     return result;
   });
@@ -427,7 +427,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const token = generateCsrfToken();
     reply.setCookie("csrf_token", token, {
       httpOnly: false,
-      secure: deps.instanceSettingsService.shouldUseSecureCookies(),
+      secure: await deps.instanceSettingsService.shouldUseSecureCookies(),
       sameSite: "strict",
       path: "/",
     });
@@ -540,7 +540,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       throw error;
     }
 
-    const client = deps.clientService.findClientById(input.client_id);
+    const client = await deps.clientService.findClientById(input.client_id);
     if (!client) {
       return reply.status(400).send({ error: "invalid_client", error_description: "Unknown client_id" });
     }
@@ -548,20 +548,20 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       return reply.status(400).send({ error: "invalid_request", error_description: "redirect_uri not registered for client" });
     }
 
-    const session = getSession(request);
+    const session = await getSession(request);
     const requireLogin = !session || input.prompt === "login";
     if (requireLogin) {
       const params = new URLSearchParams(request.query as Record<string, string>).toString();
       return reply.redirect(`/login?${params}`);
     }
 
-    const user = deps.userService.findUserById(session!.userId);
+    const user = await deps.userService.findUserById(session!.userId);
     if (!user) {
       const params = new URLSearchParams(request.query as Record<string, string>).toString();
       return reply.redirect(`/login?${params}`);
     }
 
-    const consentStageEnabled = deps.authenticationFlowService.isStageEnabled("consent");
+    const consentStageEnabled = await deps.authenticationFlowService.isStageEnabled("consent");
     const forceConsent = input.prompt === "consent" || input.approval_prompt === "force";
     const hasConsented = input.consent === "approve";
     if (consentStageEnabled && !hasConsented && (forceConsent || input.prompt !== "none")) {
@@ -578,7 +578,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const responseMode = input.response_mode ?? "query";
     const params: Record<string, string> = {};
     if (input.response_type === "code") {
-      const authorizationCode = deps.authService.createAuthorizationCode({
+      const authorizationCode = await deps.authService.createAuthorizationCode({
         clientId: input.client_id,
         userId: user.id,
         redirectUri: input.redirect_uri,
@@ -588,7 +588,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       });
       params.code = authorizationCode.code;
     } else {
-      const tenant = input.tenant ? deps.tenantService.listTenants().find((item) => item.slug === input.tenant) : undefined;
+      const tenant = input.tenant ? (await deps.tenantService.listTenants()).find((item) => item.slug === input.tenant) : undefined;
       const token = await deps.authService.issueImplicitToken({
         userId: user.id,
         clientId: input.client_id,
@@ -655,8 +655,8 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         });
       }
       if (parsed.data.grant_type === "password") {
-        const user = deps.authService.validateUserCredentials(parsed.data.username, parsed.data.password);
-        enforcePreCredentialStages({
+        const user = await deps.authService.validateUserCredentials(parsed.data.username, parsed.data.password);
+        await enforcePreCredentialStages({
           user,
           clientId: parsed.data.client_id,
           ip: request.ip,
@@ -664,11 +664,11 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
           promptAcknowledged: parsed.data.prompt_acknowledged
         });
 
-        if (deps.authenticationFlowService.isStageEnabled("mfa_totp") && deps.totpService.requiresTotp(user.id)) {
+        if (await deps.authenticationFlowService.isStageEnabled("mfa_totp") && await deps.totpService.requiresTotp(user.id)) {
           return reply.status(400).send({ error: "invalid_grant", error_description: "MFA is required for password grant" });
         }
 
-        enforcePostLoginStage({
+        await enforcePostLoginStage({
           user,
           clientId: parsed.data.client_id,
           ip: request.ip
@@ -708,7 +708,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
           ip: request.ip,
           reason: err instanceof Error ? err.message : "unknown"
         });
-        deps.auditRepository.log({
+        await deps.auditRepository.log({
           type: "login_failed",
           actorType: "user",
           ip: request.ip,
@@ -731,7 +731,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
   app.post("/oauth/device/authorize", async (request, reply) => {
     const input = deviceAuthorizationSchema.parse(request.body);
-    const issued = deps.authService.createDeviceAuthorization({
+    const issued = await deps.authService.createDeviceAuthorization({
       clientId: input.client_id,
       clientSecret: input.client_secret,
       scope: input.scope
@@ -741,7 +741,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
   app.post("/oauth/device/verify", async (request, reply) => {
     const input = deviceVerificationSchema.parse(request.body);
-    const result = deps.authService.verifyDeviceUserCode({
+    const result = await deps.authService.verifyDeviceUserCode({
       userCode: input.user_code,
       username: input.username,
       password: input.password,
@@ -752,7 +752,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
   app.post("/oauth/introspect", async (request) => {
     const { token } = introspectSchema.parse(request.body);
-    return deps.authService.introspectToken(token);
+    return await deps.authService.introspectToken(token);
   });
 
   app.post("/oauth/token/revoke", async (request, reply) => {
@@ -810,8 +810,8 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.post("/auth/login", async (request, reply) => {
     const input = loginSchema.parse(request.body);
     try {
-      const user = deps.authService.validateUserCredentials(input.email, input.password);
-      enforcePreCredentialStages({
+      const user = await deps.authService.validateUserCredentials(input.email, input.password);
+      await enforcePreCredentialStages({
         user,
         tenantSlug: input.tenantSlug,
         clientId: input.clientId,
@@ -820,7 +820,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         promptAcknowledged: input.promptAcknowledged
       });
 
-      if (deps.authenticationFlowService.isStageEnabled("mfa_totp") && deps.totpService.requiresTotp(user.id)) {
+      if (await deps.authenticationFlowService.isStageEnabled("mfa_totp") && await deps.totpService.requiresTotp(user.id)) {
         return reply.status(202).send(
           deps.totpService.createLoginChallenge({
             userId: user.id,
@@ -832,7 +832,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         );
       }
 
-      enforcePostLoginStage({
+      await enforcePostLoginStage({
         user,
         tenantSlug: input.tenantSlug,
         clientId: input.clientId,
@@ -856,7 +856,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       });
       reply.setCookie("sid", session.id, {
         httpOnly: true,
-        secure: deps.instanceSettingsService.shouldUseSecureCookies(),
+        secure: await deps.instanceSettingsService.shouldUseSecureCookies(),
         sameSite: "lax",
         path: "/",
         maxAge: 60 * 60 * 8
@@ -868,7 +868,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         ip: request.ip,
         reason: err instanceof Error ? err.message : "unknown"
       });
-      deps.auditRepository.log({
+      await deps.auditRepository.log({
         type: "login_failed",
         actorType: "user",
         ip: request.ip,
@@ -888,17 +888,17 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
     try {
       const challenge = deps.totpService.consumeLoginChallenge(input.mfaTicket);
-      const user = deps.userService.findUserById(challenge.userId);
+      const user = await deps.userService.findUserById(challenge.userId);
 
       if (!user) {
         throw new AuthenticationError("User not found");
       }
 
-      if (!deps.totpService.verifyUserCode({ userId: user.id, code: input.code })) {
+      if (!await deps.totpService.verifyUserCode({ userId: user.id, code: input.code })) {
         throw new AuthenticationError("Invalid one-time code");
       }
 
-      const tenant = challenge.tenantSlug ? deps.tenantService.listTenants().find((item) => item.slug === challenge.tenantSlug) : undefined;
+      const tenant = challenge.tenantSlug ? (await deps.tenantService.listTenants()).find((item) => item.slug === challenge.tenantSlug) : undefined;
       deps.policyService.enforceStagePolicies({
         stage: "mfa_totp",
         user,
@@ -907,7 +907,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         ip: challenge.ip ?? request.ip
       });
 
-      enforcePostLoginStage({
+      await enforcePostLoginStage({
         user,
         tenantSlug: challenge.tenantSlug,
         clientId: challenge.clientId,
@@ -933,7 +933,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
       reply.setCookie("sid", session.id, {
         httpOnly: true,
-        secure: deps.instanceSettingsService.shouldUseSecureCookies(),
+        secure: await deps.instanceSettingsService.shouldUseSecureCookies(),
         sameSite: "lax",
         path: "/",
         maxAge: 60 * 60 * 8
@@ -950,12 +950,12 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.get("/api/admin/federation/providers", async () => deps.federationService.listConfiguredProviders());
 
   app.get("/api/admin/me", async (request, reply) => {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (!session) {
       return reply.status(401).send({ error: "unauthorized" });
     }
 
-    const user = deps.userService.findUserById(session.userId);
+    const user = await deps.userService.findUserById(session.userId);
     if (!user) {
       return reply.status(401).send({ error: "unauthorized" });
     }
@@ -966,14 +966,14 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       username: user.username,
       givenName: user.givenName,
       familyName: user.familyName,
-      roles: deps.roleService.resolveNamesForUser(user.id),
-      groups: deps.groupService.resolveGroupNamesForUser(user.id),
-      permissions: deps.roleService.resolvePermissionsForUser(user.id)
+      roles: await deps.roleService.resolveNamesForUser(user.id),
+      groups: await deps.groupService.resolveGroupNamesForUser(user.id),
+      permissions: await deps.roleService.resolvePermissionsForUser(user.id)
     };
   });
 
   app.get("/api/account/mfa/totp", async (request, reply) => {
-    const auth = requireSessionUser(request, reply);
+    const auth = await requireSessionUser(request, reply);
     if (!auth) {
       return;
     }
@@ -982,7 +982,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
 
   app.post("/api/account/mfa/totp/enroll", async (request, reply) => {
-    const auth = requireSessionUser(request, reply);
+    const auth = await requireSessionUser(request, reply);
     if (!auth) {
       return;
     }
@@ -991,7 +991,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
 
   app.post("/api/account/mfa/totp/verify", async (request, reply) => {
-    const auth = requireSessionUser(request, reply);
+    const auth = await requireSessionUser(request, reply);
     if (!auth) {
       return;
     }
@@ -1005,7 +1005,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
 
   app.delete("/api/account/mfa/totp", async (request, reply) => {
-    const auth = requireSessionUser(request, reply);
+    const auth = await requireSessionUser(request, reply);
     if (!auth) {
       return;
     }
@@ -1227,7 +1227,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       ip: request.ip
     });
 
-    enforcePostLoginStage({
+    await enforcePostLoginStage({
       user: completed.user,
       clientId: "sso-admin-ui",
       ip: request.ip
@@ -1248,7 +1248,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       userAgent: clientUserAgent(request)
     });
 
-    deps.auditRepository.log({
+    await deps.auditRepository.log({
       type: "login",
       actorId: completed.user.id,
       actorType: "user",
@@ -1258,7 +1258,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
     reply.setCookie("sid", session.id, {
       httpOnly: true,
-      secure: deps.instanceSettingsService.shouldUseSecureCookies(),
+      secure: await deps.instanceSettingsService.shouldUseSecureCookies(),
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 8
@@ -1268,11 +1268,11 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
 
   app.post("/auth/logout", async (request, reply) => {
-    const session = getSession(request);
+    const session = await getSession(request);
     if (session) {
       deps.securityService.revokeSessionObservation(session.id);
-      enforceInvalidationForSession({ session, ip: request.ip });
-      deps.auditRepository.log({
+      await enforceInvalidationForSession({ session, ip: request.ip });
+      await deps.auditRepository.log({
         type: "logout",
         actorId: session.userId,
         actorType: "user",
@@ -1290,10 +1290,10 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
   app.get("/oauth/logout", async (request, reply) => {
     const { post_logout_redirect_uri, state } = request.query as Record<string, string>;
-    const session = getSession(request);
+    const session = await getSession(request);
     if (session) {
       deps.securityService.revokeSessionObservation(session.id);
-      enforceInvalidationForSession({ session, ip: request.ip });
+      await enforceInvalidationForSession({ session, ip: request.ip });
     }
     reply.clearCookie("sid", { path: "/" });
     if (post_logout_redirect_uri) {
@@ -1319,7 +1319,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     });
 
     for (const session of matchingSessions) {
-      enforceInvalidationForSession({ session, ip: request.ip });
+      await enforceInvalidationForSession({ session, ip: request.ip });
       deps.securityService.revokeSessionObservation(session.id);
       if (!session.revokedAt) {
         deps.authService.sessionRepository.revoke(session.id, now);
@@ -1354,7 +1354,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     });
 
     for (const session of matchingSessions) {
-      enforceInvalidationForSession({ session, ip: request.ip });
+      await enforceInvalidationForSession({ session, ip: request.ip });
       deps.securityService.revokeSessionObservation(session.id);
       if (!session.revokedAt) {
         deps.authService.sessionRepository.revoke(session.id, now);
@@ -1366,7 +1366,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
   app.post("/auth/recovery/request", async (request, reply) => {
     const input = recoveryRequestSchema.parse(request.body);
-    const user = deps.userService.findUserByEmail(input.identifier) ?? deps.userService.findUserByUsername(input.identifier);
+    const user = await deps.userService.findUserByEmail(input.identifier) ?? await deps.userService.findUserByUsername(input.identifier);
 
     // Keep enumeration-safe response semantics regardless of account existence.
     if (!user || !user.active) {
@@ -1374,8 +1374,8 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     }
 
     try {
-      if (isStageEnabledForDesignation("recovery", "identification")) {
-        enforcePoliciesForStage({
+      if (await isStageEnabledForDesignation("recovery", "identification")) {
+        await enforcePoliciesForStage({
           stage: "identification",
           user,
           tenantSlug: input.tenantSlug,
@@ -1386,8 +1386,8 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
       const challenge = deps.recoveryService.createChallenge({ userId: user.id });
 
-      if (isStageEnabledForDesignation("recovery", "email_verification")) {
-        enforcePoliciesForStage({
+      if (await isStageEnabledForDesignation("recovery", "email_verification")) {
+        await enforcePoliciesForStage({
           stage: "email_verification",
           user,
           tenantSlug: input.tenantSlug,
@@ -1430,14 +1430,14 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       return reply.status(401).send({ error: "invalid_grant", error_description: "Invalid or expired recovery ticket" });
     }
 
-    const user = deps.userService.findUserById(challenge.userId);
+    const user = await deps.userService.findUserById(challenge.userId);
     if (!user || !user.active) {
       return reply.status(401).send({ error: "invalid_grant", error_description: "Recovery user not found" });
     }
 
     try {
-      if (isStageEnabledForDesignation("recovery", "identification")) {
-        enforcePoliciesForStage({
+      if (await isStageEnabledForDesignation("recovery", "identification")) {
+        await enforcePoliciesForStage({
           stage: "identification",
           user,
           tenantSlug: input.tenantSlug,
@@ -1446,11 +1446,11 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         });
       }
 
-      if (isStageEnabledForDesignation("recovery", "email_verification")) {
+      if (await isStageEnabledForDesignation("recovery", "email_verification")) {
         if (!input.verificationCode || !deps.recoveryService.verifyCode({ ticket: input.recoveryTicket, code: input.verificationCode })) {
           return reply.status(401).send({ error: "invalid_grant", error_description: "Email verification failed" });
         }
-        enforcePoliciesForStage({
+        await enforcePoliciesForStage({
           stage: "email_verification",
           user,
           tenantSlug: input.tenantSlug,
@@ -1459,11 +1459,11 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         });
       }
 
-      if (isStageEnabledForDesignation("recovery", "mfa_totp") && deps.totpService.requiresTotp(user.id)) {
-        if (!input.code || !deps.totpService.verifyUserCode({ userId: user.id, code: input.code })) {
+      if (await isStageEnabledForDesignation("recovery", "mfa_totp") && await deps.totpService.requiresTotp(user.id)) {
+        if (!input.code || !await deps.totpService.verifyUserCode({ userId: user.id, code: input.code })) {
           return reply.status(401).send({ error: "invalid_grant", error_description: "Invalid one-time code" });
         }
-        enforcePoliciesForStage({
+        await enforcePoliciesForStage({
           stage: "mfa_totp",
           user,
           tenantSlug: input.tenantSlug,
@@ -1472,13 +1472,13 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         });
       }
 
-      if (isStageEnabledForDesignation("recovery", "prompt") && input.promptAcknowledged !== true) {
+      if (await isStageEnabledForDesignation("recovery", "prompt") && input.promptAcknowledged !== true) {
         return reply.status(400).send({ error: "invalid_request", error_description: "Prompt acknowledgement is required" });
       }
 
-      if (isStageEnabledForDesignation("recovery", "user_write")) {
-        deps.userService.resetPassword(user.id, input.newPassword);
-        enforcePoliciesForStage({
+      if (await isStageEnabledForDesignation("recovery", "user_write")) {
+        await deps.userService.resetPassword(user.id, input.newPassword);
+        await enforcePoliciesForStage({
           stage: "user_write",
           user,
           tenantSlug: input.tenantSlug,
@@ -1489,11 +1489,11 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
       deps.recoveryService.consume(input.recoveryTicket);
 
-      if (!isStageEnabledForDesignation("recovery", "user_login")) {
+      if (!await isStageEnabledForDesignation("recovery", "user_login")) {
         return reply.status(200).send({ status: "password_reset" });
       }
 
-      enforcePoliciesForStage({
+      await enforcePoliciesForStage({
         stage: "user_login",
         user,
         tenantSlug: input.tenantSlug,
@@ -1510,7 +1510,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
       reply.setCookie("sid", session.id, {
         httpOnly: true,
-        secure: deps.instanceSettingsService.shouldUseSecureCookies(),
+        secure: await deps.instanceSettingsService.shouldUseSecureCookies(),
         sameSite: "lax",
         path: "/",
         maxAge: 60 * 60 * 8
@@ -1530,7 +1530,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const input = createUserSchema.parse(request.body);
     deps.policyService.enforceUserCreationPolicies(input.password);
     const user = deps.userService.createUser(input);
-    deps.auditRepository.log({ type: "user_created", actorType: "system", metadata: { userId: user.id, email: user.email } });
+    await deps.auditRepository.log({ type: "user_created", actorType: "system", metadata: { userId: user.id, email: user.email } });
     await deps.eventHookService.emit("user.created", {
       userId: user.id,
       email: user.email,
@@ -1587,7 +1587,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       deps.authService.sessionRepository.revoke(session.id, now);
     }
 
-    deps.auditRepository.log({
+    await deps.auditRepository.log({
       type: "user_password_reset",
       actorType: "system",
       metadata: { userId: id, revokedSessions: userSessions.length }
@@ -1746,7 +1746,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const { id } = request.params as { id: string };
     deps.securityService.revokeSessionObservation(id);
     deps.authService.sessionRepository.revoke(id, new Date());
-    deps.auditRepository.log({ type: "session_revoked", actorType: "system", metadata: { sessionId: id } });
+    await deps.auditRepository.log({ type: "session_revoked", actorType: "system", metadata: { sessionId: id } });
     await deps.eventHookService.emit("session.revoked", {
       sessionId: id,
       source: "admin"
@@ -1800,7 +1800,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.delete("/api/admin/devices/requests/:deviceCode", async (request, reply) => {
     const { deviceCode } = request.params as { deviceCode: string };
     deps.authService.revokeDeviceAuthorization(deviceCode);
-    deps.auditRepository.log({
+    await deps.auditRepository.log({
       type: "session_revoked",
       actorType: "system",
       metadata: { deviceCode, kind: "device_request" }
@@ -1816,7 +1816,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const { id } = request.params as { id: string };
     deps.securityService.revokeSessionObservation(id);
     deps.authService.sessionRepository.revoke(id, new Date());
-    deps.auditRepository.log({
+    await deps.auditRepository.log({
       type: "session_revoked",
       actorType: "system",
       metadata: { sessionId: id, kind: "device_session" }
@@ -1832,7 +1832,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.delete("/api/admin/consents/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     deps.authService.consentRepository.revoke(id);
-    deps.auditRepository.log({ type: "consent_revoked", actorType: "system", metadata: { consentId: id } });
+    await deps.auditRepository.log({ type: "consent_revoked", actorType: "system", metadata: { consentId: id } });
     await deps.eventHookService.emit("consent.revoked", {
       consentId: id,
       source: "admin"
@@ -1906,7 +1906,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.get("/api/portal/me", async (request, reply) => {
     const session = getPortalSession(request);
     if (!session) return reply.status(401).send({ error: "unauthorized" });
-    const user = deps.userService.findUserById(session.userId);
+    const user = await deps.userService.findUserById(session.userId);
     if (!user) return reply.status(401).send({ error: "unauthorized" });
     const userApps = deps.appService.listApps().filter(a => {
       // app directly assigned to user, or user has no appId restriction
@@ -1948,7 +1948,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const session = getPortalSession(request);
     if (!session) return reply.status(401).send({ error: "unauthorized" });
     const { currentPassword, newPassword } = portalChangePasswordSchema.parse(request.body);
-    const user = deps.userService.findUserById(session.userId);
+    const user = await deps.userService.findUserById(session.userId);
     if (!user) return reply.status(401).send({ error: "unauthorized" });
     if (!verifyPassword(currentPassword, user.passwordHash)) {
       return reply.status(400).send({ error: "InvalidPassword", message: "Current password is incorrect" });

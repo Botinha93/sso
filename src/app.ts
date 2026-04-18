@@ -13,7 +13,7 @@ export const buildApp = async () => {
   const services = await bootstrap(config);
 
   app.addHook("onRequest", async (request, reply) => {
-    if (!services.instanceSettingsService.shouldRequireHttps()) {
+    if (!await services.instanceSettingsService.shouldRequireHttps()) {
       return;
     }
 
@@ -51,7 +51,10 @@ export const buildApp = async () => {
   await app.register(cookie, { secret: process.env.COOKIE_SECRET ?? "northstar-sso-cookie-secret" });
   await app.register(cors, {
     origin(origin, callback) {
-      callback(null, services.instanceSettingsService.isCorsOriginAllowed(origin));
+      services.instanceSettingsService
+        .isCorsOriginAllowed(origin)
+        .then((allowed) => callback(null, allowed))
+        .catch((error) => callback(error as Error, false));
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
@@ -93,7 +96,7 @@ export const buildApp = async () => {
       );
     }
 
-    services.auditRepository.log({
+    await services.auditRepository.log({
       type: "security_sqli_blocked",
       actorType: "system",
       ip: request.ip,

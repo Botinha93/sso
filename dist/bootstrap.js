@@ -1,6 +1,6 @@
 import { createSigningKeys } from "./security/keys.js";
 import { JwtService } from "./security/jwt.js";
-import { SqliteAccessTokenRepository, SqliteAppRepository, SqliteAuthenticationFlowRepository, SqliteAuditRepository, SqliteAuthorizationCodeRepository, SqliteClientRepository, SqliteScopeRepository, SqliteConsentRepository, SqliteTotpCredentialRepository, SqliteDatabase, SqliteFederationProviderRepository, SqliteFederatedIdentityRepository, SqliteFederationTransactionRepository, SqliteGroupRepository, SqliteGroupRoleAssignmentRepository, SqlitePolicyAssignmentRepository, SqlitePolicyDefinitionRepository, SqliteEventHookRepository, SqliteEventNotificationRepository, SqliteInstanceSettingsRepository, SqliteRefreshTokenRepository, SqliteRoleRepository, SqliteSessionRepository, SqliteTenantRepository, SqliteUserAttributeRepository, SqliteGroupUserAttributeAssignmentRepository, SqliteUserGroupAssignmentRepository, SqliteUserRepository, SqliteUserRoleAssignmentRepository } from "./repositories/sqlite.js";
+import { createRepositoryBundle } from "./repositories/factory.js";
 import { AuthService } from "./services/auth-service.js";
 import { AppService } from "./services/app-service.js";
 import { AuthenticationFlowService } from "./services/authentication-flow-service.js";
@@ -23,45 +23,16 @@ import { TotpService } from "./services/totp-service.js";
 import { UserAttributeService } from "./services/user-attribute-service.js";
 import { UserService } from "./services/user-service.js";
 export const bootstrap = async (config) => {
-    const sqlite = new SqliteDatabase(config.databasePath);
-    sqlite.migrate();
-    const roleRepository = new SqliteRoleRepository(sqlite.connection);
-    const tenantRepository = new SqliteTenantRepository(sqlite.connection);
-    const appRepository = new SqliteAppRepository(sqlite.connection);
-    const groupRepository = new SqliteGroupRepository(sqlite.connection);
-    const userGroupAssignmentRepository = new SqliteUserGroupAssignmentRepository(sqlite.connection);
-    const groupRoleAssignmentRepository = new SqliteGroupRoleAssignmentRepository(sqlite.connection);
-    const assignmentRepository = new SqliteUserRoleAssignmentRepository(sqlite.connection);
-    const userRepository = new SqliteUserRepository(sqlite.connection);
-    const clientRepository = new SqliteClientRepository(sqlite.connection);
-    const scopeRepository = new SqliteScopeRepository(sqlite.connection);
-    const sessionRepository = new SqliteSessionRepository(sqlite.connection);
-    const totpCredentialRepository = new SqliteTotpCredentialRepository(sqlite.connection);
-    const authorizationCodeRepository = new SqliteAuthorizationCodeRepository(sqlite.connection);
-    const consentRepository = new SqliteConsentRepository(sqlite.connection);
-    const refreshTokenRepository = new SqliteRefreshTokenRepository(sqlite.connection);
-    const accessTokenRepository = new SqliteAccessTokenRepository(sqlite.connection);
-    const auditRepository = new SqliteAuditRepository(sqlite.connection);
-    const authenticationFlowRepository = new SqliteAuthenticationFlowRepository(sqlite.connection);
-    const federationProviderRepository = new SqliteFederationProviderRepository(sqlite.connection);
-    const federatedIdentityRepository = new SqliteFederatedIdentityRepository(sqlite.connection);
-    const federationTransactionRepository = new SqliteFederationTransactionRepository(sqlite.connection);
-    const userAttributeRepository = new SqliteUserAttributeRepository(sqlite.connection);
-    const groupUserAttributeAssignmentRepository = new SqliteGroupUserAttributeAssignmentRepository(sqlite.connection);
-    const policyDefinitionRepository = new SqlitePolicyDefinitionRepository(sqlite.connection);
-    const policyAssignmentRepository = new SqlitePolicyAssignmentRepository(sqlite.connection);
-    const eventHookRepository = new SqliteEventHookRepository(sqlite.connection);
-    const eventNotificationRepository = new SqliteEventNotificationRepository(sqlite.connection);
-    const instanceSettingsRepository = new SqliteInstanceSettingsRepository(sqlite.connection);
+    const { roleRepository, tenantRepository, appRepository, groupRepository, userGroupAssignmentRepository, groupRoleAssignmentRepository, assignmentRepository, userRepository, clientRepository, scopeRepository, sessionRepository, totpCredentialRepository, authorizationCodeRepository, consentRepository, refreshTokenRepository, accessTokenRepository, auditRepository, authenticationFlowRepository, federationProviderRepository, federatedIdentityRepository, federationTransactionRepository, userAttributeRepository, groupUserAttributeAssignmentRepository, policyDefinitionRepository, policyAssignmentRepository, eventHookRepository, eventNotificationRepository, instanceSettingsRepository } = createRepositoryBundle(config);
     const roleService = new RoleService(roleRepository, assignmentRepository, tenantRepository, userGroupAssignmentRepository, groupRoleAssignmentRepository);
     const authenticationFlowService = new AuthenticationFlowService(authenticationFlowRepository);
     const groupService = new GroupService(groupRepository, groupRoleAssignmentRepository, userGroupAssignmentRepository, roleRepository, userRepository);
     const userService = new UserService(userRepository, roleService, groupService);
     const userAttributeService = new UserAttributeService(userAttributeRepository, groupUserAttributeAssignmentRepository, groupRepository);
     const policyService = new PolicyService(policyDefinitionRepository, policyAssignmentRepository, userGroupAssignmentRepository);
-    policyService.ensureBuiltIns();
+    await policyService.ensureBuiltIns();
     const instanceSettingsService = new InstanceSettingsService(instanceSettingsRepository);
-    instanceSettingsService.ensureDefaults();
+    await instanceSettingsService.ensureDefaults();
     const eventHookService = new EventHookService(eventHookRepository, eventNotificationRepository);
     const securityService = new SecurityService(auditRepository, eventHookService, instanceSettingsService);
     const emailService = new EmailService(instanceSettingsService);
@@ -75,22 +46,22 @@ export const bootstrap = async (config) => {
     const setupService = new SetupService(userService, roleService, groupService, policyService, scopeService, appService, instanceSettingsService);
     const totpService = new TotpService(config, totpCredentialRepository);
     // Keep sane defaults in place across upgrades and restarts.
-    setupService.ensureSaneDefaults();
-    if (!tenantRepository.findBySlug("default")) {
-        tenantService.createTenant({
+    await setupService.ensureSaneDefaults();
+    if (!await tenantRepository.findBySlug("default")) {
+        await tenantService.createTenant({
             slug: "default",
             name: "Default Tenant"
         });
     }
-    const existingFlows = authenticationFlowService.listFlows();
+    const existingFlows = await authenticationFlowService.listFlows();
     const hasActiveAuthenticationFlow = existingFlows.some((flow) => flow.designation === "authentication" && flow.enabled);
-    const ensureFlow = (name, create) => {
+    const ensureFlow = async (name, create) => {
         if (!existingFlows.some((flow) => flow.name === name)) {
-            create();
+            await create();
         }
     };
-    ensureFlow("Two-factor Login", () => {
-        authenticationFlowService.createFlow({
+    await ensureFlow("Two-factor Login", async () => {
+        await authenticationFlowService.createFlow({
             name: "Two-factor Login",
             description: "Default login pattern with optional OTP validation for configured users.",
             designation: "authentication",
@@ -103,8 +74,8 @@ export const bootstrap = async (config) => {
             ]
         });
     });
-    ensureFlow("Login with conditional Captcha", () => {
-        authenticationFlowService.createFlow({
+    await ensureFlow("Login with conditional Captcha", async () => {
+        await authenticationFlowService.createFlow({
             name: "Login with conditional Captcha",
             description: "Authentication flow with risk-aware captcha challenge before credential checks.",
             designation: "authentication",
@@ -118,8 +89,8 @@ export const bootstrap = async (config) => {
             ]
         });
     });
-    ensureFlow("Enrollment (2 Stage)", () => {
-        authenticationFlowService.createFlow({
+    await ensureFlow("Enrollment (2 Stage)", async () => {
+        await authenticationFlowService.createFlow({
             name: "Enrollment (2 Stage)",
             description: "Simple signup flow for username/email/password and immediate login.",
             designation: "enrollment",
@@ -131,8 +102,8 @@ export const bootstrap = async (config) => {
             ]
         });
     });
-    ensureFlow("Enrollment with email verification", () => {
-        authenticationFlowService.createFlow({
+    await ensureFlow("Enrollment with email verification", async () => {
+        await authenticationFlowService.createFlow({
             name: "Enrollment with email verification",
             description: "Enrollment flow with an additional email verification stage.",
             designation: "enrollment",
@@ -146,8 +117,8 @@ export const bootstrap = async (config) => {
             ]
         });
     });
-    ensureFlow("Recovery with email and MFA verification", () => {
-        authenticationFlowService.createFlow({
+    await ensureFlow("Recovery with email and MFA verification", async () => {
+        await authenticationFlowService.createFlow({
             name: "Recovery with email and MFA verification",
             description: "Recovery flow with identification, email check, MFA verification, then password reset.",
             designation: "recovery",
@@ -163,8 +134,8 @@ export const bootstrap = async (config) => {
             ]
         });
     });
-    ensureFlow("default-invalidation-flow", () => {
-        authenticationFlowService.createFlow({
+    await ensureFlow("default-invalidation-flow", async () => {
+        await authenticationFlowService.createFlow({
             name: "default-invalidation-flow",
             description: "Ends authentik session and triggers provider logout.",
             designation: "invalidation",
@@ -173,8 +144,8 @@ export const bootstrap = async (config) => {
             stages: [{ type: "user_logout", required: true, order: 1 }]
         });
     });
-    ensureFlow("default-provider-invalidation-flow", () => {
-        authenticationFlowService.createFlow({
+    await ensureFlow("default-provider-invalidation-flow", async () => {
+        await authenticationFlowService.createFlow({
             name: "default-provider-invalidation-flow",
             description: "Provider-only invalidation without ending the central session.",
             designation: "invalidation",
@@ -183,9 +154,9 @@ export const bootstrap = async (config) => {
             stages: [{ type: "consent", required: true, order: 1 }]
         });
     });
-    const activeAuthFlow = authenticationFlowService.getActiveFlow();
-    if (!clientRepository.findById("sso-admin-ui")) {
-        clientRepository.create({
+    const activeAuthFlow = await authenticationFlowService.getActiveFlow();
+    if (!await clientRepository.findById("sso-admin-ui")) {
+        await clientRepository.create({
             id: "sso-admin-ui",
             name: "SSO Admin UI",
             secret: "super-secret-admin-client",
@@ -197,8 +168,8 @@ export const bootstrap = async (config) => {
             flowIds: activeAuthFlow ? [activeAuthFlow.id] : []
         });
     }
-    if (!clientRepository.findById("sso-device-cli")) {
-        clientRepository.create({
+    if (!await clientRepository.findById("sso-device-cli")) {
+        await clientRepository.create({
             id: "sso-device-cli",
             name: "SSO Device CLI",
             secret: "super-secret-device-client",
@@ -210,8 +181,8 @@ export const bootstrap = async (config) => {
             flowIds: activeAuthFlow ? [activeAuthFlow.id] : []
         });
     }
-    if (!clientRepository.findById("sso-password-cli")) {
-        clientRepository.create({
+    if (!await clientRepository.findById("sso-password-cli")) {
+        await clientRepository.create({
             id: "sso-password-cli",
             name: "SSO Password CLI",
             secret: "super-secret-password-client",
@@ -223,8 +194,8 @@ export const bootstrap = async (config) => {
             flowIds: activeAuthFlow ? [activeAuthFlow.id] : []
         });
     }
-    if (!clientRepository.findById("sso-service-client")) {
-        clientRepository.create({
+    if (!await clientRepository.findById("sso-service-client")) {
+        await clientRepository.create({
             id: "sso-service-client",
             name: "SSO Service Client",
             secret: "super-secret-service-client",

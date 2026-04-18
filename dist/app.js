@@ -11,7 +11,7 @@ export const buildApp = async () => {
     const app = Fastify({ logger: process.env.NODE_ENV !== "test", trustProxy: true });
     const services = await bootstrap(config);
     app.addHook("onRequest", async (request, reply) => {
-        if (!services.instanceSettingsService.shouldRequireHttps()) {
+        if (!await services.instanceSettingsService.shouldRequireHttps()) {
             return;
         }
         const forwardedProto = request.headers["x-forwarded-proto"];
@@ -45,7 +45,10 @@ export const buildApp = async () => {
     await app.register(cookie, { secret: process.env.COOKIE_SECRET ?? "northstar-sso-cookie-secret" });
     await app.register(cors, {
         origin(origin, callback) {
-            callback(null, services.instanceSettingsService.isCorsOriginAllowed(origin));
+            services.instanceSettingsService
+                .isCorsOriginAllowed(origin)
+                .then((allowed) => callback(null, allowed))
+                .catch((error) => callback(error, false));
         },
         credentials: true,
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
@@ -79,7 +82,7 @@ export const buildApp = async () => {
                 userAgent: request.headers["user-agent"]
             }, "Blocked request by SQL injection protection");
         }
-        services.auditRepository.log({
+        await services.auditRepository.log({
             type: "security_sqli_blocked",
             actorType: "system",
             ip: request.ip,

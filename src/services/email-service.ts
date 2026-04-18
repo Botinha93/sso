@@ -6,7 +6,7 @@ export class EmailService {
   constructor(private readonly instanceSettingsService: InstanceSettingsService) {}
 
   async send(input: { to: string; subject: string; text: string; html?: string }) {
-    const settings = this.instanceSettingsService.getSettings();
+    const settings = await this.instanceSettingsService.getSettings();
 
     if (settings.emailTransport === "disabled") {
       throw new ValidationError("Email transport is disabled");

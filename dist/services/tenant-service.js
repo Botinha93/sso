@@ -4,8 +4,8 @@ export class TenantService {
     constructor(tenantRepository) {
         this.tenantRepository = tenantRepository;
     }
-    createTenant(input) {
-        if (this.tenantRepository.findBySlug(input.slug)) {
+    async createTenant(input) {
+        if (await this.tenantRepository.findBySlug(input.slug)) {
             throw new ValidationError("A tenant with this slug already exists");
         }
         return this.tenantRepository.create({
@@ -14,19 +14,19 @@ export class TenantService {
             active: input.active ?? true
         });
     }
-    listTenants() {
+    async listTenants() {
         return this.tenantRepository.list();
     }
-    findBySlug(slug) {
+    async findBySlug(slug) {
         return this.tenantRepository.findBySlug(slug);
     }
-    updateTenant(id, input) {
-        const existing = this.tenantRepository.findById(id);
+    async updateTenant(id, input) {
+        const existing = await this.tenantRepository.findById(id);
         if (!existing) {
             throw new ValidationError("Tenant not found");
         }
         if (input.slug && input.slug !== existing.slug) {
-            const bySlug = this.tenantRepository.findBySlug(input.slug);
+            const bySlug = await this.tenantRepository.findBySlug(input.slug);
             if (bySlug && bySlug.id !== id) {
                 throw new ValidationError("A tenant with this slug already exists");
             }

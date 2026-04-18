@@ -31,18 +31,38 @@ import {
   SqliteUserRoleAssignmentRepository
 } from "./sqlite.js";
 
-export const createRepositoryBundle = (config: AppConfig) => {
-  if (config.databaseProvider !== "sqlite") {
-    const provider = config.databaseProvider;
-    if (!config.externalDatabaseUrl) {
-      throw new Error(`DATABASE_URL is required when DATABASE_PROVIDER=${provider}`);
-    }
+export interface RepositoryBundle {
+  roleRepository: SqliteRoleRepository;
+  tenantRepository: SqliteTenantRepository;
+  appRepository: SqliteAppRepository;
+  groupRepository: SqliteGroupRepository;
+  userGroupAssignmentRepository: SqliteUserGroupAssignmentRepository;
+  groupRoleAssignmentRepository: SqliteGroupRoleAssignmentRepository;
+  assignmentRepository: SqliteUserRoleAssignmentRepository;
+  userRepository: SqliteUserRepository;
+  clientRepository: SqliteClientRepository;
+  scopeRepository: SqliteScopeRepository;
+  sessionRepository: SqliteSessionRepository;
+  totpCredentialRepository: SqliteTotpCredentialRepository;
+  authorizationCodeRepository: SqliteAuthorizationCodeRepository;
+  consentRepository: SqliteConsentRepository;
+  refreshTokenRepository: SqliteRefreshTokenRepository;
+  accessTokenRepository: SqliteAccessTokenRepository;
+  auditRepository: SqliteAuditRepository;
+  authenticationFlowRepository: SqliteAuthenticationFlowRepository;
+  federationProviderRepository: SqliteFederationProviderRepository;
+  federatedIdentityRepository: SqliteFederatedIdentityRepository;
+  federationTransactionRepository: SqliteFederationTransactionRepository;
+  userAttributeRepository: SqliteUserAttributeRepository;
+  groupUserAttributeAssignmentRepository: SqliteGroupUserAttributeAssignmentRepository;
+  policyDefinitionRepository: SqlitePolicyDefinitionRepository;
+  policyAssignmentRepository: SqlitePolicyAssignmentRepository;
+  eventHookRepository: SqliteEventHookRepository;
+  eventNotificationRepository: SqliteEventNotificationRepository;
+  instanceSettingsRepository: SqliteInstanceSettingsRepository;
+}
 
-    process.emitWarning(
-      `[database] DATABASE_PROVIDER=${provider} configured. Runtime repositories are still using SQLite during migration rewrite, so the server is running in compatibility mode against DATABASE_PATH (${config.databasePath}). Use /api/admin/settings/database/migrate to sync SQLite data into the external target.`
-    );
-  }
-
+const createSqliteRepositoryBundle = (config: AppConfig): RepositoryBundle => {
   const sqlite = new SqliteDatabase(config.databasePath);
   sqlite.migrate();
 
@@ -76,4 +96,21 @@ export const createRepositoryBundle = (config: AppConfig) => {
     eventNotificationRepository: new SqliteEventNotificationRepository(sqlite.connection),
     instanceSettingsRepository: new SqliteInstanceSettingsRepository(sqlite.connection)
   };
+};
+
+export const createRepositoryBundle = async (config: AppConfig): Promise<RepositoryBundle> => {
+  if (config.databaseProvider === "sqlite") {
+    return createSqliteRepositoryBundle(config);
+  }
+
+  const provider = config.databaseProvider;
+  if (!config.externalDatabaseUrl) {
+    throw new Error(`DATABASE_URL is required when DATABASE_PROVIDER=${provider}`);
+  }
+
+  throw new Error(
+    `DATABASE_PROVIDER=${provider} is configured, but the active runtime repository layer is still SQLite-only. ` +
+      `External database support is not wired into live repositories yet. ` +
+      `Use /api/admin/settings/database/migrate to copy data into ${provider}, then keep DATABASE_PROVIDER=sqlite for runtime until the repository rewrite is completed.`
+  );
 };

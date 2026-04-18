@@ -16,22 +16,22 @@ export class GroupService {
     private readonly userRepository: UserRepository
   ) {}
 
-  createGroup(input: { appId?: string; name: string; description: string; roleIds: string[] }) {
+  async createGroup(input: { appId?: string; name: string; description: string; roleIds: string[] }) {
     const roleIds = Array.from(new Set(input.roleIds));
-    const knownRoles = this.roleRepository.findByIds(roleIds);
+    const knownRoles = await this.roleRepository.findByIds(roleIds);
 
     if (knownRoles.length !== roleIds.length) {
       throw new ValidationError("One or more roleIds are invalid");
     }
 
-    const group = this.groupRepository.create({
+    const group = await this.groupRepository.create({
       appId: input.appId,
       name: input.name,
       description: input.description
     });
 
     for (const roleId of roleIds) {
-      this.groupRoleAssignmentRepository.assign({
+      await this.groupRoleAssignmentRepository.assign({
         groupId: group.id,
         roleId
       });
@@ -40,38 +40,38 @@ export class GroupService {
     return group;
   }
 
-  listGroups() {
-    const groups = this.groupRepository.list();
+  async listGroups() {
+    const groups = await this.groupRepository.list();
 
-    return groups.map((group) => {
-      const roleIds = this.groupRoleAssignmentRepository.listByGroup(group.id).map((assignment) => assignment.roleId);
-      const roleNames = this.roleRepository.findByIds(roleIds).map((role) => role.name);
+    return Promise.all(groups.map(async (group) => {
+      const roleIds = (await this.groupRoleAssignmentRepository.listByGroup(group.id)).map((assignment) => assignment.roleId);
+      const roleNames = (await this.roleRepository.findByIds(roleIds)).map((role) => role.name);
       return {
         ...group,
         roleIds,
         roles: roleNames
       };
-    });
+    }));
   }
 
-  updateGroup(id: string, input: { appId?: string; name?: string; description?: string }) {
-    const updated = this.groupRepository.update(id, input);
+  async updateGroup(id: string, input: { appId?: string; name?: string; description?: string }) {
+    const updated = await this.groupRepository.update(id, input);
     if (!updated) {
       throw new ValidationError("Group not found");
     }
     return updated;
   }
 
-  deleteGroup(id: string) {
-    this.groupRepository.delete(id);
+  async deleteGroup(id: string) {
+    await this.groupRepository.delete(id);
   }
 
-  assignRoleToGroup(input: { groupId: string; roleId: string }) {
-    if (!this.groupRepository.findById(input.groupId)) {
+  async assignRoleToGroup(input: { groupId: string; roleId: string }) {
+    if (!await this.groupRepository.findById(input.groupId)) {
       throw new ValidationError("Group not found");
     }
 
-    const role = this.roleRepository.findByIds([input.roleId])[0];
+    const role = (await this.roleRepository.findByIds([input.roleId]))[0];
     if (!role) {
       throw new ValidationError("Role not found");
     }
@@ -79,33 +79,33 @@ export class GroupService {
     return this.groupRoleAssignmentRepository.assign(input);
   }
 
-  removeRoleFromGroup(input: { groupId: string; roleId: string }) {
-    this.groupRoleAssignmentRepository.remove(input.groupId, input.roleId);
+  async removeRoleFromGroup(input: { groupId: string; roleId: string }) {
+    await this.groupRoleAssignmentRepository.remove(input.groupId, input.roleId);
   }
 
-  assignUserToGroup(input: { userId: string; groupId: string }) {
-    if (!this.userRepository.findById(input.userId)) {
+  async assignUserToGroup(input: { userId: string; groupId: string }) {
+    if (!await this.userRepository.findById(input.userId)) {
       throw new ValidationError("User not found");
     }
 
-    if (!this.groupRepository.findById(input.groupId)) {
+    if (!await this.groupRepository.findById(input.groupId)) {
       throw new ValidationError("Group not found");
     }
 
     return this.userGroupAssignmentRepository.assign(input);
   }
 
-  removeUserFromGroup(input: { userId: string; groupId: string }) {
-    this.userGroupAssignmentRepository.remove(input.userId, input.groupId);
+  async removeUserFromGroup(input: { userId: string; groupId: string }) {
+    await this.userGroupAssignmentRepository.remove(input.userId, input.groupId);
   }
 
-  listGroupIdsForUser(userId: string) {
-    return this.userGroupAssignmentRepository.listByUser(userId).map((assignment) => assignment.groupId);
+  async listGroupIdsForUser(userId: string) {
+    return (await this.userGroupAssignmentRepository.listByUser(userId)).map((assignment) => assignment.groupId);
   }
 
-  resolveGroupNamesForUser(userId: string) {
-    const ids = this.listGroupIdsForUser(userId);
-    const all = this.groupRepository.list();
+  async resolveGroupNamesForUser(userId: string) {
+    const ids = await this.listGroupIdsForUser(userId);
+    const all = await this.groupRepository.list();
     const allowed = new Set(ids);
     return all.filter((group) => allowed.has(group.id)).map((group) => group.name);
   }

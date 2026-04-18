@@ -800,7 +800,7 @@ const mapAccessToken = (row: DbRow): AccessTokenRecord => ({
   revokedAt: maybeDate(row.revoked_at)
 });
 
-export class SqliteRoleRepository implements RoleRepository {
+export class SqliteRoleRepository {
   constructor(private readonly db: Database.Database) {}
 
   create(input: Omit<Role, "id" | "createdAt">): Role {
@@ -848,7 +848,7 @@ export class SqliteRoleRepository implements RoleRepository {
   }
 }
 
-export class SqliteUserRepository implements UserRepository {
+export class SqliteUserRepository {
   constructor(private readonly db: Database.Database) {}
 
   create(input: Omit<User, "id" | "createdAt" | "updatedAt">): User {
@@ -952,7 +952,7 @@ export class SqliteUserRepository implements UserRepository {
   }
 }
 
-export class SqliteClientRepository implements ClientRepository {
+export class SqliteClientRepository {
   constructor(private readonly db: Database.Database) {}
 
   create(input: Omit<OAuthClient, "createdAt">): OAuthClient {
@@ -1019,7 +1019,7 @@ export class SqliteClientRepository implements ClientRepository {
   }
 }
 
-export class SqliteScopeRepository implements ScopeRepository {
+export class SqliteScopeRepository {
   constructor(private readonly db: Database.Database) {}
 
   create(input: Omit<OAuthScope, "id" | "createdAt">): OAuthScope {
@@ -1046,7 +1046,7 @@ export class SqliteScopeRepository implements ScopeRepository {
   }
 }
 
-export class SqliteSessionRepository implements SessionRepository {
+export class SqliteSessionRepository {
   constructor(private readonly db: Database.Database) {}
 
   create(input: Omit<Session, "id">): Session {
@@ -1080,7 +1080,7 @@ export class SqliteSessionRepository implements SessionRepository {
   }
 }
 
-export class SqliteTotpCredentialRepository implements TotpCredentialRepository {
+export class SqliteTotpCredentialRepository {
   constructor(private readonly db: Database.Database) {}
 
   findByUserId(userId: string): TotpCredential | undefined {
@@ -1122,7 +1122,7 @@ export class SqliteTotpCredentialRepository implements TotpCredentialRepository 
   }
 }
 
-export class SqliteAuthorizationCodeRepository implements AuthorizationCodeRepository {
+export class SqliteAuthorizationCodeRepository {
   constructor(private readonly db: Database.Database) {}
 
   create(input: Omit<AuthorizationCode, "id" | "createdAt">): AuthorizationCode {
@@ -1158,7 +1158,7 @@ export class SqliteAuthorizationCodeRepository implements AuthorizationCodeRepos
   }
 }
 
-export class SqliteTenantRepository implements TenantRepository {
+export class SqliteTenantRepository {
   constructor(private readonly db: Database.Database) {}
 
   create(input: Omit<Tenant, "id" | "createdAt">): Tenant {
@@ -1204,7 +1204,7 @@ export class SqliteTenantRepository implements TenantRepository {
   }
 }
 
-export class SqliteAppRepository implements AppRepository {
+export class SqliteAppRepository {
   constructor(private readonly db: Database.Database) {}
 
   create(input: Omit<App, "id" | "createdAt">): App {
@@ -1247,7 +1247,7 @@ export class SqliteAppRepository implements AppRepository {
   }
 }
 
-export class SqliteInstanceSettingsRepository implements InstanceSettingsRepository {
+export class SqliteInstanceSettingsRepository {
   constructor(private readonly db: Database.Database) {}
 
   get(): InstanceSettings | undefined {
@@ -1298,7 +1298,7 @@ export class SqliteInstanceSettingsRepository implements InstanceSettingsReposit
   }
 }
 
-export class SqliteGroupRepository implements GroupRepository {
+export class SqliteGroupRepository {
   constructor(private readonly db: Database.Database) {}
 
   create(input: Omit<Group, "id" | "createdAt">): Group {
@@ -1343,7 +1343,7 @@ export class SqliteGroupRepository implements GroupRepository {
   }
 }
 
-export class SqliteUserGroupAssignmentRepository implements UserGroupAssignmentRepository {
+export class SqliteUserGroupAssignmentRepository {
   constructor(private readonly db: Database.Database) {}
 
   assign(input: Omit<UserGroupAssignment, "id" | "createdAt">): UserGroupAssignment {
@@ -1375,7 +1375,7 @@ export class SqliteUserGroupAssignmentRepository implements UserGroupAssignmentR
   }
 }
 
-export class SqliteGroupRoleAssignmentRepository implements GroupRoleAssignmentRepository {
+export class SqliteGroupRoleAssignmentRepository {
   constructor(private readonly db: Database.Database) {}
 
   assign(input: Omit<GroupRoleAssignment, "id" | "createdAt">): GroupRoleAssignment {
@@ -1417,7 +1417,7 @@ export class SqliteGroupRoleAssignmentRepository implements GroupRoleAssignmentR
   }
 }
 
-export class SqliteUserRoleAssignmentRepository implements UserRoleAssignmentRepository {
+export class SqliteUserRoleAssignmentRepository {
   constructor(private readonly db: Database.Database) {}
 
   assign(input: Omit<UserRoleAssignment, "id" | "createdAt">): UserRoleAssignment {
@@ -1450,7 +1450,7 @@ export class SqliteUserRoleAssignmentRepository implements UserRoleAssignmentRep
   }
 }
 
-export class SqliteConsentRepository implements ConsentRepository {
+export class SqliteConsentRepository {
   constructor(private readonly db: Database.Database) {}
 
   upsert(input: Omit<Consent, "id" | "createdAt" | "updatedAt">): Consent {
@@ -1508,7 +1508,7 @@ export class SqliteConsentRepository implements ConsentRepository {
   }
 }
 
-export class SqliteRefreshTokenRepository implements RefreshTokenRepository {
+export class SqliteRefreshTokenRepository {
   constructor(private readonly db: Database.Database) {}
 
   create(input: Omit<RefreshTokenRecord, "id" | "createdAt">): RefreshTokenRecord {
@@ -1569,7 +1569,7 @@ export class SqliteRefreshTokenRepository implements RefreshTokenRepository {
   }
 }
 
-export class SqliteAccessTokenRepository implements AccessTokenRepository {
+export class SqliteAccessTokenRepository {
   constructor(private readonly db: Database.Database) {}
 
   create(input: Omit<AccessTokenRecord, "id" | "createdAt">): AccessTokenRecord {
@@ -1600,7 +1600,7 @@ export class SqliteAccessTokenRepository implements AccessTokenRepository {
   }
 }
 
-export class SqliteAuditRepository implements AuditRepository {
+export class SqliteAuditRepository {
   constructor(private readonly db: Database.Database) {}
 
   log(input: Omit<AuditEvent, "id" | "createdAt">): AuditEvent {
@@ -1638,7 +1638,7 @@ export class SqliteAuditRepository implements AuditRepository {
   }
 }
 
-export class SqliteFederatedIdentityRepository implements FederatedIdentityRepository {
+export class SqliteFederatedIdentityRepository {
   constructor(private readonly db: Database.Database) {}
 
   findByProviderSubject(providerId: string, providerSubject: string): FederatedIdentity | undefined {
@@ -1677,7 +1677,7 @@ export class SqliteFederatedIdentityRepository implements FederatedIdentityRepos
   }
 }
 
-export class SqliteFederationTransactionRepository implements FederationTransactionRepository {
+export class SqliteFederationTransactionRepository {
   constructor(private readonly db: Database.Database) {}
 
   create(input: Omit<FederationTransaction, "createdAt">): FederationTransaction {
@@ -1716,7 +1716,7 @@ export class SqliteFederationTransactionRepository implements FederationTransact
   }
 }
 
-export class SqliteFederationProviderRepository implements FederationProviderRepository {
+export class SqliteFederationProviderRepository {
   constructor(private readonly db: Database.Database) {}
 
   list(): FederationProvider[] {
@@ -1790,7 +1790,7 @@ export class SqliteFederationProviderRepository implements FederationProviderRep
   }
 }
 
-export class SqliteAuthenticationFlowRepository implements AuthenticationFlowRepository {
+export class SqliteAuthenticationFlowRepository {
   constructor(private readonly db: Database.Database) {}
 
   list(): AuthenticationFlow[] {
@@ -1859,7 +1859,7 @@ export class SqliteAuthenticationFlowRepository implements AuthenticationFlowRep
   }
 }
 
-export class SqliteUserAttributeRepository implements UserAttributeRepository {
+export class SqliteUserAttributeRepository {
   constructor(private readonly db: Database.Database) {}
 
   list(): UserAttributeDefinition[] {
@@ -1931,7 +1931,7 @@ export class SqliteUserAttributeRepository implements UserAttributeRepository {
   }
 }
 
-export class SqliteGroupUserAttributeAssignmentRepository implements GroupUserAttributeAssignmentRepository {
+export class SqliteGroupUserAttributeAssignmentRepository {
   constructor(private readonly db: Database.Database) {}
 
   list(): GroupUserAttributeAssignment[] {
@@ -1996,7 +1996,7 @@ export class SqliteGroupUserAttributeAssignmentRepository implements GroupUserAt
   }
 }
 
-export class SqlitePolicyDefinitionRepository implements PolicyDefinitionRepository {
+export class SqlitePolicyDefinitionRepository {
   constructor(private readonly db: Database.Database) {}
 
   list(): PolicyDefinition[] {
@@ -2070,7 +2070,7 @@ export class SqlitePolicyDefinitionRepository implements PolicyDefinitionReposit
   }
 }
 
-export class SqlitePolicyAssignmentRepository implements PolicyAssignmentRepository {
+export class SqlitePolicyAssignmentRepository {
   constructor(private readonly db: Database.Database) {}
 
   list(): PolicyAssignment[] {
@@ -2145,7 +2145,7 @@ export class SqlitePolicyAssignmentRepository implements PolicyAssignmentReposit
   }
 }
 
-export class SqliteEventHookRepository implements EventHookRepository {
+export class SqliteEventHookRepository {
   constructor(private readonly db: Database.Database) {}
 
   list(): EventHook[] {
@@ -2217,7 +2217,7 @@ export class SqliteEventHookRepository implements EventHookRepository {
   }
 }
 
-export class SqliteEventNotificationRepository implements EventNotificationRepository {
+export class SqliteEventNotificationRepository {
   constructor(private readonly db: Database.Database) {}
 
   list(limit = 100): EventNotification[] {

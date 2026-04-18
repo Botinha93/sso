@@ -66,8 +66,8 @@ export class InstanceSettingsService {
     };
   }
 
-  ensureDefaults() {
-    const existing = this.repository.get();
+  async ensureDefaults() {
+    const existing = await this.repository.get();
     if (existing) {
       return existing;
     }
@@ -76,12 +76,12 @@ export class InstanceSettingsService {
     return this.repository.upsert({ ...defaults, id: defaults.id });
   }
 
-  getSettings() {
-    return this.repository.get() ?? this.ensureDefaults();
+  async getSettings() {
+    return (await this.repository.get()) ?? this.ensureDefaults();
   }
 
-  updateSettings(input: Partial<Pick<InstanceSettings, "databaseProvider" | "databasePath" | "externalDatabaseUrl" | "requireHttps" | "secureCookies" | "allowAnyCorsOrigin" | "corsAllowedOrigins" | "requireHttpsRedirectUris" | "requireS256Pkce" | "allowImplicitFlow" | "loginFailureWindowMs" | "loginLockoutThreshold" | "loginLockoutDurationMs" | "sessionAnomalyConcurrencyThreshold" | "emailTransport" | "emailFrom" | "smtpHost" | "smtpPort" | "smtpSecure" | "smtpUser" | "smtpPass">>) {
-    const current = this.getSettings();
+  async updateSettings(input: Partial<Pick<InstanceSettings, "databaseProvider" | "databasePath" | "externalDatabaseUrl" | "requireHttps" | "secureCookies" | "allowAnyCorsOrigin" | "corsAllowedOrigins" | "requireHttpsRedirectUris" | "requireS256Pkce" | "allowImplicitFlow" | "loginFailureWindowMs" | "loginLockoutThreshold" | "loginLockoutDurationMs" | "sessionAnomalyConcurrencyThreshold" | "emailTransport" | "emailFrom" | "smtpHost" | "smtpPort" | "smtpSecure" | "smtpUser" | "smtpPass">>) {
+    const current = await this.getSettings();
 
     const next: Omit<InstanceSettings, "updatedAt"> = {
       ...current,
@@ -163,12 +163,12 @@ export class InstanceSettingsService {
     return this.repository.upsert(next);
   }
 
-  isCorsOriginAllowed(origin: string | undefined) {
+  async isCorsOriginAllowed(origin: string | undefined) {
     if (!origin) {
       return true;
     }
 
-    const settings = this.getSettings();
+    const settings = await this.getSettings();
     if (settings.allowAnyCorsOrigin) {
       return true;
     }
@@ -176,16 +176,16 @@ export class InstanceSettingsService {
     return settings.corsAllowedOrigins.includes(origin);
   }
 
-  shouldRequireHttps() {
-    return this.getSettings().requireHttps;
+  async shouldRequireHttps() {
+    return (await this.getSettings()).requireHttps;
   }
 
-  shouldUseSecureCookies() {
-    return this.getSettings().secureCookies;
+  async shouldUseSecureCookies() {
+    return (await this.getSettings()).secureCookies;
   }
 
-  validateRedirectUris(redirectUris: string[]) {
-    const settings = this.getSettings();
+  async validateRedirectUris(redirectUris: string[]) {
+    const settings = await this.getSettings();
     if (!settings.requireHttpsRedirectUris) {
       return;
     }
@@ -196,8 +196,8 @@ export class InstanceSettingsService {
     }
   }
 
-  assertAuthorizeRequest(input: { responseType: "code" | "token"; codeChallengeMethod?: "S256" | "plain" }) {
-    const settings = this.getSettings();
+  async assertAuthorizeRequest(input: { responseType: "code" | "token"; codeChallengeMethod?: "S256" | "plain" }) {
+    const settings = await this.getSettings();
 
     if (!settings.allowImplicitFlow && input.responseType === "token") {
       throw new ValidationError("Implicit flow is disabled by instance settings");
@@ -208,8 +208,8 @@ export class InstanceSettingsService {
     }
   }
 
-  getSecuritySettings() {
-    const settings = this.getSettings();
+  async getSecuritySettings() {
+    const settings = await this.getSettings();
     return {
       loginFailureWindowMs: settings.loginFailureWindowMs,
       loginLockoutThreshold: settings.loginLockoutThreshold,

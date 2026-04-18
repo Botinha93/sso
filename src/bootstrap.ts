@@ -54,7 +54,7 @@ export const bootstrap = async (config: AppConfig) => {
     eventHookRepository,
     eventNotificationRepository,
     instanceSettingsRepository
-  } = createRepositoryBundle(config);
+  } = await createRepositoryBundle(config);
 
   const roleService = new RoleService(
     roleRepository,
@@ -82,9 +82,9 @@ export const bootstrap = async (config: AppConfig) => {
     policyAssignmentRepository,
     userGroupAssignmentRepository
   );
-  policyService.ensureBuiltIns();
+  await policyService.ensureBuiltIns();
   const instanceSettingsService = new InstanceSettingsService(instanceSettingsRepository);
-  instanceSettingsService.ensureDefaults();
+  await instanceSettingsService.ensureDefaults();
   const eventHookService = new EventHookService(eventHookRepository, eventNotificationRepository);
   const securityService = new SecurityService(auditRepository, eventHookService, instanceSettingsService);
   const emailService = new EmailService(instanceSettingsService);
@@ -114,25 +114,25 @@ export const bootstrap = async (config: AppConfig) => {
   const totpService = new TotpService(config, totpCredentialRepository);
 
   // Keep sane defaults in place across upgrades and restarts.
-  setupService.ensureSaneDefaults();
+  await setupService.ensureSaneDefaults();
 
-  if (!tenantRepository.findBySlug("default")) {
-    tenantService.createTenant({
+  if (!await tenantRepository.findBySlug("default")) {
+    await tenantService.createTenant({
       slug: "default",
       name: "Default Tenant"
     });
   }
 
-  const existingFlows = authenticationFlowService.listFlows();
+  const existingFlows = await authenticationFlowService.listFlows();
   const hasActiveAuthenticationFlow = existingFlows.some((flow) => flow.designation === "authentication" && flow.enabled);
-  const ensureFlow = (name: string, create: () => void) => {
+  const ensureFlow = async (name: string, create: () => Promise<void>) => {
     if (!existingFlows.some((flow) => flow.name === name)) {
-      create();
+      await create();
     }
   };
 
-  ensureFlow("Two-factor Login", () => {
-    authenticationFlowService.createFlow({
+  await ensureFlow("Two-factor Login", async () => {
+    await authenticationFlowService.createFlow({
       name: "Two-factor Login",
       description: "Default login pattern with optional OTP validation for configured users.",
       designation: "authentication",
@@ -146,8 +146,8 @@ export const bootstrap = async (config: AppConfig) => {
     });
   });
 
-  ensureFlow("Login with conditional Captcha", () => {
-    authenticationFlowService.createFlow({
+  await ensureFlow("Login with conditional Captcha", async () => {
+    await authenticationFlowService.createFlow({
       name: "Login with conditional Captcha",
       description: "Authentication flow with risk-aware captcha challenge before credential checks.",
       designation: "authentication",
@@ -162,8 +162,8 @@ export const bootstrap = async (config: AppConfig) => {
     });
   });
 
-  ensureFlow("Enrollment (2 Stage)", () => {
-    authenticationFlowService.createFlow({
+  await ensureFlow("Enrollment (2 Stage)", async () => {
+    await authenticationFlowService.createFlow({
       name: "Enrollment (2 Stage)",
       description: "Simple signup flow for username/email/password and immediate login.",
       designation: "enrollment",
@@ -176,8 +176,8 @@ export const bootstrap = async (config: AppConfig) => {
     });
   });
 
-  ensureFlow("Enrollment with email verification", () => {
-    authenticationFlowService.createFlow({
+  await ensureFlow("Enrollment with email verification", async () => {
+    await authenticationFlowService.createFlow({
       name: "Enrollment with email verification",
       description: "Enrollment flow with an additional email verification stage.",
       designation: "enrollment",
@@ -192,8 +192,8 @@ export const bootstrap = async (config: AppConfig) => {
     });
   });
 
-  ensureFlow("Recovery with email and MFA verification", () => {
-    authenticationFlowService.createFlow({
+  await ensureFlow("Recovery with email and MFA verification", async () => {
+    await authenticationFlowService.createFlow({
       name: "Recovery with email and MFA verification",
       description: "Recovery flow with identification, email check, MFA verification, then password reset.",
       designation: "recovery",
@@ -210,8 +210,8 @@ export const bootstrap = async (config: AppConfig) => {
     });
   });
 
-  ensureFlow("default-invalidation-flow", () => {
-    authenticationFlowService.createFlow({
+  await ensureFlow("default-invalidation-flow", async () => {
+    await authenticationFlowService.createFlow({
       name: "default-invalidation-flow",
       description: "Ends authentik session and triggers provider logout.",
       designation: "invalidation",
@@ -221,8 +221,8 @@ export const bootstrap = async (config: AppConfig) => {
     });
   });
 
-  ensureFlow("default-provider-invalidation-flow", () => {
-    authenticationFlowService.createFlow({
+  await ensureFlow("default-provider-invalidation-flow", async () => {
+    await authenticationFlowService.createFlow({
       name: "default-provider-invalidation-flow",
       description: "Provider-only invalidation without ending the central session.",
       designation: "invalidation",
@@ -232,10 +232,10 @@ export const bootstrap = async (config: AppConfig) => {
     });
   });
 
-  const activeAuthFlow = authenticationFlowService.getActiveFlow();
+  const activeAuthFlow = await authenticationFlowService.getActiveFlow();
 
-  if (!clientRepository.findById("sso-admin-ui")) {
-    clientRepository.create({
+  if (!await clientRepository.findById("sso-admin-ui")) {
+    await clientRepository.create({
       id: "sso-admin-ui",
       name: "SSO Admin UI",
       secret: "super-secret-admin-client",
@@ -248,8 +248,8 @@ export const bootstrap = async (config: AppConfig) => {
     });
   }
 
-  if (!clientRepository.findById("sso-device-cli")) {
-    clientRepository.create({
+  if (!await clientRepository.findById("sso-device-cli")) {
+    await clientRepository.create({
       id: "sso-device-cli",
       name: "SSO Device CLI",
       secret: "super-secret-device-client",
@@ -262,8 +262,8 @@ export const bootstrap = async (config: AppConfig) => {
     });
   }
 
-  if (!clientRepository.findById("sso-password-cli")) {
-    clientRepository.create({
+  if (!await clientRepository.findById("sso-password-cli")) {
+    await clientRepository.create({
       id: "sso-password-cli",
       name: "SSO Password CLI",
       secret: "super-secret-password-client",
@@ -276,8 +276,8 @@ export const bootstrap = async (config: AppConfig) => {
     });
   }
 
-  if (!clientRepository.findById("sso-service-client")) {
-    clientRepository.create({
+  if (!await clientRepository.findById("sso-service-client")) {
+    await clientRepository.create({
       id: "sso-service-client",
       name: "SSO Service Client",
       secret: "super-secret-service-client",

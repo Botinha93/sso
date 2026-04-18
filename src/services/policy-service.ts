@@ -346,10 +346,10 @@ export class PolicyService {
     private readonly userGroupAssignmentRepository: UserGroupAssignmentRepository
   ) {}
 
-  ensureBuiltIns() {
+  async ensureBuiltIns() {
     for (const policy of BUILT_IN_POLICIES) {
-      if (!this.policyDefinitionRepository.findByKey(policy.key)) {
-        this.policyDefinitionRepository.create({
+      if (!await this.policyDefinitionRepository.findByKey(policy.key)) {
+        await this.policyDefinitionRepository.create({
           id: nanoid(),
           key: policy.key,
           name: policy.name,
@@ -362,16 +362,16 @@ export class PolicyService {
     }
   }
 
-  listPolicies() {
-    const assignments = this.policyAssignmentRepository.list();
-    return this.policyDefinitionRepository.list().map((policy) => ({
+  async listPolicies() {
+    const assignments = await this.policyAssignmentRepository.list();
+    return (await this.policyDefinitionRepository.list()).map((policy) => ({
       ...this.withResolvedDefinition(policy),
       javascriptCode: policy.javascriptCode ?? this.resolveDefaultJavascriptCode(policy.key),
       assignments: assignments.filter((assignment) => assignment.policyId === policy.id)
     }));
   }
 
-  createPolicy(input: {
+  async createPolicy(input: {
     key: string;
     name: string;
     description: string;
@@ -380,7 +380,7 @@ export class PolicyService {
     enabled: boolean;
   }) {
     const key = this.normalizeKey(input.key);
-    if (this.policyDefinitionRepository.findByKey(key)) {
+    if (await this.policyDefinitionRepository.findByKey(key)) {
       throw new ValidationError("Policy key already exists");
     }
 
@@ -398,7 +398,7 @@ export class PolicyService {
     });
   }
 
-  updatePolicy(
+  async updatePolicy(
     id: string,
     input: {
       key?: string;
@@ -409,20 +409,20 @@ export class PolicyService {
       enabled?: boolean;
     }
   ) {
-    const existing = this.policyDefinitionRepository.findById(id);
+    const existing = await this.policyDefinitionRepository.findById(id);
     if (!existing) {
       throw new ValidationError("Policy not found");
     }
 
     const normalizedKey = input.key ? this.normalizeKey(input.key) : undefined;
     if (normalizedKey && normalizedKey !== existing.key) {
-      const duplicate = this.policyDefinitionRepository.findByKey(normalizedKey);
+      const duplicate = await this.policyDefinitionRepository.findByKey(normalizedKey);
       if (duplicate && duplicate.id !== id) {
         throw new ValidationError("Policy key already exists");
       }
     }
 
-    const updated = this.policyDefinitionRepository.update(id, {
+    const updated = await this.policyDefinitionRepository.update(id, {
       key: normalizedKey,
       name: input.name?.trim(),
       description: input.description?.trim(),
@@ -438,18 +438,18 @@ export class PolicyService {
     return updated;
   }
 
-  deletePolicy(id: string) {
-    this.policyDefinitionRepository.delete(id);
+  async deletePolicy(id: string) {
+    await this.policyDefinitionRepository.delete(id);
   }
 
-  setAssignment(input: {
+  async setAssignment(input: {
     policyId: string;
     scopeType: PolicyScopeType;
     scopeId?: string;
     enabled: boolean;
     config: Record<string, unknown>;
   }) {
-    const policy = this.policyDefinitionRepository.findById(input.policyId);
+    const policy = await this.policyDefinitionRepository.findById(input.policyId);
     if (!policy) {
       throw new ValidationError("Policy not found");
     }
@@ -468,16 +468,16 @@ export class PolicyService {
     });
   }
 
-  removeAssignment(input: { policyId: string; scopeType: PolicyScopeType; scopeId?: string }) {
+  async removeAssignment(input: { policyId: string; scopeType: PolicyScopeType; scopeId?: string }) {
     const scopeId = input.scopeType === "global" ? "global" : input.scopeId;
     if (!scopeId) {
       throw new ValidationError("scopeId is required for non-global scopes");
     }
-    this.policyAssignmentRepository.delete(input.policyId, input.scopeType, scopeId);
+    await this.policyAssignmentRepository.delete(input.policyId, input.scopeType, scopeId);
   }
 
-  enforceUserCreationPolicies(password: string) {
-    const assignment = this.getTopAssignmentByPolicyKey("password_requirements");
+  async enforceUserCreationPolicies(password: string) {
+    const assignment = await this.getTopAssignmentByPolicyKey("password_requirements");
     if (!assignment?.enabled) {
       return;
     }
@@ -505,22 +505,22 @@ export class PolicyService {
     }
   }
 
-  enforceLoginPolicies(input: { user: User; tenantId?: string }) {
-    this.enforceStagePolicies({
+  async enforceLoginPolicies(input: { user: User; tenantId?: string }) {
+    await this.enforceStagePolicies({
       stage: "password",
       user: input.user,
       tenantId: input.tenantId
     });
   }
 
-  enforceStagePolicies(input: {
+  async enforceStagePolicies(input: {
     stage: AuthenticationStageType;
     user: User;
     tenantId?: string;
     clientId?: string;
     ip?: string;
   }) {
-    const effectiveByPolicyId = this.resolveEffectivePolicies(input.user.id, input.tenantId);
+    const effectiveByPolicyId = await this.resolveEffectivePolicies(input.user.id, input.tenantId);
 
     for (const effective of effectiveByPolicyId.values()) {
       const definition = this.withResolvedDefinition(effective.definition);
@@ -655,30 +655,30 @@ ${input.definition.javascriptCode ?? ""}
     }
   }
 
-  private getTopAssignmentByPolicyKey(policyKey: string) {
-    const definition = this.policyDefinitionRepository.findByKey(policyKey);
+  private async getTopAssignmentByPolicyKey(policyKey: string) {
+    const definition = await this.policyDefinitionRepository.findByKey(policyKey);
     if (!definition || !definition.enabled) {
       return undefined;
     }
 
-    const globalAssignment = this.policyAssignmentRepository
-      .listByPolicy(definition.id)
+    const globalAssignment = (await this.policyAssignmentRepository
+      .listByPolicy(definition.id))
       .find((assignment) => assignment.scopeType === "global" && assignment.scopeId === "global");
 
     return globalAssignment;
   }
 
-  private resolveEffectivePolicies(userId: string, tenantId?: string) {
+  private async resolveEffectivePolicies(userId: string, tenantId?: string) {
     const result = new Map<string, EffectivePolicy>();
-    const groupIds = new Set(this.userGroupAssignmentRepository.listByUser(userId).map((assignment) => assignment.groupId));
+    const groupIds = new Set((await this.userGroupAssignmentRepository.listByUser(userId)).map((assignment) => assignment.groupId));
 
-    for (const definition of this.policyDefinitionRepository.list()) {
+    for (const definition of await this.policyDefinitionRepository.list()) {
       if (!definition.enabled) {
         continue;
       }
 
-      const assignments = this.policyAssignmentRepository
-        .listByPolicy(definition.id)
+      const assignments = (await this.policyAssignmentRepository
+        .listByPolicy(definition.id))
         .filter((assignment) => assignment.enabled);
 
       const userMatch = assignments.find((assignment) => assignment.scopeType === "user" && assignment.scopeId === userId);

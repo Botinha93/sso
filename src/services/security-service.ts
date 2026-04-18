@@ -54,7 +54,7 @@ export class SecurityService {
     const key = this.normalizeIdentifier(input.identifier);
     const now = new Date();
     const existing = this.loginFailures.get(key);
-    const securitySettings = this.instanceSettingsService.getSecuritySettings();
+    const securitySettings = await this.instanceSettingsService.getSecuritySettings();
     const windowMs = securitySettings.loginFailureWindowMs;
     const maxAttempts = securitySettings.loginLockoutThreshold;
     const lockoutMs = securitySettings.loginLockoutDurationMs;
@@ -81,7 +81,7 @@ export class SecurityService {
     this.loginFailures.set(key, record);
 
     if (justLocked) {
-      this.auditRepository.log({
+      await this.auditRepository.log({
         type: "account_lockout",
         actorType: "system",
         ip: input.ip,
@@ -126,7 +126,7 @@ export class SecurityService {
     }
 
     const retryAfterSeconds = Math.max(1, Math.ceil((record.resetAt - now) / 1000));
-    this.auditRepository.log({
+    await this.auditRepository.log({
       type: "security_rate_limit_blocked",
       actorType: "system",
       ip: input.ip,
@@ -176,7 +176,7 @@ export class SecurityService {
       reasons.add("new_user_agent_for_user");
     }
 
-    const concurrencyThreshold = this.instanceSettingsService.getSecuritySettings().sessionAnomalyConcurrencyThreshold;
+    const concurrencyThreshold = (await this.instanceSettingsService.getSecuritySettings()).sessionAnomalyConcurrencyThreshold;
     if (activeForUser.length >= concurrencyThreshold) {
       reasons.add("high_session_concurrency");
     }
@@ -188,7 +188,7 @@ export class SecurityService {
     }
 
     const reasonList = Array.from(reasons);
-    this.auditRepository.log({
+    await this.auditRepository.log({
       type: "session_anomaly_detected",
       actorId: input.userId,
       actorType: "user",

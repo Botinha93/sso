@@ -45,6 +45,12 @@ type ExternalDriver = {
   close: () => Promise<void>;
 };
 
+interface SqliteForeignKeyGroup {
+  id: number;
+  table: string;
+  entries: SqliteForeignKeyInfo[];
+}
+
 const TABLE_SKIP = new Set(["sqlite_sequence"]);
 
 const quoteIdentifier = (provider: ExternalProvider, value: string) => {
@@ -106,11 +112,33 @@ const normalizeForeignKeyAction = (action: string) => {
   return "NO ACTION";
 };
 
+const groupForeignKeys = (foreignKeys: SqliteForeignKeyInfo[]): SqliteForeignKeyGroup[] => {
+  const groupedForeignKeys = new Map<number, SqliteForeignKeyInfo[]>();
+  for (const foreignKey of foreignKeys) {
+    const existing = groupedForeignKeys.get(foreignKey.id) ?? [];
+    existing.push(foreignKey);
+    groupedForeignKeys.set(foreignKey.id, existing);
+  }
+
+  return [...groupedForeignKeys.entries()].map(([id, entries]) => {
+    const ordered = [...entries].sort((left, right) => left.seq - right.seq);
+    return {
+      id,
+      table: ordered[0]?.table ?? "",
+      entries: ordered
+    };
+  });
+};
+
+const normalizeExternalConstraintName = (table: string, suffix: string) => {
+  const normalized = `${table}_${suffix}`.replace(/[^a-zA-Z0-9_]/g, "_");
+  return normalized.length > 60 ? normalized.slice(0, 60) : normalized;
+};
+
 const buildCreateTableSql = (
   provider: ExternalProvider,
   table: string,
-  columns: SqliteColumnInfo[],
-  foreignKeys: SqliteForeignKeyInfo[]
+  columns: SqliteColumnInfo[]
 ) => {
   const quotedTable = quoteIdentifier(provider, table);
   const primaryKeyColumns = columns.filter((column) => column.pk > 0).sort((a, b) => a.pk - b.pk).map((column) => column.name);
@@ -133,27 +161,28 @@ const buildCreateTableSql = (
     columnDefs.push(`PRIMARY KEY (${pk})`);
   }
 
-  const groupedForeignKeys = new Map<number, SqliteForeignKeyInfo[]>();
-  for (const foreignKey of foreignKeys) {
-    const existing = groupedForeignKeys.get(foreignKey.id) ?? [];
-    existing.push(foreignKey);
-    groupedForeignKeys.set(foreignKey.id, existing);
-  }
-
-  for (const group of groupedForeignKeys.values()) {
-    const ordered = group.sort((left, right) => left.seq - right.seq);
-    const localColumns = ordered.map((entry) => quoteIdentifier(provider, entry.from)).join(", ");
-    const targetColumns = ordered.map((entry) => quoteIdentifier(provider, entry.to)).join(", ");
-    const targetTable = quoteIdentifier(provider, ordered[0].table);
-    const onUpdate = normalizeForeignKeyAction(ordered[0].on_update);
-    const onDelete = normalizeForeignKeyAction(ordered[0].on_delete);
-
-    columnDefs.push(
-      `FOREIGN KEY (${localColumns}) REFERENCES ${targetTable} (${targetColumns}) ON UPDATE ${onUpdate} ON DELETE ${onDelete}`
-    );
-  }
-
   return `CREATE TABLE IF NOT EXISTS ${quotedTable} (${columnDefs.join(", ")})`;
+};
+
+const buildAddForeignKeySql = (
+  provider: ExternalProvider,
+  table: string,
+  foreignKeyGroup: SqliteForeignKeyGroup
+) => {
+  const quotedTable = quoteIdentifier(provider, table);
+  const localColumns = foreignKeyGroup.entries
+    .map((entry) => quoteIdentifier(provider, entry.from))
+    .join(", ");
+  const targetColumns = foreignKeyGroup.entries
+    .map((entry) => quoteIdentifier(provider, entry.to))
+    .join(", ");
+  const targetTable = quoteIdentifier(provider, foreignKeyGroup.table);
+  const onUpdate = normalizeForeignKeyAction(foreignKeyGroup.entries[0].on_update);
+  const onDelete = normalizeForeignKeyAction(foreignKeyGroup.entries[0].on_delete);
+  const constraintName = normalizeExternalConstraintName(table, `fk_${foreignKeyGroup.id}`);
+  const quotedConstraintName = quoteIdentifier(provider, constraintName);
+
+  return `ALTER TABLE ${quotedTable} ADD CONSTRAINT ${quotedConstraintName} FOREIGN KEY (${localColumns}) REFERENCES ${targetTable} (${targetColumns}) ON UPDATE ${onUpdate} ON DELETE ${onDelete}`;
 };
 
 const buildDeleteSql = (provider: ExternalProvider, table: string) => {
@@ -186,6 +215,24 @@ const buildCreateUniqueIndexSql = (
   return `CREATE UNIQUE INDEX ${quotedIndexName} ON ${quotedTable} (${quotedColumns})`;
 };
 
+const buildCreateIndexSql = (
+  provider: ExternalProvider,
+  table: string,
+  indexName: string,
+  columns: string[]
+) => {
+  const quotedTable = quoteIdentifier(provider, table);
+  const quotedColumns = columns.map((column) => quoteIdentifier(provider, column)).join(", ");
+  const normalizedIndexName = normalizeExternalIndexName(table, indexName);
+  const quotedIndexName = quoteIdentifier(provider, normalizedIndexName);
+
+  if (provider === "postgresql") {
+    return `CREATE INDEX IF NOT EXISTS ${quotedIndexName} ON ${quotedTable} (${quotedColumns})`;
+  }
+
+  return `CREATE INDEX ${quotedIndexName} ON ${quotedTable} (${quotedColumns})`;
+};
+
 const isAlreadyExistsError = (provider: ExternalProvider, error: unknown) => {
   if (!error || typeof error !== "object") {
     return false;
@@ -197,6 +244,66 @@ const isAlreadyExistsError = (provider: ExternalProvider, error: unknown) => {
 
   const mysqlError = error as { code?: string; errno?: number };
   return mysqlError.code === "ER_DUP_KEYNAME" || mysqlError.errno === 1061;
+};
+
+const isAlreadyExistsConstraintError = (provider: ExternalProvider, error: unknown) => {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  if (provider === "postgresql") {
+    return (error as { code?: string }).code === "42710";
+  }
+
+  const mysqlError = error as { code?: string; errno?: number };
+  return mysqlError.code === "ER_FK_DUP_NAME" || mysqlError.errno === 1826;
+};
+
+export const orderTablesByForeignKeyDependencies = (
+  tables: string[],
+  tableForeignKeys: Map<string, SqliteForeignKeyInfo[]>
+) => {
+  const nodes = new Set(tables);
+  const dependencyMap = new Map<string, Set<string>>();
+
+  for (const table of tables) {
+    const dependencies = new Set<string>();
+    const foreignKeys = tableForeignKeys.get(table) ?? [];
+
+    for (const foreignKey of foreignKeys) {
+      if (foreignKey.table !== table && nodes.has(foreignKey.table)) {
+        dependencies.add(foreignKey.table);
+      }
+    }
+
+    dependencyMap.set(table, dependencies);
+  }
+
+  const ordered: string[] = [];
+  const queue = [...tables].filter((table) => (dependencyMap.get(table)?.size ?? 0) === 0);
+
+  while (queue.length > 0) {
+    const next = queue.shift()!;
+    ordered.push(next);
+
+    for (const table of tables) {
+      const dependencies = dependencyMap.get(table);
+      if (!dependencies || !dependencies.has(next)) {
+        continue;
+      }
+      dependencies.delete(next);
+      if (dependencies.size === 0 && !ordered.includes(table) && !queue.includes(table)) {
+        queue.push(table);
+      }
+    }
+  }
+
+  if (ordered.length === tables.length) {
+    return ordered;
+  }
+
+  const unresolved = tables.filter((table) => !ordered.includes(table));
+  return [...ordered, ...unresolved];
 };
 
 const buildExternalDriver = async (provider: ExternalProvider, url: string): Promise<ExternalDriver> => {
@@ -245,7 +352,7 @@ const buildExternalDriver = async (provider: ExternalProvider, url: string): Pro
 };
 
 export class DatabaseMigrationService {
-  private async ensureUniqueIndexes(
+  private async ensureIndexes(
     source: Database.Database,
     provider: ExternalProvider,
     driver: ExternalDriver,
@@ -254,7 +361,7 @@ export class DatabaseMigrationService {
     const indexes = source.prepare(`PRAGMA index_list(${table})`).all() as SqliteIndexInfo[];
 
     for (const index of indexes) {
-      if (index.unique !== 1 || index.origin === "pk") {
+      if (index.origin === "pk") {
         continue;
       }
 
@@ -268,12 +375,34 @@ export class DatabaseMigrationService {
         continue;
       }
 
-      const sql = buildCreateUniqueIndexSql(provider, table, index.name, columnNames);
+      const sql = index.unique === 1
+        ? buildCreateUniqueIndexSql(provider, table, index.name, columnNames)
+        : buildCreateIndexSql(provider, table, index.name, columnNames);
 
       try {
         await driver.query(sql);
       } catch (error) {
         if (!isAlreadyExistsError(provider, error)) {
+          throw error;
+        }
+      }
+    }
+  }
+
+  private async ensureForeignKeyConstraints(
+    provider: ExternalProvider,
+    driver: ExternalDriver,
+    table: string,
+    foreignKeys: SqliteForeignKeyInfo[]
+  ) {
+    const groupedForeignKeys = groupForeignKeys(foreignKeys);
+
+    for (const group of groupedForeignKeys) {
+      const sql = buildAddForeignKeySql(provider, table, group);
+      try {
+        await driver.query(sql);
+      } catch (error) {
+        if (!isAlreadyExistsConstraintError(provider, error)) {
           throw error;
         }
       }
@@ -289,13 +418,17 @@ export class DatabaseMigrationService {
     return (async () => {
       for (const table of tables) {
         const columns = source.prepare(`PRAGMA table_info(${table})`).all() as SqliteColumnInfo[];
-        const foreignKeys = source.prepare(`PRAGMA foreign_key_list(${table})`).all() as SqliteForeignKeyInfo[];
         if (columns.length === 0) {
           continue;
         }
 
-        await driver.query(buildCreateTableSql(provider, table, columns, foreignKeys));
-        await this.ensureUniqueIndexes(source, provider, driver, table);
+        await driver.query(buildCreateTableSql(provider, table, columns));
+      }
+
+      for (const table of tables) {
+        const foreignKeys = source.prepare(`PRAGMA foreign_key_list(${table})`).all() as SqliteForeignKeyInfo[];
+        await this.ensureForeignKeyConstraints(provider, driver, table, foreignKeys);
+        await this.ensureIndexes(source, provider, driver, table);
       }
     })();
   }
@@ -331,7 +464,15 @@ export class DatabaseMigrationService {
         throw new ValidationError("SQLite source has no user tables to migrate");
       }
 
-      await this.ensureExternalSchema(source, input.provider, driver, userTables);
+      const tableForeignKeys = new Map<string, SqliteForeignKeyInfo[]>();
+      for (const table of userTables) {
+        const foreignKeys = source.prepare(`PRAGMA foreign_key_list(${table})`).all() as SqliteForeignKeyInfo[];
+        tableForeignKeys.set(table, foreignKeys);
+      }
+
+      const orderedTables = orderTablesByForeignKeyDependencies(userTables, tableForeignKeys);
+
+      await this.ensureExternalSchema(source, input.provider, driver, orderedTables);
 
       await driver.begin();
 
@@ -339,7 +480,7 @@ export class DatabaseMigrationService {
         await driver.query("SET FOREIGN_KEY_CHECKS = 0");
       }
 
-      for (const table of userTables) {
+      for (const table of orderedTables) {
         const columns = source.prepare(`PRAGMA table_info(${table})`).all() as SqliteColumnInfo[];
         const columnNames = columns.map((column) => column.name);
         if (columnNames.length === 0) {
@@ -361,7 +502,7 @@ export class DatabaseMigrationService {
       }
 
       await driver.commit();
-      return { migratedTables: userTables.length };
+      return { migratedTables: orderedTables.length };
     } catch (error) {
       await driver.rollback();
 

@@ -31,8 +31,8 @@ export class TotpService {
     private readonly totpCredentialRepository: TotpCredentialRepository
   ) {}
 
-  getStatus(userId: string) {
-    const credential = this.totpCredentialRepository.findByUserId(userId);
+  async getStatus(userId: string) {
+    const credential = await this.totpCredentialRepository.findByUserId(userId);
     return {
       enabled: Boolean(credential?.enabled)
     };
@@ -66,7 +66,7 @@ export class TotpService {
     };
   }
 
-  completeEnrollment(input: { userId: string; enrollmentId: string; code: string }) {
+  async completeEnrollment(input: { userId: string; enrollmentId: string; code: string }) {
     this.purgeExpired();
 
     const enrollment = this.pendingEnrollments.get(input.enrollmentId);
@@ -78,7 +78,7 @@ export class TotpService {
       throw new ValidationError("Invalid TOTP code");
     }
 
-    this.totpCredentialRepository.upsert({
+    await this.totpCredentialRepository.upsert({
       userId: input.userId,
       secret: enrollment.secret,
       enabled: true
@@ -88,17 +88,17 @@ export class TotpService {
     return { enabled: true };
   }
 
-  disable(userId: string) {
-    this.totpCredentialRepository.delete(userId);
+  async disable(userId: string) {
+    await this.totpCredentialRepository.delete(userId);
   }
 
-  requiresTotp(userId: string): boolean {
-    const credential = this.totpCredentialRepository.findByUserId(userId);
+  async requiresTotp(userId: string): Promise<boolean> {
+    const credential = await this.totpCredentialRepository.findByUserId(userId);
     return Boolean(credential?.enabled);
   }
 
-  verifyUserCode(input: { userId: string; code: string }): boolean {
-    const credential = this.totpCredentialRepository.findByUserId(input.userId);
+  async verifyUserCode(input: { userId: string; code: string }): Promise<boolean> {
+    const credential = await this.totpCredentialRepository.findByUserId(input.userId);
     if (!credential || !credential.enabled) {
       return false;
     }

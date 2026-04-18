@@ -35,11 +35,11 @@ export class EventHookService {
     private readonly eventNotificationRepository: EventNotificationRepository
   ) {}
 
-  listHooks() {
+  async listHooks() {
     return this.eventHookRepository.list();
   }
 
-  listNotifications(limit = 100) {
+  async listNotifications(limit = 100) {
     return this.eventNotificationRepository.list(limit);
   }
 
@@ -47,7 +47,7 @@ export class EventHookService {
     return [ALL_EVENTS_TOKEN, ...SYSTEM_EVENT_TYPES];
   }
 
-  createHook(input: {
+  async createHook(input: {
     eventType: string;
     targetUrl: string;
     method: "POST" | "PUT";
@@ -65,7 +65,7 @@ export class EventHookService {
     });
   }
 
-  updateHook(id: string, input: {
+  async updateHook(id: string, input: {
     eventType?: string;
     targetUrl?: string;
     method?: "POST" | "PUT";
@@ -76,7 +76,7 @@ export class EventHookService {
       this.assertValidEventType(input.eventType);
     }
 
-    const updated = this.eventHookRepository.update(id, {
+    const updated = await this.eventHookRepository.update(id, {
       eventType: input.eventType?.trim(),
       targetUrl: input.targetUrl,
       method: input.method,
@@ -91,13 +91,13 @@ export class EventHookService {
     return updated;
   }
 
-  deleteHook(id: string) {
-    this.eventHookRepository.delete(id);
+  async deleteHook(id: string) {
+    await this.eventHookRepository.delete(id);
   }
 
   async emit(eventType: string, payload: Record<string, unknown>) {
-    const exactHooks = this.eventHookRepository.listByEventType(eventType);
-    const wildcardHooks = this.eventHookRepository.listByEventType("*");
+    const exactHooks = await this.eventHookRepository.listByEventType(eventType);
+    const wildcardHooks = await this.eventHookRepository.listByEventType("*");
     const hooks = [...exactHooks, ...wildcardHooks].filter((hook) => hook.enabled);
 
     for (const hook of hooks) {
@@ -109,7 +109,7 @@ export class EventHookService {
     eventType?: string;
     payload?: Record<string, unknown>;
   }) {
-    const hook = this.eventHookRepository.findById(hookId);
+    const hook = await this.eventHookRepository.findById(hookId);
     if (!hook) {
       throw new ValidationError("Event hook not found");
     }
@@ -157,7 +157,7 @@ export class EventHookService {
       });
 
       const responseBody = await response.text();
-      this.eventNotificationRepository.create({
+      await this.eventNotificationRepository.create({
         eventType,
         hookId: hook.id,
         payload,
@@ -167,7 +167,7 @@ export class EventHookService {
         error: response.ok ? undefined : `Hook returned HTTP ${response.status}`
       });
     } catch (error) {
-      this.eventNotificationRepository.create({
+      await this.eventNotificationRepository.create({
         eventType,
         hookId: hook.id,
         payload,

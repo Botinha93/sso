@@ -14,12 +14,13 @@ export class UserAttributeService {
     private readonly groupRepository: GroupRepository
   ) {}
 
-  listAttributes() {
-    const groups = this.groupRepository.list();
+  async listAttributes() {
+    const groups = await this.groupRepository.list();
     const groupNameById = new Map(groups.map((group) => [group.id, group.name]));
+    const attributes = await this.userAttributeRepository.list();
 
-    return this.userAttributeRepository.list().map((attribute) => {
-      const assignments = this.groupUserAttributeAssignmentRepository.listByAttribute(attribute.id).map((assignment) => ({
+    return Promise.all(attributes.map(async (attribute) => {
+      const assignments = (await this.groupUserAttributeAssignmentRepository.listByAttribute(attribute.id)).map((assignment) => ({
         ...assignment,
         groupName: groupNameById.get(assignment.groupId) ?? assignment.groupId
       }));
@@ -28,10 +29,10 @@ export class UserAttributeService {
         ...attribute,
         assignments
       };
-    });
+    }));
   }
 
-  createAttribute(input: {
+  async createAttribute(input: {
     key: string;
     name: string;
     description: string;
@@ -40,7 +41,7 @@ export class UserAttributeService {
   }) {
     const key = this.normalizeKey(input.key);
 
-    if (this.userAttributeRepository.findByKey(key)) {
+    if (await this.userAttributeRepository.findByKey(key)) {
       throw new ValidationError("User attribute key already exists");
     }
 
@@ -54,7 +55,7 @@ export class UserAttributeService {
     });
   }
 
-  updateAttribute(
+  async updateAttribute(
     id: string,
     input: {
       key?: string;
@@ -64,20 +65,20 @@ export class UserAttributeService {
       enabled?: boolean;
     }
   ) {
-    const existing = this.userAttributeRepository.findById(id);
+    const existing = await this.userAttributeRepository.findById(id);
     if (!existing) {
       throw new ValidationError("User attribute not found");
     }
 
     const normalizedKey = input.key ? this.normalizeKey(input.key) : undefined;
     if (normalizedKey && normalizedKey !== existing.key) {
-      const duplicate = this.userAttributeRepository.findByKey(normalizedKey);
+      const duplicate = await this.userAttributeRepository.findByKey(normalizedKey);
       if (duplicate && duplicate.id !== id) {
         throw new ValidationError("User attribute key already exists");
       }
     }
 
-    const updated = this.userAttributeRepository.update(id, {
+    const updated = await this.userAttributeRepository.update(id, {
       key: normalizedKey,
       name: input.name?.trim(),
       description: input.description?.trim(),
@@ -92,17 +93,17 @@ export class UserAttributeService {
     return updated;
   }
 
-  deleteAttribute(id: string) {
-    this.userAttributeRepository.delete(id);
+  async deleteAttribute(id: string) {
+    await this.userAttributeRepository.delete(id);
   }
 
-  setGroupAssignment(input: { attributeId: string; groupId: string; enabled: boolean }) {
-    const attribute = this.userAttributeRepository.findById(input.attributeId);
+  async setGroupAssignment(input: { attributeId: string; groupId: string; enabled: boolean }) {
+    const attribute = await this.userAttributeRepository.findById(input.attributeId);
     if (!attribute) {
       throw new ValidationError("User attribute not found");
     }
 
-    const group = this.groupRepository.findById(input.groupId);
+    const group = await this.groupRepository.findById(input.groupId);
     if (!group) {
       throw new ValidationError("Group not found");
     }
@@ -110,8 +111,8 @@ export class UserAttributeService {
     return this.groupUserAttributeAssignmentRepository.upsert(input);
   }
 
-  removeGroupAssignment(input: { attributeId: string; groupId: string }) {
-    this.groupUserAttributeAssignmentRepository.delete(input.attributeId, input.groupId);
+  async removeGroupAssignment(input: { attributeId: string; groupId: string }) {
+    await this.groupUserAttributeAssignmentRepository.delete(input.attributeId, input.groupId);
   }
 
   private normalizeKey(key: string) {

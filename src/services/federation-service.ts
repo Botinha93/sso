@@ -32,16 +32,17 @@ export class FederationService {
     private readonly authenticationFlowService: AuthenticationFlowService
   ) {}
 
-  listProviders() {
-    return this.getEffectiveProviders().filter((provider) => provider.enabled).map((provider) => ({
+  async listProviders() {
+    const providers = await this.getEffectiveProviders();
+    return providers.filter((provider) => provider.enabled).map((provider) => ({
       id: provider.id,
       label: provider.label
     }));
   }
 
-  listConfiguredProviders() {
+  async listConfiguredProviders() {
     const envProviders = this.appConfig.federation.providers;
-    const dbProviders = this.federationProviderRepository.list();
+    const dbProviders = await this.federationProviderRepository.list();
     const envIds = new Set(envProviders.map((provider) => provider.id));
 
     const fromEnv = envProviders.map((provider) => ({
@@ -64,7 +65,7 @@ export class FederationService {
     return [...fromEnv, ...fromDb];
   }
 
-  createProvider(input: {
+  async createProvider(input: {
     id: string;
     label: string;
     authorizationEndpoint: string;
@@ -79,14 +80,14 @@ export class FederationService {
       throw new ValidationError("Provider id is reserved by environment configuration");
     }
 
-    if (this.federationProviderRepository.findById(input.id)) {
+    if (await this.federationProviderRepository.findById(input.id)) {
       throw new ValidationError("Provider id already exists");
     }
 
     return this.federationProviderRepository.create(input);
   }
 
-  updateProvider(id: string, input: {
+  async updateProvider(id: string, input: {
     label?: string;
     authorizationEndpoint?: string;
     tokenEndpoint?: string;
@@ -100,12 +101,12 @@ export class FederationService {
       throw new ValidationError("Environment providers are read-only");
     }
 
-    const existing = this.federationProviderRepository.findById(id);
+    const existing = await this.federationProviderRepository.findById(id);
     if (!existing) {
       throw new ValidationError("Federation provider not found");
     }
 
-    const updated = this.federationProviderRepository.update(id, {
+    const updated = await this.federationProviderRepository.update(id, {
       label: input.label,
       authorizationEndpoint: input.authorizationEndpoint,
       tokenEndpoint: input.tokenEndpoint,
@@ -123,19 +124,19 @@ export class FederationService {
     return updated;
   }
 
-  deleteProvider(id: string) {
+  async deleteProvider(id: string) {
     if (this.appConfig.federation.providers.some((provider) => provider.id === id)) {
       throw new ValidationError("Environment providers are read-only");
     }
 
-    this.federationProviderRepository.delete(id);
+    await this.federationProviderRepository.delete(id);
   }
 
-  getAuthorizationRedirect(providerId: string, redirectAfterLogin: string) {
-    this.authenticationFlowService.assertStageEnabled("federation");
+  async getAuthorizationRedirect(providerId: string, redirectAfterLogin: string) {
+    await this.authenticationFlowService.assertStageEnabled("federation");
 
-    const provider = this.requireProvider(providerId);
-    this.federationTransactionRepository.purgeExpired(new Date());
+    const provider = await this.requireProvider(providerId);
+    await this.federationTransactionRepository.purgeExpired(new Date());
 
     const state = nanoid(48);
     const codeVerifier = asBase64Url(randomBytes(48));
@@ -143,7 +144,7 @@ export class FederationService {
 
     const callbackUri = `${this.appConfig.issuer}/auth/federation/${provider.id}/callback`;
 
-    this.federationTransactionRepository.create({
+    await this.federationTransactionRepository.create({
       state,
       providerId: provider.id,
       codeVerifier,
@@ -164,8 +165,8 @@ export class FederationService {
   }
 
   async completeLogin(input: { providerId: string; code: string; state: string }) {
-    const provider = this.requireProvider(input.providerId);
-    const transaction = this.federationTransactionRepository.consume(input.state);
+    const provider = await this.requireProvider(input.providerId);
+    const transaction = await this.federationTransactionRepository.consume(input.state);
 
     if (!transaction || transaction.providerId !== provider.id) {
       throw new AuthenticationError("Invalid federation transaction state");
@@ -217,21 +218,21 @@ export class FederationService {
       throw new ValidationError("Federation user profile missing subject identifier");
     }
 
-    const existingIdentity = this.federatedIdentityRepository.findByProviderSubject(provider.id, subject);
+    const existingIdentity = await this.federatedIdentityRepository.findByProviderSubject(provider.id, subject);
 
     if (existingIdentity) {
-      const existingUser = this.userRepository.findById(existingIdentity.userId);
+      const existingUser = await this.userRepository.findById(existingIdentity.userId);
       if (!existingUser) {
         throw new AuthenticationError("Linked user not found for federated identity");
       }
-      this.federatedIdentityRepository.touchLogin(existingIdentity.id, new Date());
+      await this.federatedIdentityRepository.touchLogin(existingIdentity.id, new Date());
       return {
         user: existingUser,
         redirectAfterLogin: transaction.redirectAfterLogin
       };
     }
 
-    let user = email ? this.userRepository.findByEmail(email) : undefined;
+    let user = email ? await this.userRepository.findByEmail(email) : undefined;
 
     if (!user) {
       const baseUsername = (email?.split("@")[0] ?? `federated_${provider.id}`).replace(/[^a-zA-Z0-9_.-]/g, "_").slice(0, 24);
@@ -241,7 +242,7 @@ export class FederationService {
       const givenName = typeof userInfo.given_name === "string" ? userInfo.given_name : "Federated";
       const familyName = typeof userInfo.family_name === "string" ? userInfo.family_name : "User";
 
-      user = this.userRepository.create({
+      user = await this.userRepository.create({
         email: email ?? `${username}@federated.local`,
         username,
         isServiceUser: false,
@@ -253,7 +254,7 @@ export class FederationService {
       });
     }
 
-    this.federatedIdentityRepository.create({
+    await this.federatedIdentityRepository.create({
       providerId: provider.id,
       providerSubject: subject,
       userId: user.id,
@@ -266,17 +267,18 @@ export class FederationService {
     };
   }
 
-  private requireProvider(providerId: string): FederationProviderConfig {
-    const provider = this.getEffectiveProviders().find((item) => item.id === providerId && item.enabled);
+  private async requireProvider(providerId: string): Promise<FederationProviderConfig> {
+    const providers = await this.getEffectiveProviders();
+    const provider = providers.find((item) => item.id === providerId && item.enabled);
     if (!provider) {
       throw new ValidationError("Unknown federation provider");
     }
     return provider;
   }
 
-  private getEffectiveProviders(): Array<FederationProviderConfig & { enabled: boolean }> {
+  private async getEffectiveProviders(): Promise<Array<FederationProviderConfig & { enabled: boolean }>> {
     const envProviders = this.appConfig.federation.providers.map((provider) => ({ ...provider, enabled: true }));
-    const dbProviders = this.federationProviderRepository.list();
+    const dbProviders = await this.federationProviderRepository.list();
     const envIds = new Set(envProviders.map((provider) => provider.id));
 
     const dbMapped = dbProviders

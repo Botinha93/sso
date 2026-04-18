@@ -11,7 +11,7 @@ export class UserService {
     private readonly groupService: GroupService
   ) {}
 
-  createUser(input: {
+  async createUser(input: {
     appId?: string;
     isServiceUser?: boolean;
     email: string;
@@ -24,11 +24,11 @@ export class UserService {
     groupIds?: string[];
     active?: boolean;
   }) {
-    if (this.userRepository.findByEmail(input.email)) {
+    if (await this.userRepository.findByEmail(input.email)) {
       throw new ValidationError("A user with this email already exists");
     }
 
-    const user = this.userRepository.create({
+    const user = await this.userRepository.create({
       appId: input.appId,
       isServiceUser: input.isServiceUser ?? false,
       email: input.email,
@@ -41,54 +41,55 @@ export class UserService {
     });
 
     for (const roleId of input.roleIds) {
-      this.roleService.assignRole({
+      await this.roleService.assignRole({
         userId: user.id,
         roleId
       });
     }
 
     for (const groupId of input.groupIds ?? []) {
-      this.groupService.assignUserToGroup({ userId: user.id, groupId });
+      await this.groupService.assignUserToGroup({ userId: user.id, groupId });
     }
 
     return user;
   }
 
-  listUsers() {
-    return this.userRepository.list().map(({ passwordHash, ...user }) => ({
+  async listUsers() {
+    const users = await this.userRepository.list();
+    return Promise.all(users.map(async ({ passwordHash, ...user }) => ({
       ...user,
-      roles: this.roleService.resolveNamesForUser(user.id),
-      groups: this.groupService.resolveGroupNamesForUser(user.id)
-    }));
+      roles: await this.roleService.resolveNamesForUser(user.id),
+      groups: await this.groupService.resolveGroupNamesForUser(user.id)
+    })));
   }
 
-  findUserByEmail(email: string) {
+  async findUserByEmail(email: string) {
     return this.userRepository.findByEmail(email);
   }
 
-  findUserByUsername(username: string) {
+  async findUserByUsername(username: string) {
     return this.userRepository.findByUsername(username);
   }
 
-  findUserById(id: string) {
+  async findUserById(id: string) {
     return this.userRepository.findById(id);
   }
 
-  updateUserProfile(id: string, input: { appId?: string; isServiceUser?: boolean; email?: string; username?: string; givenName?: string; familyName?: string }) {
-    const existing = this.userRepository.findById(id);
+  async updateUserProfile(id: string, input: { appId?: string; isServiceUser?: boolean; email?: string; username?: string; givenName?: string; familyName?: string }) {
+    const existing = await this.userRepository.findById(id);
     if (!existing) {
       throw new ValidationError("User not found");
     }
 
     if (input.email && input.email.toLowerCase() !== existing.email.toLowerCase()) {
-      const byEmail = this.userRepository.findByEmail(input.email);
+      const byEmail = await this.userRepository.findByEmail(input.email);
       if (byEmail && byEmail.id !== id) {
         throw new ValidationError("A user with this email already exists");
       }
     }
 
     if (input.username && input.username.toLowerCase() !== existing.username.toLowerCase()) {
-      const byUsername = this.userRepository.findByUsername(input.username);
+      const byUsername = await this.userRepository.findByUsername(input.username);
       if (byUsername && byUsername.id !== id) {
         throw new ValidationError("A user with this username already exists");
       }
@@ -97,24 +98,24 @@ export class UserService {
     return this.userRepository.updateProfile(id, input);
   }
 
-  resetPassword(id: string, password: string) {
-    const existing = this.userRepository.findById(id);
+  async resetPassword(id: string, password: string) {
+    const existing = await this.userRepository.findById(id);
     if (!existing) {
       throw new ValidationError("User not found");
     }
 
-    this.userRepository.setPasswordHash(id, hashPassword(password));
+    await this.userRepository.setPasswordHash(id, hashPassword(password));
   }
 
-  setUserActive(id: string, active: boolean) {
-    this.userRepository.setActive(id, active);
+  async setUserActive(id: string, active: boolean) {
+    await this.userRepository.setActive(id, active);
   }
 
-  setCustomAttributes(id: string, customAttributes: Record<string, string>) {
-    this.userRepository.setCustomAttributes(id, customAttributes);
+  async setCustomAttributes(id: string, customAttributes: Record<string, string>) {
+    await this.userRepository.setCustomAttributes(id, customAttributes);
   }
 
-  deleteUser(id: string) {
-    this.userRepository.delete(id);
+  async deleteUser(id: string) {
+    await this.userRepository.delete(id);
   }
 }

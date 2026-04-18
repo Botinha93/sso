@@ -39,20 +39,20 @@ const DEFAULT_ENABLED_STAGES_BY_DESIGNATION: Partial<Record<FlowDesignation, Aut
 export class AuthenticationFlowService {
   constructor(private readonly authenticationFlowRepository: AuthenticationFlowRepository) {}
 
-  listFlows() {
+  async listFlows() {
     return this.authenticationFlowRepository.list();
   }
 
-  getActiveFlow() {
+  async getActiveFlow() {
     return this.getActiveFlowByDesignation("authentication");
   }
 
-  getActiveFlowByDesignation(designation: FlowDesignation) {
-    return this.authenticationFlowRepository.list().find((flow) => flow.enabled && flow.designation === designation);
+  async getActiveFlowByDesignation(designation: FlowDesignation) {
+    return (await this.authenticationFlowRepository.list()).find((flow) => flow.enabled && flow.designation === designation);
   }
 
-  assertGrantSupported(grantType: GrantType) {
-    const activeFlow = this.getActiveFlow();
+  async assertGrantSupported(grantType: GrantType) {
+    const activeFlow = await this.getActiveFlow();
     if (!activeFlow) {
       return;
     }
@@ -62,12 +62,12 @@ export class AuthenticationFlowService {
     }
   }
 
-  isStageEnabled(stageType: AuthenticationStageType): boolean {
+  async isStageEnabled(stageType: AuthenticationStageType): Promise<boolean> {
     return this.isStageEnabledForDesignation("authentication", stageType);
   }
 
-  isStageEnabledForDesignation(designation: FlowDesignation, stageType: AuthenticationStageType): boolean {
-    const activeFlow = this.getActiveFlowByDesignation(designation);
+  async isStageEnabledForDesignation(designation: FlowDesignation, stageType: AuthenticationStageType): Promise<boolean> {
+    const activeFlow = await this.getActiveFlowByDesignation(designation);
     if (!activeFlow) {
       const defaults = DEFAULT_ENABLED_STAGES_BY_DESIGNATION[designation] ?? [];
       return defaults.includes(stageType);
@@ -76,17 +76,17 @@ export class AuthenticationFlowService {
     return activeFlow.stages.some((stage) => stage.type === stageType && stage.required);
   }
 
-  assertStageEnabled(stageType: AuthenticationStageType) {
-    this.assertStageEnabledForDesignation("authentication", stageType);
+  async assertStageEnabled(stageType: AuthenticationStageType) {
+    await this.assertStageEnabledForDesignation("authentication", stageType);
   }
 
-  assertStageEnabledForDesignation(designation: FlowDesignation, stageType: AuthenticationStageType) {
-    if (!this.isStageEnabledForDesignation(designation, stageType)) {
+  async assertStageEnabledForDesignation(designation: FlowDesignation, stageType: AuthenticationStageType) {
+    if (!await this.isStageEnabledForDesignation(designation, stageType)) {
       throw new ValidationError(`Authentication stage \"${stageType}\" is not enabled in active flow`);
     }
   }
 
-  createFlow(input: {
+  async createFlow(input: {
     name: string;
     description: string;
     designation: FlowDesignation;
@@ -99,7 +99,7 @@ export class AuthenticationFlowService {
     const designation = this.normalizeDesignation(input.designation);
 
     if (input.enabled && designation === "authentication") {
-      this.disableAllFlows("authentication");
+      await this.disableAllFlows("authentication");
     }
 
     return this.authenticationFlowRepository.create({
@@ -113,7 +113,7 @@ export class AuthenticationFlowService {
     });
   }
 
-  updateFlow(
+  async updateFlow(
     id: string,
     input: {
       name?: string;
@@ -124,7 +124,7 @@ export class AuthenticationFlowService {
       stages?: AuthenticationStage[];
     }
   ) {
-    const existing = this.authenticationFlowRepository.findById(id);
+    const existing = await this.authenticationFlowRepository.findById(id);
     if (!existing) {
       throw new ValidationError("Authentication flow not found");
     }
@@ -132,7 +132,7 @@ export class AuthenticationFlowService {
     const designation = input.designation ? this.normalizeDesignation(input.designation) : existing.designation;
 
     if (input.enabled && designation === "authentication") {
-      this.disableAllFlows("authentication", id);
+      await this.disableAllFlows("authentication", id);
     }
 
     const stages = input.stages ? this.normalizeStages(input.stages) : existing.stages;
@@ -154,12 +154,12 @@ export class AuthenticationFlowService {
     return updated;
   }
 
-  deleteFlow(id: string) {
-    this.authenticationFlowRepository.delete(id);
+  async deleteFlow(id: string) {
+    await this.authenticationFlowRepository.delete(id);
   }
 
-  private disableAllFlows(designation: FlowDesignation, exceptId?: string) {
-    for (const flow of this.authenticationFlowRepository.list()) {
+  private async disableAllFlows(designation: FlowDesignation, exceptId?: string) {
+    for (const flow of await this.authenticationFlowRepository.list()) {
       if (flow.designation !== designation) {
         continue;
       }
@@ -168,7 +168,7 @@ export class AuthenticationFlowService {
       }
 
       if (flow.enabled) {
-        this.authenticationFlowRepository.update(flow.id, { enabled: false });
+        await this.authenticationFlowRepository.update(flow.id, { enabled: false });
       }
     }
   }

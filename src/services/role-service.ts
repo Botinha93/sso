@@ -16,7 +16,7 @@ export class RoleService {
     private readonly groupRoleAssignmentRepository: GroupRoleAssignmentRepository
   ) {}
 
-  createRole(input: {
+  async createRole(input: {
     appId?: string;
     name: string;
     description: string;
@@ -30,59 +30,59 @@ export class RoleService {
     return this.roleRepository.create(input);
   }
 
-  listRoles() {
+  async listRoles() {
     return this.roleRepository.list();
   }
 
-  assignRole(input: { userId: string; roleId: string; tenantId?: string }) {
-    if (input.tenantId && !this.tenantRepository.findById(input.tenantId)) {
+  async assignRole(input: { userId: string; roleId: string; tenantId?: string }) {
+    if (input.tenantId && !await this.tenantRepository.findById(input.tenantId)) {
       throw new ValidationError("Tenant not found for role assignment");
     }
 
     return this.assignmentRepository.assign(input);
   }
 
-  resolveNamesForUser(userId: string, tenantId?: string) {
-    const assignments = this.assignmentRepository.listByUser(userId);
+  async resolveNamesForUser(userId: string, tenantId?: string) {
+    const assignments = await this.assignmentRepository.listByUser(userId);
     const matchingRoleIds = assignments
       .filter((assignment) => !assignment.tenantId || assignment.tenantId === tenantId)
       .map((assignment) => assignment.roleId);
 
-    const userGroups = this.userGroupAssignmentRepository.listByUser(userId).map((assignment) => assignment.groupId);
-    const groupRoleIds = this.groupRoleAssignmentRepository
-      .listByGroups(userGroups)
+    const userGroups = (await this.userGroupAssignmentRepository.listByUser(userId)).map((assignment) => assignment.groupId);
+    const groupRoleIds = (await this.groupRoleAssignmentRepository
+      .listByGroups(userGroups))
       .map((assignment) => assignment.roleId);
 
     const effectiveRoleIds = Array.from(new Set([...matchingRoleIds, ...groupRoleIds]));
 
-    return this.roleRepository.findByIds(effectiveRoleIds).map((role) => role.name);
+    return (await this.roleRepository.findByIds(effectiveRoleIds)).map((role) => role.name);
   }
 
-  resolvePermissionsForUser(userId: string, tenantId?: string) {
-    const assignments = this.assignmentRepository.listByUser(userId);
+  async resolvePermissionsForUser(userId: string, tenantId?: string) {
+    const assignments = await this.assignmentRepository.listByUser(userId);
     const matchingRoleIds = assignments
       .filter((assignment) => !assignment.tenantId || assignment.tenantId === tenantId)
       .map((assignment) => assignment.roleId);
 
-    const userGroups = this.userGroupAssignmentRepository.listByUser(userId).map((assignment) => assignment.groupId);
-    const groupRoleIds = this.groupRoleAssignmentRepository
-      .listByGroups(userGroups)
+    const userGroups = (await this.userGroupAssignmentRepository.listByUser(userId)).map((assignment) => assignment.groupId);
+    const groupRoleIds = (await this.groupRoleAssignmentRepository
+      .listByGroups(userGroups))
       .map((assignment) => assignment.roleId);
 
     const effectiveRoleIds = Array.from(new Set([...matchingRoleIds, ...groupRoleIds]));
-    const permissions = this.roleRepository.findByIds(effectiveRoleIds).flatMap((role) => role.permissions);
+    const permissions = (await this.roleRepository.findByIds(effectiveRoleIds)).flatMap((role) => role.permissions);
     return Array.from(new Set(permissions));
   }
 
-  listAssignmentsForUser(userId: string) {
+  async listAssignmentsForUser(userId: string) {
     return this.assignmentRepository.listByUser(userId);
   }
 
-  deleteRole(id: string) {
-    this.roleRepository.delete(id);
+  async deleteRole(id: string) {
+    await this.roleRepository.delete(id);
   }
 
-  updateRole(id: string, input: { appId?: string; name?: string; description?: string; permissions?: string[]; scope?: "platform" | "tenant" }) {
+  async updateRole(id: string, input: { appId?: string; name?: string; description?: string; permissions?: string[]; scope?: "platform" | "tenant" }) {
     return this.roleRepository.update(id, input);
   }
 }
