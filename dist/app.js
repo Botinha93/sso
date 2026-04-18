@@ -6,6 +6,7 @@ import helmet from "@fastify/helmet";
 import { config } from "./core/config.js";
 import { registerRoutes } from "./http/routes.js";
 import { bootstrap } from "./bootstrap.js";
+import { hasSqlInjectionPayload } from "./http/sql-injection-guard.js";
 export const buildApp = async () => {
     const app = Fastify({ logger: process.env.NODE_ENV !== "test", trustProxy: true });
     const services = await bootstrap(config);
@@ -54,6 +55,50 @@ export const buildApp = async () => {
         timeWindow: "1 minute",
         // Stricter limit for sensitive auth endpoints
         keyGenerator: (req) => req.ip
+    });
+    app.addHook("preValidation", async (request, reply) => {
+        const guardEnabled = process.env.SQLI_GUARD_ENABLED !== "false";
+        if (!guardEnabled) {
+            return;
+        }
+        const suspicious = hasSqlInjectionPayload({
+            body: request.body,
+            query: request.query,
+            params: request.params,
+            headers: request.headers
+        });
+        if (!suspicious) {
+            return;
+        }
+        if (process.env.NODE_ENV === "production") {
+            request.log.warn({
+                event: "security.sql_injection_blocked",
+                method: request.method,
+                url: request.url,
+                ip: request.ip,
+                userAgent: request.headers["user-agent"]
+            }, "Blocked request by SQL injection protection");
+        }
+        services.auditRepository.log({
+            type: "security_sqli_blocked",
+            actorType: "system",
+            ip: request.ip,
+            metadata: {
+                method: request.method,
+                url: request.url,
+                userAgent: request.headers["user-agent"]
+            }
+        });
+        await services.eventHookService.emit("security.sqli_blocked", {
+            method: request.method,
+            url: request.url,
+            ip: request.ip,
+            userAgent: request.headers["user-agent"]
+        });
+        return reply.status(400).send({
+            error: "invalid_request",
+            message: "Request blocked by SQL injection protection"
+        });
     });
     await registerRoutes(app, services);
     return app;

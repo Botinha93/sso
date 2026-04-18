@@ -103,6 +103,12 @@ export const buildApp = async () => {
         userAgent: request.headers["user-agent"]
       }
     });
+    await services.eventHookService.emit("security.sqli_blocked", {
+      method: request.method,
+      url: request.url,
+      ip: request.ip,
+      userAgent: request.headers["user-agent"]
+    });
 
     return reply.status(400).send({
       error: "invalid_request",

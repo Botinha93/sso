@@ -14,6 +14,7 @@ import { EmailService } from "./services/email-service.js";
 import { InstanceSettingsService } from "./services/instance-settings-service.js";
 import { RecoveryService } from "./services/recovery-service.js";
 import { RoleService } from "./services/role-service.js";
+import { SecurityService } from "./services/security-service.js";
 import { ScopeService } from "./services/scope-service.js";
 import { SetupService } from "./services/setup-service.js";
 import { TenantService } from "./services/tenant-service.js";
@@ -58,9 +59,10 @@ export const bootstrap = async (config) => {
     const userAttributeService = new UserAttributeService(userAttributeRepository, groupUserAttributeAssignmentRepository, groupRepository);
     const policyService = new PolicyService(policyDefinitionRepository, policyAssignmentRepository, userGroupAssignmentRepository);
     policyService.ensureBuiltIns();
-    const eventHookService = new EventHookService(eventHookRepository, eventNotificationRepository);
     const instanceSettingsService = new InstanceSettingsService(instanceSettingsRepository);
     instanceSettingsService.ensureDefaults();
+    const eventHookService = new EventHookService(eventHookRepository, eventNotificationRepository);
+    const securityService = new SecurityService(auditRepository, eventHookService, instanceSettingsService);
     const emailService = new EmailService(instanceSettingsService);
     const recoveryService = new RecoveryService();
     const federationService = new FederationService(config, userRepository, federationProviderRepository, federatedIdentityRepository, federationTransactionRepository, authenticationFlowService);
@@ -234,7 +236,7 @@ export const bootstrap = async (config) => {
     }
     const signingKeys = await createSigningKeys();
     const jwtService = new JwtService(signingKeys, config);
-    const authService = new AuthService(userService, roleService, authenticationFlowService, clientRepository, sessionRepository, authorizationCodeRepository, consentRepository, refreshTokenRepository, accessTokenRepository, tenantRepository, jwtService, auditRepository);
+    const authService = new AuthService(userService, roleService, authenticationFlowService, clientRepository, sessionRepository, authorizationCodeRepository, consentRepository, refreshTokenRepository, accessTokenRepository, tenantRepository, jwtService, auditRepository, securityService);
     const oidcService = new OidcService(config, jwtService);
     return {
         roleService,
@@ -244,6 +246,7 @@ export const bootstrap = async (config) => {
         userAttributeService,
         policyService,
         eventHookService,
+        securityService,
         emailService,
         recoveryService,
         instanceSettingsService,

@@ -17,6 +17,7 @@ import { hashOpaqueToken } from "../security/token-hash.js";
 import { JwtService } from "../security/jwt.js";
 import { AuthenticationFlowService } from "./authentication-flow-service.js";
 import { RoleService } from "./role-service.js";
+import { SecurityService } from "./security-service.js";
 import { UserService } from "./user-service.js";
 
 interface DeviceAuthorizationRecord {
@@ -47,7 +48,8 @@ export class AuthService {
     private readonly accessTokenRepository: AccessTokenRepository,
     private readonly tenantRepository: TenantRepository,
     readonly jwtService: JwtService,
-    readonly auditRepository: AuditRepository
+    readonly auditRepository: AuditRepository,
+    private readonly securityService: SecurityService
   ) {}
 
   async login(input: {
@@ -71,6 +73,7 @@ export class AuthService {
 
   validateUserCredentials(identifier: string, password: string): User {
     const normalized = identifier.trim();
+    this.securityService.assertLoginAllowed(normalized);
     const user = this.userService.findUserByEmail(normalized) ?? this.userService.findUserByUsername(normalized);
 
     if (!user || !user.active || !verifyPassword(password, user.passwordHash)) {
@@ -85,6 +88,8 @@ export class AuthService {
     clientId: string;
     scope: string[];
     tenantSlug?: string;
+    ip?: string;
+    userAgent?: string;
   }) {
     const user = this.userService.findUserById(input.userId);
     if (!user || !user.active) {
@@ -116,7 +121,16 @@ export class AuthService {
       actorId: user.id,
       actorType: "user",
       clientId: client.id,
-      metadata: { sessionId: session.id }
+      ip: input.ip,
+      metadata: { sessionId: session.id, userAgent: input.userAgent }
+    });
+
+    await this.securityService.observeSessionStart({
+      sessionId: session.id,
+      userId: user.id,
+      clientId: client.id,
+      ip: input.ip,
+      userAgent: input.userAgent
     });
 
     return {
@@ -171,6 +185,8 @@ export class AuthService {
     clientSecret: string;
     redirectUri: string;
     codeVerifier?: string;
+    ip?: string;
+    userAgent?: string;
   }) {
     const authorizationCode = this.authorizationCodeRepository.consume(input.code);
 
@@ -217,6 +233,14 @@ export class AuthService {
       clientId: client.id,
       createdAt: new Date(),
       expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 8)
+    });
+
+    await this.securityService.observeSessionStart({
+      sessionId: session.id,
+      userId: user.id,
+      clientId: client.id,
+      ip: input.ip,
+      userAgent: input.userAgent
     });
 
     return this.issuePersistedTokens({
@@ -337,6 +361,8 @@ export class AuthService {
     clientId: string;
     clientSecret: string;
     scope?: string;
+    ip?: string;
+    userAgent?: string;
   }) {
     this.authenticationFlowService.assertGrantSupported("password");
     this.authenticationFlowService.assertStageEnabled("password");
@@ -348,10 +374,13 @@ export class AuthService {
     }
 
     const identifier = input.username.trim();
+    this.securityService.assertLoginAllowed(identifier);
     const user = this.userService.findUserByEmail(identifier) ?? this.userService.findUserByUsername(identifier);
     if (!user || !user.active || !verifyPassword(input.password, user.passwordHash)) {
       throw new AuthenticationError("Invalid credentials");
     }
+
+    this.securityService.clearLoginFailures(identifier);
 
     const requestedScope = input.scope ? input.scope.split(" ") : client.allowedScopes;
     const allowedScope = requestedScope.filter((scope) => client.allowedScopes.includes(scope));
@@ -361,6 +390,14 @@ export class AuthService {
       clientId: client.id,
       createdAt: new Date(),
       expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 8)
+    });
+
+    await this.securityService.observeSessionStart({
+      sessionId: session.id,
+      userId: user.id,
+      clientId: client.id,
+      ip: input.ip,
+      userAgent: input.userAgent
     });
 
     const tokens = await this.issuePersistedTokens({
@@ -472,6 +509,8 @@ export class AuthService {
     clientId: string;
     clientSecret: string;
     deviceCode: string;
+    ip?: string;
+    userAgent?: string;
   }) {
     const client = this.requireClient(input.clientId);
 
@@ -533,6 +572,14 @@ export class AuthService {
       expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 8)
     });
 
+    await this.securityService.observeSessionStart({
+      sessionId: session.id,
+      userId: user.id,
+      clientId: client.id,
+      ip: input.ip,
+      userAgent: input.userAgent
+    });
+
     const tokens = await this.issuePersistedTokens({
       user,
       client,
@@ -577,6 +624,8 @@ export class AuthService {
     clientId: string;
     scope: string[];
     tenantId?: string;
+    ip?: string;
+    userAgent?: string;
   }) {
     const user = this.userService.findUserById(input.userId);
     if (!user || !user.active) {
@@ -593,6 +642,14 @@ export class AuthService {
       clientId: client.id,
       createdAt: new Date(),
       expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 8)
+    });
+
+    await this.securityService.observeSessionStart({
+      sessionId: session.id,
+      userId: user.id,
+      clientId: client.id,
+      ip: input.ip,
+      userAgent: input.userAgent
     });
 
     const accessTokenId = nanoid();

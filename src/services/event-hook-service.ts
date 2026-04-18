@@ -8,7 +8,11 @@ import type {
 const SYSTEM_EVENT_TYPES = [
   "auth.login.succeeded",
   "auth.login.failed",
+  "auth.lockout.triggered",
+  "auth.session.anomaly_detected",
   "auth.logout",
+  "security.rate_limit_blocked",
+  "security.sqli_blocked",
   "user.created",
   "user.updated",
   "user.deleted",

@@ -79,6 +79,7 @@ import { EventHookService } from "../services/event-hook-service.js";
 import { EmailService } from "../services/email-service.js";
 import { InstanceSettingsService } from "../services/instance-settings-service.js";
 import { RecoveryService } from "../services/recovery-service.js";
+import { SecurityService } from "../services/security-service.js";
 import type { AuditRepository } from "../repositories/contracts.js";
 
 interface RouteDeps {
@@ -100,6 +101,7 @@ interface RouteDeps {
   eventHookService: EventHookService;
   emailService: EmailService;
   recoveryService: RecoveryService;
+  securityService: SecurityService;
   instanceSettingsService: InstanceSettingsService;
   auditRepository: AuditRepository;
 }
@@ -124,6 +126,61 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const session = deps.authService.sessionRepository.findById(sid);
     if (!session || session.expiresAt.getTime() < Date.now() || session.revokedAt) return null;
     return session;
+  }
+
+  function clientUserAgent(request: any) {
+    const raw = request.headers?.["user-agent"];
+    return typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : undefined;
+  }
+
+  async function enforceEndpointRateLimit(request: any, reply: any) {
+    const path = request.url.split("?")[0];
+    const configs: Array<{ endpointKey: string; limit: number; windowMs: number; actorKey: string; metadata?: Record<string, unknown> }> = [];
+
+    if (path === "/auth/login") {
+      configs.push({ endpointKey: "auth_login", limit: 10, windowMs: 60_000, actorKey: request.ip });
+    }
+    if (path === "/auth/login/mfa") {
+      configs.push({ endpointKey: "auth_login_mfa", limit: 10, windowMs: 60_000, actorKey: request.ip });
+    }
+    if (path === "/auth/recovery/request") {
+      configs.push({ endpointKey: "auth_recovery_request", limit: 5, windowMs: 15 * 60_000, actorKey: request.ip });
+    }
+    if (path === "/oauth/device/verify") {
+      configs.push({ endpointKey: "oauth_device_verify", limit: 10, windowMs: 60_000, actorKey: request.ip });
+    }
+    if (path === "/oauth/device/authorize") {
+      configs.push({ endpointKey: "oauth_device_authorize", limit: 10, windowMs: 60_000, actorKey: request.ip });
+    }
+    if (path === "/oauth/token") {
+      const grantType = typeof request.body?.grant_type === "string" ? request.body.grant_type : undefined;
+      configs.push({
+        endpointKey: `oauth_token:${grantType ?? "unknown"}`,
+        limit: grantType === "urn:ietf:params:oauth:grant-type:device_code" ? 30 : 20,
+        windowMs: 60_000,
+        actorKey: request.ip,
+        metadata: { grantType }
+      });
+    }
+
+    for (const config of configs) {
+      const result = await deps.securityService.enforceEndpointRateLimit({
+        endpointKey: config.endpointKey,
+        actorKey: config.actorKey,
+        limit: config.limit,
+        windowMs: config.windowMs,
+        ip: request.ip,
+        metadata: config.metadata
+      });
+
+      if (result.blocked) {
+        return reply.status(429).header("Retry-After", String(result.retryAfterSeconds)).send({
+          error: "rate_limited",
+          message: "Too many requests for this endpoint",
+          retryAfterSeconds: result.retryAfterSeconds
+        });
+      }
+    }
   }
 
   function toResource(path: string): string | undefined {
@@ -312,6 +369,11 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   ]);
 
   app.addHook("preHandler", async (request, reply) => {
+    const endpointLimitResult = await enforceEndpointRateLimit(request, reply);
+    if (endpointLimitResult) {
+      return endpointLimitResult;
+    }
+
     if (!csrfProtectedMethods.has(request.method)) return;
     if (csrfExemptPaths.has(request.url.split("?")[0])) return;
     // Only enforce CSRF on admin and auth endpoints
@@ -527,7 +589,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         userId: user.id,
         clientId: input.client_id,
         scope: input.scope.split(" "),
-        tenantId: tenant?.id
+        tenantId: tenant?.id,
+        ip: request.ip,
+        userAgent: clientUserAgent(request)
       });
       params.access_token = token.access_token;
       params.token_type = token.token_type;
@@ -567,7 +631,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
           clientId: parsed.data.client_id,
           clientSecret: parsed.data.client_secret,
           redirectUri: parsed.data.redirect_uri,
-          codeVerifier: parsed.data.code_verifier
+          codeVerifier: parsed.data.code_verifier,
+          ip: request.ip,
+          userAgent: clientUserAgent(request)
         });
       }
       if (parsed.data.grant_type === "refresh_token") {
@@ -604,19 +670,25 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
           ip: request.ip
         });
 
-        return await deps.authService.issuePasswordGrantTokens({
+        const tokenResponse = await deps.authService.issuePasswordGrantTokens({
           username: parsed.data.username,
           password: parsed.data.password,
           clientId: parsed.data.client_id,
           clientSecret: parsed.data.client_secret,
-          scope: parsed.data.scope
+          scope: parsed.data.scope,
+          ip: request.ip,
+          userAgent: clientUserAgent(request)
         });
+        deps.securityService.clearLoginFailures(parsed.data.username);
+        return tokenResponse;
       }
       if (parsed.data.grant_type === "urn:ietf:params:oauth:grant-type:device_code") {
         const response = await deps.authService.exchangeDeviceCode({
           deviceCode: parsed.data.device_code,
           clientId: parsed.data.client_id,
-          clientSecret: parsed.data.client_secret
+          clientSecret: parsed.data.client_secret,
+          ip: request.ip,
+          userAgent: clientUserAgent(request)
         });
 
         if ("error" in response) {
@@ -626,6 +698,25 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         return response;
       }
     } catch (err) {
+      if (parsed.data.grant_type === "password") {
+        await deps.securityService.recordLoginFailure({
+          identifier: parsed.data.username,
+          ip: request.ip,
+          reason: err instanceof Error ? err.message : "unknown"
+        });
+        deps.auditRepository.log({
+          type: "login_failed",
+          actorType: "user",
+          ip: request.ip,
+          metadata: { email: parsed.data.username, grant: "password" }
+        });
+        await deps.eventHookService.emit("auth.login.failed", {
+          email: parsed.data.username,
+          ip: request.ip,
+          error: err instanceof Error ? err.message : "unknown",
+          grant: "password"
+        });
+      }
       if (err instanceof AppError) {
         return reply.status(err.statusCode).send({ error: "invalid_grant", error_description: err.message });
       }
@@ -748,8 +839,11 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         userId: user.id,
         clientId: input.clientId,
         scope: input.scope,
-        tenantSlug: input.tenantSlug
+        tenantSlug: input.tenantSlug,
+        ip: request.ip,
+        userAgent: clientUserAgent(request)
       });
+      deps.securityService.clearLoginFailures(input.email);
       await deps.eventHookService.emit("auth.login.succeeded", {
         userId: session.userId,
         clientId: session.clientId,
@@ -765,6 +859,11 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       });
       return { session, ...tokens };
     } catch (err) {
+      await deps.securityService.recordLoginFailure({
+        identifier: input.email,
+        ip: request.ip,
+        reason: err instanceof Error ? err.message : "unknown"
+      });
       deps.auditRepository.log({
         type: "login_failed",
         actorType: "user",
@@ -815,7 +914,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         userId: user.id,
         clientId: challenge.clientId,
         scope: challenge.scope,
-        tenantSlug: challenge.tenantSlug
+        tenantSlug: challenge.tenantSlug,
+        ip: challenge.ip ?? request.ip,
+        userAgent: clientUserAgent(request)
       });
 
       await deps.eventHookService.emit("auth.login.succeeded", {
@@ -1113,6 +1214,14 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 8)
     });
 
+    await deps.securityService.observeSessionStart({
+      sessionId: session.id,
+      userId: completed.user.id,
+      clientId: "sso-admin-ui",
+      ip: request.ip,
+      userAgent: clientUserAgent(request)
+    });
+
     deps.auditRepository.log({
       type: "login",
       actorId: completed.user.id,
@@ -1135,6 +1244,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.post("/auth/logout", async (request, reply) => {
     const session = getSession(request);
     if (session) {
+      deps.securityService.revokeSessionObservation(session.id);
       enforceInvalidationForSession({ session, ip: request.ip });
       deps.auditRepository.log({
         type: "logout",
@@ -1156,6 +1266,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const { post_logout_redirect_uri, state } = request.query as Record<string, string>;
     const session = getSession(request);
     if (session) {
+      deps.securityService.revokeSessionObservation(session.id);
       enforceInvalidationForSession({ session, ip: request.ip });
     }
     reply.clearCookie("sid", { path: "/" });
@@ -1183,6 +1294,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
     for (const session of matchingSessions) {
       enforceInvalidationForSession({ session, ip: request.ip });
+      deps.securityService.revokeSessionObservation(session.id);
       if (!session.revokedAt) {
         deps.authService.sessionRepository.revoke(session.id, now);
       }
@@ -1217,6 +1329,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
     for (const session of matchingSessions) {
       enforceInvalidationForSession({ session, ip: request.ip });
+      deps.securityService.revokeSessionObservation(session.id);
       if (!session.revokedAt) {
         deps.authService.sessionRepository.revoke(session.id, now);
       }
@@ -1605,6 +1718,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.get("/api/admin/sessions", async () => deps.authService.sessionRepository.list());
   app.delete("/api/admin/sessions/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
+    deps.securityService.revokeSessionObservation(id);
     deps.authService.sessionRepository.revoke(id, new Date());
     deps.auditRepository.log({ type: "session_revoked", actorType: "system", metadata: { sessionId: id } });
     await deps.eventHookService.emit("session.revoked", {
@@ -1674,6 +1788,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
   app.delete("/api/admin/devices/sessions/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
+    deps.securityService.revokeSessionObservation(id);
     deps.authService.sessionRepository.revoke(id, new Date());
     deps.auditRepository.log({
       type: "session_revoked",
@@ -1825,6 +1940,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const allSessions = deps.authService.sessionRepository.list().filter(s => s.userId === session.userId && !s.revokedAt);
     const now = new Date();
     for (const s of allSessions) {
+      deps.securityService.revokeSessionObservation(s.id);
       deps.authService.sessionRepository.revoke(s.id, now);
     }
     deps.userService.deleteUser(session.userId);

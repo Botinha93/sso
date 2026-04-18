@@ -10,6 +10,10 @@ interface SettingsForm {
   requireHttpsRedirectUris: boolean
   requireS256Pkce: boolean
   allowImplicitFlow: boolean
+  loginFailureWindowMinutes: number
+  loginLockoutThreshold: number
+  loginLockoutDurationMinutes: number
+  sessionAnomalyConcurrencyThreshold: number
   emailTransport: 'disabled' | 'log' | 'smtp'
   emailFrom: string
   smtpHost: string
@@ -32,6 +36,10 @@ const defaultForm: SettingsForm = {
   requireHttpsRedirectUris: false,
   requireS256Pkce: true,
   allowImplicitFlow: true,
+  loginFailureWindowMinutes: 15,
+  loginLockoutThreshold: 5,
+  loginLockoutDurationMinutes: 15,
+  sessionAnomalyConcurrencyThreshold: 5,
   emailTransport: 'log',
   emailFrom: 'no-reply@example.local',
   smtpHost: '',
@@ -63,6 +71,10 @@ export default function Administration() {
       requireHttpsRedirectUris: Boolean((data as any).requireHttpsRedirectUris),
       requireS256Pkce: Boolean((data as any).requireS256Pkce),
       allowImplicitFlow: Boolean((data as any).allowImplicitFlow),
+      loginFailureWindowMinutes: Math.max(1, Math.round(Number((data as any).loginFailureWindowMs ?? 15 * 60 * 1000) / 60_000)),
+      loginLockoutThreshold: Number((data as any).loginLockoutThreshold ?? 5),
+      loginLockoutDurationMinutes: Math.max(1, Math.round(Number((data as any).loginLockoutDurationMs ?? 15 * 60 * 1000) / 60_000)),
+      sessionAnomalyConcurrencyThreshold: Number((data as any).sessionAnomalyConcurrencyThreshold ?? 5),
       emailTransport: ((data as any).emailTransport as SettingsForm['emailTransport']) ?? 'log',
       emailFrom: String((data as any).emailFrom ?? 'no-reply@example.local'),
       smtpHost: String((data as any).smtpHost ?? ''),
@@ -86,6 +98,10 @@ export default function Administration() {
         requireHttpsRedirectUris: form.requireHttpsRedirectUris,
         requireS256Pkce: form.requireS256Pkce,
         allowImplicitFlow: form.allowImplicitFlow,
+        loginFailureWindowMs: form.loginFailureWindowMinutes * 60_000,
+        loginLockoutThreshold: form.loginLockoutThreshold,
+        loginLockoutDurationMs: form.loginLockoutDurationMinutes * 60_000,
+        sessionAnomalyConcurrencyThreshold: form.sessionAnomalyConcurrencyThreshold,
         emailTransport: form.emailTransport,
         emailFrom: form.emailFrom,
         smtpHost: form.smtpHost || undefined,
@@ -240,6 +256,71 @@ export default function Administration() {
 
         <section className={sectionCls}>
           <div className="flex items-center gap-2">
+            <ShieldCheck size={16} className="text-slate-500" />
+            <h2 className="text-base font-semibold text-slate-900">Runtime Attack Controls</h2>
+          </div>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Login Failure Window</label>
+              <input
+                type="number"
+                min={1}
+                max={1440}
+                value={form.loginFailureWindowMinutes}
+                onChange={(e) => setForm((v) => ({ ...v, loginFailureWindowMinutes: Number(e.target.value || 1) }))}
+                className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+              />
+              <p className="mt-2 text-xs text-slate-500">How long failed logins are counted before the counter resets, in minutes.</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Lockout Threshold</label>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                value={form.loginLockoutThreshold}
+                onChange={(e) => setForm((v) => ({ ...v, loginLockoutThreshold: Number(e.target.value || 1) }))}
+                className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+              />
+              <p className="mt-2 text-xs text-slate-500">Number of failed logins allowed before the account is temporarily locked.</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Lockout Duration</label>
+              <input
+                type="number"
+                min={1}
+                max={1440}
+                value={form.loginLockoutDurationMinutes}
+                onChange={(e) => setForm((v) => ({ ...v, loginLockoutDurationMinutes: Number(e.target.value || 1) }))}
+                className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+              />
+              <p className="mt-2 text-xs text-slate-500">How long the lockout remains active after the threshold is reached, in minutes.</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Session Anomaly Concurrency</label>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                value={form.sessionAnomalyConcurrencyThreshold}
+                onChange={(e) => setForm((v) => ({ ...v, sessionAnomalyConcurrencyThreshold: Number(e.target.value || 1) }))}
+                className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+              />
+              <p className="mt-2 text-xs text-slate-500">Raises a session anomaly event when a user exceeds this many concurrent active sessions.</p>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-700">
+            <p className="font-medium text-slate-900">What these controls affect</p>
+            <p className="mt-2 text-slate-600">These values are applied immediately to login lockout tracking and session anomaly detection without restarting the server.</p>
+          </div>
+        </section>
+
+        <section className={sectionCls}>
+          <div className="flex items-center gap-2">
             <Mail size={16} className="text-slate-500" />
             <h2 className="text-base font-semibold text-slate-900">Email Delivery</h2>
           </div>
@@ -357,6 +438,7 @@ export default function Administration() {
             <li>Cookie security changes affect the next issued CSRF or session cookie.</li>
             <li>Redirect URI and PKCE enforcement apply to subsequent client changes and authorize requests.</li>
             <li>Disabling implicit flow immediately blocks new <span className="font-mono">response_type=token</span> authorize requests.</li>
+            <li>Lockout and anomaly thresholds are applied immediately to new authentication and session observation events.</li>
             <li>Email transport settings are used immediately for recovery and other email-driven flows.</li>
           </ul>
         </section>

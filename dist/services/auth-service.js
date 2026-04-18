@@ -16,8 +16,9 @@ export class AuthService {
     tenantRepository;
     jwtService;
     auditRepository;
+    securityService;
     deviceAuthorizations = new Map();
-    constructor(userService, roleService, authenticationFlowService, clientRepository, sessionRepository, authorizationCodeRepository, consentRepository, refreshTokenRepository, accessTokenRepository, tenantRepository, jwtService, auditRepository) {
+    constructor(userService, roleService, authenticationFlowService, clientRepository, sessionRepository, authorizationCodeRepository, consentRepository, refreshTokenRepository, accessTokenRepository, tenantRepository, jwtService, auditRepository, securityService) {
         this.userService = userService;
         this.roleService = roleService;
         this.authenticationFlowService = authenticationFlowService;
@@ -30,6 +31,7 @@ export class AuthService {
         this.tenantRepository = tenantRepository;
         this.jwtService = jwtService;
         this.auditRepository = auditRepository;
+        this.securityService = securityService;
     }
     async login(input) {
         this.authenticationFlowService.assertGrantSupported("authorization_code");
@@ -44,6 +46,7 @@ export class AuthService {
     }
     validateUserCredentials(identifier, password) {
         const normalized = identifier.trim();
+        this.securityService.assertLoginAllowed(normalized);
         const user = this.userService.findUserByEmail(normalized) ?? this.userService.findUserByUsername(normalized);
         if (!user || !user.active || !verifyPassword(password, user.passwordHash)) {
             throw new AuthenticationError("Invalid credentials");
@@ -77,7 +80,15 @@ export class AuthService {
             actorId: user.id,
             actorType: "user",
             clientId: client.id,
-            metadata: { sessionId: session.id }
+            ip: input.ip,
+            metadata: { sessionId: session.id, userAgent: input.userAgent }
+        });
+        await this.securityService.observeSessionStart({
+            sessionId: session.id,
+            userId: user.id,
+            clientId: client.id,
+            ip: input.ip,
+            userAgent: input.userAgent
         });
         return {
             user,
@@ -147,6 +158,13 @@ export class AuthService {
             clientId: client.id,
             createdAt: new Date(),
             expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 8)
+        });
+        await this.securityService.observeSessionStart({
+            sessionId: session.id,
+            userId: user.id,
+            clientId: client.id,
+            ip: input.ip,
+            userAgent: input.userAgent
         });
         return this.issuePersistedTokens({
             user,
@@ -237,10 +255,12 @@ export class AuthService {
             throw new AuthenticationError("Invalid client credentials");
         }
         const identifier = input.username.trim();
+        this.securityService.assertLoginAllowed(identifier);
         const user = this.userService.findUserByEmail(identifier) ?? this.userService.findUserByUsername(identifier);
         if (!user || !user.active || !verifyPassword(input.password, user.passwordHash)) {
             throw new AuthenticationError("Invalid credentials");
         }
+        this.securityService.clearLoginFailures(identifier);
         const requestedScope = input.scope ? input.scope.split(" ") : client.allowedScopes;
         const allowedScope = requestedScope.filter((scope) => client.allowedScopes.includes(scope));
         const session = this.sessionRepository.create({
@@ -248,6 +268,13 @@ export class AuthService {
             clientId: client.id,
             createdAt: new Date(),
             expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 8)
+        });
+        await this.securityService.observeSessionStart({
+            sessionId: session.id,
+            userId: user.id,
+            clientId: client.id,
+            ip: input.ip,
+            userAgent: input.userAgent
         });
         const tokens = await this.issuePersistedTokens({
             user,
@@ -376,6 +403,13 @@ export class AuthService {
             createdAt: new Date(),
             expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 8)
         });
+        await this.securityService.observeSessionStart({
+            sessionId: session.id,
+            userId: user.id,
+            clientId: client.id,
+            ip: input.ip,
+            userAgent: input.userAgent
+        });
         const tokens = await this.issuePersistedTokens({
             user,
             client,
@@ -422,6 +456,13 @@ export class AuthService {
             clientId: client.id,
             createdAt: new Date(),
             expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 8)
+        });
+        await this.securityService.observeSessionStart({
+            sessionId: session.id,
+            userId: user.id,
+            clientId: client.id,
+            ip: input.ip,
+            userAgent: input.userAgent
         });
         const accessTokenId = nanoid();
         const token = await this.jwtService.issueUserAccessToken({

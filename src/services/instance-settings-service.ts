@@ -47,6 +47,10 @@ export class InstanceSettingsService {
       requireHttpsRedirectUris: process.env.NODE_ENV === "production",
       requireS256Pkce: true,
       allowImplicitFlow: true,
+      loginFailureWindowMs: process.env.LOGIN_FAILURE_WINDOW_MS ? Number(process.env.LOGIN_FAILURE_WINDOW_MS) : 15 * 60 * 1000,
+      loginLockoutThreshold: process.env.LOGIN_LOCKOUT_THRESHOLD ? Number(process.env.LOGIN_LOCKOUT_THRESHOLD) : 5,
+      loginLockoutDurationMs: process.env.LOGIN_LOCKOUT_MS ? Number(process.env.LOGIN_LOCKOUT_MS) : 15 * 60 * 1000,
+      sessionAnomalyConcurrencyThreshold: process.env.SESSION_ANOMALY_CONCURRENCY_THRESHOLD ? Number(process.env.SESSION_ANOMALY_CONCURRENCY_THRESHOLD) : 5,
       emailTransport: (process.env.EMAIL_TRANSPORT as "disabled" | "log" | "smtp" | undefined) ?? this.resolveDefaultEmailTransport(),
       emailFrom: process.env.EMAIL_FROM ?? "no-reply@example.local",
       smtpHost: process.env.SMTP_HOST,
@@ -73,7 +77,7 @@ export class InstanceSettingsService {
     return this.repository.get() ?? this.ensureDefaults();
   }
 
-  updateSettings(input: Partial<Pick<InstanceSettings, "requireHttps" | "secureCookies" | "allowAnyCorsOrigin" | "corsAllowedOrigins" | "requireHttpsRedirectUris" | "requireS256Pkce" | "allowImplicitFlow" | "emailTransport" | "emailFrom" | "smtpHost" | "smtpPort" | "smtpSecure" | "smtpUser" | "smtpPass">>) {
+  updateSettings(input: Partial<Pick<InstanceSettings, "requireHttps" | "secureCookies" | "allowAnyCorsOrigin" | "corsAllowedOrigins" | "requireHttpsRedirectUris" | "requireS256Pkce" | "allowImplicitFlow" | "loginFailureWindowMs" | "loginLockoutThreshold" | "loginLockoutDurationMs" | "sessionAnomalyConcurrencyThreshold" | "emailTransport" | "emailFrom" | "smtpHost" | "smtpPort" | "smtpSecure" | "smtpUser" | "smtpPass">>) {
     const current = this.getSettings();
 
     const next: Omit<InstanceSettings, "updatedAt"> = {
@@ -85,6 +89,10 @@ export class InstanceSettingsService {
       requireHttpsRedirectUris: input.requireHttpsRedirectUris ?? current.requireHttpsRedirectUris,
       requireS256Pkce: input.requireS256Pkce ?? current.requireS256Pkce,
       allowImplicitFlow: input.allowImplicitFlow ?? current.allowImplicitFlow,
+      loginFailureWindowMs: input.loginFailureWindowMs ?? current.loginFailureWindowMs,
+      loginLockoutThreshold: input.loginLockoutThreshold ?? current.loginLockoutThreshold,
+      loginLockoutDurationMs: input.loginLockoutDurationMs ?? current.loginLockoutDurationMs,
+      sessionAnomalyConcurrencyThreshold: input.sessionAnomalyConcurrencyThreshold ?? current.sessionAnomalyConcurrencyThreshold,
       emailTransport: input.emailTransport ?? current.emailTransport,
       emailFrom: input.emailFrom ?? current.emailFrom,
       smtpHost: input.smtpHost ?? current.smtpHost,
@@ -108,6 +116,22 @@ export class InstanceSettingsService {
       } catch {
         throw new ValidationError(`Invalid CORS origin: ${origin}`);
       }
+    }
+
+    if (next.loginFailureWindowMs < 60_000) {
+      throw new ValidationError("Login failure window must be at least 60 seconds");
+    }
+
+    if (next.loginLockoutThreshold < 1) {
+      throw new ValidationError("Login lockout threshold must be at least 1 attempt");
+    }
+
+    if (next.loginLockoutDurationMs < 60_000) {
+      throw new ValidationError("Login lockout duration must be at least 60 seconds");
+    }
+
+    if (next.sessionAnomalyConcurrencyThreshold < 1) {
+      throw new ValidationError("Session anomaly concurrency threshold must be at least 1");
     }
 
     if (next.emailTransport === "smtp") {
@@ -168,5 +192,15 @@ export class InstanceSettingsService {
     if (settings.requireS256Pkce && input.codeChallengeMethod === "plain") {
       throw new ValidationError("Plain PKCE is disabled by instance settings; use S256");
     }
+  }
+
+  getSecuritySettings() {
+    const settings = this.getSettings();
+    return {
+      loginFailureWindowMs: settings.loginFailureWindowMs,
+      loginLockoutThreshold: settings.loginLockoutThreshold,
+      loginLockoutDurationMs: settings.loginLockoutDurationMs,
+      sessionAnomalyConcurrencyThreshold: settings.sessionAnomalyConcurrencyThreshold
+    };
   }
 }

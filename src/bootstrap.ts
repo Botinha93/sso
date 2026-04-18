@@ -45,6 +45,7 @@ import { EmailService } from "./services/email-service.js";
 import { InstanceSettingsService } from "./services/instance-settings-service.js";
 import { RecoveryService } from "./services/recovery-service.js";
 import { RoleService } from "./services/role-service.js";
+import { SecurityService } from "./services/security-service.js";
 import { ScopeService } from "./services/scope-service.js";
 import { SetupService } from "./services/setup-service.js";
 import { TenantService } from "./services/tenant-service.js";
@@ -112,9 +113,10 @@ export const bootstrap = async (config: AppConfig) => {
     userGroupAssignmentRepository
   );
   policyService.ensureBuiltIns();
-  const eventHookService = new EventHookService(eventHookRepository, eventNotificationRepository);
   const instanceSettingsService = new InstanceSettingsService(instanceSettingsRepository);
   instanceSettingsService.ensureDefaults();
+  const eventHookService = new EventHookService(eventHookRepository, eventNotificationRepository);
+  const securityService = new SecurityService(auditRepository, eventHookService, instanceSettingsService);
   const emailService = new EmailService(instanceSettingsService);
   const recoveryService = new RecoveryService();
   const federationService = new FederationService(
@@ -323,7 +325,8 @@ export const bootstrap = async (config: AppConfig) => {
     accessTokenRepository,
     tenantRepository,
     jwtService,
-    auditRepository
+    auditRepository,
+    securityService
   );
   const oidcService = new OidcService(config, jwtService);
 
@@ -335,6 +338,7 @@ export const bootstrap = async (config: AppConfig) => {
     userAttributeService,
     policyService,
     eventHookService,
+    securityService,
     emailService,
     recoveryService,
     instanceSettingsService,

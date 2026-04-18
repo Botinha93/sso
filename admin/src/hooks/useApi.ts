@@ -784,6 +784,10 @@ export function useUpdateInstanceSettings() {
       requireHttpsRedirectUris?: boolean
       requireS256Pkce?: boolean
       allowImplicitFlow?: boolean
+      loginFailureWindowMs?: number
+      loginLockoutThreshold?: number
+      loginLockoutDurationMs?: number
+      sessionAnomalyConcurrencyThreshold?: number
       emailTransport?: 'disabled' | 'log' | 'smtp'
       emailFrom?: string
       smtpHost?: string

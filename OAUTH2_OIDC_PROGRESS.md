@@ -11,6 +11,7 @@ This document tracks implementation progress for OAuth2/OIDC features.
 - [x] Unit/integration test coverage for OAuth/OIDC grant flows
 - [x] End-to-end OIDC happy-path tests
 - [x] Events expansion: broader system event catalog, additional admin/auth emit points, and per-hook test dispatch
+- [x] Security hardening: account lockout, endpoint-specific throttling, expanded security events, and session anomaly auditing
 
 ## Remaining Items (from checklist)
 

@@ -134,6 +134,10 @@ export interface InstanceSettings {
   requireHttpsRedirectUris: boolean;
   requireS256Pkce: boolean;
   allowImplicitFlow: boolean;
+  loginFailureWindowMs: number;
+  loginLockoutThreshold: number;
+  loginLockoutDurationMs: number;
+  sessionAnomalyConcurrencyThreshold: number;
   emailTransport: "disabled" | "log" | "smtp";
   emailFrom: string;
   smtpHost?: string;
@@ -331,6 +335,7 @@ export interface TokenBundle {
 export type AuditEventType =
   | "login"
   | "login_failed"
+  | "account_lockout"
   | "logout"
   | "token_issued"
   | "token_refreshed"
@@ -338,12 +343,14 @@ export type AuditEventType =
   | "consent_granted"
   | "consent_revoked"
   | "session_revoked"
+  | "session_anomaly_detected"
   | "client_created"
   | "client_updated"
   | "client_deleted"
   | "user_created"
   | "user_password_reset"
-  | "security_sqli_blocked";
+  | "security_sqli_blocked"
+  | "security_rate_limit_blocked";
 
 export interface AuditEvent {
   id: string;
