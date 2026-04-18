@@ -662,6 +662,9 @@ export class SqliteUserRepository {
     `).run(updated.email, updated.username, updated.givenName, updated.familyName, updated.updatedAt.toISOString(), id);
         return updated;
     }
+    setPasswordHash(id, passwordHash) {
+        this.db.prepare("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?").run(passwordHash, new Date().toISOString(), id);
+    }
     setActive(id, active) {
         this.db.prepare("UPDATE users SET active = ?, updated_at = ? WHERE id = ?").run(active ? 1 : 0, new Date().toISOString(), id);
     }

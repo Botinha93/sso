@@ -218,6 +218,17 @@ export function useDeleteUser() {
   })
 }
 
+export function useResetUserPassword() {
+  return useMutation({
+    mutationFn: ({ id, password }: { id: string; password: string }) =>
+      jsonFetch(`${API_BASE}/users/${id}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      })
+  })
+}
+
 // --- Roles ---
 export function useRoles() {
   return useQuery({

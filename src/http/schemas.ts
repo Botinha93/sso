@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const createRoleSchema = z.object({
+  appId: z.string().min(2).optional(),
   name: z.string().min(3),
   description: z.string().min(3),
   permissions: z.array(z.string().min(2)).min(1),
@@ -8,6 +9,7 @@ export const createRoleSchema = z.object({
 });
 
 export const updateRoleSchema = z.object({
+  appId: z.string().min(2).optional(),
   name: z.string().min(3).optional(),
   description: z.string().optional(),
   permissions: z.array(z.string().min(2)).min(1).optional(),
@@ -15,6 +17,7 @@ export const updateRoleSchema = z.object({
 });
 
 export const createUserSchema = z.object({
+  appId: z.string().min(2).optional(),
   email: z.string().email(),
   username: z.string().min(3),
   password: z.string().min(8),
@@ -26,6 +29,7 @@ export const createUserSchema = z.object({
 });
 
 export const updateUserSchema = z.object({
+  appId: z.string().min(2).optional(),
   email: z.string().email().optional(),
   username: z.string().min(3).optional(),
   givenName: z.string().min(1).optional(),
@@ -35,13 +39,19 @@ export const updateUserSchema = z.object({
   customAttributes: z.record(z.string(), z.string()).optional()
 });
 
+export const resetUserPasswordSchema = z.object({
+  password: z.string().min(8)
+});
+
 export const createGroupSchema = z.object({
+  appId: z.string().min(2).optional(),
   name: z.string().min(2),
   description: z.string().min(2),
   roleIds: z.array(z.string()).default([])
 });
 
 export const updateGroupSchema = z.object({
+  appId: z.string().min(2).optional(),
   name: z.string().min(2).optional(),
   description: z.string().min(2).optional()
 });
@@ -143,6 +153,7 @@ export const oidcRevokeSchema = z.object({
 });
 
 export const createClientSchema = z.object({
+  appId: z.string().min(2).optional(),
   id: z.string().min(3),
   name: z.string().min(2),
   secret: z.string().min(16),
@@ -155,6 +166,7 @@ export const createClientSchema = z.object({
 });
 
 export const updateClientSchema = z.object({
+  appId: z.string().min(2).optional(),
   name: z.string().min(2).optional(),
   secret: z.string().min(16).optional(),
   redirectUris: z.array(z.string().url()).optional(),
@@ -168,6 +180,16 @@ export const updateClientSchema = z.object({
 export const createScopeSchema = z.object({
   name: z.string().min(1),
   description: z.string().default("")
+});
+
+export const createAppSchema = z.object({
+  name: z.string().min(2),
+  description: z.string().min(2)
+});
+
+export const updateAppSchema = z.object({
+  name: z.string().min(2).optional(),
+  description: z.string().min(2).optional()
 });
 
 export const createFederationProviderSchema = z.object({

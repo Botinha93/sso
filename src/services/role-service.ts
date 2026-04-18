@@ -17,6 +17,7 @@ export class RoleService {
   ) {}
 
   createRole(input: {
+    appId?: string;
     name: string;
     description: string;
     permissions: string[];
@@ -81,7 +82,7 @@ export class RoleService {
     this.roleRepository.delete(id);
   }
 
-  updateRole(id: string, input: { name?: string; description?: string; permissions?: string[]; scope?: "platform" | "tenant" }) {
+  updateRole(id: string, input: { appId?: string; name?: string; description?: string; permissions?: string[]; scope?: "platform" | "tenant" }) {
     return this.roleRepository.update(id, input);
   }
 }

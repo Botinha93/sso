@@ -3,6 +3,7 @@ import { createSigningKeys } from "./security/keys.js";
 import { JwtService } from "./security/jwt.js";
 import {
   SqliteAccessTokenRepository,
+  SqliteAppRepository,
   SqliteAuthenticationFlowRepository,
   SqliteAuditRepository,
   SqliteAuthorizationCodeRepository,
@@ -30,6 +31,7 @@ import {
   SqliteUserRoleAssignmentRepository
 } from "./repositories/sqlite.js";
 import { AuthService } from "./services/auth-service.js";
+import { AppService } from "./services/app-service.js";
 import { AuthenticationFlowService } from "./services/authentication-flow-service.js";
 import { ClientService } from "./services/client-service.js";
 import { FederationService } from "./services/federation-service.js";
@@ -50,6 +52,7 @@ export const bootstrap = async (config: AppConfig) => {
 
   const roleRepository = new SqliteRoleRepository(sqlite.connection);
   const tenantRepository = new SqliteTenantRepository(sqlite.connection);
+  const appRepository = new SqliteAppRepository(sqlite.connection);
   const groupRepository = new SqliteGroupRepository(sqlite.connection);
   const userGroupAssignmentRepository = new SqliteUserGroupAssignmentRepository(sqlite.connection);
   const groupRoleAssignmentRepository = new SqliteGroupRoleAssignmentRepository(sqlite.connection);
@@ -113,6 +116,7 @@ export const bootstrap = async (config: AppConfig) => {
   const tenantService = new TenantService(tenantRepository);
   const clientService = new ClientService(clientRepository);
   const scopeService = new ScopeService(scopeRepository);
+  const appService = new AppService(appRepository);
   const setupService = new SetupService(userService, roleService, groupService, policyService, scopeService);
 
   // Keep sane defaults in place across upgrades and restarts.
@@ -280,6 +284,7 @@ export const bootstrap = async (config: AppConfig) => {
     userService,
     clientService,
     scopeService,
+    appService,
     setupService,
     authService,
     oidcService,

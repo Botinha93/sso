@@ -26,6 +26,7 @@ import {
   loginSchema,
   oidcRevokeSchema,
   refreshTokenSchema,
+  resetUserPasswordSchema,
   revokeTokenSchema,
   tokenSchema,
   setUserAttributeGroupAssignmentSchema,
@@ -680,6 +681,27 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       }
     }
     return { id, active, email, username, givenName, familyName };
+  });
+  app.post("/api/admin/users/:id/reset-password", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { password } = resetUserPasswordSchema.parse(request.body);
+
+    deps.policyService.enforceUserCreationPolicies(password);
+    deps.userService.resetPassword(id, password);
+
+    const now = new Date();
+    const userSessions = deps.authService.sessionRepository.list().filter((session) => session.userId === id && !session.revokedAt);
+    for (const session of userSessions) {
+      deps.authService.sessionRepository.revoke(session.id, now);
+    }
+
+    deps.auditRepository.log({
+      type: "user_password_reset",
+      actorType: "system",
+      metadata: { userId: id, revokedSessions: userSessions.length }
+    });
+
+    return reply.status(204).send();
   });
   app.delete("/api/admin/users/:id", async (request, reply) => {
     const { id } = request.params as { id: string };

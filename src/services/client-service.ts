@@ -17,6 +17,7 @@ export class ClientService {
   }
 
   createClient(input: {
+    appId?: string;
     id: string;
     name: string;
     secret: string;
@@ -35,6 +36,7 @@ export class ClientService {
   }
 
   updateClient(id: string, input: Partial<{
+    appId: string;
     name: string;
     secret: string;
     redirectUris: string[];

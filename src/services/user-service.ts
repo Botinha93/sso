@@ -12,6 +12,7 @@ export class UserService {
   ) {}
 
   createUser(input: {
+    appId?: string;
     email: string;
     username: string;
     password: string;
@@ -27,6 +28,7 @@ export class UserService {
     }
 
     const user = this.userRepository.create({
+      appId: input.appId,
       email: input.email,
       username: input.username,
       passwordHash: hashPassword(input.password),
@@ -70,7 +72,7 @@ export class UserService {
     return this.userRepository.findById(id);
   }
 
-  updateUserProfile(id: string, input: { email?: string; username?: string; givenName?: string; familyName?: string }) {
+  updateUserProfile(id: string, input: { appId?: string; email?: string; username?: string; givenName?: string; familyName?: string }) {
     const existing = this.userRepository.findById(id);
     if (!existing) {
       throw new ValidationError("User not found");
@@ -91,6 +93,15 @@ export class UserService {
     }
 
     return this.userRepository.updateProfile(id, input);
+  }
+
+  resetPassword(id: string, password: string) {
+    const existing = this.userRepository.findById(id);
+    if (!existing) {
+      throw new ValidationError("User not found");
+    }
+
+    this.userRepository.setPasswordHash(id, hashPassword(password));
   }
 
   setUserActive(id: string, active: boolean) {

@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { AppError } from "../core/errors.js";
 import { readViewAsset } from "./view-assets.js";
-import { assignGroupRoleSchema, assignRoleSchema, assignUserGroupSchema, authorizeSchema, createClientSchema, createScopeSchema, createAuthenticationFlowSchema, createFederationProviderSchema, createGroupSchema, createUserAttributeSchema, createPolicySchema, createEventHookSchema, createTenantSchema, createRoleSchema, updateGroupSchema, updateRoleSchema, createUserSchema, introspectSchema, loginSchema, oidcRevokeSchema, revokeTokenSchema, tokenSchema, setUserAttributeGroupAssignmentSchema, setPolicyAssignmentSchema, removePolicyAssignmentSchema, setupInitializeSchema, updateAuthenticationFlowSchema, updateClientSchema, updateEventHookSchema, updateFederationProviderSchema, updatePolicySchema, updateTenantSchema, updateUserAttributeSchema, updateUserSchema } from "./schemas.js";
+import { assignGroupRoleSchema, assignRoleSchema, assignUserGroupSchema, authorizeSchema, createClientSchema, createScopeSchema, createAuthenticationFlowSchema, createFederationProviderSchema, createGroupSchema, createUserAttributeSchema, createPolicySchema, createEventHookSchema, createTenantSchema, createRoleSchema, updateGroupSchema, updateRoleSchema, createUserSchema, introspectSchema, loginSchema, oidcRevokeSchema, resetUserPasswordSchema, revokeTokenSchema, tokenSchema, setUserAttributeGroupAssignmentSchema, setPolicyAssignmentSchema, removePolicyAssignmentSchema, setupInitializeSchema, updateAuthenticationFlowSchema, updateClientSchema, updateEventHookSchema, updateFederationProviderSchema, updatePolicySchema, updateTenantSchema, updateUserAttributeSchema, updateUserSchema } from "./schemas.js";
 export const registerRoutes = async (app, deps) => {
     function asSafeRedirect(value) {
         if (typeof value !== "string" || !value.startsWith("/")) {
@@ -565,6 +565,23 @@ export const registerRoutes = async (app, deps) => {
             }
         }
         return { id, active, email, username, givenName, familyName };
+    });
+    app.post("/api/admin/users/:id/reset-password", async (request, reply) => {
+        const { id } = request.params;
+        const { password } = resetUserPasswordSchema.parse(request.body);
+        deps.policyService.enforceUserCreationPolicies(password);
+        deps.userService.resetPassword(id, password);
+        const now = new Date();
+        const userSessions = deps.authService.sessionRepository.list().filter((session) => session.userId === id && !session.revokedAt);
+        for (const session of userSessions) {
+            deps.authService.sessionRepository.revoke(session.id, now);
+        }
+        deps.auditRepository.log({
+            type: "user_password_reset",
+            actorType: "system",
+            metadata: { userId: id, revokedSessions: userSessions.length }
+        });
+        return reply.status(204).send();
     });
     app.delete("/api/admin/users/:id", async (request, reply) => {
         const { id } = request.params;

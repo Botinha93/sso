@@ -10,6 +10,7 @@ import type {
   FederationProvider,
   FederationTransaction,
   Group,
+  App,
   GroupRoleAssignment,
   OAuthClient,
   OAuthScope,
@@ -41,9 +42,18 @@ export interface UserRepository {
   findByEmail(email: string): User | undefined;
   findByUsername(username: string): User | undefined;
   findById(id: string): User | undefined;
-  updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName">>): User | undefined;
+  updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId">>): User | undefined;
+  setPasswordHash(id: string, passwordHash: string): void;
   setActive(id: string, active: boolean): void;
   setCustomAttributes(id: string, customAttributes: Record<string, string>): void;
+  delete(id: string): void;
+}
+
+export interface AppRepository {
+  create(input: Omit<App, "id" | "createdAt">): App;
+  list(): App[];
+  findById(id: string): App | undefined;
+  update(id: string, input: Partial<Omit<App, "id" | "createdAt">>): App | undefined;
   delete(id: string): void;
 }
 

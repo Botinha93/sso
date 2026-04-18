@@ -26,6 +26,7 @@ export type PolicyScopeType = "global" | "tenant" | "group" | "user";
 
 export interface Role {
   id: string;
+  appId?: string;
   name: string;
   description: string;
   permissions: string[];
@@ -35,6 +36,7 @@ export interface Role {
 
 export interface User {
   id: string;
+  appId?: string;
   email: string;
   username: string;
   passwordHash: string;
@@ -48,6 +50,7 @@ export interface User {
 
 export interface OAuthClient {
   id: string;
+  appId?: string;
   name: string;
   secret: string;
   redirectUris: string[];
@@ -97,6 +100,14 @@ export interface Tenant {
 }
 
 export interface Group {
+  id: string;
+  appId?: string;
+  name: string;
+  description: string;
+  createdAt: Date;
+}
+
+export interface App {
   id: string;
   name: string;
   description: string;

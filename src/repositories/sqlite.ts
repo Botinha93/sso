@@ -4,6 +4,7 @@ import Database from "better-sqlite3";
 import { nanoid } from "nanoid";
 import type {
   AccessTokenRecord,
+  App,
   AuthenticationFlow,
   AuditEvent,
   AuthorizationCode,
@@ -32,6 +33,7 @@ import type {
 } from "../domain/models.js";
 import type {
   AccessTokenRepository,
+  AppRepository,
   AuthenticationFlowRepository,
   AuditRepository,
   AuthorizationCodeRepository,
@@ -103,8 +105,16 @@ export class SqliteDatabase {
 
   migrate() {
     this.connection.exec(`
+      CREATE TABLE IF NOT EXISTS apps (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        description TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS roles (
         id TEXT PRIMARY KEY,
+        app_id TEXT,
         name TEXT NOT NULL UNIQUE,
         description TEXT NOT NULL,
         permissions_json TEXT NOT NULL,
@@ -114,6 +124,7 @@ export class SqliteDatabase {
 
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
+        app_id TEXT,
         email TEXT NOT NULL UNIQUE,
         username TEXT NOT NULL UNIQUE,
         password_hash TEXT NOT NULL,
@@ -127,6 +138,7 @@ export class SqliteDatabase {
 
       CREATE TABLE IF NOT EXISTS oauth_clients (
         id TEXT PRIMARY KEY,
+        app_id TEXT,
         name TEXT NOT NULL,
         secret TEXT NOT NULL,
         redirect_uris_json TEXT NOT NULL,
@@ -181,6 +193,7 @@ export class SqliteDatabase {
 
       CREATE TABLE IF NOT EXISTS groups (
         id TEXT PRIMARY KEY,
+        app_id TEXT,
         name TEXT NOT NULL UNIQUE,
         description TEXT NOT NULL,
         created_at TEXT NOT NULL
@@ -396,6 +409,10 @@ export class SqliteDatabase {
     if (!hasCustomAttributesColumn) {
       this.connection.exec("ALTER TABLE users ADD COLUMN custom_attributes_json TEXT NOT NULL DEFAULT '{}';");
     }
+    const hasUserAppIdColumn = userColumns.some((column) => column.name === "app_id");
+    if (!hasUserAppIdColumn) {
+      this.connection.exec("ALTER TABLE users ADD COLUMN app_id TEXT;");
+    }
 
     const clientColumns = this.connection.prepare("PRAGMA table_info(oauth_clients)").all() as Array<{ name: string }>;
     const hasResourcesColumn = clientColumns.some((column) => column.name === "resources_json");
@@ -405,6 +422,22 @@ export class SqliteDatabase {
     const hasFlowIdsColumn = clientColumns.some((column) => column.name === "flow_ids_json");
     if (!hasFlowIdsColumn) {
       this.connection.exec("ALTER TABLE oauth_clients ADD COLUMN flow_ids_json TEXT NOT NULL DEFAULT '[]';");
+    }
+    const hasClientAppIdColumn = clientColumns.some((column) => column.name === "app_id");
+    if (!hasClientAppIdColumn) {
+      this.connection.exec("ALTER TABLE oauth_clients ADD COLUMN app_id TEXT;");
+    }
+
+    const roleColumns = this.connection.prepare("PRAGMA table_info(roles)").all() as Array<{ name: string }>;
+    const hasRoleAppIdColumn = roleColumns.some((column) => column.name === "app_id");
+    if (!hasRoleAppIdColumn) {
+      this.connection.exec("ALTER TABLE roles ADD COLUMN app_id TEXT;");
+    }
+
+    const groupColumns = this.connection.prepare("PRAGMA table_info(groups)").all() as Array<{ name: string }>;
+    const hasGroupAppIdColumn = groupColumns.some((column) => column.name === "app_id");
+    if (!hasGroupAppIdColumn) {
+      this.connection.exec("ALTER TABLE groups ADD COLUMN app_id TEXT;");
     }
 
     const authFlowColumns = this.connection.prepare("PRAGMA table_info(authentication_flows)").all() as Array<{ name: string }>;
@@ -421,6 +454,7 @@ export class SqliteDatabase {
 
 const mapRole = (row: DbRow): Role => ({
   id: String(row.id),
+  appId: row.app_id ? String(row.app_id) : undefined,
   name: String(row.name),
   description: String(row.description),
   permissions: parseStringArray(row.permissions_json),
@@ -430,6 +464,7 @@ const mapRole = (row: DbRow): Role => ({
 
 const mapUser = (row: DbRow): User => ({
   id: String(row.id),
+  appId: row.app_id ? String(row.app_id) : undefined,
   email: String(row.email),
   username: String(row.username),
   passwordHash: String(row.password_hash),
@@ -443,6 +478,7 @@ const mapUser = (row: DbRow): User => ({
 
 const mapClient = (row: DbRow): OAuthClient => ({
   id: String(row.id),
+  appId: row.app_id ? String(row.app_id) : undefined,
   name: String(row.name),
   secret: String(row.secret),
   redirectUris: parseStringArray(row.redirect_uris_json),
@@ -492,6 +528,14 @@ const mapTenant = (row: DbRow): Tenant => ({
 });
 
 const mapGroup = (row: DbRow): Group => ({
+  id: String(row.id),
+  appId: row.app_id ? String(row.app_id) : undefined,
+  name: String(row.name),
+  description: String(row.description),
+  createdAt: asDate(row.created_at)
+});
+
+const mapApp = (row: DbRow): App => ({
   id: String(row.id),
   name: String(row.name),
   description: String(row.description),
@@ -670,9 +714,9 @@ export class SqliteRoleRepository implements RoleRepository {
   create(input: Omit<Role, "id" | "createdAt">): Role {
     const role = { ...input, id: nanoid(), createdAt: new Date() };
     this.db.prepare(`
-      INSERT INTO roles (id, name, description, permissions_json, scope, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(role.id, role.name, role.description, JSON.stringify(role.permissions), role.scope, role.createdAt.toISOString());
+      INSERT INTO roles (id, app_id, name, description, permissions_json, scope, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(role.id, role.appId ?? null, role.name, role.description, JSON.stringify(role.permissions), role.scope, role.createdAt.toISOString());
     return role;
   }
 
@@ -697,8 +741,8 @@ export class SqliteRoleRepository implements RoleRepository {
     const current = mapRole(existing);
     const updated = { ...current, ...input };
     this.db.prepare(`
-      UPDATE roles SET name = ?, description = ?, permissions_json = ?, scope = ? WHERE id = ?
-    `).run(updated.name, updated.description, JSON.stringify(updated.permissions), updated.scope, id);
+      UPDATE roles SET app_id = ?, name = ?, description = ?, permissions_json = ?, scope = ? WHERE id = ?
+    `).run(updated.appId ?? null, updated.name, updated.description, JSON.stringify(updated.permissions), updated.scope, id);
     return updated;
   }
 
@@ -719,10 +763,11 @@ export class SqliteUserRepository implements UserRepository {
     const now = new Date();
     const user: User = { ...input, id: nanoid(), createdAt: now, updatedAt: now };
     this.db.prepare(`
-      INSERT INTO users (id, email, username, password_hash, given_name, family_name, custom_attributes_json, active, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO users (id, app_id, email, username, password_hash, given_name, family_name, custom_attributes_json, active, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       user.id,
+      user.appId ?? null,
       user.email,
       user.username,
       user.passwordHash,
@@ -756,12 +801,13 @@ export class SqliteUserRepository implements UserRepository {
     return row ? mapUser(row as DbRow) : undefined;
   }
 
-  updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName">>): User | undefined {
+  updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId">>): User | undefined {
     const current = this.findById(id);
     if (!current) return undefined;
 
     const updated = {
       ...current,
+      appId: input.appId !== undefined ? input.appId : current.appId,
       email: input.email ?? current.email,
       username: input.username ?? current.username,
       givenName: input.givenName ?? current.givenName,
@@ -771,9 +817,10 @@ export class SqliteUserRepository implements UserRepository {
 
     this.db.prepare(`
       UPDATE users
-      SET email = ?, username = ?, given_name = ?, family_name = ?, updated_at = ?
+      SET app_id = ?, email = ?, username = ?, given_name = ?, family_name = ?, updated_at = ?
       WHERE id = ?
     `).run(
+      updated.appId ?? null,
       updated.email,
       updated.username,
       updated.givenName,
@@ -783,6 +830,14 @@ export class SqliteUserRepository implements UserRepository {
     );
 
     return updated;
+  }
+
+  setPasswordHash(id: string, passwordHash: string): void {
+    this.db.prepare("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?").run(
+      passwordHash,
+      new Date().toISOString(),
+      id
+    );
   }
 
   setActive(id: string, active: boolean): void {
@@ -813,10 +868,11 @@ export class SqliteClientRepository implements ClientRepository {
       createdAt: new Date()
     };
     this.db.prepare(`
-      INSERT INTO oauth_clients (id, name, secret, redirect_uris_json, allowed_scopes_json, grants_json, require_pkce, resources_json, flow_ids_json, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO oauth_clients (id, app_id, name, secret, redirect_uris_json, allowed_scopes_json, grants_json, require_pkce, resources_json, flow_ids_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       client.id,
+      client.appId ?? null,
       client.name,
       client.secret,
       JSON.stringify(client.redirectUris),
@@ -846,9 +902,10 @@ export class SqliteClientRepository implements ClientRepository {
     const updated = { ...existing, ...input };
     this.db.prepare(`
       UPDATE oauth_clients
-      SET name = ?, secret = ?, redirect_uris_json = ?, allowed_scopes_json = ?, grants_json = ?, require_pkce = ?, resources_json = ?, flow_ids_json = ?
+      SET app_id = ?, name = ?, secret = ?, redirect_uris_json = ?, allowed_scopes_json = ?, grants_json = ?, require_pkce = ?, resources_json = ?, flow_ids_json = ?
       WHERE id = ?
     `).run(
+      updated.appId ?? null,
       updated.name,
       updated.secret,
       JSON.stringify(updated.redirectUris),
@@ -1010,15 +1067,56 @@ export class SqliteTenantRepository implements TenantRepository {
   }
 }
 
+export class SqliteAppRepository implements AppRepository {
+  constructor(private readonly db: Database.Database) {}
+
+  create(input: Omit<App, "id" | "createdAt">): App {
+    const app: App = { ...input, id: nanoid(), createdAt: new Date() };
+    this.db.prepare(`
+      INSERT INTO apps (id, name, description, created_at)
+      VALUES (?, ?, ?, ?)
+    `).run(app.id, app.name, app.description, app.createdAt.toISOString());
+    return app;
+  }
+
+  list(): App[] {
+    const rows = this.db.prepare("SELECT * FROM apps ORDER BY created_at ASC").all() as DbRow[];
+    return rows.map(mapApp);
+  }
+
+  findById(id: string): App | undefined {
+    const row = this.db.prepare("SELECT * FROM apps WHERE id = ?").get(id);
+    return row ? mapApp(row as DbRow) : undefined;
+  }
+
+  update(id: string, input: Partial<Omit<App, "id" | "createdAt">>): App | undefined {
+    const existing = this.findById(id);
+    if (!existing) return undefined;
+
+    const updated: App = {
+      ...existing,
+      name: input.name ?? existing.name,
+      description: input.description ?? existing.description
+    };
+
+    this.db.prepare("UPDATE apps SET name = ?, description = ? WHERE id = ?").run(updated.name, updated.description, id);
+    return updated;
+  }
+
+  delete(id: string): void {
+    this.db.prepare("DELETE FROM apps WHERE id = ?").run(id);
+  }
+}
+
 export class SqliteGroupRepository implements GroupRepository {
   constructor(private readonly db: Database.Database) {}
 
   create(input: Omit<Group, "id" | "createdAt">): Group {
     const group: Group = { ...input, id: nanoid(), createdAt: new Date() };
     this.db.prepare(`
-      INSERT INTO groups (id, name, description, created_at)
-      VALUES (?, ?, ?, ?)
-    `).run(group.id, group.name, group.description, group.createdAt.toISOString());
+      INSERT INTO groups (id, app_id, name, description, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(group.id, group.appId ?? null, group.name, group.description, group.createdAt.toISOString());
     return group;
   }
 
@@ -1038,13 +1136,14 @@ export class SqliteGroupRepository implements GroupRepository {
 
     const updated: Group = {
       ...existing,
+      appId: input.appId ?? existing.appId,
       name: input.name ?? existing.name,
       description: input.description ?? existing.description
     };
 
     this.db.prepare(`
-      UPDATE groups SET name = ?, description = ? WHERE id = ?
-    `).run(updated.name, updated.description, id);
+      UPDATE groups SET app_id = ?, name = ?, description = ? WHERE id = ?
+    `).run(updated.appId ?? null, updated.name, updated.description, id);
 
     return updated;
   }

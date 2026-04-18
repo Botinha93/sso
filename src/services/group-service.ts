@@ -16,7 +16,7 @@ export class GroupService {
     private readonly userRepository: UserRepository
   ) {}
 
-  createGroup(input: { name: string; description: string; roleIds: string[] }) {
+  createGroup(input: { appId?: string; name: string; description: string; roleIds: string[] }) {
     const roleIds = Array.from(new Set(input.roleIds));
     const knownRoles = this.roleRepository.findByIds(roleIds);
 
@@ -25,6 +25,7 @@ export class GroupService {
     }
 
     const group = this.groupRepository.create({
+      appId: input.appId,
       name: input.name,
       description: input.description
     });
@@ -53,7 +54,7 @@ export class GroupService {
     });
   }
 
-  updateGroup(id: string, input: { name?: string; description?: string }) {
+  updateGroup(id: string, input: { appId?: string; name?: string; description?: string }) {
     const updated = this.groupRepository.update(id, input);
     if (!updated) {
       throw new ValidationError("Group not found");

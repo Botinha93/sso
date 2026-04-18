@@ -68,6 +68,13 @@ export class UserService {
         }
         return this.userRepository.updateProfile(id, input);
     }
+    resetPassword(id, password) {
+        const existing = this.userRepository.findById(id);
+        if (!existing) {
+            throw new ValidationError("User not found");
+        }
+        this.userRepository.setPasswordHash(id, hashPassword(password));
+    }
     setUserActive(id, active) {
         this.userRepository.setActive(id, active);
     }

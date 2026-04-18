@@ -30,6 +30,9 @@ export const updateUserSchema = z.object({
     groupIds: z.array(z.string()).optional(),
     customAttributes: z.record(z.string(), z.string()).optional()
 });
+export const resetUserPasswordSchema = z.object({
+    password: z.string().min(8)
+});
 export const createGroupSchema = z.object({
     name: z.string().min(2),
     description: z.string().min(2),

@@ -1,4 +1,4 @@
-import { Link2, Pencil, Plus, RefreshCw, Trash2, UserCheck, UserX, X } from 'lucide-react'
+import { KeyRound, Link2, Pencil, Plus, RefreshCw, Trash2, UserCheck, UserX, X } from 'lucide-react'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
@@ -7,6 +7,7 @@ import {
   useCreateUser,
   useUpdateUser,
   useDeleteUser,
+  useResetUserPassword,
   useGroups,
   useAssignUserToGroup,
   useRemoveUserFromGroup
@@ -48,6 +49,11 @@ const defaultEditForm = () => ({
   customAttributesJson: '{}'
 })
 
+const defaultResetForm = () => ({
+  password: '',
+  confirmPassword: ''
+})
+
 const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
 const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
 
@@ -55,19 +61,24 @@ const Users = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [userToEdit, setUserToEdit] = useState<User | null>(null)
+  const [resetModalOpen, setResetModalOpen] = useState(false)
+  const [userToReset, setUserToReset] = useState<User | null>(null)
   const [userToDelete, setUserToDelete] = useState<{ id: string; email: string } | null>(null)
   const { data: users, isLoading, refetch } = useUsers()
   const createUser = useCreateUser()
   const updateUser = useUpdateUser()
   const deleteUser = useDeleteUser()
+  const resetUserPassword = useResetUserPassword()
   const { data: groups = [] } = useGroups()
   const assignUserGroup = useAssignUserToGroup()
   const removeUserGroup = useRemoveUserFromGroup()
   const [groupPickerByUser, setGroupPickerByUser] = useState<Record<string, string>>({})
   const [formData, setFormData] = useState(defaultForm)
   const [editFormData, setEditFormData] = useState(defaultEditForm)
+  const [resetFormData, setResetFormData] = useState(defaultResetForm)
   const [createFormError, setCreateFormError] = useState<string>('')
   const [editFormError, setEditFormError] = useState<string>('')
+  const [resetFormError, setResetFormError] = useState<string>('')
 
   const handleCreate = async () => {
     if (!formData.email || !formData.username || !formData.password) return
@@ -151,6 +162,40 @@ const Users = () => {
 
   const handleDelete = (id: string, email: string) => {
     setUserToDelete({ id, email })
+  }
+
+  const handleOpenReset = (user: User) => {
+    setUserToReset(user)
+    setResetFormData(defaultResetForm())
+    setResetFormError('')
+    setResetModalOpen(true)
+  }
+
+  const handleResetPassword = async () => {
+    if (!userToReset) return
+
+    if (!resetFormData.password || !resetFormData.confirmPassword) {
+      setResetFormError('Enter and confirm the new password')
+      return
+    }
+    if (resetFormData.password.length < 8) {
+      setResetFormError('Password must be at least 8 characters')
+      return
+    }
+    if (resetFormData.password !== resetFormData.confirmPassword) {
+      setResetFormError('Passwords do not match')
+      return
+    }
+
+    try {
+      await resetUserPassword.mutateAsync({ id: userToReset.id, password: resetFormData.password })
+      setResetModalOpen(false)
+      setUserToReset(null)
+      setResetFormData(defaultResetForm())
+      setResetFormError('')
+    } catch (error) {
+      setResetFormError(error instanceof Error ? error.message : 'Failed to reset password')
+    }
   }
 
   const confirmDeleteUser = () => {
@@ -265,6 +310,14 @@ const Users = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => handleOpenReset(user)}
+                    disabled={resetUserPassword.isPending}
+                    className="p-1.5 rounded-lg hover:bg-amber-50 text-slate-400 hover:text-amber-700 transition-colors"
+                    title="Reset password"
+                  >
+                    <KeyRound size={14} />
+                  </button>
                   <button
                     onClick={() => handleEdit(user)}
                     disabled={updateUser.isPending}
@@ -402,6 +455,47 @@ const Users = () => {
               className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
             >
               {updateUser.isPending ? 'Saving…' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={resetModalOpen} onClose={() => setResetModalOpen(false)} title={`Reset Password${userToReset ? `: ${userToReset.email}` : ''}`}>
+        <div className="space-y-4">
+          <p className="text-xs text-slate-500">
+            Set a new password for this user. Existing sessions for this user will be revoked immediately.
+          </p>
+          <div>
+            <label className={labelCls}>New Password</label>
+            <input
+              type="password"
+              value={resetFormData.password}
+              onChange={(e) => setResetFormData((f) => ({ ...f, password: e.target.value }))}
+              className={fieldCls}
+              placeholder="Min 8 characters"
+            />
+          </div>
+          <div>
+            <label className={labelCls}>Confirm Password</label>
+            <input
+              type="password"
+              value={resetFormData.confirmPassword}
+              onChange={(e) => setResetFormData((f) => ({ ...f, confirmPassword: e.target.value }))}
+              className={fieldCls}
+              placeholder="Repeat new password"
+            />
+          </div>
+          {resetFormError && <p className="text-xs text-red-600">{resetFormError}</p>}
+          <div className="flex gap-2 justify-end pt-2">
+            <button onClick={() => setResetModalOpen(false)} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+              Cancel
+            </button>
+            <button
+              onClick={handleResetPassword}
+              disabled={resetUserPassword.isPending || !resetFormData.password || !resetFormData.confirmPassword}
+              className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+            >
+              {resetUserPassword.isPending ? 'Resetting…' : 'Reset Password'}
             </button>
           </div>
         </div>
