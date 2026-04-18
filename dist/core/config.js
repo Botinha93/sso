@@ -34,7 +34,15 @@ const asFederationProviders = () => {
 export const config = {
     port: asNumber("PORT", 4000),
     host: process.env.HOST ?? "127.0.0.1",
+    databaseProvider: (() => {
+        const raw = (process.env.DATABASE_PROVIDER ?? "sqlite").toLowerCase();
+        if (raw === "sqlite" || raw === "postgresql" || raw === "mysql") {
+            return raw;
+        }
+        throw new Error("DATABASE_PROVIDER must be one of: sqlite, postgresql, mysql");
+    })(),
     databasePath: process.env.DATABASE_PATH ?? "./data/sso.sqlite",
+    externalDatabaseUrl: process.env.DATABASE_URL,
     issuer: required("ISSUER", "http://localhost:4000"),
     ttl: {
         accessTokenSeconds: asNumber("JWT_ACCESS_TTL_SECONDS", 900),

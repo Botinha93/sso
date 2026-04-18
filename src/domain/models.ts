@@ -127,6 +127,9 @@ export interface App {
 
 export interface InstanceSettings {
   id: string;
+  databaseProvider: "sqlite" | "postgresql" | "mysql";
+  databasePath: string;
+  externalDatabaseUrl?: string;
   requireHttps: boolean;
   secureCookies: boolean;
   allowAnyCorsOrigin: boolean;

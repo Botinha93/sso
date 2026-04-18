@@ -40,7 +40,15 @@ export function useSetupStatus() {
 export function useInitializeSetup() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (payload: { name: string; email: string; username: string; password: string }) => jsonFetch('/api/setup/initialize', {
+    mutationFn: (payload: {
+      name: string
+      email: string
+      username: string
+      password: string
+      databaseProvider?: 'sqlite' | 'postgresql' | 'mysql'
+      databasePath?: string
+      externalDatabaseUrl?: string
+    }) => jsonFetch('/api/setup/initialize', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -777,6 +785,9 @@ export function useUpdateInstanceSettings() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (settings: {
+      databaseProvider?: 'sqlite' | 'postgresql' | 'mysql'
+      databasePath?: string
+      externalDatabaseUrl?: string
       requireHttps?: boolean
       secureCookies?: boolean
       allowAnyCorsOrigin?: boolean

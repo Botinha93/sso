@@ -5,6 +5,9 @@ const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent p
 const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
 
 const Setup = () => {
+  const [databaseProvider, setDatabaseProvider] = useState<'sqlite' | 'postgresql' | 'mysql'>('sqlite')
+  const [databasePath, setDatabasePath] = useState('./data/sso.sqlite')
+  const [externalDatabaseUrl, setExternalDatabaseUrl] = useState('')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
@@ -40,12 +43,23 @@ const Setup = () => {
       setError('Passwords do not match')
       return
     }
+    if (databaseProvider === 'sqlite' && !databasePath.trim()) {
+      setError('SQLite database path is required')
+      return
+    }
+    if (databaseProvider !== 'sqlite' && !externalDatabaseUrl.trim()) {
+      setError('External database URL is required for PostgreSQL/MySQL')
+      return
+    }
 
     await initializeSetup.mutateAsync({
       name: name.trim(),
       email: email.trim(),
       username: username.trim(),
-      password
+      password,
+      databaseProvider,
+      databasePath: databaseProvider === 'sqlite' ? databasePath.trim() : undefined,
+      externalDatabaseUrl: databaseProvider !== 'sqlite' ? externalDatabaseUrl.trim() : undefined
     }, {
       onSuccess: (result: any) => {
         const next = result?.email ? `/login?identifier=${encodeURIComponent(result.email)}` : '/login'
@@ -67,6 +81,43 @@ const Setup = () => {
 
         <form onSubmit={onSubmit} className="px-8 py-7 space-y-4">
           {error && <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
+
+          <div>
+            <label className={labelCls}>Database Provider</label>
+            <select
+              value={databaseProvider}
+              onChange={e => setDatabaseProvider(e.target.value as 'sqlite' | 'postgresql' | 'mysql')}
+              className={fieldCls}
+            >
+              <option value="sqlite">SQLite</option>
+              <option value="postgresql">PostgreSQL</option>
+              <option value="mysql">MySQL</option>
+            </select>
+          </div>
+
+          {databaseProvider === 'sqlite' ? (
+            <div>
+              <label className={labelCls}>SQLite Database Path</label>
+              <input
+                type="text"
+                value={databasePath}
+                onChange={e => setDatabasePath(e.target.value)}
+                className={fieldCls}
+                placeholder="./data/sso.sqlite"
+              />
+            </div>
+          ) : (
+            <div>
+              <label className={labelCls}>External Database URL</label>
+              <input
+                type="text"
+                value={externalDatabaseUrl}
+                onChange={e => setExternalDatabaseUrl(e.target.value)}
+                className={fieldCls}
+                placeholder={databaseProvider === 'postgresql' ? 'postgresql://user:pass@host:5432/sso' : 'mysql://user:pass@host:3306/sso'}
+              />
+            </div>
+          )}
 
           <div>
             <label className={labelCls}>Administrator Name</label>

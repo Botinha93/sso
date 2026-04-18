@@ -40,6 +40,9 @@ export class InstanceSettingsService {
 
     return {
       id: "instance",
+      databaseProvider: (process.env.DATABASE_PROVIDER as "sqlite" | "postgresql" | "mysql" | undefined) ?? "sqlite",
+      databasePath: process.env.DATABASE_PATH ?? "./data/sso.sqlite",
+      externalDatabaseUrl: process.env.DATABASE_URL,
       requireHttps: process.env.NODE_ENV === "production",
       secureCookies: process.env.NODE_ENV === "production",
       allowAnyCorsOrigin: configuredCors.length === 0,
@@ -77,11 +80,14 @@ export class InstanceSettingsService {
     return this.repository.get() ?? this.ensureDefaults();
   }
 
-  updateSettings(input: Partial<Pick<InstanceSettings, "requireHttps" | "secureCookies" | "allowAnyCorsOrigin" | "corsAllowedOrigins" | "requireHttpsRedirectUris" | "requireS256Pkce" | "allowImplicitFlow" | "loginFailureWindowMs" | "loginLockoutThreshold" | "loginLockoutDurationMs" | "sessionAnomalyConcurrencyThreshold" | "emailTransport" | "emailFrom" | "smtpHost" | "smtpPort" | "smtpSecure" | "smtpUser" | "smtpPass">>) {
+  updateSettings(input: Partial<Pick<InstanceSettings, "databaseProvider" | "databasePath" | "externalDatabaseUrl" | "requireHttps" | "secureCookies" | "allowAnyCorsOrigin" | "corsAllowedOrigins" | "requireHttpsRedirectUris" | "requireS256Pkce" | "allowImplicitFlow" | "loginFailureWindowMs" | "loginLockoutThreshold" | "loginLockoutDurationMs" | "sessionAnomalyConcurrencyThreshold" | "emailTransport" | "emailFrom" | "smtpHost" | "smtpPort" | "smtpSecure" | "smtpUser" | "smtpPass">>) {
     const current = this.getSettings();
 
     const next: Omit<InstanceSettings, "updatedAt"> = {
       ...current,
+      databaseProvider: input.databaseProvider ?? current.databaseProvider,
+      databasePath: input.databasePath ?? current.databasePath,
+      externalDatabaseUrl: input.externalDatabaseUrl ?? current.externalDatabaseUrl,
       requireHttps: input.requireHttps ?? current.requireHttps,
       secureCookies: input.secureCookies ?? current.secureCookies,
       allowAnyCorsOrigin: input.allowAnyCorsOrigin ?? current.allowAnyCorsOrigin,
@@ -105,6 +111,14 @@ export class InstanceSettingsService {
 
     if (!next.allowAnyCorsOrigin && next.corsAllowedOrigins.length === 0) {
       throw new ValidationError("Provide at least one allowed CORS origin or enable allow-any-origin");
+    }
+
+    if (next.databaseProvider === "sqlite") {
+      if (!next.databasePath || next.databasePath.trim().length === 0) {
+        throw new ValidationError("Database path is required when database provider is sqlite");
+      }
+    } else if (!next.externalDatabaseUrl || next.externalDatabaseUrl.trim().length === 0) {
+      throw new ValidationError("External database URL is required when using PostgreSQL or MySQL");
     }
 
     for (const origin of next.corsAllowedOrigins) {

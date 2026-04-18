@@ -382,6 +382,9 @@ export const testEventHookSchema = z.object({
     payload: z.record(z.string(), z.unknown()).optional()
 });
 export const updateInstanceSettingsSchema = z.object({
+    databaseProvider: z.enum(["sqlite", "postgresql", "mysql"]).optional(),
+    databasePath: z.string().min(1).optional(),
+    externalDatabaseUrl: z.string().url().optional(),
     requireHttps: z.boolean().optional(),
     secureCookies: z.boolean().optional(),
     allowAnyCorsOrigin: z.boolean().optional(),
@@ -410,7 +413,10 @@ export const setupInitializeSchema = z.object({
     name: z.string().min(2),
     email: z.string().email(),
     username: z.string().min(3),
-    password: z.string().min(8)
+    password: z.string().min(8),
+    databaseProvider: z.enum(["sqlite", "postgresql", "mysql"]).default("sqlite"),
+    databasePath: z.string().min(1).optional(),
+    externalDatabaseUrl: z.string().url().optional()
 });
 export const frontChannelLogoutSchema = z.object({
     sid: z.string().min(2).optional(),

@@ -70,7 +70,7 @@ export const bootstrap = async (config) => {
     const clientService = new ClientService(clientRepository, instanceSettingsService);
     const scopeService = new ScopeService(scopeRepository);
     const appService = new AppService(appRepository);
-    const setupService = new SetupService(userService, roleService, groupService, policyService, scopeService, appService);
+    const setupService = new SetupService(userService, roleService, groupService, policyService, scopeService, appService, instanceSettingsService);
     const totpService = new TotpService(config, totpCredentialRepository);
     // Keep sane defaults in place across upgrades and restarts.
     setupService.ensureSaneDefaults();

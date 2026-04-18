@@ -54,7 +54,9 @@ const asFederationProviders = (): FederationProviderConfig[] => {
 export interface AppConfig {
   port: number;
   host: string;
+  databaseProvider: "sqlite" | "postgresql" | "mysql";
   databasePath: string;
+  externalDatabaseUrl?: string;
   issuer: string;
   ttl: {
     accessTokenSeconds: number;
@@ -73,7 +75,15 @@ export interface AppConfig {
 export const config: AppConfig = {
   port: asNumber("PORT", 4000),
   host: process.env.HOST ?? "127.0.0.1",
+  databaseProvider: (() => {
+    const raw = (process.env.DATABASE_PROVIDER ?? "sqlite").toLowerCase();
+    if (raw === "sqlite" || raw === "postgresql" || raw === "mysql") {
+      return raw;
+    }
+    throw new Error("DATABASE_PROVIDER must be one of: sqlite, postgresql, mysql");
+  })(),
   databasePath: process.env.DATABASE_PATH ?? "./data/sso.sqlite",
+  externalDatabaseUrl: process.env.DATABASE_URL,
   issuer: required("ISSUER", "http://localhost:4000"),
   ttl: {
     accessTokenSeconds: asNumber("JWT_ACCESS_TTL_SECONDS", 900),

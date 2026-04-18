@@ -5,6 +5,7 @@ import type { PolicyService } from "./policy-service.js";
 import type { RoleService } from "./role-service.js";
 import type { ScopeService } from "./scope-service.js";
 import type { UserService } from "./user-service.js";
+import type { InstanceSettingsService } from "./instance-settings-service.js";
 
 const ALL_RESOURCES = [
   "users",
@@ -44,14 +45,17 @@ export class SetupService {
     private readonly groupService: GroupService,
     private readonly policyService: PolicyService,
     private readonly scopeService: ScopeService,
-    private readonly appService: AppService
+    private readonly appService: AppService,
+    private readonly instanceSettingsService: InstanceSettingsService
   ) {}
 
   status() {
     const userCount = this.userService.listUsers().length;
     const hasPlatformAdminRole = this.roleService.listRoles().some((role) => role.name === "platform_admin");
+    const settings = this.instanceSettingsService.getSettings();
     return {
-      requiresSetup: userCount === 0 || !hasPlatformAdminRole
+      requiresSetup: userCount === 0 || !hasPlatformAdminRole,
+      databaseProvider: settings.databaseProvider
     };
   }
 
@@ -61,7 +65,15 @@ export class SetupService {
     this.ensureDefaultPolicies();
   }
 
-  initialize(input: { name: string; email: string; username: string; password: string }) {
+  initialize(input: {
+    name: string;
+    email: string;
+    username: string;
+    password: string;
+    databaseProvider?: "sqlite" | "postgresql" | "mysql";
+    databasePath?: string;
+    externalDatabaseUrl?: string;
+  }) {
     const status = this.status();
     if (!status.requiresSetup) {
       throw new ValidationError("Setup has already been completed");
@@ -97,6 +109,12 @@ export class SetupService {
     const roleIds = this.ensureDefaultRoles();
     this.ensureDefaultGroups(roleIds);
     this.ensureDefaultPolicies();
+
+    this.instanceSettingsService.updateSettings({
+      databaseProvider: input.databaseProvider ?? "sqlite",
+      databasePath: input.databasePath ?? "./data/sso.sqlite",
+      externalDatabaseUrl: input.externalDatabaseUrl
+    });
 
     const [givenName, ...rest] = name.split(/\s+/).filter(Boolean);
     const familyName = rest.join(" ") || "Administrator";

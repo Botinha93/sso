@@ -514,6 +514,9 @@ const mapInstanceSettings = (row) => {
     const parsed = JSON.parse(String(row.settings_json));
     return {
         id: String(row.id),
+        databaseProvider: parsed.databaseProvider === "postgresql" || parsed.databaseProvider === "mysql" ? parsed.databaseProvider : "sqlite",
+        databasePath: typeof parsed.databasePath === "string" && parsed.databasePath.length > 0 ? parsed.databasePath : "./data/sso.sqlite",
+        externalDatabaseUrl: typeof parsed.externalDatabaseUrl === "string" && parsed.externalDatabaseUrl.length > 0 ? parsed.externalDatabaseUrl : undefined,
         requireHttps: Boolean(parsed.requireHttps),
         secureCookies: Boolean(parsed.secureCookies),
         allowAnyCorsOrigin: Boolean(parsed.allowAnyCorsOrigin),
@@ -1040,6 +1043,9 @@ export class SqliteInstanceSettingsRepository {
       VALUES (?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET settings_json = excluded.settings_json, updated_at = excluded.updated_at
     `).run(input.id, JSON.stringify({
+            databaseProvider: input.databaseProvider,
+            databasePath: input.databasePath,
+            externalDatabaseUrl: input.externalDatabaseUrl,
             requireHttps: input.requireHttps,
             secureCookies: input.secureCookies,
             allowAnyCorsOrigin: input.allowAnyCorsOrigin,
@@ -1047,6 +1053,17 @@ export class SqliteInstanceSettingsRepository {
             requireHttpsRedirectUris: input.requireHttpsRedirectUris,
             requireS256Pkce: input.requireS256Pkce,
             allowImplicitFlow: input.allowImplicitFlow,
+            loginFailureWindowMs: input.loginFailureWindowMs,
+            loginLockoutThreshold: input.loginLockoutThreshold,
+            loginLockoutDurationMs: input.loginLockoutDurationMs,
+            sessionAnomalyConcurrencyThreshold: input.sessionAnomalyConcurrencyThreshold,
+            emailTransport: input.emailTransport,
+            emailFrom: input.emailFrom,
+            smtpHost: input.smtpHost,
+            smtpPort: input.smtpPort,
+            smtpSecure: input.smtpSecure,
+            smtpUser: input.smtpUser,
+            smtpPass: input.smtpPass,
             tokenSigningAlgorithm: input.tokenSigningAlgorithm
         }), updatedAt.toISOString());
         return {

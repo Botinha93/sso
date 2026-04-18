@@ -606,6 +606,9 @@ const mapInstanceSettings = (row: DbRow): InstanceSettings => {
 
   return {
     id: String(row.id),
+    databaseProvider: parsed.databaseProvider === "postgresql" || parsed.databaseProvider === "mysql" ? parsed.databaseProvider : "sqlite",
+    databasePath: typeof parsed.databasePath === "string" && parsed.databasePath.length > 0 ? parsed.databasePath : "./data/sso.sqlite",
+    externalDatabaseUrl: typeof parsed.externalDatabaseUrl === "string" && parsed.externalDatabaseUrl.length > 0 ? parsed.externalDatabaseUrl : undefined,
     requireHttps: Boolean(parsed.requireHttps),
     secureCookies: Boolean(parsed.secureCookies),
     allowAnyCorsOrigin: Boolean(parsed.allowAnyCorsOrigin),
@@ -1261,6 +1264,9 @@ export class SqliteInstanceSettingsRepository implements InstanceSettingsReposit
     `).run(
       input.id,
       JSON.stringify({
+        databaseProvider: input.databaseProvider,
+        databasePath: input.databasePath,
+        externalDatabaseUrl: input.externalDatabaseUrl,
         requireHttps: input.requireHttps,
         secureCookies: input.secureCookies,
         allowAnyCorsOrigin: input.allowAnyCorsOrigin,

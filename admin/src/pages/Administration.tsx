@@ -3,6 +3,9 @@ import { AlertTriangle, Lock, Mail, Network, RefreshCw, ShieldCheck } from 'luci
 import { useInstanceSettings, useTestInstanceEmail, useUpdateInstanceSettings } from '../hooks/useApi'
 
 interface SettingsForm {
+  databaseProvider: 'sqlite' | 'postgresql' | 'mysql'
+  databasePath: string
+  externalDatabaseUrl: string
   requireHttps: boolean
   secureCookies: boolean
   allowAnyCorsOrigin: boolean
@@ -29,6 +32,9 @@ const sectionCls = 'rounded-xl border border-slate-200 bg-white p-5 shadow-sm'
 const parseOrigins = (value: string) => value.split('\n').map((item) => item.trim()).filter(Boolean)
 
 const defaultForm: SettingsForm = {
+  databaseProvider: 'sqlite',
+  databasePath: './data/sso.sqlite',
+  externalDatabaseUrl: '',
   requireHttps: false,
   secureCookies: false,
   allowAnyCorsOrigin: true,
@@ -64,6 +70,9 @@ export default function Administration() {
     }
 
     setForm({
+      databaseProvider: (((data as any).databaseProvider ?? 'sqlite') as SettingsForm['databaseProvider']),
+      databasePath: String((data as any).databasePath ?? './data/sso.sqlite'),
+      externalDatabaseUrl: String((data as any).externalDatabaseUrl ?? ''),
       requireHttps: Boolean((data as any).requireHttps),
       secureCookies: Boolean((data as any).secureCookies),
       allowAnyCorsOrigin: Boolean((data as any).allowAnyCorsOrigin),
@@ -91,6 +100,9 @@ export default function Administration() {
       setSaveMessage(null)
       setSaveError(null)
       await updateSettings.mutateAsync({
+        databaseProvider: form.databaseProvider,
+        databasePath: form.databaseProvider === 'sqlite' ? form.databasePath : undefined,
+        externalDatabaseUrl: form.databaseProvider === 'sqlite' ? undefined : (form.externalDatabaseUrl || undefined),
         requireHttps: form.requireHttps,
         secureCookies: form.secureCookies,
         allowAnyCorsOrigin: form.allowAnyCorsOrigin,
@@ -142,7 +154,7 @@ export default function Administration() {
           <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">Instance Controls</p>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Administration</h1>
           <p className="mt-2 max-w-3xl text-sm text-slate-600">
-            Configure instance-wide transport, browser, and OAuth security posture. These settings affect how the server accepts requests and issues tokens.
+            Configure instance-wide transport, browser, OAuth, and runtime attack controls. These settings affect how the server accepts requests, issues tokens, and reacts to suspicious authentication behavior.
           </p>
         </div>
         <button onClick={() => refetch()} className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
@@ -164,6 +176,53 @@ export default function Administration() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
+        <section className={sectionCls}>
+          <div className="flex items-center gap-2">
+            <Network size={16} className="text-slate-500" />
+            <h2 className="text-base font-semibold text-slate-900">Database Provider</h2>
+          </div>
+          <div className="mt-4 space-y-4">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Provider</label>
+              <select
+                value={form.databaseProvider}
+                onChange={(e) => setForm((v) => ({ ...v, databaseProvider: e.target.value as SettingsForm['databaseProvider'] }))}
+                className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+              >
+                <option value="sqlite">SQLite</option>
+                <option value="postgresql">PostgreSQL</option>
+                <option value="mysql">MySQL</option>
+              </select>
+            </div>
+
+            {form.databaseProvider === 'sqlite' ? (
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">SQLite Database Path</label>
+                <input
+                  value={form.databasePath}
+                  onChange={(e) => setForm((v) => ({ ...v, databasePath: e.target.value }))}
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+                  placeholder="./data/sso.sqlite"
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">External Database URL</label>
+                <input
+                  value={form.externalDatabaseUrl}
+                  onChange={(e) => setForm((v) => ({ ...v, externalDatabaseUrl: e.target.value }))}
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+                  placeholder={form.databaseProvider === 'postgresql' ? 'postgresql://user:pass@host:5432/sso' : 'mysql://user:pass@host:3306/sso'}
+                />
+              </div>
+            )}
+
+            <p className="text-xs text-slate-500">
+              Provider settings are persisted now; full PostgreSQL/MySQL runtime persistence is part of the ongoing repository rewrite.
+            </p>
+          </div>
+        </section>
+
         <section className={sectionCls}>
           <div className="flex items-center gap-2">
             <Lock size={16} className="text-slate-500" />
@@ -439,6 +498,7 @@ export default function Administration() {
             <li>Redirect URI and PKCE enforcement apply to subsequent client changes and authorize requests.</li>
             <li>Disabling implicit flow immediately blocks new <span className="font-mono">response_type=token</span> authorize requests.</li>
             <li>Lockout and anomaly thresholds are applied immediately to new authentication and session observation events.</li>
+            <li>Database provider settings are persisted immediately and take effect once the backend storage rewrite path is activated.</li>
             <li>Email transport settings are used immediately for recovery and other email-driven flows.</li>
           </ul>
         </section>

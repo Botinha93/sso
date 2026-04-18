@@ -87,7 +87,7 @@ const API_ROUTES: ApiRoute[] = [
 
   { method: 'GET', path: '/api/admin/me', auth: 'session', description: 'Returns authenticated admin profile, roles, groups, and permissions.' },
   { method: 'GET', path: '/api/admin/settings', auth: 'session', description: 'Returns persisted instance-wide administration and security settings.' },
-  { method: 'PUT', path: '/api/admin/settings', auth: 'session+csrf', description: 'Updates instance-wide transport, CORS, and OAuth security settings.' },
+  { method: 'PUT', path: '/api/admin/settings', auth: 'session+csrf', description: 'Updates instance-wide transport, CORS, OAuth, email, and runtime security controls.' },
 
   { method: 'GET', path: '/api/admin/users', auth: 'session', description: 'Lists users.' },
   { method: 'POST', path: '/api/admin/users', auth: 'session+csrf', description: 'Creates user and emits user.created event.' },
