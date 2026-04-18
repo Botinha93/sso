@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import { AuthenticationError, ValidationError } from "../core/errors.js";
 import type {
   AccessTokenRepository,
+  AuditRepository,
   AuthorizationCodeRepository,
   ClientRepository,
   ConsentRepository,
@@ -13,6 +14,7 @@ import type {
 import { verifyPassword } from "../security/password.js";
 import { hashOpaqueToken } from "../security/token-hash.js";
 import { JwtService } from "../security/jwt.js";
+import { AuthenticationFlowService } from "./authentication-flow-service.js";
 import { RoleService } from "./role-service.js";
 import { UserService } from "./user-service.js";
 
@@ -20,14 +22,16 @@ export class AuthService {
   constructor(
     private readonly userService: UserService,
     private readonly roleService: RoleService,
+    private readonly authenticationFlowService: AuthenticationFlowService,
     private readonly clientRepository: ClientRepository,
-    private readonly sessionRepository: SessionRepository,
+    readonly sessionRepository: SessionRepository,
     private readonly authorizationCodeRepository: AuthorizationCodeRepository,
-    private readonly consentRepository: ConsentRepository,
+    readonly consentRepository: ConsentRepository,
     private readonly refreshTokenRepository: RefreshTokenRepository,
     private readonly accessTokenRepository: AccessTokenRepository,
     private readonly tenantRepository: TenantRepository,
-    private readonly jwtService: JwtService
+    readonly jwtService: JwtService,
+    readonly auditRepository: AuditRepository
   ) {}
 
   async login(input: {
@@ -37,13 +41,18 @@ export class AuthService {
     scope: string[];
     tenantSlug?: string;
   }) {
-    const user = this.userService.findUserByEmail(input.email);
+    this.authenticationFlowService.assertGrantSupported("authorization_code");
+    this.authenticationFlowService.assertStageEnabled("password");
+
+    const identifier = input.email.trim();
+    const user = this.userService.findUserByEmail(identifier) ?? this.userService.findUserByUsername(identifier);
 
     if (!user || !user.active || !verifyPassword(input.password, user.passwordHash)) {
       throw new AuthenticationError("Invalid credentials");
     }
 
     const client = this.requireClient(input.clientId);
+    this.assertClientSupportsActiveFlow(client);
     const allowedScope = input.scope.filter((scope) => client.allowedScopes.includes(scope));
     const tenant = input.tenantSlug ? this.tenantRepository.findBySlug(input.tenantSlug) : undefined;
 
@@ -62,6 +71,14 @@ export class AuthService {
       tenantId: tenant?.id
     });
 
+    this.auditRepository.log({
+      type: "login",
+      actorId: user.id,
+      actorType: "user",
+      clientId: client.id,
+      metadata: { sessionId: session.id }
+    });
+
     return {
       user,
       session,
@@ -78,7 +95,9 @@ export class AuthService {
     codeChallenge?: string;
     codeChallengeMethod?: "S256";
   }) {
+    this.authenticationFlowService.assertGrantSupported("authorization_code");
     const client = this.requireClient(input.clientId);
+    this.assertClientSupportsActiveFlow(client);
 
     if (!client.redirectUris.includes(input.redirectUri)) {
       throw new ValidationError("Invalid redirect_uri for client");
@@ -178,6 +197,17 @@ export class AuthService {
     return client;
   }
 
+  private assertClientSupportsActiveFlow(client: ReturnType<AuthService["requireClient"]>) {
+    const activeFlow = this.authenticationFlowService.getActiveFlow();
+    if (!activeFlow) {
+      return;
+    }
+
+    if (client.flowIds.length > 0 && !client.flowIds.includes(activeFlow.id)) {
+      throw new AuthenticationError("Client is not allowed to use the active authentication flow");
+    }
+  }
+
   async refreshTokens(input: {
     refreshToken: string;
     clientId: string;
@@ -225,6 +255,55 @@ export class AuthService {
     });
   }
 
+  async issueClientCredentialsTokens(input: {
+    clientId: string;
+    clientSecret: string;
+    scope?: string;
+  }) {
+    const client = this.requireClient(input.clientId);
+
+    if (client.secret !== input.clientSecret) {
+      throw new AuthenticationError("Invalid client credentials");
+    }
+
+    if (!client.grants.includes("client_credentials")) {
+      throw new AuthenticationError("Client does not support client_credentials grant");
+    }
+
+    const requestedScope = input.scope ? input.scope.split(" ") : client.allowedScopes;
+    const allowedScope = requestedScope.filter((s) => client.allowedScopes.includes(s));
+
+    const accessTokenId = nanoid();
+    const { accessToken, expiresIn, tokenType } = await this.jwtService.issueClientCredentialsToken({
+      client,
+      scope: allowedScope,
+      accessTokenId
+    });
+
+    // No DB session for client_credentials (machine-to-machine)
+    this.auditRepository.log({
+      type: "token_issued",
+      actorType: "client",
+      clientId: client.id,
+      metadata: { grant: "client_credentials", scope: allowedScope }
+    });
+
+    return { access_token: accessToken, token_type: tokenType, expires_in: expiresIn, scope: allowedScope.join(" ") };
+  }
+
+  async introspectToken(token: string) {
+    try {
+      const payload = await this.jwtService.verifyAccessToken(token);
+      const tokenId = payload.jti;
+      if (!tokenId || this.accessTokenRepository.isRevoked(String(tokenId))) {
+        return { active: false };
+      }
+      return { active: true, ...payload };
+    } catch {
+      return { active: false };
+    }
+  }
+
   revokeAccessToken(tokenId: string) {
     this.accessTokenRepository.revokeByTokenId(tokenId, new Date());
   }
@@ -254,14 +333,32 @@ export class AuthService {
 
     const tenantId = typeof payload.tenant_id === "string" ? payload.tenant_id : undefined;
 
-    return {
-      sub: user.id,
-      email: user.email,
-      preferred_username: user.username,
-      given_name: user.givenName,
-      family_name: user.familyName,
-      roles: this.roleService.resolveNamesForUser(user.id, tenantId)
-    };
+    const scopes = Array.isArray(payload.scope)
+      ? payload.scope
+      : typeof payload.scope === "string"
+        ? payload.scope.split(" ")
+        : [];
+
+    const claims: Record<string, unknown> = { sub: user.id };
+
+    if (scopes.includes("profile")) {
+      claims.preferred_username = user.username;
+      claims.given_name = user.givenName;
+      claims.family_name = user.familyName;
+      claims.roles = this.roleService.resolveNamesForUser(user.id, tenantId);
+    }
+
+    if (scopes.includes("email")) {
+      claims.email = user.email;
+      claims.email_verified = true;
+    }
+
+    // Always include roles if explicitly in scope
+    if (scopes.includes("roles") && !claims.roles) {
+      claims.roles = this.roleService.resolveNamesForUser(user.id, tenantId);
+    }
+
+    return claims;
   }
 
   private async issuePersistedTokens(input: {

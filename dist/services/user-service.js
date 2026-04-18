@@ -3,9 +3,11 @@ import { hashPassword } from "../security/password.js";
 export class UserService {
     userRepository;
     roleService;
-    constructor(userRepository, roleService) {
+    groupService;
+    constructor(userRepository, roleService, groupService) {
         this.userRepository = userRepository;
         this.roleService = roleService;
+        this.groupService = groupService;
     }
     createUser(input) {
         if (this.userRepository.findByEmail(input.email)) {
@@ -17,6 +19,7 @@ export class UserService {
             passwordHash: hashPassword(input.password),
             givenName: input.givenName,
             familyName: input.familyName,
+            customAttributes: input.customAttributes ?? {},
             active: input.active ?? true
         });
         for (const roleId of input.roleIds) {
@@ -25,18 +28,34 @@ export class UserService {
                 roleId
             });
         }
+        for (const groupId of input.groupIds ?? []) {
+            this.groupService.assignUserToGroup({ userId: user.id, groupId });
+        }
         return user;
     }
     listUsers() {
         return this.userRepository.list().map(({ passwordHash, ...user }) => ({
             ...user,
-            roles: this.roleService.resolveNamesForUser(user.id)
+            roles: this.roleService.resolveNamesForUser(user.id),
+            groups: this.groupService.resolveGroupNamesForUser(user.id)
         }));
     }
     findUserByEmail(email) {
         return this.userRepository.findByEmail(email);
     }
+    findUserByUsername(username) {
+        return this.userRepository.findByUsername(username);
+    }
     findUserById(id) {
         return this.userRepository.findById(id);
+    }
+    setUserActive(id, active) {
+        this.userRepository.setActive(id, active);
+    }
+    setCustomAttributes(id, customAttributes) {
+        this.userRepository.setCustomAttributes(id, customAttributes);
+    }
+    deleteUser(id) {
+        this.userRepository.delete(id);
     }
 }

@@ -9,6 +9,28 @@ const asNumber = (name, fallback) => {
     const raw = process.env[name];
     return raw ? Number(raw) : fallback;
 };
+const asFederationProviders = () => {
+    const raw = process.env.FEDERATION_PROVIDERS_JSON;
+    if (!raw) {
+        return [];
+    }
+    try {
+        const parsed = JSON.parse(raw);
+        return parsed.filter((provider) => Boolean(provider.id &&
+            provider.label &&
+            provider.authorizationEndpoint &&
+            provider.tokenEndpoint &&
+            provider.userInfoEndpoint &&
+            provider.clientId &&
+            provider.clientSecret)).map((provider) => ({
+            ...provider,
+            scopes: provider.scopes?.length ? provider.scopes : ["openid", "profile", "email"]
+        }));
+    }
+    catch {
+        throw new Error("FEDERATION_PROVIDERS_JSON must be valid JSON array");
+    }
+};
 export const config = {
     port: asNumber("PORT", 4000),
     host: process.env.HOST ?? "127.0.0.1",
@@ -22,5 +44,8 @@ export const config = {
     admin: {
         email: required("ADMIN_EMAIL", "admin@example.com"),
         password: required("ADMIN_PASSWORD", "change-me-now")
+    },
+    federation: {
+        providers: asFederationProviders()
     }
 };

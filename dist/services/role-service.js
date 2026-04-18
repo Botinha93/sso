@@ -3,10 +3,14 @@ export class RoleService {
     roleRepository;
     assignmentRepository;
     tenantRepository;
-    constructor(roleRepository, assignmentRepository, tenantRepository) {
+    userGroupAssignmentRepository;
+    groupRoleAssignmentRepository;
+    constructor(roleRepository, assignmentRepository, tenantRepository, userGroupAssignmentRepository, groupRoleAssignmentRepository) {
         this.roleRepository = roleRepository;
         this.assignmentRepository = assignmentRepository;
         this.tenantRepository = tenantRepository;
+        this.userGroupAssignmentRepository = userGroupAssignmentRepository;
+        this.groupRoleAssignmentRepository = groupRoleAssignmentRepository;
     }
     createRole(input) {
         if (!input.permissions.length) {
@@ -28,9 +32,33 @@ export class RoleService {
         const matchingRoleIds = assignments
             .filter((assignment) => !assignment.tenantId || assignment.tenantId === tenantId)
             .map((assignment) => assignment.roleId);
-        return this.roleRepository.findByIds(matchingRoleIds).map((role) => role.name);
+        const userGroups = this.userGroupAssignmentRepository.listByUser(userId).map((assignment) => assignment.groupId);
+        const groupRoleIds = this.groupRoleAssignmentRepository
+            .listByGroups(userGroups)
+            .map((assignment) => assignment.roleId);
+        const effectiveRoleIds = Array.from(new Set([...matchingRoleIds, ...groupRoleIds]));
+        return this.roleRepository.findByIds(effectiveRoleIds).map((role) => role.name);
+    }
+    resolvePermissionsForUser(userId, tenantId) {
+        const assignments = this.assignmentRepository.listByUser(userId);
+        const matchingRoleIds = assignments
+            .filter((assignment) => !assignment.tenantId || assignment.tenantId === tenantId)
+            .map((assignment) => assignment.roleId);
+        const userGroups = this.userGroupAssignmentRepository.listByUser(userId).map((assignment) => assignment.groupId);
+        const groupRoleIds = this.groupRoleAssignmentRepository
+            .listByGroups(userGroups)
+            .map((assignment) => assignment.roleId);
+        const effectiveRoleIds = Array.from(new Set([...matchingRoleIds, ...groupRoleIds]));
+        const permissions = this.roleRepository.findByIds(effectiveRoleIds).flatMap((role) => role.permissions);
+        return Array.from(new Set(permissions));
     }
     listAssignmentsForUser(userId) {
         return this.assignmentRepository.listByUser(userId);
+    }
+    deleteRole(id) {
+        this.roleRepository.delete(id);
+    }
+    updateRole(id, input) {
+        return this.roleRepository.update(id, input);
     }
 }

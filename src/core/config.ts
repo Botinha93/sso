@@ -13,6 +13,44 @@ const asNumber = (name: string, fallback: number): number => {
   return raw ? Number(raw) : fallback;
 };
 
+export interface FederationProviderConfig {
+  id: string;
+  label: string;
+  authorizationEndpoint: string;
+  tokenEndpoint: string;
+  userInfoEndpoint: string;
+  clientId: string;
+  clientSecret: string;
+  scopes: string[];
+}
+
+const asFederationProviders = (): FederationProviderConfig[] => {
+  const raw = process.env.FEDERATION_PROVIDERS_JSON;
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as FederationProviderConfig[];
+    return parsed.filter((provider) =>
+      Boolean(
+        provider.id &&
+          provider.label &&
+          provider.authorizationEndpoint &&
+          provider.tokenEndpoint &&
+          provider.userInfoEndpoint &&
+          provider.clientId &&
+          provider.clientSecret
+      )
+    ).map((provider) => ({
+      ...provider,
+      scopes: provider.scopes?.length ? provider.scopes : ["openid", "profile", "email"]
+    }));
+  } catch {
+    throw new Error("FEDERATION_PROVIDERS_JSON must be valid JSON array");
+  }
+};
+
 export interface AppConfig {
   port: number;
   host: string;
@@ -26,6 +64,9 @@ export interface AppConfig {
   admin: {
     email: string;
     password: string;
+  };
+  federation: {
+    providers: FederationProviderConfig[];
   };
 }
 
@@ -42,5 +83,8 @@ export const config: AppConfig = {
   admin: {
     email: required("ADMIN_EMAIL", "admin@example.com"),
     password: required("ADMIN_PASSWORD", "change-me-now")
+  },
+  federation: {
+    providers: asFederationProviders()
   }
 };

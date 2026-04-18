@@ -1,0 +1,20 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Northstar SSO Logo</title>
+  <desc id="desc">Compass-inspired NS monogram</desc>
+  <defs>
+    <linearGradient id="bg" x1="32" y1="24" x2="224" y2="232" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0EA5E9"/>
+      <stop offset="1" stop-color="#1D4ED8"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="70" y1="60" x2="186" y2="196" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#E0F2FE" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#BAE6FD" stop-opacity="0.8"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="20" y="20" width="216" height="216" rx="56" fill="url(#bg)"/>
+  <path d="M128 40L154 102L216 128L154 154L128 216L102 154L40 128L102 102L128 40Z" fill="#0B1630" fill-opacity="0.22"/>
+
+  <path d="M74 176V80h20l62 64V80h26v96h-20l-62-64v64H74Z" fill="url(#shine)"/>
+  <path d="M174 184c-24 0-42-17-42-40 0-24 18-40 42-40 11 0 20 3 28 9l-12 15c-5-3-10-5-16-5-11 0-20 8-20 20 0 11 9 20 20 20 6 0 12-2 17-6l11 15c-8 8-18 12-28 12Z" fill="#F8FAFC" fill-opacity="0.92"/>
+</svg>

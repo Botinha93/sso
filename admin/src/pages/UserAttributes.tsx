@@ -1,0 +1,356 @@
+import { Pencil, Plus, RefreshCw, ToggleLeft, ToggleRight, Trash2, X } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import ConfirmDialog from '../components/ConfirmDialog'
+import Modal from '../components/Modal'
+import {
+  useCreateUserAttribute,
+  useDeleteUserAttribute,
+  useGroups,
+  useRemoveUserAttributeGroupAssignment,
+  useSetUserAttributeGroupAssignment,
+  useUpdateUserAttribute,
+  useUserAttributes,
+} from '../hooks/useApi'
+
+type AttributeType = 'text' | 'number' | 'boolean' | 'date' | 'json'
+
+interface GroupAssignment {
+  id: string
+  groupId: string
+  groupName: string
+  enabled: boolean
+}
+
+interface UserAttribute {
+  id: string
+  key: string
+  name: string
+  description: string
+  type: AttributeType
+  enabled: boolean
+  assignments: GroupAssignment[]
+}
+
+interface GroupItem {
+  id: string
+  name: string
+}
+
+const TYPE_OPTIONS: AttributeType[] = ['text', 'number', 'boolean', 'date', 'json']
+
+const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
+const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
+
+const defaultForm = {
+  key: '',
+  name: '',
+  description: '',
+  type: 'text' as AttributeType,
+  enabled: true,
+}
+
+const UserAttributes = () => {
+  const { data, isLoading, refetch } = useUserAttributes()
+  const { data: groups = [] } = useGroups()
+
+  const createAttribute = useCreateUserAttribute()
+  const updateAttribute = useUpdateUserAttribute()
+  const deleteAttribute = useDeleteUserAttribute()
+  const setGroupAssignment = useSetUserAttributeGroupAssignment()
+  const removeGroupAssignment = useRemoveUserAttributeGroupAssignment()
+
+  const [createOpen, setCreateOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [attributeToDelete, setAttributeToDelete] = useState<UserAttribute | null>(null)
+  const [editingId, setEditingId] = useState('')
+  const [groupPickerByAttribute, setGroupPickerByAttribute] = useState<Record<string, string>>({})
+  const [form, setForm] = useState(defaultForm)
+
+  const attributes = useMemo(() => (data ?? []) as UserAttribute[], [data])
+  const groupItems = groups as GroupItem[]
+
+  const openCreate = () => {
+    setForm(defaultForm)
+    setCreateOpen(true)
+  }
+
+  const openEdit = (attribute: UserAttribute) => {
+    setEditingId(attribute.id)
+    setForm({
+      key: attribute.key,
+      name: attribute.name,
+      description: attribute.description,
+      type: attribute.type,
+      enabled: attribute.enabled,
+    })
+    setEditOpen(true)
+  }
+
+  const onCreate = async () => {
+    if (!form.key || !form.name || !form.description) return
+
+    await createAttribute.mutateAsync({
+      key: form.key,
+      name: form.name,
+      description: form.description,
+      type: form.type,
+      enabled: form.enabled,
+    })
+
+    setCreateOpen(false)
+    setForm(defaultForm)
+  }
+
+  const onEdit = async () => {
+    if (!editingId || !form.key || !form.name || !form.description) return
+
+    await updateAttribute.mutateAsync({
+      id: editingId,
+      key: form.key,
+      name: form.name,
+      description: form.description,
+      type: form.type,
+      enabled: form.enabled,
+    })
+
+    setEditOpen(false)
+    setEditingId('')
+    setForm(defaultForm)
+  }
+
+  const onDelete = (attribute: UserAttribute) => {
+    setAttributeToDelete(attribute)
+  }
+
+  const confirmDeleteAttribute = () => {
+    if (!attributeToDelete) return
+    deleteAttribute.mutate(attributeToDelete.id, { onSuccess: () => setAttributeToDelete(null) })
+  }
+
+  const toggleGlobalEnabled = (attribute: UserAttribute) => {
+    updateAttribute.mutate({ id: attribute.id, enabled: !attribute.enabled })
+  }
+
+  const applyGroup = (attribute: UserAttribute) => {
+    const groupId = groupPickerByAttribute[attribute.id]
+    if (!groupId) return
+
+    setGroupAssignment.mutate({ id: attribute.id, groupId, enabled: true })
+  }
+
+  const toggleGroup = (attributeId: string, assignment: GroupAssignment) => {
+    setGroupAssignment.mutate({ id: attributeId, groupId: assignment.groupId, enabled: !assignment.enabled })
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">User Profile Schema</p>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900">User Attributes</h2>
+        </div>
+        <button
+          onClick={openCreate}
+          className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 transition-colors"
+        >
+          <Plus size={14} />
+          New Attribute
+        </button>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
+          <h4 className="text-sm font-semibold text-slate-700">Attribute Definitions</h4>
+          <button onClick={() => refetch()} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors">
+            <RefreshCw size={12} />
+            Refresh
+          </button>
+        </div>
+
+        {isLoading ? (
+          <div className="p-10 text-center text-slate-400 text-sm">Loading attributes...</div>
+        ) : attributes.length === 0 ? (
+          <div className="p-10 text-center text-slate-400 text-sm">No custom user attributes defined</div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {attributes.map((attribute) => {
+              const mappedGroups = new Set(attribute.assignments.map((assignment) => assignment.groupId))
+              const availableGroups = groupItems.filter((group) => !mappedGroups.has(group.id))
+              const pickerValue = groupPickerByAttribute[attribute.id] ?? availableGroups[0]?.id ?? ''
+
+              return (
+                <div key={attribute.id} className="px-5 py-4 hover:bg-slate-50/50 transition-colors">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h5 className="text-sm font-medium text-slate-900">{attribute.name}</h5>
+                        <span className="text-xs px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 font-mono">{attribute.key}</span>
+                        <span className="text-xs px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100 font-mono">{attribute.type}</span>
+                        <button
+                          onClick={() => toggleGlobalEnabled(attribute)}
+                          className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
+                          title="Toggle globally for all users"
+                        >
+                          {attribute.enabled ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
+                          {attribute.enabled ? 'Global On' : 'Global Off'}
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-500">{attribute.description}</p>
+
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {attribute.assignments.length === 0 && (
+                          <span className="text-xs px-1.5 py-0.5 rounded-md border border-slate-200 bg-slate-100 text-slate-500">No group rules</span>
+                        )}
+                        {attribute.assignments.map((assignment) => (
+                          <span key={assignment.id} className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-md border border-emerald-100 bg-emerald-50 text-emerald-700">
+                            {assignment.groupName}
+                            <button
+                              className="text-emerald-600 hover:text-slate-900"
+                              onClick={() => toggleGroup(attribute.id, assignment)}
+                              title="Toggle for this group"
+                            >
+                              {assignment.enabled ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
+                            </button>
+                            <button
+                              className="text-emerald-600 hover:text-red-600"
+                              onClick={() => removeGroupAssignment.mutate({ id: attribute.id, groupId: assignment.groupId })}
+                              title="Remove group rule"
+                            >
+                              <X size={11} />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+
+                      <div className="mt-3 flex items-center gap-2 max-w-md">
+                        <select
+                          className={fieldCls}
+                          value={pickerValue}
+                          onChange={(e) => setGroupPickerByAttribute((prev) => ({ ...prev, [attribute.id]: e.target.value }))}
+                        >
+                          {availableGroups.length === 0 ? (
+                            <option value="">All groups configured</option>
+                          ) : (
+                            availableGroups.map((group) => (
+                              <option key={group.id} value={group.id}>{group.name}</option>
+                            ))
+                          )}
+                        </select>
+                        <button
+                          className="h-9 px-3 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          disabled={!pickerValue || setGroupAssignment.isPending}
+                          onClick={() => applyGroup(attribute)}
+                        >
+                          Apply To Group
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => openEdit(attribute)}
+                        className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+                        title="Edit attribute"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => onDelete(attribute)}
+                        disabled={deleteAttribute.isPending}
+                        className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors disabled:opacity-40"
+                        title="Delete attribute"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title="Create User Attribute">
+        <AttributeForm
+          form={form}
+          setForm={setForm}
+          onSubmit={onCreate}
+          submitLabel={createAttribute.isPending ? 'Creating...' : 'Create Attribute'}
+          pending={createAttribute.isPending}
+        />
+      </Modal>
+
+      <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title="Edit User Attribute">
+        <AttributeForm
+          form={form}
+          setForm={setForm}
+          onSubmit={onEdit}
+          submitLabel={updateAttribute.isPending ? 'Saving...' : 'Save Changes'}
+          pending={updateAttribute.isPending}
+        />
+      </Modal>
+
+      <ConfirmDialog
+        isOpen={!!attributeToDelete}
+        title="Delete User Attribute"
+        message={`Delete attribute "${attributeToDelete?.name ?? ''}"?`}
+        confirmLabel="Delete Attribute"
+        pending={deleteAttribute.isPending}
+        onConfirm={confirmDeleteAttribute}
+        onCancel={() => setAttributeToDelete(null)}
+      />
+    </div>
+  )
+}
+
+function AttributeForm({
+  form,
+  setForm,
+  onSubmit,
+  submitLabel,
+  pending,
+}: {
+  form: typeof defaultForm
+  setForm: React.Dispatch<React.SetStateAction<typeof defaultForm>>
+  onSubmit: () => void
+  submitLabel: string
+  pending: boolean
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelCls}>Attribute Key</label>
+          <input className={`${fieldCls} font-mono`} value={form.key} onChange={(e) => setForm((prev) => ({ ...prev, key: e.target.value }))} placeholder="department" />
+        </div>
+        <div>
+          <label className={labelCls}>Type</label>
+          <select className={fieldCls} value={form.type} onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value as AttributeType }))}>
+            {TYPE_OPTIONS.map((type) => (
+              <option key={type} value={type}>{type}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label className={labelCls}>Display Name</label>
+        <input className={fieldCls} value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="Department" />
+      </div>
+      <div>
+        <label className={labelCls}>Description</label>
+        <input className={fieldCls} value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} placeholder="Business unit for user segmentation" />
+      </div>
+      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+        <input type="checkbox" className="rounded border-slate-300" checked={form.enabled} onChange={(e) => setForm((prev) => ({ ...prev, enabled: e.target.checked }))} />
+        Enabled for all users
+      </label>
+      <div className="flex justify-end">
+        <button onClick={onSubmit} disabled={pending || !form.key || !form.name || !form.description} className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors">
+          {submitLabel}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export default UserAttributes

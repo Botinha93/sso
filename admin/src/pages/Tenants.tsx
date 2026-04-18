@@ -1,81 +1,88 @@
 import { Plus, RefreshCw, Building2 } from 'lucide-react'
 import { useState } from 'react'
 import Modal from '../components/Modal'
+import { useTenants, useCreateTenant } from '../hooks/useApi'
+
+const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
+const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
 
 const Tenants = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [formData, setFormData] = useState({ name: '', slug: '' })
+  const { data: tenants = [], isLoading, refetch } = useTenants()
+  const createTenant = useCreateTenant()
+
+  function handleCreate() {
+    if (!formData.name || !formData.slug) return
+    createTenant.mutate(formData, {
+      onSuccess: () => {
+        setCreateModalOpen(false)
+        setFormData({ name: '', slug: '' })
+      }
+    })
+  }
 
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Multi-Tenancy</p>
-          <h2 className="text-2xl font-semibold">Organizations</h2>
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Multi-Tenancy</p>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Organizations</h2>
         </div>
         <button
           onClick={() => setCreateModalOpen(true)}
-          className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium flex items-center gap-2"
+          className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 transition-colors"
         >
-          <Plus size={16} />
+          <Plus size={14} />
           New Tenant
         </button>
       </div>
 
-      <div className="rounded-xl border border-border bg-card">
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <h4 className="font-medium">All Tenants</h4>
-          <button className="text-sm text-muted-foreground flex items-center gap-1.5 hover:text-foreground transition-colors">
-            <RefreshCw size={14} />
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
+          <h4 className="text-sm font-semibold text-slate-700">All Tenants</h4>
+          <button onClick={() => refetch()} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors">
+            <RefreshCw size={12} />
             Refresh
           </button>
         </div>
-        <div className="p-4 space-y-3">
-          <div className="p-4 rounded-lg bg-muted/30 border border-border">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
-                  <Building2 size={16} />
-                </div>
-                <div>
-                  <h5 className="font-medium">default</h5>
-                  <p className="text-sm text-muted-foreground mt-0.5">System Default Tenant</p>
-                </div>
+        <div className="divide-y divide-slate-100">
+          {isLoading && <p className="p-10 text-center text-slate-400 text-sm">Loading…</p>}
+          {!isLoading && tenants.length === 0 && <p className="p-10 text-center text-slate-400 text-sm">No tenants yet.</p>}
+          {tenants.map((tenant: any) => (
+            <div key={tenant.id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50/50 transition-colors">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                <Building2 size={14} className="text-slate-500" />
               </div>
-              <div className="flex gap-2">
-                <span className="text-xs px-2.5 py-1 rounded-md bg-muted">System Tenant</span>
+              <div>
+                <h5 className="text-sm font-medium text-slate-900">{tenant.name}</h5>
+                <p className="text-xs text-slate-500 font-mono">{tenant.slug}</p>
               </div>
             </div>
-          </div>
+          ))}
         </div>
       </div>
 
       <Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Create New Tenant">
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-medium block mb-2">Tenant Name</label>
-            <input
-              type="text"
-              className="w-full h-9 px-3 rounded-md border border-border bg-background text-sm"
-              placeholder="Organization name"
-            />
+            <label className={labelCls}>Organization Name</label>
+            <input type="text" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} className={fieldCls} placeholder="Acme Corp" />
           </div>
           <div>
-            <label className="text-sm font-medium block mb-2">Identifier Slug</label>
-            <input
-              type="text"
-              className="w-full h-9 px-3 rounded-md border border-border bg-background text-sm"
-              placeholder="tenant-slug"
-            />
+            <label className={labelCls}>Identifier Slug</label>
+            <input type="text" value={formData.slug} onChange={e => setFormData(p => ({ ...p, slug: e.target.value }))} className={`${fieldCls} font-mono`} placeholder="acme-corp" />
           </div>
-          <div className="flex gap-2 justify-end mt-6">
-            <button
-              onClick={() => setCreateModalOpen(false)}
-              className="h-9 px-4 rounded-md text-sm font-medium hover:bg-muted transition-colors"
-            >
+          <div className="flex gap-2 justify-end pt-2">
+            <button onClick={() => setCreateModalOpen(false)} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
               Cancel
             </button>
-            <button className="h-9 px-4 rounded-md bg-primary text-primary-foreground text-sm font-medium">
-              Create Tenant
+            <button
+              onClick={handleCreate}
+              disabled={createTenant.isPending || !formData.name || !formData.slug}
+              className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+            >
+              {createTenant.isPending ? 'Creating…' : 'Create Tenant'}
             </button>
           </div>
         </div>

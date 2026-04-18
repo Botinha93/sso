@@ -1,0 +1,202 @@
+import { nanoid } from "nanoid";
+import { ValidationError } from "../core/errors.js";
+import type { AuthenticationStage, AuthenticationStageType, FlowDesignation, GrantType } from "../domain/models.js";
+import type { AuthenticationFlowRepository } from "../repositories/contracts.js";
+
+const VALID_STAGE_TYPES: AuthenticationStageType[] = [
+  "password",
+  "federation",
+  "consent",
+  "mfa_totp",
+  "risk_check",
+  "identification",
+  "email_verification",
+  "captcha",
+  "prompt",
+  "user_write",
+  "user_login",
+  "user_logout"
+];
+const VALID_GRANT_TYPES: GrantType[] = ["authorization_code", "client_credentials", "refresh_token"];
+const VALID_DESIGNATIONS: FlowDesignation[] = [
+  "authentication",
+  "authorization",
+  "enrollment",
+  "invalidation",
+  "recovery",
+  "stage_configuration",
+  "unenrollment"
+];
+
+const DEFAULT_ENABLED_STAGES: AuthenticationStageType[] = ["password", "federation", "consent"];
+
+export class AuthenticationFlowService {
+  constructor(private readonly authenticationFlowRepository: AuthenticationFlowRepository) {}
+
+  listFlows() {
+    return this.authenticationFlowRepository.list();
+  }
+
+  getActiveFlow() {
+    return this.authenticationFlowRepository.list().find((flow) => flow.enabled && flow.designation === "authentication");
+  }
+
+  assertGrantSupported(grantType: GrantType) {
+    const activeFlow = this.getActiveFlow();
+    if (!activeFlow) {
+      return;
+    }
+
+    if (!activeFlow.grantTypes.includes(grantType)) {
+      throw new ValidationError(`Active authentication flow does not support grant type: ${grantType}`);
+    }
+  }
+
+  isStageEnabled(stageType: AuthenticationStageType): boolean {
+    const activeFlow = this.getActiveFlow();
+    if (!activeFlow) {
+      return DEFAULT_ENABLED_STAGES.includes(stageType);
+    }
+
+    return activeFlow.stages.some((stage) => stage.type === stageType && stage.required);
+  }
+
+  assertStageEnabled(stageType: AuthenticationStageType) {
+    if (!this.isStageEnabled(stageType)) {
+      throw new ValidationError(`Authentication stage \"${stageType}\" is not enabled in active flow`);
+    }
+  }
+
+  createFlow(input: {
+    name: string;
+    description: string;
+    designation: FlowDesignation;
+    enabled: boolean;
+    grantTypes: GrantType[];
+    stages: AuthenticationStage[];
+  }) {
+    const stages = this.normalizeStages(input.stages);
+    const grantTypes = this.normalizeGrantTypes(input.grantTypes);
+    const designation = this.normalizeDesignation(input.designation);
+
+    if (input.enabled && designation === "authentication") {
+      this.disableAllFlows("authentication");
+    }
+
+    return this.authenticationFlowRepository.create({
+      id: nanoid(),
+      name: input.name,
+      description: input.description,
+      designation,
+      enabled: input.enabled,
+      grantTypes,
+      stages
+    });
+  }
+
+  updateFlow(
+    id: string,
+    input: {
+      name?: string;
+      description?: string;
+      designation?: FlowDesignation;
+      enabled?: boolean;
+      grantTypes?: GrantType[];
+      stages?: AuthenticationStage[];
+    }
+  ) {
+    const existing = this.authenticationFlowRepository.findById(id);
+    if (!existing) {
+      throw new ValidationError("Authentication flow not found");
+    }
+
+    const designation = input.designation ? this.normalizeDesignation(input.designation) : existing.designation;
+
+    if (input.enabled && designation === "authentication") {
+      this.disableAllFlows("authentication", id);
+    }
+
+    const stages = input.stages ? this.normalizeStages(input.stages) : existing.stages;
+    const grantTypes = input.grantTypes ? this.normalizeGrantTypes(input.grantTypes) : existing.grantTypes;
+
+    const updated = this.authenticationFlowRepository.update(id, {
+      name: input.name,
+      description: input.description,
+      designation,
+      enabled: input.enabled,
+      grantTypes,
+      stages
+    });
+
+    if (!updated) {
+      throw new ValidationError("Failed to update authentication flow");
+    }
+
+    return updated;
+  }
+
+  deleteFlow(id: string) {
+    this.authenticationFlowRepository.delete(id);
+  }
+
+  private disableAllFlows(designation: FlowDesignation, exceptId?: string) {
+    for (const flow of this.authenticationFlowRepository.list()) {
+      if (flow.designation !== designation) {
+        continue;
+      }
+      if (flow.id === exceptId) {
+        continue;
+      }
+
+      if (flow.enabled) {
+        this.authenticationFlowRepository.update(flow.id, { enabled: false });
+      }
+    }
+  }
+
+  private normalizeStages(stages: AuthenticationStage[]): AuthenticationStage[] {
+    if (!Array.isArray(stages) || stages.length === 0) {
+      throw new ValidationError("Authentication flow must include at least one stage");
+    }
+
+    const seen = new Set<AuthenticationStageType>();
+    const sorted = [...stages].sort((a, b) => a.order - b.order);
+
+    for (const stage of sorted) {
+      if (!VALID_STAGE_TYPES.includes(stage.type)) {
+        throw new ValidationError(`Unsupported stage type: ${stage.type}`);
+      }
+      if (seen.has(stage.type)) {
+        throw new ValidationError(`Duplicate stage type in flow: ${stage.type}`);
+      }
+      if (!Number.isInteger(stage.order) || stage.order < 1) {
+        throw new ValidationError("Stage order must be a positive integer");
+      }
+      seen.add(stage.type);
+    }
+
+    return sorted;
+  }
+
+  private normalizeGrantTypes(grantTypes: GrantType[]): GrantType[] {
+    if (!Array.isArray(grantTypes) || grantTypes.length === 0) {
+      throw new ValidationError("Authentication flow must include at least one grant type");
+    }
+
+    const unique = Array.from(new Set(grantTypes));
+    for (const grantType of unique) {
+      if (!VALID_GRANT_TYPES.includes(grantType)) {
+        throw new ValidationError(`Unsupported grant type: ${grantType}`);
+      }
+    }
+
+    return unique;
+  }
+
+  private normalizeDesignation(designation: FlowDesignation): FlowDesignation {
+    if (!VALID_DESIGNATIONS.includes(designation)) {
+      throw new ValidationError(`Unsupported flow designation: ${designation}`);
+    }
+    return designation;
+  }
+}

@@ -8,6 +8,19 @@ const parseStringArray = (value) => {
     }
     return JSON.parse(value);
 };
+const parseStringRecord = (value) => {
+    if (typeof value !== "string" || value.length === 0) {
+        return {};
+    }
+    const parsed = JSON.parse(value);
+    const output = {};
+    for (const [key, raw] of Object.entries(parsed)) {
+        if (typeof raw === "string") {
+            output[key] = raw;
+        }
+    }
+    return output;
+};
 const asDate = (value) => new Date(String(value));
 const maybeDate = (value) => (value ? asDate(value) : undefined);
 export class SqliteDatabase {
@@ -39,6 +52,7 @@ export class SqliteDatabase {
         password_hash TEXT NOT NULL,
         given_name TEXT NOT NULL,
         family_name TEXT NOT NULL,
+        custom_attributes_json TEXT NOT NULL DEFAULT '{}',
         active INTEGER NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -52,6 +66,15 @@ export class SqliteDatabase {
         allowed_scopes_json TEXT NOT NULL,
         grants_json TEXT NOT NULL,
         require_pkce INTEGER NOT NULL,
+        resources_json TEXT NOT NULL DEFAULT '[]',
+        flow_ids_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS oauth_scopes (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        description TEXT NOT NULL,
         created_at TEXT NOT NULL
       );
 
@@ -87,6 +110,33 @@ export class SqliteDatabase {
         name TEXT NOT NULL,
         active INTEGER NOT NULL,
         created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS groups (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        description TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS user_group_assignments (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        group_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE (user_id, group_id),
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (group_id) REFERENCES groups(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS group_role_assignments (
+        id TEXT PRIMARY KEY,
+        group_id TEXT NOT NULL,
+        role_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE (group_id, role_id),
+        FOREIGN KEY (group_id) REFERENCES groups(id),
+        FOREIGN KEY (role_id) REFERENCES roles(id)
       );
 
       CREATE TABLE IF NOT EXISTS user_role_assignments (
@@ -144,7 +194,158 @@ export class SqliteDatabase {
         FOREIGN KEY (client_id) REFERENCES oauth_clients(id),
         FOREIGN KEY (session_id) REFERENCES sessions(id)
       );
+
+      CREATE TABLE IF NOT EXISTS audit_events (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        actor_id TEXT,
+        actor_type TEXT NOT NULL,
+        client_id TEXT,
+        ip TEXT,
+        metadata_json TEXT,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS federated_identities (
+        id TEXT PRIMARY KEY,
+        provider_id TEXT NOT NULL,
+        provider_subject TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        email TEXT,
+        created_at TEXT NOT NULL,
+        last_login_at TEXT NOT NULL,
+        UNIQUE (provider_id, provider_subject),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS federation_transactions (
+        state TEXT PRIMARY KEY,
+        provider_id TEXT NOT NULL,
+        code_verifier TEXT NOT NULL,
+        redirect_after_login TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS federation_providers (
+        id TEXT PRIMARY KEY,
+        label TEXT NOT NULL,
+        authorization_endpoint TEXT NOT NULL,
+        token_endpoint TEXT NOT NULL,
+        userinfo_endpoint TEXT NOT NULL,
+        client_id TEXT NOT NULL,
+        client_secret TEXT NOT NULL,
+        scopes_json TEXT NOT NULL,
+        enabled INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS authentication_flows (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        designation TEXT NOT NULL DEFAULT 'authentication',
+        enabled INTEGER NOT NULL,
+        grants_json TEXT NOT NULL DEFAULT '["authorization_code"]',
+        stages_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS user_attribute_definitions (
+        id TEXT PRIMARY KEY,
+        key TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        type TEXT NOT NULL,
+        enabled INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS group_user_attribute_assignments (
+        id TEXT PRIMARY KEY,
+        group_id TEXT NOT NULL,
+        attribute_id TEXT NOT NULL,
+        enabled INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (group_id, attribute_id),
+        FOREIGN KEY (group_id) REFERENCES groups(id),
+        FOREIGN KEY (attribute_id) REFERENCES user_attribute_definitions(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS policy_definitions (
+        id TEXT PRIMARY KEY,
+        key TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        enabled INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS policy_assignments (
+        id TEXT PRIMARY KEY,
+        policy_id TEXT NOT NULL,
+        scope_type TEXT NOT NULL,
+        scope_id TEXT NOT NULL,
+        enabled INTEGER NOT NULL,
+        config_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (policy_id, scope_type, scope_id),
+        FOREIGN KEY (policy_id) REFERENCES policy_definitions(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS event_hooks (
+        id TEXT PRIMARY KEY,
+        event_type TEXT NOT NULL,
+        target_url TEXT NOT NULL,
+        method TEXT NOT NULL,
+        headers_json TEXT NOT NULL,
+        enabled INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS event_notifications (
+        id TEXT PRIMARY KEY,
+        event_type TEXT NOT NULL,
+        hook_id TEXT,
+        payload_json TEXT NOT NULL,
+        status TEXT NOT NULL,
+        response_status INTEGER,
+        response_body TEXT,
+        error TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (hook_id) REFERENCES event_hooks(id)
+      );
     `);
+        const userColumns = this.connection.prepare("PRAGMA table_info(users)").all();
+        const hasCustomAttributesColumn = userColumns.some((column) => column.name === "custom_attributes_json");
+        if (!hasCustomAttributesColumn) {
+            this.connection.exec("ALTER TABLE users ADD COLUMN custom_attributes_json TEXT NOT NULL DEFAULT '{}';");
+        }
+        const clientColumns = this.connection.prepare("PRAGMA table_info(oauth_clients)").all();
+        const hasResourcesColumn = clientColumns.some((column) => column.name === "resources_json");
+        if (!hasResourcesColumn) {
+            this.connection.exec("ALTER TABLE oauth_clients ADD COLUMN resources_json TEXT NOT NULL DEFAULT '[]';");
+        }
+        const hasFlowIdsColumn = clientColumns.some((column) => column.name === "flow_ids_json");
+        if (!hasFlowIdsColumn) {
+            this.connection.exec("ALTER TABLE oauth_clients ADD COLUMN flow_ids_json TEXT NOT NULL DEFAULT '[]';");
+        }
+        const authFlowColumns = this.connection.prepare("PRAGMA table_info(authentication_flows)").all();
+        const hasDesignationColumn = authFlowColumns.some((column) => column.name === "designation");
+        if (!hasDesignationColumn) {
+            this.connection.exec("ALTER TABLE authentication_flows ADD COLUMN designation TEXT NOT NULL DEFAULT 'authentication';");
+        }
+        const hasGrantsColumn = authFlowColumns.some((column) => column.name === "grants_json");
+        if (!hasGrantsColumn) {
+            this.connection.exec("ALTER TABLE authentication_flows ADD COLUMN grants_json TEXT NOT NULL DEFAULT '[\"authorization_code\"]';");
+        }
     }
 }
 const mapRole = (row) => ({
@@ -162,6 +363,7 @@ const mapUser = (row) => ({
     passwordHash: String(row.password_hash),
     givenName: String(row.given_name),
     familyName: String(row.family_name),
+    customAttributes: parseStringRecord(row.custom_attributes_json),
     active: Boolean(row.active),
     createdAt: asDate(row.created_at),
     updatedAt: asDate(row.updated_at)
@@ -174,6 +376,14 @@ const mapClient = (row) => ({
     allowedScopes: parseStringArray(row.allowed_scopes_json),
     grants: parseStringArray(row.grants_json),
     requirePkce: Boolean(row.require_pkce),
+    resources: parseStringArray(row.resources_json),
+    flowIds: parseStringArray(row.flow_ids_json),
+    createdAt: asDate(row.created_at)
+});
+const mapScope = (row) => ({
+    id: String(row.id),
+    name: String(row.name),
+    description: String(row.description),
     createdAt: asDate(row.created_at)
 });
 const mapSession = (row) => ({
@@ -201,6 +411,123 @@ const mapTenant = (row) => ({
     slug: String(row.slug),
     name: String(row.name),
     active: Boolean(row.active),
+    createdAt: asDate(row.created_at)
+});
+const mapGroup = (row) => ({
+    id: String(row.id),
+    name: String(row.name),
+    description: String(row.description),
+    createdAt: asDate(row.created_at)
+});
+const mapUserGroupAssignment = (row) => ({
+    id: String(row.id),
+    userId: String(row.user_id),
+    groupId: String(row.group_id),
+    createdAt: asDate(row.created_at)
+});
+const mapGroupRoleAssignment = (row) => ({
+    id: String(row.id),
+    groupId: String(row.group_id),
+    roleId: String(row.role_id),
+    createdAt: asDate(row.created_at)
+});
+const mapFederatedIdentity = (row) => ({
+    id: String(row.id),
+    providerId: String(row.provider_id),
+    providerSubject: String(row.provider_subject),
+    userId: String(row.user_id),
+    email: row.email ? String(row.email) : undefined,
+    createdAt: asDate(row.created_at),
+    lastLoginAt: asDate(row.last_login_at)
+});
+const mapFederationTransaction = (row) => ({
+    state: String(row.state),
+    providerId: String(row.provider_id),
+    codeVerifier: String(row.code_verifier),
+    redirectAfterLogin: String(row.redirect_after_login),
+    createdAt: asDate(row.created_at),
+    expiresAt: asDate(row.expires_at)
+});
+const mapFederationProvider = (row) => ({
+    id: String(row.id),
+    label: String(row.label),
+    authorizationEndpoint: String(row.authorization_endpoint),
+    tokenEndpoint: String(row.token_endpoint),
+    userInfoEndpoint: String(row.userinfo_endpoint),
+    clientId: String(row.client_id),
+    clientSecret: String(row.client_secret),
+    scopes: parseStringArray(row.scopes_json),
+    enabled: Boolean(row.enabled),
+    createdAt: asDate(row.created_at),
+    updatedAt: asDate(row.updated_at)
+});
+const mapAuthenticationFlow = (row) => ({
+    id: String(row.id),
+    name: String(row.name),
+    description: String(row.description),
+    designation: (typeof row.designation === "string" && row.designation.length > 0 ? row.designation : "authentication"),
+    enabled: Boolean(row.enabled),
+    grantTypes: (parseStringArray(row.grants_json).length ? parseStringArray(row.grants_json) : ["authorization_code"]),
+    stages: JSON.parse(String(row.stages_json)),
+    createdAt: asDate(row.created_at),
+    updatedAt: asDate(row.updated_at)
+});
+const mapUserAttributeDefinition = (row) => ({
+    id: String(row.id),
+    key: String(row.key),
+    name: String(row.name),
+    description: String(row.description),
+    type: String(row.type),
+    enabled: Boolean(row.enabled),
+    createdAt: asDate(row.created_at),
+    updatedAt: asDate(row.updated_at)
+});
+const mapGroupUserAttributeAssignment = (row) => ({
+    id: String(row.id),
+    groupId: String(row.group_id),
+    attributeId: String(row.attribute_id),
+    enabled: Boolean(row.enabled),
+    createdAt: asDate(row.created_at),
+    updatedAt: asDate(row.updated_at)
+});
+const mapPolicyDefinition = (row) => ({
+    id: String(row.id),
+    key: String(row.key),
+    name: String(row.name),
+    description: String(row.description),
+    enabled: Boolean(row.enabled),
+    createdAt: asDate(row.created_at),
+    updatedAt: asDate(row.updated_at)
+});
+const mapPolicyAssignment = (row) => ({
+    id: String(row.id),
+    policyId: String(row.policy_id),
+    scopeType: String(row.scope_type),
+    scopeId: String(row.scope_id),
+    enabled: Boolean(row.enabled),
+    config: JSON.parse(String(row.config_json)),
+    createdAt: asDate(row.created_at),
+    updatedAt: asDate(row.updated_at)
+});
+const mapEventHook = (row) => ({
+    id: String(row.id),
+    eventType: String(row.event_type),
+    targetUrl: String(row.target_url),
+    method: String(row.method),
+    headers: JSON.parse(String(row.headers_json)),
+    enabled: Boolean(row.enabled),
+    createdAt: asDate(row.created_at),
+    updatedAt: asDate(row.updated_at)
+});
+const mapEventNotification = (row) => ({
+    id: String(row.id),
+    eventType: String(row.event_type),
+    hookId: row.hook_id ? String(row.hook_id) : undefined,
+    payload: JSON.parse(String(row.payload_json)),
+    status: String(row.status),
+    responseStatus: typeof row.response_status === "number" ? row.response_status : undefined,
+    responseBody: row.response_body ? String(row.response_body) : undefined,
+    error: row.error ? String(row.error) : undefined,
     createdAt: asDate(row.created_at)
 });
 const mapAssignment = (row) => ({
@@ -267,9 +594,23 @@ export class SqliteRoleRepository {
         const rows = this.db.prepare(`SELECT * FROM roles WHERE id IN (${placeholders})`).all(...ids);
         return rows.map(mapRole);
     }
+    update(id, input) {
+        const existing = this.db.prepare("SELECT * FROM roles WHERE id = ?").get(id);
+        if (!existing)
+            return undefined;
+        const current = mapRole(existing);
+        const updated = { ...current, ...input };
+        this.db.prepare(`
+      UPDATE roles SET name = ?, description = ?, permissions_json = ?, scope = ? WHERE id = ?
+    `).run(updated.name, updated.description, JSON.stringify(updated.permissions), updated.scope, id);
+        return updated;
+    }
     findByName(name) {
         const row = this.db.prepare("SELECT * FROM roles WHERE name = ?").get(name);
         return row ? mapRole(row) : undefined;
+    }
+    delete(id) {
+        this.db.prepare("DELETE FROM roles WHERE id = ?").run(id);
     }
 }
 export class SqliteUserRepository {
@@ -281,9 +622,9 @@ export class SqliteUserRepository {
         const now = new Date();
         const user = { ...input, id: nanoid(), createdAt: now, updatedAt: now };
         this.db.prepare(`
-      INSERT INTO users (id, email, username, password_hash, given_name, family_name, active, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(user.id, user.email, user.username, user.passwordHash, user.givenName, user.familyName, user.active ? 1 : 0, user.createdAt.toISOString(), user.updatedAt.toISOString());
+      INSERT INTO users (id, email, username, password_hash, given_name, family_name, custom_attributes_json, active, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(user.id, user.email, user.username, user.passwordHash, user.givenName, user.familyName, JSON.stringify(user.customAttributes), user.active ? 1 : 0, user.createdAt.toISOString(), user.updatedAt.toISOString());
         return user;
     }
     list() {
@@ -294,9 +635,22 @@ export class SqliteUserRepository {
         const row = this.db.prepare("SELECT * FROM users WHERE lower(email) = lower(?)").get(email);
         return row ? mapUser(row) : undefined;
     }
+    findByUsername(username) {
+        const row = this.db.prepare("SELECT * FROM users WHERE lower(username) = lower(?)").get(username);
+        return row ? mapUser(row) : undefined;
+    }
     findById(id) {
         const row = this.db.prepare("SELECT * FROM users WHERE id = ?").get(id);
         return row ? mapUser(row) : undefined;
+    }
+    setActive(id, active) {
+        this.db.prepare("UPDATE users SET active = ?, updated_at = ? WHERE id = ?").run(active ? 1 : 0, new Date().toISOString(), id);
+    }
+    setCustomAttributes(id, customAttributes) {
+        this.db.prepare("UPDATE users SET custom_attributes_json = ?, updated_at = ? WHERE id = ?").run(JSON.stringify(customAttributes), new Date().toISOString(), id);
+    }
+    delete(id) {
+        this.db.prepare("DELETE FROM users WHERE id = ?").run(id);
     }
 }
 export class SqliteClientRepository {
@@ -305,11 +659,16 @@ export class SqliteClientRepository {
         this.db = db;
     }
     create(input) {
-        const client = { ...input, createdAt: new Date() };
+        const client = {
+            ...input,
+            resources: input.resources ?? [],
+            flowIds: input.flowIds ?? [],
+            createdAt: new Date()
+        };
         this.db.prepare(`
-      INSERT INTO oauth_clients (id, name, secret, redirect_uris_json, allowed_scopes_json, grants_json, require_pkce, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(client.id, client.name, client.secret, JSON.stringify(client.redirectUris), JSON.stringify(client.allowedScopes), JSON.stringify(client.grants), client.requirePkce ? 1 : 0, client.createdAt.toISOString());
+      INSERT INTO oauth_clients (id, name, secret, redirect_uris_json, allowed_scopes_json, grants_json, require_pkce, resources_json, flow_ids_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(client.id, client.name, client.secret, JSON.stringify(client.redirectUris), JSON.stringify(client.allowedScopes), JSON.stringify(client.grants), client.requirePkce ? 1 : 0, JSON.stringify(client.resources), JSON.stringify(client.flowIds), client.createdAt.toISOString());
         return client;
     }
     findById(id) {
@@ -319,6 +678,46 @@ export class SqliteClientRepository {
     list() {
         const rows = this.db.prepare("SELECT * FROM oauth_clients ORDER BY created_at ASC").all();
         return rows.map(mapClient);
+    }
+    update(id, input) {
+        const existing = this.findById(id);
+        if (!existing)
+            return undefined;
+        const updated = { ...existing, ...input };
+        this.db.prepare(`
+      UPDATE oauth_clients
+      SET name = ?, secret = ?, redirect_uris_json = ?, allowed_scopes_json = ?, grants_json = ?, require_pkce = ?, resources_json = ?, flow_ids_json = ?
+      WHERE id = ?
+    `).run(updated.name, updated.secret, JSON.stringify(updated.redirectUris), JSON.stringify(updated.allowedScopes), JSON.stringify(updated.grants), updated.requirePkce ? 1 : 0, JSON.stringify(updated.resources), JSON.stringify(updated.flowIds), id);
+        return updated;
+    }
+    delete(id) {
+        this.db.prepare("DELETE FROM oauth_clients WHERE id = ?").run(id);
+    }
+}
+export class SqliteScopeRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    create(input) {
+        const scope = { ...input, id: nanoid(), createdAt: new Date() };
+        this.db.prepare(`
+      INSERT INTO oauth_scopes (id, name, description, created_at)
+      VALUES (?, ?, ?, ?)
+    `).run(scope.id, scope.name, scope.description, scope.createdAt.toISOString());
+        return scope;
+    }
+    list() {
+        const rows = this.db.prepare("SELECT * FROM oauth_scopes ORDER BY name ASC").all();
+        return rows.map(mapScope);
+    }
+    findByName(name) {
+        const row = this.db.prepare("SELECT * FROM oauth_scopes WHERE name = ?").get(name);
+        return row ? mapScope(row) : undefined;
+    }
+    delete(id) {
+        this.db.prepare("DELETE FROM oauth_scopes WHERE id = ?").run(id);
     }
 }
 export class SqliteSessionRepository {
@@ -337,6 +736,13 @@ export class SqliteSessionRepository {
     findById(id) {
         const row = this.db.prepare("SELECT * FROM sessions WHERE id = ?").get(id);
         return row ? mapSession(row) : undefined;
+    }
+    list() {
+        const rows = this.db.prepare("SELECT * FROM sessions ORDER BY created_at DESC").all();
+        return rows.map(mapSession);
+    }
+    revoke(id, revokedAt) {
+        this.db.prepare("UPDATE sessions SET revoked_at = ? WHERE id = ?").run(revokedAt.toISOString(), id);
     }
 }
 export class SqliteAuthorizationCodeRepository {
@@ -386,6 +792,95 @@ export class SqliteTenantRepository {
     findById(id) {
         const row = this.db.prepare("SELECT * FROM tenants WHERE id = ?").get(id);
         return row ? mapTenant(row) : undefined;
+    }
+}
+export class SqliteGroupRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    create(input) {
+        const group = { ...input, id: nanoid(), createdAt: new Date() };
+        this.db.prepare(`
+      INSERT INTO groups (id, name, description, created_at)
+      VALUES (?, ?, ?, ?)
+    `).run(group.id, group.name, group.description, group.createdAt.toISOString());
+        return group;
+    }
+    list() {
+        const rows = this.db.prepare("SELECT * FROM groups ORDER BY created_at ASC").all();
+        return rows.map(mapGroup);
+    }
+    findById(id) {
+        const row = this.db.prepare("SELECT * FROM groups WHERE id = ?").get(id);
+        return row ? mapGroup(row) : undefined;
+    }
+    delete(id) {
+        this.db.prepare("DELETE FROM groups WHERE id = ?").run(id);
+    }
+}
+export class SqliteUserGroupAssignmentRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    assign(input) {
+        const existing = this.db.prepare(`
+      SELECT * FROM user_group_assignments
+      WHERE user_id = ? AND group_id = ?
+    `).get(input.userId, input.groupId);
+        if (existing) {
+            return mapUserGroupAssignment(existing);
+        }
+        const assignment = { ...input, id: nanoid(), createdAt: new Date() };
+        this.db.prepare(`
+      INSERT INTO user_group_assignments (id, user_id, group_id, created_at)
+      VALUES (?, ?, ?, ?)
+    `).run(assignment.id, assignment.userId, assignment.groupId, assignment.createdAt.toISOString());
+        return assignment;
+    }
+    listByUser(userId) {
+        const rows = this.db.prepare("SELECT * FROM user_group_assignments WHERE user_id = ?").all(userId);
+        return rows.map(mapUserGroupAssignment);
+    }
+    remove(userId, groupId) {
+        this.db.prepare("DELETE FROM user_group_assignments WHERE user_id = ? AND group_id = ?").run(userId, groupId);
+    }
+}
+export class SqliteGroupRoleAssignmentRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    assign(input) {
+        const existing = this.db.prepare(`
+      SELECT * FROM group_role_assignments
+      WHERE group_id = ? AND role_id = ?
+    `).get(input.groupId, input.roleId);
+        if (existing) {
+            return mapGroupRoleAssignment(existing);
+        }
+        const assignment = { ...input, id: nanoid(), createdAt: new Date() };
+        this.db.prepare(`
+      INSERT INTO group_role_assignments (id, group_id, role_id, created_at)
+      VALUES (?, ?, ?, ?)
+    `).run(assignment.id, assignment.groupId, assignment.roleId, assignment.createdAt.toISOString());
+        return assignment;
+    }
+    listByGroup(groupId) {
+        const rows = this.db.prepare("SELECT * FROM group_role_assignments WHERE group_id = ?").all(groupId);
+        return rows.map(mapGroupRoleAssignment);
+    }
+    listByGroups(groupIds) {
+        if (groupIds.length === 0) {
+            return [];
+        }
+        const placeholders = groupIds.map(() => "?").join(", ");
+        const rows = this.db.prepare(`SELECT * FROM group_role_assignments WHERE group_id IN (${placeholders})`).all(...groupIds);
+        return rows.map(mapGroupRoleAssignment);
+    }
+    remove(groupId, roleId) {
+        this.db.prepare("DELETE FROM group_role_assignments WHERE group_id = ? AND role_id = ?").run(groupId, roleId);
     }
 }
 export class SqliteUserRoleAssignmentRepository {
@@ -451,6 +946,13 @@ export class SqliteConsentRepository {
         const row = this.db.prepare("SELECT * FROM consents WHERE user_id = ? AND client_id = ?").get(userId, clientId);
         return row ? mapConsent(row) : undefined;
     }
+    list() {
+        const rows = this.db.prepare("SELECT * FROM consents ORDER BY updated_at DESC").all();
+        return rows.map(mapConsent);
+    }
+    revoke(id) {
+        this.db.prepare("DELETE FROM consents WHERE id = ?").run(id);
+    }
 }
 export class SqliteRefreshTokenRepository {
     db;
@@ -515,5 +1017,431 @@ export class SqliteAccessTokenRepository {
     }
     revokeByTokenId(tokenId, revokedAt) {
         this.db.prepare("UPDATE access_tokens SET revoked_at = ? WHERE token_id = ?").run(revokedAt.toISOString(), tokenId);
+    }
+}
+export class SqliteAuditRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    log(input) {
+        const event = { ...input, id: nanoid(), createdAt: new Date() };
+        this.db.prepare(`
+      INSERT INTO audit_events (id, type, actor_id, actor_type, client_id, ip, metadata_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(event.id, event.type, event.actorId ?? null, event.actorType, event.clientId ?? null, event.ip ?? null, event.metadata ? JSON.stringify(event.metadata) : null, event.createdAt.toISOString());
+        return event;
+    }
+    list(limit = 200) {
+        const rows = this.db.prepare("SELECT * FROM audit_events ORDER BY created_at DESC LIMIT ?").all(limit);
+        return rows.map((row) => ({
+            id: String(row.id),
+            type: String(row.type),
+            actorId: row.actor_id ? String(row.actor_id) : undefined,
+            actorType: String(row.actor_type),
+            clientId: row.client_id ? String(row.client_id) : undefined,
+            ip: row.ip ? String(row.ip) : undefined,
+            metadata: row.metadata_json ? JSON.parse(String(row.metadata_json)) : undefined,
+            createdAt: new Date(String(row.created_at))
+        }));
+    }
+}
+export class SqliteFederatedIdentityRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    findByProviderSubject(providerId, providerSubject) {
+        const row = this.db.prepare("SELECT * FROM federated_identities WHERE provider_id = ? AND provider_subject = ?").get(providerId, providerSubject);
+        return row ? mapFederatedIdentity(row) : undefined;
+    }
+    create(input) {
+        const entity = {
+            ...input,
+            id: nanoid(),
+            createdAt: new Date(),
+            lastLoginAt: new Date()
+        };
+        this.db.prepare(`
+      INSERT INTO federated_identities (id, provider_id, provider_subject, user_id, email, created_at, last_login_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(entity.id, entity.providerId, entity.providerSubject, entity.userId, entity.email ?? null, entity.createdAt.toISOString(), entity.lastLoginAt.toISOString());
+        return entity;
+    }
+    touchLogin(id, loggedAt) {
+        this.db.prepare("UPDATE federated_identities SET last_login_at = ? WHERE id = ?").run(loggedAt.toISOString(), id);
+    }
+}
+export class SqliteFederationTransactionRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    create(input) {
+        const transaction = {
+            ...input,
+            createdAt: new Date()
+        };
+        this.db.prepare(`
+      INSERT INTO federation_transactions (state, provider_id, code_verifier, redirect_after_login, created_at, expires_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(transaction.state, transaction.providerId, transaction.codeVerifier, transaction.redirectAfterLogin, transaction.createdAt.toISOString(), transaction.expiresAt.toISOString());
+        return transaction;
+    }
+    consume(state) {
+        const row = this.db.prepare("SELECT * FROM federation_transactions WHERE state = ?").get(state);
+        if (!row) {
+            return undefined;
+        }
+        this.db.prepare("DELETE FROM federation_transactions WHERE state = ?").run(state);
+        return mapFederationTransaction(row);
+    }
+    purgeExpired(now) {
+        this.db.prepare("DELETE FROM federation_transactions WHERE expires_at < ?").run(now.toISOString());
+    }
+}
+export class SqliteFederationProviderRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    list() {
+        const rows = this.db.prepare("SELECT * FROM federation_providers ORDER BY created_at ASC").all();
+        return rows.map(mapFederationProvider);
+    }
+    findById(id) {
+        const row = this.db.prepare("SELECT * FROM federation_providers WHERE id = ?").get(id);
+        return row ? mapFederationProvider(row) : undefined;
+    }
+    create(input) {
+        const now = new Date();
+        const provider = { ...input, createdAt: now, updatedAt: now };
+        this.db.prepare(`
+      INSERT INTO federation_providers
+      (id, label, authorization_endpoint, token_endpoint, userinfo_endpoint, client_id, client_secret, scopes_json, enabled, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(provider.id, provider.label, provider.authorizationEndpoint, provider.tokenEndpoint, provider.userInfoEndpoint, provider.clientId, provider.clientSecret, JSON.stringify(provider.scopes), provider.enabled ? 1 : 0, provider.createdAt.toISOString(), provider.updatedAt.toISOString());
+        return provider;
+    }
+    update(id, input) {
+        const existing = this.findById(id);
+        if (!existing) {
+            return undefined;
+        }
+        const updated = {
+            ...existing,
+            ...input,
+            updatedAt: new Date()
+        };
+        this.db.prepare(`
+      UPDATE federation_providers
+      SET label = ?, authorization_endpoint = ?, token_endpoint = ?, userinfo_endpoint = ?, client_id = ?, client_secret = ?, scopes_json = ?, enabled = ?, updated_at = ?
+      WHERE id = ?
+    `).run(updated.label, updated.authorizationEndpoint, updated.tokenEndpoint, updated.userInfoEndpoint, updated.clientId, updated.clientSecret, JSON.stringify(updated.scopes), updated.enabled ? 1 : 0, updated.updatedAt.toISOString(), id);
+        return updated;
+    }
+    delete(id) {
+        this.db.prepare("DELETE FROM federation_providers WHERE id = ?").run(id);
+    }
+}
+export class SqliteAuthenticationFlowRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    list() {
+        const rows = this.db.prepare("SELECT * FROM authentication_flows ORDER BY created_at ASC").all();
+        return rows.map(mapAuthenticationFlow);
+    }
+    findById(id) {
+        const row = this.db.prepare("SELECT * FROM authentication_flows WHERE id = ?").get(id);
+        return row ? mapAuthenticationFlow(row) : undefined;
+    }
+    create(input) {
+        const now = new Date();
+        const flow = { ...input, createdAt: now, updatedAt: now };
+        this.db.prepare(`
+      INSERT INTO authentication_flows (id, name, description, designation, enabled, grants_json, stages_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(flow.id, flow.name, flow.description, flow.designation, flow.enabled ? 1 : 0, JSON.stringify(flow.grantTypes), JSON.stringify(flow.stages), flow.createdAt.toISOString(), flow.updatedAt.toISOString());
+        return flow;
+    }
+    update(id, input) {
+        const existing = this.findById(id);
+        if (!existing) {
+            return undefined;
+        }
+        const updated = {
+            ...existing,
+            ...input,
+            updatedAt: new Date()
+        };
+        this.db.prepare(`
+      UPDATE authentication_flows
+      SET name = ?, description = ?, designation = ?, enabled = ?, grants_json = ?, stages_json = ?, updated_at = ?
+      WHERE id = ?
+    `).run(updated.name, updated.description, updated.designation, updated.enabled ? 1 : 0, JSON.stringify(updated.grantTypes), JSON.stringify(updated.stages), updated.updatedAt.toISOString(), id);
+        return updated;
+    }
+    delete(id) {
+        this.db.prepare("DELETE FROM authentication_flows WHERE id = ?").run(id);
+    }
+}
+export class SqliteUserAttributeRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    list() {
+        const rows = this.db.prepare("SELECT * FROM user_attribute_definitions ORDER BY created_at ASC").all();
+        return rows.map(mapUserAttributeDefinition);
+    }
+    findById(id) {
+        const row = this.db.prepare("SELECT * FROM user_attribute_definitions WHERE id = ?").get(id);
+        return row ? mapUserAttributeDefinition(row) : undefined;
+    }
+    findByKey(key) {
+        const row = this.db.prepare("SELECT * FROM user_attribute_definitions WHERE key = ?").get(key);
+        return row ? mapUserAttributeDefinition(row) : undefined;
+    }
+    create(input) {
+        const now = new Date();
+        const attribute = { ...input, createdAt: now, updatedAt: now };
+        this.db.prepare(`
+      INSERT INTO user_attribute_definitions (id, key, name, description, type, enabled, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(attribute.id, attribute.key, attribute.name, attribute.description, attribute.type, attribute.enabled ? 1 : 0, attribute.createdAt.toISOString(), attribute.updatedAt.toISOString());
+        return attribute;
+    }
+    update(id, input) {
+        const existing = this.findById(id);
+        if (!existing) {
+            return undefined;
+        }
+        const updated = {
+            ...existing,
+            ...input,
+            updatedAt: new Date()
+        };
+        this.db.prepare(`
+      UPDATE user_attribute_definitions
+      SET key = ?, name = ?, description = ?, type = ?, enabled = ?, updated_at = ?
+      WHERE id = ?
+    `).run(updated.key, updated.name, updated.description, updated.type, updated.enabled ? 1 : 0, updated.updatedAt.toISOString(), id);
+        return updated;
+    }
+    delete(id) {
+        this.db.prepare("DELETE FROM user_attribute_definitions WHERE id = ?").run(id);
+    }
+}
+export class SqliteGroupUserAttributeAssignmentRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    list() {
+        const rows = this.db.prepare("SELECT * FROM group_user_attribute_assignments ORDER BY created_at ASC").all();
+        return rows.map(mapGroupUserAttributeAssignment);
+    }
+    listByAttribute(attributeId) {
+        const rows = this.db.prepare("SELECT * FROM group_user_attribute_assignments WHERE attribute_id = ? ORDER BY created_at ASC").all(attributeId);
+        return rows.map(mapGroupUserAttributeAssignment);
+    }
+    upsert(input) {
+        const existing = this.db.prepare("SELECT * FROM group_user_attribute_assignments WHERE group_id = ? AND attribute_id = ?").get(input.groupId, input.attributeId);
+        if (existing) {
+            const current = mapGroupUserAttributeAssignment(existing);
+            const updated = {
+                ...current,
+                enabled: input.enabled,
+                updatedAt: new Date()
+            };
+            this.db.prepare(`
+        UPDATE group_user_attribute_assignments
+        SET enabled = ?, updated_at = ?
+        WHERE id = ?
+      `).run(updated.enabled ? 1 : 0, updated.updatedAt.toISOString(), updated.id);
+            return updated;
+        }
+        const now = new Date();
+        const assignment = {
+            id: nanoid(),
+            groupId: input.groupId,
+            attributeId: input.attributeId,
+            enabled: input.enabled,
+            createdAt: now,
+            updatedAt: now
+        };
+        this.db.prepare(`
+      INSERT INTO group_user_attribute_assignments (id, group_id, attribute_id, enabled, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(assignment.id, assignment.groupId, assignment.attributeId, assignment.enabled ? 1 : 0, assignment.createdAt.toISOString(), assignment.updatedAt.toISOString());
+        return assignment;
+    }
+    delete(attributeId, groupId) {
+        this.db.prepare("DELETE FROM group_user_attribute_assignments WHERE attribute_id = ? AND group_id = ?").run(attributeId, groupId);
+    }
+}
+export class SqlitePolicyDefinitionRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    list() {
+        const rows = this.db.prepare("SELECT * FROM policy_definitions ORDER BY created_at ASC").all();
+        return rows.map(mapPolicyDefinition);
+    }
+    findById(id) {
+        const row = this.db.prepare("SELECT * FROM policy_definitions WHERE id = ?").get(id);
+        return row ? mapPolicyDefinition(row) : undefined;
+    }
+    findByKey(key) {
+        const row = this.db.prepare("SELECT * FROM policy_definitions WHERE key = ?").get(key);
+        return row ? mapPolicyDefinition(row) : undefined;
+    }
+    create(input) {
+        const now = new Date();
+        const policy = { ...input, createdAt: now, updatedAt: now };
+        this.db.prepare(`
+      INSERT INTO policy_definitions (id, key, name, description, enabled, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(policy.id, policy.key, policy.name, policy.description, policy.enabled ? 1 : 0, policy.createdAt.toISOString(), policy.updatedAt.toISOString());
+        return policy;
+    }
+    update(id, input) {
+        const existing = this.findById(id);
+        if (!existing) {
+            return undefined;
+        }
+        const updated = {
+            ...existing,
+            ...input,
+            updatedAt: new Date()
+        };
+        this.db.prepare(`
+      UPDATE policy_definitions
+      SET key = ?, name = ?, description = ?, enabled = ?, updated_at = ?
+      WHERE id = ?
+    `).run(updated.key, updated.name, updated.description, updated.enabled ? 1 : 0, updated.updatedAt.toISOString(), id);
+        return updated;
+    }
+    delete(id) {
+        this.db.prepare("DELETE FROM policy_definitions WHERE id = ?").run(id);
+    }
+}
+export class SqlitePolicyAssignmentRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    list() {
+        const rows = this.db.prepare("SELECT * FROM policy_assignments ORDER BY created_at ASC").all();
+        return rows.map(mapPolicyAssignment);
+    }
+    listByPolicy(policyId) {
+        const rows = this.db.prepare("SELECT * FROM policy_assignments WHERE policy_id = ? ORDER BY created_at ASC").all(policyId);
+        return rows.map(mapPolicyAssignment);
+    }
+    upsert(input) {
+        const existing = this.db.prepare("SELECT * FROM policy_assignments WHERE policy_id = ? AND scope_type = ? AND scope_id = ?").get(input.policyId, input.scopeType, input.scopeId);
+        if (existing) {
+            const current = mapPolicyAssignment(existing);
+            const updated = {
+                ...current,
+                enabled: input.enabled,
+                config: input.config,
+                updatedAt: new Date()
+            };
+            this.db.prepare(`
+        UPDATE policy_assignments
+        SET enabled = ?, config_json = ?, updated_at = ?
+        WHERE id = ?
+      `).run(updated.enabled ? 1 : 0, JSON.stringify(updated.config), updated.updatedAt.toISOString(), updated.id);
+            return updated;
+        }
+        const now = new Date();
+        const assignment = {
+            id: nanoid(),
+            policyId: input.policyId,
+            scopeType: input.scopeType,
+            scopeId: input.scopeId,
+            enabled: input.enabled,
+            config: input.config,
+            createdAt: now,
+            updatedAt: now
+        };
+        this.db.prepare(`
+      INSERT INTO policy_assignments (id, policy_id, scope_type, scope_id, enabled, config_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(assignment.id, assignment.policyId, assignment.scopeType, assignment.scopeId, assignment.enabled ? 1 : 0, JSON.stringify(assignment.config), assignment.createdAt.toISOString(), assignment.updatedAt.toISOString());
+        return assignment;
+    }
+    delete(policyId, scopeType, scopeId) {
+        this.db.prepare("DELETE FROM policy_assignments WHERE policy_id = ? AND scope_type = ? AND scope_id = ?").run(policyId, scopeType, scopeId);
+    }
+}
+export class SqliteEventHookRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    list() {
+        const rows = this.db.prepare("SELECT * FROM event_hooks ORDER BY created_at ASC").all();
+        return rows.map(mapEventHook);
+    }
+    listByEventType(eventType) {
+        const rows = this.db.prepare("SELECT * FROM event_hooks WHERE event_type = ? ORDER BY created_at ASC").all(eventType);
+        return rows.map(mapEventHook);
+    }
+    findById(id) {
+        const row = this.db.prepare("SELECT * FROM event_hooks WHERE id = ?").get(id);
+        return row ? mapEventHook(row) : undefined;
+    }
+    create(input) {
+        const now = new Date();
+        const hook = { ...input, createdAt: now, updatedAt: now };
+        this.db.prepare(`
+      INSERT INTO event_hooks (id, event_type, target_url, method, headers_json, enabled, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(hook.id, hook.eventType, hook.targetUrl, hook.method, JSON.stringify(hook.headers), hook.enabled ? 1 : 0, hook.createdAt.toISOString(), hook.updatedAt.toISOString());
+        return hook;
+    }
+    update(id, input) {
+        const existing = this.findById(id);
+        if (!existing) {
+            return undefined;
+        }
+        const updated = {
+            ...existing,
+            ...input,
+            updatedAt: new Date()
+        };
+        this.db.prepare(`
+      UPDATE event_hooks
+      SET event_type = ?, target_url = ?, method = ?, headers_json = ?, enabled = ?, updated_at = ?
+      WHERE id = ?
+    `).run(updated.eventType, updated.targetUrl, updated.method, JSON.stringify(updated.headers), updated.enabled ? 1 : 0, updated.updatedAt.toISOString(), id);
+        return updated;
+    }
+    delete(id) {
+        this.db.prepare("DELETE FROM event_hooks WHERE id = ?").run(id);
+    }
+}
+export class SqliteEventNotificationRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    list(limit = 100) {
+        const rows = this.db.prepare("SELECT * FROM event_notifications ORDER BY created_at DESC LIMIT ?").all(limit);
+        return rows.map(mapEventNotification);
+    }
+    create(input) {
+        const notification = { id: nanoid(), ...input, createdAt: new Date() };
+        this.db.prepare(`
+      INSERT INTO event_notifications (id, event_type, hook_id, payload_json, status, response_status, response_body, error, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(notification.id, notification.eventType, notification.hookId ?? null, JSON.stringify(notification.payload), notification.status, notification.responseStatus ?? null, notification.responseBody ?? null, notification.error ?? null, notification.createdAt.toISOString());
+        return notification;
     }
 }

@@ -2,11 +2,13 @@ import { ValidationError } from "../core/errors.js";
 import { hashPassword } from "../security/password.js";
 import type { UserRepository } from "../repositories/contracts.js";
 import { RoleService } from "./role-service.js";
+import { GroupService } from "./group-service.js";
 
 export class UserService {
   constructor(
     private readonly userRepository: UserRepository,
-    private readonly roleService: RoleService
+    private readonly roleService: RoleService,
+    private readonly groupService: GroupService
   ) {}
 
   createUser(input: {
@@ -15,7 +17,9 @@ export class UserService {
     password: string;
     givenName: string;
     familyName: string;
+    customAttributes?: Record<string, string>;
     roleIds: string[];
+    groupIds?: string[];
     active?: boolean;
   }) {
     if (this.userRepository.findByEmail(input.email)) {
@@ -28,6 +32,7 @@ export class UserService {
       passwordHash: hashPassword(input.password),
       givenName: input.givenName,
       familyName: input.familyName,
+      customAttributes: input.customAttributes ?? {},
       active: input.active ?? true
     });
 
@@ -38,13 +43,18 @@ export class UserService {
       });
     }
 
+    for (const groupId of input.groupIds ?? []) {
+      this.groupService.assignUserToGroup({ userId: user.id, groupId });
+    }
+
     return user;
   }
 
   listUsers() {
     return this.userRepository.list().map(({ passwordHash, ...user }) => ({
       ...user,
-      roles: this.roleService.resolveNamesForUser(user.id)
+      roles: this.roleService.resolveNamesForUser(user.id),
+      groups: this.groupService.resolveGroupNamesForUser(user.id)
     }));
   }
 
@@ -52,7 +62,23 @@ export class UserService {
     return this.userRepository.findByEmail(email);
   }
 
+  findUserByUsername(username: string) {
+    return this.userRepository.findByUsername(username);
+  }
+
   findUserById(id: string) {
     return this.userRepository.findById(id);
+  }
+
+  setUserActive(id: string, active: boolean) {
+    this.userRepository.setActive(id, active);
+  }
+
+  setCustomAttributes(id: string, customAttributes: Record<string, string>) {
+    this.userRepository.setCustomAttributes(id, customAttributes);
+  }
+
+  deleteUser(id: string) {
+    this.userRepository.delete(id);
   }
 }

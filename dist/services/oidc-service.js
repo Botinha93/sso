@@ -14,6 +14,7 @@ export class OidcService {
             jwks_uri: `${issuer}/.well-known/jwks.json`,
             userinfo_endpoint: `${issuer}/oauth/userinfo`,
             response_types_supported: ["code"],
+            response_modes_supported: ["query", "fragment", "form_post"],
             subject_types_supported: ["public"],
             id_token_signing_alg_values_supported: ["RS256"],
             token_endpoint_auth_methods_supported: ["client_secret_post"],

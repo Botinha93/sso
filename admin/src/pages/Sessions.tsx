@@ -1,25 +1,107 @@
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, ShieldOff } from 'lucide-react'
+import { useState } from 'react'
+import ConfirmDialog from '../components/ConfirmDialog'
+import { useSessions, useRevokeSession } from '../hooks/useApi'
+
+interface Session {
+  id: string
+  userId: string
+  clientId: string
+  createdAt: string
+  expiresAt: string
+  revokedAt?: string
+}
 
 const Sessions = () => {
+  const { data: sessions, isLoading, refetch } = useSessions()
+  const revokeSession = useRevokeSession()
+  const [sessionToRevoke, setSessionToRevoke] = useState<string | null>(null)
+
+  const handleRevoke = (id: string) => {
+    setSessionToRevoke(id)
+  }
+
+  const confirmRevoke = () => {
+    if (!sessionToRevoke) return
+    revokeSession.mutate(sessionToRevoke, { onSuccess: () => setSessionToRevoke(null) })
+  }
+
   return (
     <div>
       <div className="mb-8">
-        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Session Management</p>
-        <h2 className="text-2xl font-semibold">Active Sessions</h2>
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Session Management</p>
+        <h2 className="text-2xl font-bold tracking-tight text-slate-900">Active Sessions</h2>
       </div>
 
-      <div className="rounded-xl border border-border bg-card">
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <h4 className="font-medium">Current Sessions</h4>
-          <button className="text-sm text-muted-foreground flex items-center gap-1.5 hover:text-foreground transition-colors">
-            <RefreshCw size={14} />
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
+          <h4 className="text-sm font-semibold text-slate-700">All Sessions</h4>
+          <button
+            onClick={() => refetch()}
+            className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors"
+          >
+            <RefreshCw size={12} />
             Refresh
           </button>
         </div>
-        <div className="p-4 text-center text-muted-foreground">
-          No active sessions
-        </div>
+
+        {isLoading ? (
+          <div className="p-10 text-center text-slate-400 text-sm">Loading sessions…</div>
+        ) : !sessions?.length ? (
+          <div className="p-10 text-center text-slate-400 text-sm">No sessions found</div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {sessions.map((session: Session) => {
+              const isRevoked = !!session.revokedAt
+              const isExpired = new Date(session.expiresAt) < new Date()
+              return (
+                <div key={session.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50/50 transition-colors">
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium font-mono text-slate-800">{session.id.slice(0, 16)}…</p>
+                    <p className="text-xs text-slate-500">
+                      User: <span className="font-mono">{session.userId.slice(0, 8)}…</span>
+                      {' · '}Client: <span className="font-mono">{session.clientId}</span>
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      Created {new Date(session.createdAt).toLocaleString()}
+                      {' · '} Expires {new Date(session.expiresAt).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isRevoked ? (
+                      <span className="text-xs px-2 py-0.5 rounded-md bg-red-50 text-red-600 border border-red-100">Revoked</span>
+                    ) : isExpired ? (
+                      <span className="text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200">Expired</span>
+                    ) : (
+                      <span className="text-xs px-2 py-0.5 rounded-md bg-green-50 text-green-700 border border-green-100">Active</span>
+                    )}
+                    {!isRevoked && !isExpired && (
+                      <button
+                        onClick={() => handleRevoke(session.id)}
+                        disabled={revokeSession.isPending}
+                        className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                        title="Revoke session"
+                      >
+                        <ShieldOff size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
+
+      <ConfirmDialog
+        isOpen={!!sessionToRevoke}
+        title="Revoke Session"
+        message="Revoke this session? The user will be signed out immediately."
+        confirmLabel="Revoke Session"
+        pending={revokeSession.isPending}
+        onConfirm={confirmRevoke}
+        onCancel={() => setSessionToRevoke(null)}
+      />
     </div>
   )
 }
