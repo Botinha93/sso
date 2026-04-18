@@ -2,6 +2,7 @@ import { createSigningKeys } from "./security/keys.js";
 import { JwtService } from "./security/jwt.js";
 import { SqliteAccessTokenRepository, SqliteAuthorizationCodeRepository, SqliteClientRepository, SqliteConsentRepository, SqliteDatabase, SqliteRefreshTokenRepository, SqliteRoleRepository, SqliteSessionRepository, SqliteTenantRepository, SqliteUserRepository, SqliteUserRoleAssignmentRepository } from "./repositories/sqlite.js";
 import { AuthService } from "./services/auth-service.js";
+import { ClientService } from "./services/client-service.js";
 import { OidcService } from "./services/oidc-service.js";
 import { RoleService } from "./services/role-service.js";
 import { TenantService } from "./services/tenant-service.js";
@@ -22,6 +23,7 @@ export const bootstrap = async (config) => {
     const roleService = new RoleService(roleRepository, assignmentRepository, tenantRepository);
     const userService = new UserService(userRepository, roleService);
     const tenantService = new TenantService(tenantRepository);
+    const clientService = new ClientService(clientRepository);
     const adminRole = roleRepository.findByName("platform_admin") ??
         roleService.createRole({
             name: "platform_admin",
@@ -64,6 +66,7 @@ export const bootstrap = async (config) => {
         roleService,
         tenantService,
         userService,
+        clientService,
         authService,
         oidcService
     };

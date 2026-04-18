@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import Database from "better-sqlite3";
 import { nanoid } from "nanoid";
 const parseStringArray = (value) => {
     if (typeof value !== "string" || value.length === 0) {
@@ -15,7 +15,7 @@ export class SqliteDatabase {
     constructor(path) {
         const absolutePath = resolve(path);
         mkdirSync(dirname(absolutePath), { recursive: true });
-        this.connection = new DatabaseSync(absolutePath);
+        this.connection = new Database(absolutePath);
         this.connection.exec("PRAGMA journal_mode = WAL;");
         this.connection.exec("PRAGMA busy_timeout = 5000;");
         this.connection.exec("PRAGMA foreign_keys = ON;");
@@ -256,14 +256,16 @@ export class SqliteRoleRepository {
         return role;
     }
     list() {
-        return this.db.prepare("SELECT * FROM roles ORDER BY created_at ASC").all().map((row) => mapRole(row));
+        const rows = this.db.prepare("SELECT * FROM roles ORDER BY created_at ASC").all();
+        return rows.map(mapRole);
     }
     findByIds(ids) {
         if (ids.length === 0) {
             return [];
         }
         const placeholders = ids.map(() => "?").join(", ");
-        return this.db.prepare(`SELECT * FROM roles WHERE id IN (${placeholders})`).all(...ids).map((row) => mapRole(row));
+        const rows = this.db.prepare(`SELECT * FROM roles WHERE id IN (${placeholders})`).all(...ids);
+        return rows.map(mapRole);
     }
     findByName(name) {
         const row = this.db.prepare("SELECT * FROM roles WHERE name = ?").get(name);
@@ -285,7 +287,8 @@ export class SqliteUserRepository {
         return user;
     }
     list() {
-        return this.db.prepare("SELECT * FROM users ORDER BY created_at ASC").all().map((row) => mapUser(row));
+        const rows = this.db.prepare("SELECT * FROM users ORDER BY created_at ASC").all();
+        return rows.map(mapUser);
     }
     findByEmail(email) {
         const row = this.db.prepare("SELECT * FROM users WHERE lower(email) = lower(?)").get(email);
@@ -312,6 +315,10 @@ export class SqliteClientRepository {
     findById(id) {
         const row = this.db.prepare("SELECT * FROM oauth_clients WHERE id = ?").get(id);
         return row ? mapClient(row) : undefined;
+    }
+    list() {
+        const rows = this.db.prepare("SELECT * FROM oauth_clients ORDER BY created_at ASC").all();
+        return rows.map(mapClient);
     }
 }
 export class SqliteSessionRepository {
@@ -369,7 +376,8 @@ export class SqliteTenantRepository {
         return tenant;
     }
     list() {
-        return this.db.prepare("SELECT * FROM tenants ORDER BY created_at ASC").all().map((row) => mapTenant(row));
+        const rows = this.db.prepare("SELECT * FROM tenants ORDER BY created_at ASC").all();
+        return rows.map(mapTenant);
     }
     findBySlug(slug) {
         const row = this.db.prepare("SELECT * FROM tenants WHERE slug = ?").get(slug);
@@ -401,7 +409,8 @@ export class SqliteUserRoleAssignmentRepository {
         return assignment;
     }
     listByUser(userId) {
-        return this.db.prepare("SELECT * FROM user_role_assignments WHERE user_id = ?").all(userId).map((row) => mapAssignment(row));
+        const rows = this.db.prepare("SELECT * FROM user_role_assignments WHERE user_id = ?").all(userId);
+        return rows.map(mapAssignment);
     }
 }
 export class SqliteConsentRepository {

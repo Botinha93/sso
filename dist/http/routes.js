@@ -1,6 +1,19 @@
 import { AppError, AuthenticationError } from "../core/errors.js";
+import { readViewAsset } from "./view-assets.js";
 import { assignRoleSchema, authorizationCodeTokenSchema, authorizeSchema, createTenantSchema, createRoleSchema, createUserSchema, loginSchema, refreshTokenSchema, revokeTokenSchema, tokenSchema } from "./schemas.js";
 export const registerRoutes = async (app, deps) => {
+    app.get("/", async (_request, reply) => {
+        const html = await readViewAsset("admin.html");
+        return reply.type("text/html; charset=utf-8").send(html);
+    });
+    app.get("/assets/admin.css", async (_request, reply) => {
+        const css = await readViewAsset("admin.css");
+        return reply.type("text/css; charset=utf-8").send(css);
+    });
+    app.get("/assets/admin.js", async (_request, reply) => {
+        const js = await readViewAsset("admin.js");
+        return reply.type("application/javascript; charset=utf-8").send(js);
+    });
     app.get("/health", async () => ({
         status: "ok",
         timestamp: new Date().toISOString()
@@ -68,6 +81,7 @@ export const registerRoutes = async (app, deps) => {
         return deps.authService.getUserInfoFromAccessToken(accessToken);
     });
     app.get("/users", async () => deps.userService.listUsers());
+    app.get("/clients", async () => deps.clientService.listClients());
     app.post("/users", async (request, reply) => {
         const input = createUserSchema.parse(request.body);
         const user = deps.userService.createUser(input);

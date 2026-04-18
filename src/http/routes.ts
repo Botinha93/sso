@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { AppError, AuthenticationError } from "../core/errors.js";
+import { readViewAsset } from "./view-assets.js";
 import {
   assignRoleSchema,
   authorizationCodeTokenSchema,
@@ -13,6 +14,7 @@ import {
   tokenSchema
 } from "./schemas.js";
 import { AuthService } from "../services/auth-service.js";
+import { ClientService } from "../services/client-service.js";
 import { OidcService } from "../services/oidc-service.js";
 import { RoleService } from "../services/role-service.js";
 import { TenantService } from "../services/tenant-service.js";
@@ -20,6 +22,7 @@ import { UserService } from "../services/user-service.js";
 
 interface RouteDeps {
   authService: AuthService;
+  clientService: ClientService;
   oidcService: OidcService;
   roleService: RoleService;
   tenantService: TenantService;
@@ -27,6 +30,21 @@ interface RouteDeps {
 }
 
 export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
+  app.get("/", async (_request, reply) => {
+    const html = await readViewAsset("admin.html");
+    return reply.type("text/html; charset=utf-8").send(html);
+  });
+
+  app.get("/assets/admin.css", async (_request, reply) => {
+    const css = await readViewAsset("admin.css");
+    return reply.type("text/css; charset=utf-8").send(css);
+  });
+
+  app.get("/assets/admin.js", async (_request, reply) => {
+    const js = await readViewAsset("admin.js");
+    return reply.type("application/javascript; charset=utf-8").send(js);
+  });
+
   app.get("/health", async () => ({
     status: "ok",
     timestamp: new Date().toISOString()
@@ -109,6 +127,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
 
   app.get("/users", async () => deps.userService.listUsers());
+  app.get("/clients", async () => deps.clientService.listClients());
   app.post("/users", async (request, reply) => {
     const input = createUserSchema.parse(request.body);
     const user = deps.userService.createUser(input);

@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Northstar SSO Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/assets/admin.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="rail">
+        <div class="brand">
+          <span class="brand-mark">NS</span>
+          <div>
+            <p class="eyebrow">Identity Control</p>
+            <h1>Northstar SSO</h1>
+          </div>
+        </div>
+        <nav class="nav">
+          <a href="#overview">Overview</a>
+          <a href="#directory">Directory</a>
+          <a href="#protocol">Protocol Lab</a>
+          <a href="#tenancy">Tenancy</a>
+        </nav>
+        <p class="rail-note">Local-first identity workspace with SQLite durability and OAuth2/OIDC controls.</p>
+      </aside>
+
+      <main class="main">
+        <section class="hero" id="overview">
+          <div class="hero-copy reveal">
+            <p class="eyebrow">Operational Surface</p>
+            <h2>Run the whole identity layer from one screen.</h2>
+            <p class="lede">Users, roles, tenants, clients, and token flows stay live in a file-backed store designed for local concurrency.</p>
+          </div>
+          <div class="hero-metrics reveal">
+            <div>
+              <span>Users</span>
+              <strong id="metric-users">0</strong>
+            </div>
+            <div>
+              <span>Roles</span>
+              <strong id="metric-roles">0</strong>
+            </div>
+            <div>
+              <span>Tenants</span>
+              <strong id="metric-tenants">0</strong>
+            </div>
+            <div>
+              <span>Clients</span>
+              <strong id="metric-clients">0</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="workspace" id="directory">
+          <div class="section-head">
+            <p class="eyebrow">Identity Directory</p>
+            <h3>Provision the foundation</h3>
+          </div>
+          <div class="workspace-grid">
+            <section class="panel reveal">
+              <div class="panel-head">
+                <h4>Users</h4>
+                <button data-refresh>Refresh</button>
+              </div>
+              <form id="user-form" class="form">
+                <input name="email" type="email" placeholder="Email" required />
+                <input name="username" placeholder="Username" required />
+                <input name="givenName" placeholder="Given name" required />
+                <input name="familyName" placeholder="Family name" required />
+                <input name="password" type="password" placeholder="Password" required />
+                <input name="roleIds" placeholder="Role IDs (comma separated)" />
+                <button type="submit">Create user</button>
+              </form>
+              <div id="users-list" class="stack"></div>
+            </section>
+
+            <section class="panel reveal">
+              <div class="panel-head">
+                <h4>Roles</h4>
+                <button data-refresh>Refresh</button>
+              </div>
+              <form id="role-form" class="form">
+                <input name="name" placeholder="Role name" required />
+                <input name="description" placeholder="Description" required />
+                <input name="permissions" placeholder="Permissions (comma separated)" required />
+                <select name="scope">
+                  <option value="platform">Platform</option>
+                  <option value="tenant">Tenant</option>
+                </select>
+                <button type="submit">Create role</button>
+              </form>
+              <div id="roles-list" class="stack"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="workspace" id="protocol">
+          <div class="section-head">
+            <p class="eyebrow">Protocol Lab</p>
+            <h3>Exercise the auth surface</h3>
+          </div>
+          <div class="workspace-grid">
+            <section class="panel reveal">
+              <div class="panel-head">
+                <h4>Clients</h4>
+              </div>
+              <div id="clients-list" class="stack"></div>
+            </section>
+
+            <section class="panel reveal">
+              <div class="panel-head">
+                <h4>Token Lab</h4>
+              </div>
+              <form id="login-form" class="form">
+                <input name="email" type="email" value="admin@example.com" required />
+                <input name="password" type="password" value="change-me-now" required />
+                <input name="clientId" value="sso-admin-ui" required />
+                <input name="scope" value="openid,profile,email,offline_access,roles" required />
+                <input name="tenantSlug" placeholder="Tenant slug (optional)" />
+                <button type="submit">Login and mint tokens</button>
+              </form>
+              <div class="token-actions">
+                <button id="refresh-button" type="button">Rotate refresh token</button>
+              </div>
+              <pre id="token-output" class="code"></pre>
+            </section>
+          </div>
+        </section>
+
+        <section class="workspace" id="tenancy">
+          <div class="section-head">
+            <p class="eyebrow">Tenancy</p>
+            <h3>Shape access around organizations</h3>
+          </div>
+          <div class="workspace-grid">
+            <section class="panel reveal">
+              <div class="panel-head">
+                <h4>Tenants</h4>
+                <button data-refresh>Refresh</button>
+              </div>
+              <form id="tenant-form" class="form">
+                <input name="slug" placeholder="Tenant slug" required />
+                <input name="name" placeholder="Tenant name" required />
+                <button type="submit">Create tenant</button>
+              </form>
+              <div id="tenants-list" class="stack"></div>
+            </section>
+
+            <section class="panel reveal">
+              <div class="panel-head">
+                <h4>Role assignments</h4>
+              </div>
+              <form id="assignment-form" class="form">
+                <input name="userId" placeholder="User ID" required />
+                <input name="roleId" placeholder="Role ID" required />
+                <input name="tenantId" placeholder="Tenant ID (optional)" />
+                <button type="submit">Assign role</button>
+              </form>
+              <div id="activity-log" class="stack log"></div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/assets/admin.js"></script>
+  </body>
+  </html>

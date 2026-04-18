@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import Database from "better-sqlite3";
 import { nanoid } from "nanoid";
 import type {
   AccessTokenRecord,
@@ -42,12 +42,12 @@ const asDate = (value: unknown): Date => new Date(String(value));
 const maybeDate = (value: unknown): Date | undefined => (value ? asDate(value) : undefined);
 
 export class SqliteDatabase {
-  readonly connection: DatabaseSync;
+  readonly connection: Database.Database;
 
   constructor(path: string) {
     const absolutePath = resolve(path);
     mkdirSync(dirname(absolutePath), { recursive: true });
-    this.connection = new DatabaseSync(absolutePath);
+    this.connection = new Database(absolutePath);
     this.connection.exec("PRAGMA journal_mode = WAL;");
     this.connection.exec("PRAGMA busy_timeout = 5000;");
     this.connection.exec("PRAGMA foreign_keys = ON;");
@@ -287,7 +287,7 @@ const mapAccessToken = (row: DbRow): AccessTokenRecord => ({
 });
 
 export class SqliteRoleRepository implements RoleRepository {
-  constructor(private readonly db: DatabaseSync) {}
+  constructor(private readonly db: Database.Database) {}
 
   create(input: Omit<Role, "id" | "createdAt">): Role {
     const role = { ...input, id: nanoid(), createdAt: new Date() };
@@ -299,7 +299,8 @@ export class SqliteRoleRepository implements RoleRepository {
   }
 
   list(): Role[] {
-    return this.db.prepare("SELECT * FROM roles ORDER BY created_at ASC").all().map((row) => mapRole(row as DbRow));
+    const rows = this.db.prepare("SELECT * FROM roles ORDER BY created_at ASC").all() as DbRow[];
+    return rows.map(mapRole);
   }
 
   findByIds(ids: string[]): Role[] {
@@ -308,7 +309,8 @@ export class SqliteRoleRepository implements RoleRepository {
     }
 
     const placeholders = ids.map(() => "?").join(", ");
-    return this.db.prepare(`SELECT * FROM roles WHERE id IN (${placeholders})`).all(...ids).map((row) => mapRole(row as DbRow));
+    const rows = this.db.prepare(`SELECT * FROM roles WHERE id IN (${placeholders})`).all(...ids) as DbRow[];
+    return rows.map(mapRole);
   }
 
   findByName(name: string): Role | undefined {
@@ -318,7 +320,7 @@ export class SqliteRoleRepository implements RoleRepository {
 }
 
 export class SqliteUserRepository implements UserRepository {
-  constructor(private readonly db: DatabaseSync) {}
+  constructor(private readonly db: Database.Database) {}
 
   create(input: Omit<User, "id" | "createdAt" | "updatedAt">): User {
     const now = new Date();
@@ -341,7 +343,8 @@ export class SqliteUserRepository implements UserRepository {
   }
 
   list(): User[] {
-    return this.db.prepare("SELECT * FROM users ORDER BY created_at ASC").all().map((row) => mapUser(row as DbRow));
+    const rows = this.db.prepare("SELECT * FROM users ORDER BY created_at ASC").all() as DbRow[];
+    return rows.map(mapUser);
   }
 
   findByEmail(email: string): User | undefined {
@@ -356,7 +359,7 @@ export class SqliteUserRepository implements UserRepository {
 }
 
 export class SqliteClientRepository implements ClientRepository {
-  constructor(private readonly db: DatabaseSync) {}
+  constructor(private readonly db: Database.Database) {}
 
   create(input: Omit<OAuthClient, "createdAt">): OAuthClient {
     const client: OAuthClient = { ...input, createdAt: new Date() };
@@ -380,10 +383,15 @@ export class SqliteClientRepository implements ClientRepository {
     const row = this.db.prepare("SELECT * FROM oauth_clients WHERE id = ?").get(id);
     return row ? mapClient(row as DbRow) : undefined;
   }
+
+  list(): OAuthClient[] {
+    const rows = this.db.prepare("SELECT * FROM oauth_clients ORDER BY created_at ASC").all() as DbRow[];
+    return rows.map(mapClient);
+  }
 }
 
 export class SqliteSessionRepository implements SessionRepository {
-  constructor(private readonly db: DatabaseSync) {}
+  constructor(private readonly db: Database.Database) {}
 
   create(input: Omit<Session, "id">): Session {
     const session: Session = { ...input, id: nanoid() };
@@ -408,7 +416,7 @@ export class SqliteSessionRepository implements SessionRepository {
 }
 
 export class SqliteAuthorizationCodeRepository implements AuthorizationCodeRepository {
-  constructor(private readonly db: DatabaseSync) {}
+  constructor(private readonly db: Database.Database) {}
 
   create(input: Omit<AuthorizationCode, "id" | "createdAt">): AuthorizationCode {
     const code: AuthorizationCode = { ...input, id: nanoid(), createdAt: new Date() };
@@ -444,7 +452,7 @@ export class SqliteAuthorizationCodeRepository implements AuthorizationCodeRepos
 }
 
 export class SqliteTenantRepository implements TenantRepository {
-  constructor(private readonly db: DatabaseSync) {}
+  constructor(private readonly db: Database.Database) {}
 
   create(input: Omit<Tenant, "id" | "createdAt">): Tenant {
     const tenant: Tenant = { ...input, id: nanoid(), createdAt: new Date() };
@@ -456,7 +464,8 @@ export class SqliteTenantRepository implements TenantRepository {
   }
 
   list(): Tenant[] {
-    return this.db.prepare("SELECT * FROM tenants ORDER BY created_at ASC").all().map((row) => mapTenant(row as DbRow));
+    const rows = this.db.prepare("SELECT * FROM tenants ORDER BY created_at ASC").all() as DbRow[];
+    return rows.map(mapTenant);
   }
 
   findBySlug(slug: string): Tenant | undefined {
@@ -471,7 +480,7 @@ export class SqliteTenantRepository implements TenantRepository {
 }
 
 export class SqliteUserRoleAssignmentRepository implements UserRoleAssignmentRepository {
-  constructor(private readonly db: DatabaseSync) {}
+  constructor(private readonly db: Database.Database) {}
 
   assign(input: Omit<UserRoleAssignment, "id" | "createdAt">): UserRoleAssignment {
     const existing = this.db.prepare(`
@@ -498,12 +507,13 @@ export class SqliteUserRoleAssignmentRepository implements UserRoleAssignmentRep
   }
 
   listByUser(userId: string): UserRoleAssignment[] {
-    return this.db.prepare("SELECT * FROM user_role_assignments WHERE user_id = ?").all(userId).map((row) => mapAssignment(row as DbRow));
+    const rows = this.db.prepare("SELECT * FROM user_role_assignments WHERE user_id = ?").all(userId) as DbRow[];
+    return rows.map(mapAssignment);
   }
 }
 
 export class SqliteConsentRepository implements ConsentRepository {
-  constructor(private readonly db: DatabaseSync) {}
+  constructor(private readonly db: Database.Database) {}
 
   upsert(input: Omit<Consent, "id" | "createdAt" | "updatedAt">): Consent {
     const existing = this.findByUserAndClient(input.userId, input.clientId);
@@ -552,7 +562,7 @@ export class SqliteConsentRepository implements ConsentRepository {
 }
 
 export class SqliteRefreshTokenRepository implements RefreshTokenRepository {
-  constructor(private readonly db: DatabaseSync) {}
+  constructor(private readonly db: Database.Database) {}
 
   create(input: Omit<RefreshTokenRecord, "id" | "createdAt">): RefreshTokenRecord {
     const token: RefreshTokenRecord = { ...input, id: nanoid(), createdAt: new Date() };
@@ -613,7 +623,7 @@ export class SqliteRefreshTokenRepository implements RefreshTokenRepository {
 }
 
 export class SqliteAccessTokenRepository implements AccessTokenRepository {
-  constructor(private readonly db: DatabaseSync) {}
+  constructor(private readonly db: Database.Database) {}
 
   create(input: Omit<AccessTokenRecord, "id" | "createdAt">): AccessTokenRecord {
     const token: AccessTokenRecord = { ...input, id: nanoid(), createdAt: new Date() };

@@ -28,6 +28,7 @@ export interface UserRepository {
 export interface ClientRepository {
   create(input: Omit<OAuthClient, "createdAt">): OAuthClient;
   findById(id: string): OAuthClient | undefined;
+  list(): OAuthClient[];
 }
 
 export interface SessionRepository {

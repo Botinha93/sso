@@ -8,11 +8,12 @@ This repository starts a first-party identity platform aligned with OAuth 2.0 an
 - JWKS endpoint for public signing keys
 - JWT issuance for access, ID, and refresh tokens
 - Password hashing with `scrypt`
-- File-backed SQLite database in WAL mode for local persistence and concurrent access
+- File-backed SQLite database using `better-sqlite3` with WAL mode for local persistence and concurrent access
 - Role and user management APIs
 - Authorization code + PKCE oriented flow skeleton
 - Consent persistence, refresh token rotation, token revocation tracking, and tenant-aware role assignments
 - Seeded admin account for local development
+- Built-in admin console at `http://127.0.0.1:4000/`
 
 ## Planned next milestones
 
@@ -38,6 +39,12 @@ This repository starts a first-party identity platform aligned with OAuth 2.0 an
 
    ```bash
    npm run dev
+   ```
+
+4. Open the admin console:
+
+   ```text
+   http://127.0.0.1:4000/
    ```
 
 ## Seeded admin
