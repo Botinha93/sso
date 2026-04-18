@@ -25,6 +25,7 @@ import { UserAttributeService } from "./services/user-attribute-service.js";
 import { UserService } from "./services/user-service.js";
 
 export const bootstrap = async (config: AppConfig) => {
+  const repositories = await createRepositoryBundle(config);
   const {
     roleRepository,
     tenantRepository,
@@ -54,7 +55,7 @@ export const bootstrap = async (config: AppConfig) => {
     eventHookRepository,
     eventNotificationRepository,
     instanceSettingsRepository
-  } = await createRepositoryBundle(config);
+  } = repositories;
 
   const roleService = new RoleService(
     roleRepository,
@@ -331,6 +332,7 @@ export const bootstrap = async (config: AppConfig) => {
     totpService,
     authService,
     oidcService,
-    auditRepository
+    auditRepository,
+    dispose: repositories.dispose ?? (async () => undefined)
   };
 };

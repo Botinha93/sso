@@ -34,6 +34,16 @@ import type { RepositoryBundle } from "./factory.js";
 
 type PrismaRow = Record<string, unknown>;
 
+const readField = (row: PrismaRow, ...keys: string[]) => {
+  for (const key of keys) {
+    if (key in row) {
+      return row[key];
+    }
+  }
+
+  return undefined;
+};
+
 type PrismaClientLike = {
   role: any;
   user: any;
@@ -68,7 +78,27 @@ type PrismaClientLike = {
 
 const asDate = (value: unknown) => new Date(String(value));
 const maybeDate = (value: unknown) => (value === null || value === undefined || value === "" ? undefined : asDate(value));
-const asBoolean = (value: unknown) => Boolean(value);
+const asBoolean = (value: unknown) => {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "number") {
+    return value !== 0;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "0" || normalized === "false" || normalized === "") {
+      return false;
+    }
+    if (normalized === "1" || normalized === "true") {
+      return true;
+    }
+  }
+
+  return Boolean(value);
+};
 const asBooleanInt = (value: boolean) => (value ? 1 : 0);
 
 const parseStringArray = (value: unknown): string[] => {
@@ -111,28 +141,28 @@ const parseObjectRecord = (value: unknown): Record<string, unknown> => {
 };
 
 const mapRole = (row: PrismaRow): Role => ({
-  id: String(row.id),
-  appId: row.appId ? String(row.appId) : undefined,
-  name: String(row.name),
-  description: String(row.description),
-  permissions: parseStringArray(row.permissionsJson),
-  scope: String(row.scope) as Role["scope"],
-  createdAt: asDate(row.createdAt)
+  id: String(readField(row, "id")),
+  appId: readField(row, "appId", "app_id") ? String(readField(row, "appId", "app_id")) : undefined,
+  name: String(readField(row, "name")),
+  description: String(readField(row, "description")),
+  permissions: parseStringArray(readField(row, "permissionsJson", "permissions_json")),
+  scope: String(readField(row, "scope")) as Role["scope"],
+  createdAt: asDate(readField(row, "createdAt", "created_at"))
 });
 
 const mapUser = (row: PrismaRow): User => ({
-  id: String(row.id),
-  appId: row.appId ? String(row.appId) : undefined,
-  isServiceUser: asBoolean(row.isServiceUser),
-  email: String(row.email),
-  username: String(row.username),
-  passwordHash: String(row.passwordHash),
-  givenName: String(row.givenName),
-  familyName: String(row.familyName),
-  customAttributes: parseStringRecord(row.customAttributesJson),
-  active: asBoolean(row.active),
-  createdAt: asDate(row.createdAt),
-  updatedAt: asDate(row.updatedAt)
+  id: String(readField(row, "id")),
+  appId: readField(row, "appId", "app_id") ? String(readField(row, "appId", "app_id")) : undefined,
+  isServiceUser: asBoolean(readField(row, "isServiceUser", "is_service_user")),
+  email: String(readField(row, "email")),
+  username: String(readField(row, "username")),
+  passwordHash: String(readField(row, "passwordHash", "password_hash")),
+  givenName: String(readField(row, "givenName", "given_name")),
+  familyName: String(readField(row, "familyName", "family_name")),
+  customAttributes: parseStringRecord(readField(row, "customAttributesJson", "custom_attributes_json")),
+  active: asBoolean(readField(row, "active")),
+  createdAt: asDate(readField(row, "createdAt", "created_at")),
+  updatedAt: asDate(readField(row, "updatedAt", "updated_at"))
 });
 
 const mapClient = (row: PrismaRow): OAuthClient => ({

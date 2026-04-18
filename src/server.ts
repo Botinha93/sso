@@ -1,7 +1,8 @@
 import { buildApp } from "./app.js";
-import { config } from "./core/config.js";
+import { loadConfig } from "./core/config.js";
 
 const start = async () => {
+  const config = loadConfig();
   const app = await buildApp();
 
   try {

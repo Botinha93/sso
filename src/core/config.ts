@@ -72,7 +72,7 @@ export interface AppConfig {
   };
 }
 
-export const config: AppConfig = {
+export const loadConfig = (): AppConfig => ({
   port: asNumber("PORT", 4000),
   host: process.env.HOST ?? "127.0.0.1",
   databaseProvider: (() => {
@@ -97,4 +97,6 @@ export const config: AppConfig = {
   federation: {
     providers: asFederationProviders()
   }
-};
+});
+
+export const config: AppConfig = loadConfig();

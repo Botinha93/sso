@@ -1,22 +1,28 @@
+import { mkdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import type { AppConfig } from "../core/config.js";
 import type { RepositoryBundle } from "./factory.js";
 import { SqliteDatabase } from "./sqlite.js";
-import { createPrismaRepositories } from "./prisma-repositories.js";
 
 type PrismaClientLike = {
   $disconnect(): Promise<void>;
 };
 
+type PrismaRepositoryClient = PrismaClientLike & Record<string, unknown>;
+
 type PrismaClientModule = {
   PrismaClient: new () => PrismaClientLike;
 };
 
-let prismaClientInstance: PrismaClientLike | null = null;
-let prismaClientSignature: string | null = null;
+type PrismaRepositoriesModule = {
+  createPrismaRepositories: (prisma: PrismaRepositoryClient) => Omit<RepositoryBundle, "dispose">;
+};
+
+const resolveSqlitePath = (databasePath: string) => resolve(databasePath);
 
 const resolveDatabaseUrl = (config: AppConfig) => {
   if (config.databaseProvider === "sqlite") {
-    return `file:${config.databasePath}`;
+    return `file:${resolveSqlitePath(config.databasePath)}`;
   }
 
   if (!config.externalDatabaseUrl) {
@@ -26,46 +32,39 @@ const resolveDatabaseUrl = (config: AppConfig) => {
   return config.externalDatabaseUrl;
 };
 
-const getSignature = (config: AppConfig) => `${config.databaseProvider}:${resolveDatabaseUrl(config)}`;
+const resolveModuleUrl = (relativePath: string) => new URL(relativePath, import.meta.url).href;
 
 const loadPrismaClientModule = async (provider: AppConfig["databaseProvider"]): Promise<PrismaClientModule> => {
   switch (provider) {
     case "sqlite":
-      return import("../generated/prisma/sqlite/client.js") as Promise<PrismaClientModule>;
+      return import(resolveModuleUrl("../generated/prisma/sqlite/client.js")) as Promise<PrismaClientModule>;
     case "postgresql":
-      return import("../generated/prisma/postgresql/client.js") as Promise<PrismaClientModule>;
+      return import(resolveModuleUrl("../generated/prisma/postgresql/client.js")) as Promise<PrismaClientModule>;
     case "mysql":
-      return import("../generated/prisma/mysql/client.js") as Promise<PrismaClientModule>;
+      return import(resolveModuleUrl("../generated/prisma/mysql/client.js")) as Promise<PrismaClientModule>;
   }
 };
 
+const loadPrismaRepositoriesModule = async (): Promise<PrismaRepositoriesModule> => {
+  return import(resolveModuleUrl("./prisma-repositories.js")) as Promise<PrismaRepositoriesModule>;
+};
+
 /**
- * Get or create a provider-specific singleton Prisma Client instance.
+ * Create a provider-specific Prisma Client instance for a single app lifecycle.
  */
 export async function getPrismaClient(config: AppConfig): Promise<PrismaClientLike> {
-  const signature = getSignature(config);
+  process.env.DATABASE_PROVIDER = config.databaseProvider;
+  process.env.DATABASE_URL = resolveDatabaseUrl(config);
 
-  if (prismaClientInstance && prismaClientSignature !== signature) {
-    await prismaClientInstance.$disconnect();
-    prismaClientInstance = null;
-    prismaClientSignature = null;
+  if (config.databaseProvider === "sqlite") {
+    const sqlitePath = resolveSqlitePath(config.databasePath);
+    mkdirSync(dirname(sqlitePath), { recursive: true });
+    const sqlite = new SqliteDatabase(sqlitePath);
+    sqlite.migrate();
   }
 
-  if (!prismaClientInstance) {
-    process.env.DATABASE_PROVIDER = config.databaseProvider;
-    process.env.DATABASE_URL = resolveDatabaseUrl(config);
-
-    if (config.databaseProvider === "sqlite") {
-      const sqlite = new SqliteDatabase(config.databasePath);
-      sqlite.migrate();
-    }
-
-    const module = await loadPrismaClientModule(config.databaseProvider);
-    prismaClientInstance = new module.PrismaClient();
-    prismaClientSignature = signature;
-  }
-
-  return prismaClientInstance;
+  const module = await loadPrismaClientModule(config.databaseProvider);
+  return new module.PrismaClient();
 }
 
 /**
@@ -73,16 +72,18 @@ export async function getPrismaClient(config: AppConfig): Promise<PrismaClientLi
  */
 export async function createPrismaRepositoryBundle(config: AppConfig): Promise<RepositoryBundle> {
   const prisma = await getPrismaClient(config);
-  return createPrismaRepositories(prisma);
+  const { createPrismaRepositories } = await loadPrismaRepositoriesModule();
+  return {
+    ...createPrismaRepositories(prisma as PrismaRepositoryClient),
+    dispose: async () => {
+      await prisma.$disconnect();
+    }
+  };
 }
 
 /**
- * Disconnect Prisma Client (useful for cleanup).
+ * Disconnect Prisma Client (compatibility no-op for app-scoped clients).
  */
 export async function disconnectPrisma(): Promise<void> {
-  if (prismaClientInstance) {
-    await prismaClientInstance.$disconnect();
-    prismaClientInstance = null;
-    prismaClientSignature = null;
-  }
+  return Promise.resolve();
 }

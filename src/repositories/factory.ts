@@ -60,6 +60,7 @@ export interface RepositoryBundle {
   eventHookRepository: EventHookRepository;
   eventNotificationRepository: EventNotificationRepository;
   instanceSettingsRepository: InstanceSettingsRepository;
+  dispose?: () => Promise<void>;
 }
 
 export const createRepositoryBundle = async (config: AppConfig): Promise<RepositoryBundle> => {
