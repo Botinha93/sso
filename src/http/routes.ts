@@ -127,7 +127,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   async function getSession(request: any) {
     const sid = request.cookies?.sid;
     if (!sid) return null;
-    const session = deps.authService.sessionRepository.findById(sid);
+    const session = await deps.authService.sessionRepository.findById(sid);
     if (!session || session.expiresAt.getTime() < Date.now() || session.revokedAt) return null;
     return session;
   }
@@ -483,7 +483,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.post("/connect/register", async (request, reply) => {
     const input = dynamicClientRegistrationSchema.parse(request.body);
 
-    if (input.app_id && !deps.appService.findAppById(input.app_id)) {
+    if (input.app_id && !await deps.appService.findAppById(input.app_id)) {
       return reply.status(400).send({ error: "invalid_request", error_description: "Unknown app_id" });
     }
 
@@ -498,7 +498,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
     const requirePkce = grantTypes.includes("authorization_code");
 
-    const created = deps.clientService.createClient({
+    const created = await deps.clientService.createClient({
       appId: input.app_id,
       id: clientId,
       name: input.client_name,
@@ -1081,7 +1081,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
   app.delete("/api/admin/user-attributes/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    deps.userAttributeService.deleteAttribute(id);
+    await deps.userAttributeService.deleteAttribute(id);
     return reply.status(204).send();
   });
   app.put("/api/admin/user-attributes/:id/groups", async (request) => {
@@ -1091,14 +1091,14 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
   app.delete("/api/admin/user-attributes/:id/groups/:groupId", async (request, reply) => {
     const { id, groupId } = request.params as { id: string; groupId: string };
-    deps.userAttributeService.removeGroupAssignment({ attributeId: id, groupId });
+    await deps.userAttributeService.removeGroupAssignment({ attributeId: id, groupId });
     return reply.status(204).send();
   });
 
   app.get("/api/admin/policies", async () => deps.policyService.listPolicies());
   app.post("/api/admin/policies", async (request, reply) => {
     const input = createPolicySchema.parse(request.body);
-    const policy = deps.policyService.createPolicy({
+    const policy = await deps.policyService.createPolicy({
       key: input.key,
       name: input.name,
       description: input.description,
@@ -1123,7 +1123,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
   app.delete("/api/admin/policies/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    deps.policyService.deletePolicy(id);
+    await deps.policyService.deletePolicy(id);
     return reply.status(204).send();
   });
   app.put("/api/admin/policies/:id/assignments", async (request) => {
@@ -1140,7 +1140,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.delete("/api/admin/policies/:id/assignments", async (request, reply) => {
     const { id } = request.params as { id: string };
     const input = removePolicyAssignmentSchema.parse(request.body);
-    deps.policyService.removeAssignment({
+    await deps.policyService.removeAssignment({
       policyId: id,
       scopeType: input.scopeType,
       scopeId: input.scopeId
@@ -1152,7 +1152,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.get("/api/admin/events/types", async () => deps.eventHookService.listSystemEventTypes());
   app.post("/api/admin/events/hooks", async (request, reply) => {
     const input = createEventHookSchema.parse(request.body);
-    const hook = deps.eventHookService.createHook(input);
+    const hook = await deps.eventHookService.createHook(input);
     reply.code(201);
     return hook;
   });
@@ -1168,7 +1168,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
   app.delete("/api/admin/events/hooks/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    deps.eventHookService.deleteHook(id);
+    await deps.eventHookService.deleteHook(id);
     return reply.status(204).send();
   });
   app.get("/api/admin/events/notifications", async (request) => {
@@ -1179,7 +1179,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.post("/api/admin/federation/providers", async (request, reply) => {
     const input = createFederationProviderSchema.parse(request.body);
     reply.code(201);
-    const provider = deps.federationService.createProvider(input);
+    const provider = await deps.federationService.createProvider(input);
     return {
       ...provider,
       clientSecret: undefined,
@@ -1190,7 +1190,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.put("/api/admin/federation/providers/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     const input = updateFederationProviderSchema.parse(request.body);
-    const provider = deps.federationService.updateProvider(id, input);
+    const provider = await deps.federationService.updateProvider(id, input);
     return {
       ...provider,
       clientSecret: undefined,
@@ -1200,14 +1200,14 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
   app.delete("/api/admin/federation/providers/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    deps.federationService.deleteProvider(id);
+    await deps.federationService.deleteProvider(id);
     return reply.status(204).send();
   });
 
   app.get("/auth/federation/:providerId/start", async (request, reply) => {
     const { providerId } = request.params as { providerId: string };
     const redirectAfterLogin = asSafeRedirect((request.query as { redirect?: string }).redirect);
-    const destination = deps.federationService.getAuthorizationRedirect(providerId, redirectAfterLogin);
+    const destination = await deps.federationService.getAuthorizationRedirect(providerId, redirectAfterLogin);
     return reply.redirect(destination);
   });
 
@@ -1308,7 +1308,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const input = frontChannelLogoutSchema.parse(request.query);
     const now = new Date();
 
-    const matchingSessions = deps.authService.sessionRepository.list().filter((session) => {
+    const matchingSessions = (await deps.authService.sessionRepository.list()).filter((session) => {
       if (input.sid && session.id === input.sid) {
         return true;
       }
@@ -1322,7 +1322,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       await enforceInvalidationForSession({ session, ip: request.ip });
       deps.securityService.revokeSessionObservation(session.id);
       if (!session.revokedAt) {
-        deps.authService.sessionRepository.revoke(session.id, now);
+        await deps.authService.sessionRepository.revoke(session.id, now);
       }
     }
 
@@ -1343,7 +1343,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const input = backChannelLogoutSchema.parse(request.body);
     const now = new Date();
 
-    const matchingSessions = deps.authService.sessionRepository.list().filter((session) => {
+    const matchingSessions = (await deps.authService.sessionRepository.list()).filter((session) => {
       if (input.sid && session.id === input.sid) {
         return true;
       }
@@ -1357,7 +1357,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       await enforceInvalidationForSession({ session, ip: request.ip });
       deps.securityService.revokeSessionObservation(session.id);
       if (!session.revokedAt) {
-        deps.authService.sessionRepository.revoke(session.id, now);
+        await deps.authService.sessionRepository.revoke(session.id, now);
       }
     }
 
@@ -1529,7 +1529,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.post("/api/admin/users", async (request, reply) => {
     const input = createUserSchema.parse(request.body);
     deps.policyService.enforceUserCreationPolicies(input.password);
-    const user = deps.userService.createUser(input);
+    const user = await deps.userService.createUser(input);
     await deps.auditRepository.log({ type: "user_created", actorType: "system", metadata: { userId: user.id, email: user.email } });
     await deps.eventHookService.emit("user.created", {
       userId: user.id,
@@ -1543,21 +1543,21 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const { id } = request.params as { id: string };
     const { appId, isServiceUser, email, username, givenName, familyName, active, groupIds, customAttributes } = updateUserSchema.parse(request.body);
     if (appId !== undefined || isServiceUser !== undefined || email !== undefined || username !== undefined || givenName !== undefined || familyName !== undefined) {
-      deps.userService.updateUserProfile(id, { appId, isServiceUser, email, username, givenName, familyName });
+      await deps.userService.updateUserProfile(id, { appId, isServiceUser, email, username, givenName, familyName });
     }
-    if (active !== undefined) deps.userService.setUserActive(id, active);
-    if (customAttributes) deps.userService.setCustomAttributes(id, customAttributes);
+    if (active !== undefined) await deps.userService.setUserActive(id, active);
+    if (customAttributes) await deps.userService.setCustomAttributes(id, customAttributes);
     if (groupIds) {
       // Reset to exact set by removing all currently assigned groups first.
-      const existingGroupIds = deps.groupService.listGroupIdsForUser(id);
+      const existingGroupIds = await deps.groupService.listGroupIdsForUser(id);
       const next = new Set(groupIds);
       for (const groupId of existingGroupIds) {
         if (!next.has(groupId)) {
-          deps.groupService.removeUserFromGroup({ userId: id, groupId });
+          await deps.groupService.removeUserFromGroup({ userId: id, groupId });
         }
       }
       for (const groupId of groupIds) {
-        deps.groupService.assignUserToGroup({ userId: id, groupId });
+        await deps.groupService.assignUserToGroup({ userId: id, groupId });
       }
     }
     await deps.eventHookService.emit("user.updated", {
@@ -1579,12 +1579,12 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const { password } = resetUserPasswordSchema.parse(request.body);
 
     deps.policyService.enforceUserCreationPolicies(password);
-    deps.userService.resetPassword(id, password);
+    await deps.userService.resetPassword(id, password);
 
     const now = new Date();
-    const userSessions = deps.authService.sessionRepository.list().filter((session) => session.userId === id && !session.revokedAt);
+    const userSessions = (await deps.authService.sessionRepository.list()).filter((session) => session.userId === id && !session.revokedAt);
     for (const session of userSessions) {
-      deps.authService.sessionRepository.revoke(session.id, now);
+      await deps.authService.sessionRepository.revoke(session.id, now);
     }
 
     await deps.auditRepository.log({
@@ -1602,7 +1602,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
   app.delete("/api/admin/users/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    deps.userService.deleteUser(id);
+    await deps.userService.deleteUser(id);
     await deps.eventHookService.emit("user.deleted", {
       userId: id
     });
@@ -1612,18 +1612,18 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.get("/api/admin/scopes", async () => deps.scopeService.listScopes());
   app.post("/api/admin/scopes", async (request, reply) => {
     const input = createScopeSchema.parse(request.body);
-    const scope = deps.scopeService.createScope(input);
+    const scope = await deps.scopeService.createScope(input);
     reply.code(201);
     return scope;
   });
   app.delete("/api/admin/scopes/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    deps.scopeService.deleteScope(id);
+    await deps.scopeService.deleteScope(id);
     return reply.status(204).send();
   });
   app.post("/api/admin/clients", async (request, reply) => {
     const input = createClientSchema.parse(request.body);
-    const client = deps.clientService.createClient(input);
+    const client = await deps.clientService.createClient(input);
     await deps.eventHookService.emit("client.created", {
       clientId: client.id,
       name: client.name,
@@ -1636,7 +1636,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.put("/api/admin/clients/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     const input = updateClientSchema.parse(request.body);
-    const client = deps.clientService.updateClient(id, input);
+    const client = await deps.clientService.updateClient(id, input);
     if (!client) return reply.status(404).send({ error: "not_found" });
     await deps.eventHookService.emit("client.updated", {
       clientId: client.id,
@@ -1648,7 +1648,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
   app.delete("/api/admin/clients/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    deps.clientService.deleteClient(id);
+    await deps.clientService.deleteClient(id);
     await deps.eventHookService.emit("client.deleted", {
       clientId: id
     });
@@ -1662,13 +1662,13 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
   app.delete("/api/admin/roles/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    deps.roleService.deleteRole(id);
+    await deps.roleService.deleteRole(id);
     return reply.status(204).send();
   });
   app.put("/api/admin/roles/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     const input = updateRoleSchema.parse(request.body);
-    const updated = deps.roleService.updateRole(id, input);
+    const updated = await deps.roleService.updateRole(id, input);
     if (!updated) return reply.status(404).send({ error: "Role not found" });
     return updated;
   });
@@ -1690,7 +1690,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
   app.delete("/api/admin/groups/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    deps.groupService.deleteGroup(id);
+    await deps.groupService.deleteGroup(id);
     return reply.status(204).send();
   });
   app.post("/api/admin/group-role-assignments", async (request, reply) => {
@@ -1700,7 +1700,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
   app.delete("/api/admin/group-role-assignments", async (request, reply) => {
     const input = assignGroupRoleSchema.parse(request.body);
-    deps.groupService.removeRoleFromGroup(input);
+    await deps.groupService.removeRoleFromGroup(input);
     return reply.status(204).send();
   });
   app.post("/api/admin/user-groups", async (request, reply) => {
@@ -1710,7 +1710,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
   app.delete("/api/admin/user-groups", async (request, reply) => {
     const input = assignUserGroupSchema.parse(request.body);
-    deps.groupService.removeUserFromGroup(input);
+    await deps.groupService.removeUserFromGroup(input);
     return reply.status(204).send();
   });
   app.get("/api/admin/tenants", async () => deps.tenantService.listTenants());
@@ -1727,7 +1727,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
   app.delete("/api/admin/apps/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    deps.appService.deleteApp(id);
+    await deps.appService.deleteApp(id);
     return reply.status(204).send();
   });
   app.post("/api/admin/tenants", async (request, reply) => {
@@ -1745,7 +1745,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.delete("/api/admin/sessions/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     deps.securityService.revokeSessionObservation(id);
-    deps.authService.sessionRepository.revoke(id, new Date());
+    await deps.authService.sessionRepository.revoke(id, new Date());
     await deps.auditRepository.log({ type: "session_revoked", actorType: "system", metadata: { sessionId: id } });
     await deps.eventHookService.emit("session.revoked", {
       sessionId: id,
@@ -1755,7 +1755,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
 
   app.get("/api/admin/devices", async () => {
-    const clients = deps.clientService.listClients();
+    const clients = await deps.clientService.listClients();
     const deviceClientIds = new Set(
       clients
         .filter((client) => client.grants.includes("device_code"))
@@ -1763,7 +1763,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     );
     const clientNameById = new Map(clients.map((client) => [client.id, client.name]));
 
-    const sessions = deps.authService.sessionRepository.list()
+    const sessions = (await deps.authService.sessionRepository.list())
       .filter((session) => deviceClientIds.has(session.clientId))
       .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
       .map((session) => ({
@@ -1815,7 +1815,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.delete("/api/admin/devices/sessions/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     deps.securityService.revokeSessionObservation(id);
-    deps.authService.sessionRepository.revoke(id, new Date());
+    await deps.authService.sessionRepository.revoke(id, new Date());
     await deps.auditRepository.log({
       type: "session_revoked",
       actorType: "system",
@@ -1831,7 +1831,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.get("/api/admin/consents", async () => deps.authService.consentRepository.list());
   app.delete("/api/admin/consents/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    deps.authService.consentRepository.revoke(id);
+    await deps.authService.consentRepository.revoke(id);
     await deps.auditRepository.log({ type: "consent_revoked", actorType: "system", metadata: { consentId: id } });
     await deps.eventHookService.emit("consent.revoked", {
       consentId: id,
@@ -1853,7 +1853,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.post("/users", async (request, reply) => {
     const input = createUserSchema.parse(request.body);
     deps.policyService.enforceUserCreationPolicies(input.password);
-    const user = deps.userService.createUser(input);
+    const user = await deps.userService.createUser(input);
     await deps.eventHookService.emit("user.created", {
       userId: user.id,
       email: user.email,
@@ -1894,21 +1894,21 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
   // ─── User Portal API ──────────────────────────────────────────────────────────
 
-  function getPortalSession(request: any) {
+  async function getPortalSession(request: any) {
     const sid = request.cookies?.sid;
     if (!sid) return null;
-    const session = deps.authService.sessionRepository.findById(sid);
+    const session = await deps.authService.sessionRepository.findById(sid);
     if (!session || session.expiresAt.getTime() < Date.now() || session.revokedAt) return null;
     return session;
   }
 
   // GET /api/portal/me — current user profile + apps + custom attributes
   app.get("/api/portal/me", async (request, reply) => {
-    const session = getPortalSession(request);
+    const session = await getPortalSession(request);
     if (!session) return reply.status(401).send({ error: "unauthorized" });
     const user = await deps.userService.findUserById(session.userId);
     if (!user) return reply.status(401).send({ error: "unauthorized" });
-    const userApps = deps.appService.listApps().filter(a => {
+    const userApps = (await deps.appService.listApps()).filter(a => {
       // app directly assigned to user, or user has no appId restriction
       return !user.appId || a.id === user.appId;
     });
@@ -1926,11 +1926,11 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
   // PATCH /api/portal/profile — update own profile
   app.patch("/api/portal/profile", async (request, reply) => {
-    const session = getPortalSession(request);
+    const session = await getPortalSession(request);
     if (!session) return reply.status(401).send({ error: "unauthorized" });
     const input = portalUpdateProfileSchema.parse(request.body);
     if (input.givenName !== undefined || input.familyName !== undefined || input.email !== undefined || input.username !== undefined) {
-      deps.userService.updateUserProfile(session.userId, {
+      await deps.userService.updateUserProfile(session.userId, {
         givenName: input.givenName,
         familyName: input.familyName,
         email: input.email,
@@ -1938,14 +1938,14 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       });
     }
     if (input.customAttributes !== undefined) {
-      deps.userService.setCustomAttributes(session.userId, input.customAttributes);
+      await deps.userService.setCustomAttributes(session.userId, input.customAttributes);
     }
     return reply.status(204).send();
   });
 
   // POST /api/portal/change-password — change own password (requires current pw)
   app.post("/api/portal/change-password", async (request, reply) => {
-    const session = getPortalSession(request);
+    const session = await getPortalSession(request);
     if (!session) return reply.status(401).send({ error: "unauthorized" });
     const { currentPassword, newPassword } = portalChangePasswordSchema.parse(request.body);
     const user = await deps.userService.findUserById(session.userId);
@@ -1954,22 +1954,22 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       return reply.status(400).send({ error: "InvalidPassword", message: "Current password is incorrect" });
     }
     deps.policyService.enforceUserCreationPolicies(newPassword);
-    deps.userService.resetPassword(session.userId, newPassword);
+    await deps.userService.resetPassword(session.userId, newPassword);
     return reply.status(204).send();
   });
 
   // DELETE /api/portal/account — delete own account
   app.delete("/api/portal/account", async (request, reply) => {
-    const session = getPortalSession(request);
+    const session = await getPortalSession(request);
     if (!session) return reply.status(401).send({ error: "unauthorized" });
     // Revoke all sessions first
-    const allSessions = deps.authService.sessionRepository.list().filter(s => s.userId === session.userId && !s.revokedAt);
+    const allSessions = (await deps.authService.sessionRepository.list()).filter(s => s.userId === session.userId && !s.revokedAt);
     const now = new Date();
     for (const s of allSessions) {
       deps.securityService.revokeSessionObservation(s.id);
-      deps.authService.sessionRepository.revoke(s.id, now);
+      await deps.authService.sessionRepository.revoke(s.id, now);
     }
-    deps.userService.deleteUser(session.userId);
+    await deps.userService.deleteUser(session.userId);
     reply.clearCookie("sid", { path: "/" });
     return reply.status(204).send();
   });

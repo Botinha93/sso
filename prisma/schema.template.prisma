@@ -1,0 +1,358 @@
+generator client {
+  provider = "prisma-client"
+  output   = "__OUTPUT_DIR__"
+}
+
+datasource db {
+  provider = "__PROVIDER__"
+  url      = env("DATABASE_URL")
+}
+
+model App {
+  id          String  @id
+  name        String  @unique
+  description String
+  icon        String?
+  url         String?
+  createdAt   String  @map("created_at")
+
+  @@map("apps")
+}
+
+model InstanceSetting {
+  id           String @id
+  settingsJson String @map("settings_json")
+  updatedAt    String @map("updated_at")
+
+  @@map("instance_settings")
+}
+
+model Role {
+  id              String  @id
+  appId           String? @map("app_id")
+  name            String  @unique
+  description     String
+  permissionsJson String  @map("permissions_json")
+  scope           String
+  createdAt       String  @map("created_at")
+
+  @@map("roles")
+}
+
+model User {
+  id                   String  @id
+  appId                String? @map("app_id")
+  isServiceUser        Int     @default(0) @map("is_service_user")
+  email                String  @unique
+  username             String  @unique
+  passwordHash         String  @map("password_hash")
+  givenName            String  @map("given_name")
+  familyName           String  @map("family_name")
+  customAttributesJson String  @default("{}") @map("custom_attributes_json")
+  active               Int
+  createdAt            String  @map("created_at")
+  updatedAt            String  @map("updated_at")
+
+  @@map("users")
+}
+
+model Client {
+  id                String  @id
+  appId             String? @map("app_id")
+  name              String
+  secret            String
+  redirectUrisJson  String  @map("redirect_uris_json")
+  allowedScopesJson String  @map("allowed_scopes_json")
+  grantsJson        String  @map("grants_json")
+  requirePkce       Int     @map("require_pkce")
+  resourcesJson     String  @default("[]") @map("resources_json")
+  flowIdsJson       String  @default("[]") @map("flow_ids_json")
+  createdAt         String  @map("created_at")
+
+  @@map("oauth_clients")
+}
+
+model Scope {
+  id          String @id
+  name        String @unique
+  description String
+  createdAt   String @map("created_at")
+
+  @@map("oauth_scopes")
+}
+
+model Session {
+  id        String  @id
+  userId    String  @map("user_id")
+  clientId  String  @map("client_id")
+  createdAt String  @map("created_at")
+  expiresAt String  @map("expires_at")
+  revokedAt String? @map("revoked_at")
+
+  @@map("sessions")
+}
+
+model TotpCredential {
+  userId    String @id @map("user_id")
+  secret    String
+  enabled   Int
+  createdAt String @map("created_at")
+  updatedAt String @map("updated_at")
+
+  @@map("totp_credentials")
+}
+
+model AuthorizationCode {
+  id                 String  @id
+  code               String  @unique
+  clientId           String  @map("client_id")
+  userId             String  @map("user_id")
+  redirectUri        String  @map("redirect_uri")
+  scopeJson          String  @map("scope_json")
+  codeChallenge      String? @map("code_challenge")
+  codeChallengeMethod String? @map("code_challenge_method")
+  expiresAt          String  @map("expires_at")
+  createdAt          String  @map("created_at")
+
+  @@map("authorization_codes")
+}
+
+model Tenant {
+  id        String @id
+  slug      String @unique
+  name      String
+  active    Int
+  createdAt String @map("created_at")
+
+  @@map("tenants")
+}
+
+model Group {
+  id          String  @id
+  appId       String? @map("app_id")
+  name        String  @unique
+  description String
+  createdAt   String  @map("created_at")
+
+  @@map("groups")
+}
+
+model UserGroupAssignment {
+  id        String @id
+  userId    String @map("user_id")
+  groupId   String @map("group_id")
+  createdAt String @map("created_at")
+
+  @@unique([userId, groupId])
+  @@map("user_group_assignments")
+}
+
+model GroupRoleAssignment {
+  id        String @id
+  groupId   String @map("group_id")
+  roleId    String @map("role_id")
+  createdAt String @map("created_at")
+
+  @@unique([groupId, roleId])
+  @@map("group_role_assignments")
+}
+
+model UserRoleAssignment {
+  id        String  @id
+  userId    String  @map("user_id")
+  roleId    String  @map("role_id")
+  tenantId  String? @map("tenant_id")
+  createdAt String  @map("created_at")
+
+  @@unique([userId, roleId, tenantId])
+  @@map("user_role_assignments")
+}
+
+model Consent {
+  id        String @id
+  userId    String @map("user_id")
+  clientId  String @map("client_id")
+  scopeJson String @map("scope_json")
+  createdAt String @map("created_at")
+  updatedAt String @map("updated_at")
+
+  @@unique([userId, clientId])
+  @@map("consents")
+}
+
+model RefreshToken {
+  id                 String  @id
+  tokenId            String  @unique @map("token_id")
+  tokenHash          String  @unique @map("token_hash")
+  userId             String  @map("user_id")
+  clientId           String  @map("client_id")
+  sessionId          String  @map("session_id")
+  scopeJson          String  @map("scope_json")
+  expiresAt          String  @map("expires_at")
+  createdAt          String  @map("created_at")
+  consumedAt         String? @map("consumed_at")
+  revokedAt          String? @map("revoked_at")
+  rotatedFromTokenId String? @map("rotated_from_token_id")
+
+  @@map("refresh_tokens")
+}
+
+model AccessToken {
+  id        String  @id
+  tokenId   String  @unique @map("token_id")
+  userId    String  @map("user_id")
+  clientId  String  @map("client_id")
+  sessionId String  @map("session_id")
+  expiresAt String  @map("expires_at")
+  createdAt String  @map("created_at")
+  revokedAt String? @map("revoked_at")
+
+  @@map("access_tokens")
+}
+
+model AuditLog {
+  id           String  @id
+  type         String
+  actorId      String? @map("actor_id")
+  actorType    String  @map("actor_type")
+  clientId     String? @map("client_id")
+  ip           String?
+  metadataJson String? @map("metadata_json")
+  createdAt    String  @map("created_at")
+
+  @@map("audit_events")
+}
+
+model FederatedIdentity {
+  id              String  @id
+  providerId      String  @map("provider_id")
+  providerSubject String  @map("provider_subject")
+  userId          String  @map("user_id")
+  email           String?
+  createdAt       String  @map("created_at")
+  lastLoginAt     String  @map("last_login_at")
+
+  @@unique([providerId, providerSubject])
+  @@map("federated_identities")
+}
+
+model FederationTransaction {
+  state              String @id
+  providerId         String @map("provider_id")
+  codeVerifier       String @map("code_verifier")
+  redirectAfterLogin String @map("redirect_after_login")
+  createdAt          String @map("created_at")
+  expiresAt          String @map("expires_at")
+
+  @@map("federation_transactions")
+}
+
+model FederationProvider {
+  id                    String @id
+  label                 String
+  authorizationEndpoint String @map("authorization_endpoint")
+  tokenEndpoint         String @map("token_endpoint")
+  userInfoEndpoint      String @map("userinfo_endpoint")
+  clientId              String @map("client_id")
+  clientSecret          String @map("client_secret")
+  scopesJson            String @map("scopes_json")
+  enabled               Int
+  createdAt             String @map("created_at")
+  updatedAt             String @map("updated_at")
+
+  @@map("federation_providers")
+}
+
+model AuthenticationFlow {
+  id          String @id
+  name        String
+  description String
+  designation String @default("authentication")
+  enabled     Int
+  grantsJson  String @default("[\"authorization_code\"]") @map("grants_json")
+  stagesJson  String @map("stages_json")
+  createdAt   String @map("created_at")
+  updatedAt   String @map("updated_at")
+
+  @@map("authentication_flows")
+}
+
+model UserAttributeDefinition {
+  id          String @id
+  key         String @unique
+  name        String
+  description String
+  type        String
+  enabled     Int
+  createdAt   String @map("created_at")
+  updatedAt   String @map("updated_at")
+
+  @@map("user_attribute_definitions")
+}
+
+model GroupUserAttributeAssignment {
+  id          String @id
+  groupId     String @map("group_id")
+  attributeId String @map("attribute_id")
+  enabled     Int
+  createdAt   String @map("created_at")
+  updatedAt   String @map("updated_at")
+
+  @@unique([groupId, attributeId])
+  @@map("group_user_attribute_assignments")
+}
+
+model PolicyDefinition {
+  id                String  @id
+  key               String  @unique
+  name              String
+  description       String
+  stageBindingsJson String  @default("[]") @map("stage_bindings_json")
+  javascriptCode    String? @map("javascript_code")
+  enabled           Int
+  createdAt         String  @map("created_at")
+  updatedAt         String  @map("updated_at")
+
+  @@map("policy_definitions")
+}
+
+model PolicyAssignment {
+  id         String  @id
+  policyId   String  @map("policy_id")
+  scopeType  String  @map("scope_type")
+  scopeId    String? @map("scope_id")
+  enabled    Int
+  configJson String  @map("config_json")
+  createdAt  String  @map("created_at")
+  updatedAt  String  @map("updated_at")
+
+  @@unique([policyId, scopeType, scopeId])
+  @@map("policy_assignments")
+}
+
+model EventHook {
+  id         String @id
+  eventType  String @map("event_type")
+  targetUrl  String @map("target_url")
+  method     String
+  headersJson String @map("headers_json")
+  enabled    Int
+  createdAt  String @map("created_at")
+  updatedAt  String @map("updated_at")
+
+  @@map("event_hooks")
+}
+
+model EventNotification {
+  id             String  @id
+  eventType      String  @map("event_type")
+  hookId         String? @map("hook_id")
+  payloadJson    String  @map("payload_json")
+  status         String
+  responseStatus Int?    @map("response_status")
+  responseBody   String? @map("response_body")
+  error          String?
+  createdAt      String  @map("created_at")
+
+  @@map("event_notifications")
+}

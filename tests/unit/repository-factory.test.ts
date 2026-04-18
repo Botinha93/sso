@@ -41,14 +41,14 @@ test("repository factory requires DATABASE_URL for external providers", async ()
   );
 });
 
-test("repository factory rejects external providers until runtime support is wired", async () => {
+test("repository factory creates a Prisma bundle for external providers", async () => {
   const config = makeConfig({
     databaseProvider: "mysql",
     externalDatabaseUrl: "mysql://user:pass@localhost:3306/sso"
   });
 
-  await assert.rejects(
-    createRepositoryBundle(config),
-    /active runtime repository layer is still SQLite-only/
-  );
+  const repositories = await createRepositoryBundle(config);
+
+  assert.ok(repositories.userRepository);
+  assert.ok(repositories.clientRepository);
 });

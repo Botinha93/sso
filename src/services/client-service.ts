@@ -9,18 +9,19 @@ export class ClientService {
     private readonly instanceSettingsService: InstanceSettingsService
   ) {}
 
-  listClients() {
-    return this.clientRepository.list().map((client) => ({
+  async listClients() {
+    const clients = await this.clientRepository.list();
+    return clients.map((client) => ({
       ...client,
       secretPreview: `${client.secret.slice(0, 4)}...${client.secret.slice(-4)}`
     }));
   }
 
-  findClientById(id: string) {
+  async findClientById(id: string) {
     return this.clientRepository.findById(id);
   }
 
-  createClient(input: {
+  async createClient(input: {
     appId?: string;
     id: string;
     name: string;
@@ -40,7 +41,7 @@ export class ClientService {
     });
   }
 
-  updateClient(id: string, input: Partial<{
+  async updateClient(id: string, input: Partial<{
     appId: string;
     name: string;
     secret: string;
@@ -57,7 +58,7 @@ export class ClientService {
     return this.clientRepository.update(id, input);
   }
 
-  deleteClient(id: string) {
+  async deleteClient(id: string) {
     return this.clientRepository.delete(id);
   }
 }

@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prisma:generate": "node scripts/generate-prisma-clients.mjs",
     "dev": "concurrently -k -n api,admin,portal -c cyan,magenta,yellow \"npm run dev:server\" \"npm run dev:admin\" \"npm run dev:portal\"",
     "dev:server": "tsx watch src/server.ts",
     "dev:admin": "cd admin && npx vite",

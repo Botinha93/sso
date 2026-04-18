@@ -4,20 +4,20 @@ import type { AppRepository } from "../repositories/contracts.js";
 export class AppService {
   constructor(private readonly appRepository: AppRepository) {}
 
-  listApps() {
+  async listApps() {
     return this.appRepository.list();
   }
 
-  findAppById(id: string) {
+  async findAppById(id: string) {
     return this.appRepository.findById(id);
   }
 
-  createApp(input: { name: string; description: string; icon?: string; url?: string }) {
+  async createApp(input: { name: string; description: string; icon?: string; url?: string }) {
     return this.appRepository.create(input);
   }
 
-  updateApp(id: string, input: { name?: string; description?: string; icon?: string; url?: string | null }) {
-    const updated = this.appRepository.update(id, {
+  async updateApp(id: string, input: { name?: string; description?: string; icon?: string; url?: string | null }) {
+    const updated = await this.appRepository.update(id, {
       ...input,
       url: input.url ?? undefined
     });
@@ -27,7 +27,7 @@ export class AppService {
     return updated;
   }
 
-  deleteApp(id: string) {
-    this.appRepository.delete(id);
+  async deleteApp(id: string) {
+    await this.appRepository.delete(id);
   }
 }
