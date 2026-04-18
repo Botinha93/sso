@@ -1,0 +1,343 @@
+openapi: 3.0.3
+info:
+  title: NexusID API
+  version: 0.1.0
+  description: OAuth2/OIDC, admin APIs, and user portal APIs.
+servers:
+  - url: http://127.0.0.1:4000
+paths:
+  /.well-known/openid-configuration:
+    get:
+      summary: OIDC discovery document
+      responses:
+        '200':
+          description: Discovery metadata
+  /.well-known/jwks.json:
+    get:
+      summary: JSON Web Key Set
+      responses:
+        '200':
+          description: JWK keys
+  /oauth/authorize:
+    get:
+      summary: Authorization endpoint
+      parameters:
+        - in: query
+          name: response_type
+          schema:
+            type: string
+            enum: [code, token]
+          required: true
+        - in: query
+          name: client_id
+          schema: { type: string }
+          required: true
+        - in: query
+          name: redirect_uri
+          schema: { type: string, format: uri }
+          required: true
+        - in: query
+          name: scope
+          schema: { type: string }
+          required: true
+        - in: query
+          name: state
+          schema: { type: string }
+        - in: query
+          name: approval_prompt
+          schema:
+            type: string
+            enum: [auto, force]
+          description: Legacy prompt behavior control; force requires interactive consent.
+      responses:
+        '302':
+          description: Redirect to login/consent/client redirect URI
+  /oauth/token:
+    post:
+      summary: Token endpoint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [grant_type, code, client_id, client_secret, redirect_uri]
+                  properties:
+                    grant_type: { type: string, enum: [authorization_code] }
+                    code: { type: string }
+                    client_id: { type: string }
+                    client_secret: { type: string }
+                    redirect_uri: { type: string, format: uri }
+                    code_verifier: { type: string }
+                - type: object
+                  required: [grant_type, refresh_token, client_id, client_secret]
+                  properties:
+                    grant_type: { type: string, enum: [refresh_token] }
+                    refresh_token: { type: string }
+                    client_id: { type: string }
+                    client_secret: { type: string }
+                - type: object
+                  required: [grant_type, client_id, client_secret]
+                  properties:
+                    grant_type: { type: string, enum: [client_credentials] }
+                    client_id: { type: string }
+                    client_secret: { type: string }
+                    scope: { type: string }
+                - type: object
+                  required: [grant_type, username, password, client_id, client_secret]
+                  properties:
+                    grant_type: { type: string, enum: [password] }
+                    username: { type: string }
+                    password: { type: string }
+                    client_id: { type: string }
+                    client_secret: { type: string }
+                    scope: { type: string }
+      responses:
+        '200':
+          description: Token response
+  /oauth/introspect:
+    post:
+      summary: Token introspection
+      responses:
+        '200':
+          description: Token status
+  /oauth/token/revoke:
+    post:
+      summary: RFC7009 token revocation
+      responses:
+        '200':
+          description: Revocation accepted
+  /oauth/userinfo:
+    get:
+      summary: OIDC UserInfo endpoint
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User claims
+        '401':
+          description: Invalid token
+  /oauth/logout:
+    get:
+      summary: RP-initiated logout
+      responses:
+        '302':
+          description: Redirect after logout
+  /oauth/frontchannel-logout:
+    get:
+      summary: Front-channel logout
+      responses:
+        '200':
+          description: Logout completed
+  /oauth/backchannel-logout:
+    post:
+      summary: Back-channel logout
+      responses:
+        '200':
+          description: Session(s) revoked
+  /connect/register:
+    post:
+      summary: Dynamic client registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [client_name, redirect_uris]
+              properties:
+                app_id:
+                  type: string
+                  description: Optional app boundary to associate with the newly registered client.
+                client_name:
+                  type: string
+                redirect_uris:
+                  type: array
+                  items:
+                    type: string
+                    format: uri
+                grant_types:
+                  type: array
+                  items:
+                    type: string
+                    enum: [authorization_code, client_credentials, refresh_token, password, device_code]
+                response_types:
+                  type: array
+                  items:
+                    type: string
+                    enum: [code, token]
+                scope:
+                  type: string
+      responses:
+        '201':
+          description: Registered client metadata
+  /api/admin/clients:
+    get:
+      summary: List OAuth clients
+      responses:
+        '200':
+          description: Clients list
+    post:
+      summary: Create OAuth client
+      responses:
+        '201':
+          description: Client created
+  /api/admin/users:
+    get:
+      summary: List users
+      responses:
+        '200':
+          description: Users list
+  /api/admin/authentication/flows:
+    get:
+      summary: List authentication flows
+      responses:
+        '200':
+          description: Authentication flow list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuthenticationFlow'
+    post:
+      summary: Create authentication flow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthenticationFlowCreate'
+      responses:
+        '201':
+          description: Authentication flow created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticationFlow'
+  /api/admin/authentication/flows/{id}:
+    put:
+      summary: Update authentication flow
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthenticationFlowUpdate'
+      responses:
+        '200':
+          description: Authentication flow updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticationFlow'
+    delete:
+      summary: Delete authentication flow
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Authentication flow deleted
+  /api/portal/me:
+    get:
+      summary: Current portal user profile
+      responses:
+        '200':
+          description: User profile and apps
+components:
+  schemas:
+    AuthenticationStage:
+      type: object
+      required: [type, required, order]
+      properties:
+        type:
+          type: string
+          enum:
+            - password
+            - federation
+            - consent
+            - mfa_totp
+            - risk_check
+            - identification
+            - email_verification
+            - captcha
+            - prompt
+            - user_write
+            - user_login
+            - user_logout
+        required:
+          type: boolean
+        order:
+          type: integer
+          minimum: 1
+    AuthenticationFlowBase:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        designation:
+          type: string
+          enum:
+            - authentication
+            - authorization
+            - enrollment
+            - invalidation
+            - recovery
+            - stage_configuration
+            - unenrollment
+        enabled:
+          type: boolean
+        grantTypes:
+          type: array
+          items:
+            type: string
+            enum:
+              - authorization_code
+              - client_credentials
+              - refresh_token
+              - password
+              - device_code
+        stages:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthenticationStage'
+    AuthenticationFlow:
+      allOf:
+        - $ref: '#/components/schemas/AuthenticationFlowBase'
+        - type: object
+          required: [id, name, description, designation, enabled, grantTypes, stages, createdAt, updatedAt]
+          properties:
+            id:
+              type: string
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+    AuthenticationFlowCreate:
+      allOf:
+        - $ref: '#/components/schemas/AuthenticationFlowBase'
+        - type: object
+          required: [name, description, grantTypes, stages]
+    AuthenticationFlowUpdate:
+      allOf:
+        - $ref: '#/components/schemas/AuthenticationFlowBase'
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

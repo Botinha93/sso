@@ -2,10 +2,11 @@ import { Plus, RefreshCw, Trash2, Shield, ChevronRight, X } from 'lucide-react'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
-import { useClients, useCreateClient, useDeleteClient, useUpdateClient, useScopes, useCreateScope, useAuthenticationFlows } from '../hooks/useApi'
+import { useClients, useCreateClient, useDeleteClient, useUpdateClient, useScopes, useCreateScope, useAuthenticationFlows, useApps } from '../hooks/useApi'
 
 interface OAuthClient {
   id: string
+  appId?: string
   name: string
   secretPreview: string
   redirectUris: string[]
@@ -17,13 +18,24 @@ interface OAuthClient {
   createdAt: string
 }
 
+type GrantType = 'authorization_code' | 'client_credentials' | 'refresh_token' | 'password' | 'device_code'
+
+const GRANT_OPTIONS: Array<{ value: GrantType; label: string }> = [
+  { value: 'authorization_code', label: 'Authorization Code' },
+  { value: 'refresh_token', label: 'Refresh Token' },
+  { value: 'client_credentials', label: 'Client Credentials' },
+  { value: 'password', label: 'Password' },
+  { value: 'device_code', label: 'Device Code' },
+]
+
 const defaultForm = () => ({
+  appId: '',
   id: '',
   name: '',
   secret: '',
   redirectUris: '',
   allowedScopes: ['openid', 'profile', 'email'] as string[],
-  grants: 'authorization_code refresh_token',
+  grants: ['authorization_code', 'refresh_token'] as GrantType[],
   requirePkce: false,
   flowIds: [] as string[]
 })
@@ -38,7 +50,9 @@ const Clients = () => {
   const [newResource, setNewResource] = useState('')
   const [newScopeName, setNewScopeName] = useState('')
   const [newScopeDescription, setNewScopeDescription] = useState('')
+  const [appFilterId, setAppFilterId] = useState<string>('all')
   const { data: clients, isLoading, refetch } = useClients()
+  const { data: apps = [] } = useApps()
   const { data: scopes = [] } = useScopes()
   const { data: flows = [] } = useAuthenticationFlows()
   const createClient = useCreateClient()
@@ -46,16 +60,23 @@ const Clients = () => {
   const deleteClient = useDeleteClient()
   const updateClient = useUpdateClient()
   const [formData, setFormData] = useState(defaultForm)
+  const appNameById = new Map((apps as any[]).map((app: any) => [app.id, app.name]))
+  const filteredClients = (clients as OAuthClient[] | undefined)?.filter((client) => appFilterId === 'all'
+    ? true
+    : appFilterId === 'none'
+      ? !client.appId
+      : client.appId === appFilterId)
 
   const handleCreate = async () => {
     if (!formData.id || !formData.name || !formData.secret) return
     await createClient.mutateAsync({
+      appId: formData.appId || undefined,
       id: formData.id,
       name: formData.name,
       secret: formData.secret,
       redirectUris: formData.redirectUris.split('\n').map(s => s.trim()).filter(Boolean),
       allowedScopes: formData.allowedScopes,
-      grants: formData.grants.split(' ').filter(Boolean),
+      grants: formData.grants,
       requirePkce: formData.requirePkce,
       flowIds: formData.flowIds
     })
@@ -121,6 +142,16 @@ const Clients = () => {
     })
   }
 
+  const toggleGrant = (grant: GrantType) => {
+    setFormData(f => {
+      const has = f.grants.includes(grant)
+      return {
+        ...f,
+        grants: has ? f.grants.filter(item => item !== grant) : [...f.grants, grant]
+      }
+    })
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
@@ -137,6 +168,17 @@ const Clients = () => {
         </button>
       </div>
 
+      <div className="mb-4 max-w-sm">
+        <label className={labelCls}>Filter by App</label>
+        <select className={fieldCls} value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
+          <option value="all">All Apps</option>
+          <option value="none">Unassigned</option>
+          {(apps as any[]).map((app: any) => (
+            <option key={app.id} value={app.id}>{app.name}</option>
+          ))}
+        </select>
+      </div>
+
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">All Clients</h4>
@@ -148,15 +190,18 @@ const Clients = () => {
 
         {isLoading ? (
           <div className="p-10 text-center text-slate-400 text-sm">Loading clients…</div>
-        ) : !clients?.length ? (
+        ) : !filteredClients?.length ? (
           <div className="p-10 text-center text-slate-400 text-sm">No clients registered</div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {clients.map((client: OAuthClient) => (
+            {filteredClients.map((client: OAuthClient) => (
               <div key={client.id} className="px-5 py-3.5 flex items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors group">
                 <div className="space-y-0.5 flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h5 className="text-sm font-medium text-slate-900">{client.name}</h5>
+                    <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
+                      {client.appId ? appNameById.get(client.appId) ?? 'App' : 'No App'}
+                    </span>
                     {client.requirePkce && (
                       <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-100 flex items-center gap-1">
                         <Shield size={9} />PKCE
@@ -210,6 +255,15 @@ const Clients = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
+              <label className={labelCls}>App</label>
+              <select value={formData.appId} onChange={e => setFormData(f => ({ ...f, appId: e.target.value }))} className={fieldCls}>
+                <option value="">No app</option>
+                {(apps as any[]).map((app: any) => (
+                  <option key={app.id} value={app.id}>{app.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className={labelCls}>Client ID</label>
               <input type="text" value={formData.id} onChange={e => setFormData(f => ({ ...f, id: e.target.value }))} className={`${fieldCls} font-mono`} placeholder="my-app" />
             </div>
@@ -251,7 +305,20 @@ const Clients = () => {
             </div>
             <div>
               <label className={labelCls}>Grants</label>
-              <input type="text" value={formData.grants} onChange={e => setFormData(f => ({ ...f, grants: e.target.value }))} className={`${fieldCls} font-mono`} />
+              <div className="rounded-lg border border-slate-200 p-2 max-h-[140px] overflow-auto bg-slate-50/40 space-y-1.5">
+                {GRANT_OPTIONS.map((grant) => (
+                  <label key={grant.value} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.grants.includes(grant.value)}
+                      onChange={() => toggleGrant(grant.value)}
+                      className="rounded border-slate-300"
+                    />
+                    <span className="font-mono">{grant.value}</span>
+                    <span className="text-slate-400">{grant.label}</span>
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
           <div>
@@ -280,14 +347,14 @@ const Clients = () => {
                 value={newScopeName}
                 onChange={e => setNewScopeName(e.target.value)}
                 className={`${fieldCls} font-mono`}
-                placeholder="orders.read"
+                placeholder="PDV"
               />
               <input
                 type="text"
                 value={newScopeDescription}
                 onChange={e => setNewScopeDescription(e.target.value)}
                 className={fieldCls}
-                placeholder="Read order data"
+                placeholder="Sales point system"
               />
             </div>
             <div className="flex justify-end">
@@ -315,7 +382,7 @@ const Clients = () => {
             </button>
             <button
               onClick={handleCreate}
-              disabled={createClient.isPending || !formData.id || !formData.name || !formData.secret || formData.allowedScopes.length === 0}
+              disabled={createClient.isPending || !formData.id || !formData.name || !formData.secret || formData.allowedScopes.length === 0 || formData.grants.length === 0}
               className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
             >
               {createClient.isPending ? 'Creating…' : 'Create Client'}

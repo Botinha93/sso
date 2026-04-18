@@ -10,6 +10,7 @@ import {
   SqliteClientRepository,
   SqliteScopeRepository,
   SqliteConsentRepository,
+  SqliteTotpCredentialRepository,
   SqliteDatabase,
   SqliteFederationProviderRepository,
   SqliteFederatedIdentityRepository,
@@ -20,6 +21,7 @@ import {
   SqlitePolicyDefinitionRepository,
   SqliteEventHookRepository,
   SqliteEventNotificationRepository,
+  SqliteInstanceSettingsRepository,
   SqliteRefreshTokenRepository,
   SqliteRoleRepository,
   SqliteSessionRepository,
@@ -39,10 +41,14 @@ import { GroupService } from "./services/group-service.js";
 import { OidcService } from "./services/oidc-service.js";
 import { PolicyService } from "./services/policy-service.js";
 import { EventHookService } from "./services/event-hook-service.js";
+import { EmailService } from "./services/email-service.js";
+import { InstanceSettingsService } from "./services/instance-settings-service.js";
+import { RecoveryService } from "./services/recovery-service.js";
 import { RoleService } from "./services/role-service.js";
 import { ScopeService } from "./services/scope-service.js";
 import { SetupService } from "./services/setup-service.js";
 import { TenantService } from "./services/tenant-service.js";
+import { TotpService } from "./services/totp-service.js";
 import { UserAttributeService } from "./services/user-attribute-service.js";
 import { UserService } from "./services/user-service.js";
 
@@ -61,6 +67,7 @@ export const bootstrap = async (config: AppConfig) => {
   const clientRepository = new SqliteClientRepository(sqlite.connection);
   const scopeRepository = new SqliteScopeRepository(sqlite.connection);
   const sessionRepository = new SqliteSessionRepository(sqlite.connection);
+  const totpCredentialRepository = new SqliteTotpCredentialRepository(sqlite.connection);
   const authorizationCodeRepository = new SqliteAuthorizationCodeRepository(sqlite.connection);
   const consentRepository = new SqliteConsentRepository(sqlite.connection);
   const refreshTokenRepository = new SqliteRefreshTokenRepository(sqlite.connection);
@@ -76,6 +83,7 @@ export const bootstrap = async (config: AppConfig) => {
   const policyAssignmentRepository = new SqlitePolicyAssignmentRepository(sqlite.connection);
   const eventHookRepository = new SqliteEventHookRepository(sqlite.connection);
   const eventNotificationRepository = new SqliteEventNotificationRepository(sqlite.connection);
+  const instanceSettingsRepository = new SqliteInstanceSettingsRepository(sqlite.connection);
 
   const roleService = new RoleService(
     roleRepository,
@@ -105,6 +113,10 @@ export const bootstrap = async (config: AppConfig) => {
   );
   policyService.ensureBuiltIns();
   const eventHookService = new EventHookService(eventHookRepository, eventNotificationRepository);
+  const instanceSettingsService = new InstanceSettingsService(instanceSettingsRepository);
+  instanceSettingsService.ensureDefaults();
+  const emailService = new EmailService(instanceSettingsService);
+  const recoveryService = new RecoveryService();
   const federationService = new FederationService(
     config,
     userRepository,
@@ -114,10 +126,11 @@ export const bootstrap = async (config: AppConfig) => {
     authenticationFlowService
   );
   const tenantService = new TenantService(tenantRepository);
-  const clientService = new ClientService(clientRepository);
+  const clientService = new ClientService(clientRepository, instanceSettingsService);
   const scopeService = new ScopeService(scopeRepository);
   const appService = new AppService(appRepository);
-  const setupService = new SetupService(userService, roleService, groupService, policyService, scopeService);
+  const setupService = new SetupService(userService, roleService, groupService, policyService, scopeService, appService);
+  const totpService = new TotpService(config, totpCredentialRepository);
 
   // Keep sane defaults in place across upgrades and restarts.
   setupService.ensureSaneDefaults();
@@ -143,7 +156,7 @@ export const bootstrap = async (config: AppConfig) => {
       description: "Default login pattern with optional OTP validation for configured users.",
       designation: "authentication",
       enabled: !hasActiveAuthenticationFlow,
-      grantTypes: ["authorization_code", "refresh_token"],
+      grantTypes: ["authorization_code", "refresh_token", "password", "device_code"],
       stages: [
         { type: "password", required: true, order: 1 },
         { type: "mfa_totp", required: true, order: 2 },
@@ -158,7 +171,7 @@ export const bootstrap = async (config: AppConfig) => {
       description: "Authentication flow with risk-aware captcha challenge before credential checks.",
       designation: "authentication",
       enabled: false,
-      grantTypes: ["authorization_code", "refresh_token"],
+      grantTypes: ["authorization_code", "refresh_token", "password", "device_code"],
       stages: [
         { type: "risk_check", required: true, order: 1 },
         { type: "captcha", required: true, order: 2 },
@@ -254,6 +267,48 @@ export const bootstrap = async (config: AppConfig) => {
     });
   }
 
+  if (!clientRepository.findById("sso-device-cli")) {
+    clientRepository.create({
+      id: "sso-device-cli",
+      name: "SSO Device CLI",
+      secret: "super-secret-device-client",
+      redirectUris: [],
+      allowedScopes: ["openid", "profile", "email", "offline_access", "roles"],
+      grants: ["device_code", "refresh_token"],
+      requirePkce: false,
+      resources: [],
+      flowIds: activeAuthFlow ? [activeAuthFlow.id] : []
+    });
+  }
+
+  if (!clientRepository.findById("sso-password-cli")) {
+    clientRepository.create({
+      id: "sso-password-cli",
+      name: "SSO Password CLI",
+      secret: "super-secret-password-client",
+      redirectUris: [],
+      allowedScopes: ["openid", "profile", "email", "offline_access", "roles"],
+      grants: ["password", "refresh_token"],
+      requirePkce: false,
+      resources: [],
+      flowIds: activeAuthFlow ? [activeAuthFlow.id] : []
+    });
+  }
+
+  if (!clientRepository.findById("sso-service-client")) {
+    clientRepository.create({
+      id: "sso-service-client",
+      name: "SSO Service Client",
+      secret: "super-secret-service-client",
+      redirectUris: [],
+      allowedScopes: ["roles"],
+      grants: ["client_credentials"],
+      requirePkce: false,
+      resources: [],
+      flowIds: []
+    });
+  }
+
   const signingKeys = await createSigningKeys();
   const jwtService = new JwtService(signingKeys, config);
   const authService = new AuthService(
@@ -280,12 +335,16 @@ export const bootstrap = async (config: AppConfig) => {
     userAttributeService,
     policyService,
     eventHookService,
+    emailService,
+    recoveryService,
+    instanceSettingsService,
     tenantService,
     userService,
     clientService,
     scopeService,
     appService,
     setupService,
+    totpService,
     authService,
     oidcService,
     auditRepository

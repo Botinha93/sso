@@ -22,7 +22,7 @@ type StageType =
   | 'user_write'
   | 'user_login'
   | 'user_logout'
-type GrantType = 'authorization_code' | 'client_credentials' | 'refresh_token'
+type GrantType = 'authorization_code' | 'client_credentials' | 'refresh_token' | 'password' | 'device_code'
 type FlowDesignation = 'authentication' | 'authorization' | 'enrollment' | 'invalidation' | 'recovery' | 'stage_configuration' | 'unenrollment'
 
 interface AuthenticationStage {
@@ -55,6 +55,8 @@ const GRANT_OPTIONS: Array<{ value: GrantType; label: string }> = [
   { value: 'authorization_code', label: 'Authorization Code' },
   { value: 'client_credentials', label: 'Client Credentials' },
   { value: 'refresh_token', label: 'Refresh Token' },
+  { value: 'password', label: 'Password' },
+  { value: 'device_code', label: 'Device Code' },
 ]
 
 const STAGE_OPTIONS: Array<{ value: StageType; label: string }> = [

@@ -14,6 +14,8 @@ export class UserService {
             throw new ValidationError("A user with this email already exists");
         }
         const user = this.userRepository.create({
+            appId: input.appId,
+            isServiceUser: input.isServiceUser ?? false,
             email: input.email,
             username: input.username,
             passwordHash: hashPassword(input.password),

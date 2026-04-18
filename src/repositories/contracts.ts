@@ -6,6 +6,7 @@ import type {
   Consent,
   EventHook,
   EventNotification,
+  InstanceSettings,
   FederatedIdentity,
   FederationProvider,
   FederationTransaction,
@@ -21,6 +22,7 @@ import type {
   Role,
   Session,
   Tenant,
+  TotpCredential,
   User,
   UserAttributeDefinition,
   GroupUserAttributeAssignment,
@@ -42,7 +44,7 @@ export interface UserRepository {
   findByEmail(email: string): User | undefined;
   findByUsername(username: string): User | undefined;
   findById(id: string): User | undefined;
-  updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId">>): User | undefined;
+  updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId" | "isServiceUser">>): User | undefined;
   setPasswordHash(id: string, passwordHash: string): void;
   setActive(id: string, active: boolean): void;
   setCustomAttributes(id: string, customAttributes: Record<string, string>): void;
@@ -55,6 +57,11 @@ export interface AppRepository {
   findById(id: string): App | undefined;
   update(id: string, input: Partial<Omit<App, "id" | "createdAt">>): App | undefined;
   delete(id: string): void;
+}
+
+export interface InstanceSettingsRepository {
+  get(): InstanceSettings | undefined;
+  upsert(input: Omit<InstanceSettings, "updatedAt">): InstanceSettings;
 }
 
 export interface ClientRepository {
@@ -77,6 +84,12 @@ export interface SessionRepository {
   findById(id: string): Session | undefined;
   list(): Session[];
   revoke(id: string, revokedAt: Date): void;
+}
+
+export interface TotpCredentialRepository {
+  findByUserId(userId: string): TotpCredential | undefined;
+  upsert(input: Omit<TotpCredential, "createdAt" | "updatedAt">): TotpCredential;
+  delete(userId: string): void;
 }
 
 export interface AuthorizationCodeRepository {

@@ -1,4 +1,5 @@
 import { ValidationError } from "../core/errors.js";
+import type { AppService } from "./app-service.js";
 import type { GroupService } from "./group-service.js";
 import type { PolicyService } from "./policy-service.js";
 import type { RoleService } from "./role-service.js";
@@ -14,12 +15,14 @@ const ALL_RESOURCES = [
   "audit_log",
   "consents",
   "tenants",
+  "apps",
   "federation_providers",
   "authentication_flows",
   "user_attributes",
   "policies",
   "events",
-  "scopes"
+  "scopes",
+  "administration"
 ] as const;
 
 const ACTIONS = ["view", "add", "change", "delete", "disable"] as const;
@@ -40,7 +43,8 @@ export class SetupService {
     private readonly roleService: RoleService,
     private readonly groupService: GroupService,
     private readonly policyService: PolicyService,
-    private readonly scopeService: ScopeService
+    private readonly scopeService: ScopeService,
+    private readonly appService: AppService
   ) {}
 
   status() {
@@ -274,6 +278,17 @@ export class SetupService {
       if (!known.has(scope.name)) {
         this.scopeService.createScope(scope);
       }
+    }
+
+    // Ensure a default "Account Portal" app exists
+    const existingApps = this.appService.listApps();
+    if (!existingApps.some(a => a.name === "Account Portal")) {
+      this.appService.createApp({
+        name: "Account Portal",
+        description: "Default self-service user portal",
+        icon: "👤",
+        url: "/portal"
+      });
     }
   }
 }

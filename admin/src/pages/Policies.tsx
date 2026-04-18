@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import Editor from '@monaco-editor/react'
 import {
   useCreatePolicy,
   useDeletePolicy,
@@ -9,12 +10,114 @@ import {
 } from '../hooks/useApi'
 
 type ScopeType = 'global' | 'tenant' | 'group' | 'user'
+type AuthStageType =
+  | 'password'
+  | 'federation'
+  | 'consent'
+  | 'mfa_totp'
+  | 'risk_check'
+  | 'identification'
+  | 'email_verification'
+  | 'captcha'
+  | 'prompt'
+  | 'user_write'
+  | 'user_login'
+  | 'user_logout'
+
+const AUTH_STAGES: AuthStageType[] = [
+  'password',
+  'federation',
+  'consent',
+  'mfa_totp',
+  'risk_check',
+  'identification',
+  'email_verification',
+  'captcha',
+  'prompt',
+  'user_write',
+  'user_login',
+  'user_logout',
+]
 
 const exampleConfigs: Record<string, string> = {
   password_requirements: '{"minLength":12,"requireUppercase":true,"requireLowercase":true,"requireNumber":true,"requireSymbol":true}',
   password_expiration_days: '{"days":90}',
   unique_email: '{"enabled":true}',
-  two_factor_required: '{"required":true}'
+  two_factor_required: '{"required":true}',
+  brute_force_lockout: '{"maxAttempts":5,"windowMinutes":15,"lockMinutes":30}',
+  new_device_verification: '{"requireStepUp":true,"trustedDeviceTtlDays":30}',
+  impossible_travel_risk: '{"maxKmPerHour":900,"action":"challenge"}',
+  restricted_login_hours: '{"timezone":"UTC","allowedHours":[8,20],"allowedWeekdays":[1,2,3,4,5]}',
+  ip_allowlist: '{"allowCidrs":["10.0.0.0/8","192.168.0.0/16"],"enforceForAdmins":true}',
+  session_concurrency_limit: '{"maxActiveSessions":3,"strategy":"revoke_oldest"}',
+  reauth_for_sensitive_actions: '{"reauthMinutes":15}',
+  tenant_isolation_guard: '{"strictTenantAudience":true,"denyCrossTenantScopes":true}',
+  service_user_constraints: '{"requireServiceUser":true,"denyInteractiveLogin":true,"allowedGrants":["client_credentials"]}',
+  token_hardening: '{"requireNarrowScopes":true,"maxAccessTokenMinutes":10}',
+  consent_freshness: '{"reconsentDays":180,"forceOnScopeIncrease":true}',
+  attribute_completeness: '{"requiredAttributes":["department","employee_id"]}'
+}
+
+const defaultJsTemplate = `// policy interfaces:
+// policy.key            -> string
+// policy.name           -> string
+// policy.stage          -> stage being evaluated
+// policy.assignment     -> { enabled, config }
+// policy.user           -> authenticated user profile + customAttributes
+// policy.request        -> { tenantId, clientId, ip }
+// now()                 -> helper returning current ISO timestamp
+//
+// return styles:
+// - true / undefined -> allow
+// - false -> deny with generic message
+// - "message" -> deny with custom message
+// - { allow: false, message: "reason" } -> deny with custom message
+
+if (policy.user.customAttributes.account_locked === 'true') {
+  return { allow: false, message: 'Account is currently locked by policy.' }
+}
+
+return true
+`
+
+function PolicyCodeEditor({
+  value,
+  onChange,
+  placeholder,
+  height = 220,
+}: {
+  value: string
+  onChange: (next: string) => void
+  placeholder: string
+  height?: number
+}) {
+  return (
+    <div className="overflow-hidden rounded border border-slate-200">
+      <Editor
+        language="javascript"
+        value={value}
+        height={height}
+        onChange={(next) => onChange(next ?? '')}
+        options={{
+          minimap: { enabled: false },
+          fontSize: 12,
+          lineNumbers: 'on',
+          automaticLayout: true,
+          tabSize: 2,
+          scrollBeyondLastLine: false,
+          wordWrap: 'on',
+        }}
+        loading={
+          <textarea
+            className="min-h-[180px] w-full border-0 px-3 py-2 font-mono text-xs outline-none"
+            value={value}
+            placeholder={placeholder}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        }
+      />
+    </div>
+  )
 }
 
 export default function Policies() {
@@ -25,8 +128,16 @@ export default function Policies() {
   const setAssignment = useSetPolicyAssignment()
   const removeAssignment = useRemovePolicyAssignment()
 
-  const [newPolicy, setNewPolicy] = useState({ key: '', name: '', description: '', enabled: true })
+  const [newPolicy, setNewPolicy] = useState({
+    key: '',
+    name: '',
+    description: '',
+    stageBindings: [] as AuthStageType[],
+    javascriptCode: '',
+    enabled: true
+  })
   const [assignmentTarget, setAssignmentTarget] = useState<Record<string, { scopeType: ScopeType; scopeId: string; config: string }>>({})
+  const [policyEditState, setPolicyEditState] = useState<Record<string, { stageBindings: AuthStageType[]; javascriptCode: string }>>({})
 
   const sortedPolicies = useMemo(() => [...policies].sort((a: any, b: any) => a.key.localeCompare(b.key)), [policies])
 
@@ -38,25 +149,94 @@ export default function Policies() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Policies</h1>
-        <p className="mt-1 text-sm text-slate-600">Create custom policies and assign them globally or per tenant, group, and user.</p>
+        <p className="mt-1 text-sm text-slate-600">
+          Bind policies to authentication stages and optionally run server-side JavaScript validators with policy/user/request context.
+        </p>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
         <h2 className="text-sm font-semibold text-slate-900">Create Policy</h2>
-        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <input className="rounded border px-3 py-2" placeholder="key" value={newPolicy.key} onChange={(e) => setNewPolicy((v) => ({ ...v, key: e.target.value }))} />
           <input className="rounded border px-3 py-2" placeholder="name" value={newPolicy.name} onChange={(e) => setNewPolicy((v) => ({ ...v, name: e.target.value }))} />
           <input className="rounded border px-3 py-2" placeholder="description" value={newPolicy.description} onChange={(e) => setNewPolicy((v) => ({ ...v, description: e.target.value }))} />
+        </div>
+
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Stage Bindings</p>
+          <div className="flex flex-wrap gap-2">
+            {AUTH_STAGES.map((stage) => {
+              const active = newPolicy.stageBindings.includes(stage)
+              return (
+                <button
+                  key={stage}
+                  type="button"
+                  onClick={() => setNewPolicy((v) => ({
+                    ...v,
+                    stageBindings: active ? v.stageBindings.filter((s) => s !== stage) : [...v.stageBindings, stage]
+                  }))}
+                  className={`rounded px-2 py-1 text-xs font-mono transition-colors ${active ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                >
+                  {stage}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">JavaScript Validator (optional)</p>
+          <PolicyCodeEditor
+            value={newPolicy.javascriptCode}
+            placeholder={defaultJsTemplate}
+            onChange={(next) => setNewPolicy((v) => ({ ...v, javascriptCode: next }))}
+          />
+        </div>
+
+        <div className="flex justify-end">
           <button
             className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white"
             onClick={async () => {
-              await createPolicy.mutateAsync(newPolicy)
-              setNewPolicy({ key: '', name: '', description: '', enabled: true })
+              await createPolicy.mutateAsync({
+                ...newPolicy,
+                javascriptCode: newPolicy.javascriptCode.trim() || undefined
+              })
+              setNewPolicy({ key: '', name: '', description: '', stageBindings: [], javascriptCode: '', enabled: true })
             }}
           >
             Add
           </button>
         </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h2 className="text-sm font-semibold text-slate-900">JavaScript Policy Interface</h2>
+        <p className="mt-1 text-sm text-slate-600">Available objects/functions in server-side policy scripts:</p>
+        <pre className="mt-3 overflow-x-auto rounded bg-slate-900 p-3 text-xs text-slate-100">
+{`policy.key
+policy.name
+policy.stage
+policy.assignment.enabled
+policy.assignment.config
+policy.user.id
+policy.user.email
+policy.user.username
+policy.user.givenName
+policy.user.familyName
+policy.user.active
+policy.user.isServiceUser
+policy.user.customAttributes
+policy.request.tenantId
+policy.request.clientId
+policy.request.ip
+now() // returns current ISO timestamp
+
+// Return one of:
+// true | undefined
+// false
+// "error message"
+// { allow: false, message: "error message" }`}
+        </pre>
       </div>
 
       <div className="space-y-4">
@@ -65,6 +245,11 @@ export default function Policies() {
             scopeType: 'global' as ScopeType,
             scopeId: '',
             config: exampleConfigs[policy.key] ?? '{}'
+          }
+
+          const editState = policyEditState[policy.id] ?? {
+            stageBindings: (policy.stageBindings ?? []) as AuthStageType[],
+            javascriptCode: policy.javascriptCode ?? ''
           }
 
           return (
@@ -83,6 +268,60 @@ export default function Policies() {
                 </button>
               </div>
               <p className="mt-2 text-sm text-slate-600">{policy.description}</p>
+
+              <div className="mt-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Stage Bindings</p>
+                <div className="flex flex-wrap gap-2">
+                  {AUTH_STAGES.map((stage) => {
+                    const active = editState.stageBindings.includes(stage)
+                    return (
+                      <button
+                        key={stage}
+                        type="button"
+                        onClick={() => setPolicyEditState((prev) => ({
+                          ...prev,
+                          [policy.id]: {
+                            ...editState,
+                            stageBindings: active
+                              ? editState.stageBindings.filter((s) => s !== stage)
+                              : [...editState.stageBindings, stage]
+                          }
+                        }))}
+                        className={`rounded px-2 py-1 text-xs font-mono transition-colors ${active ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                      >
+                        {stage}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">JavaScript Validator</p>
+                <PolicyCodeEditor
+                  value={editState.javascriptCode}
+                  placeholder={defaultJsTemplate}
+                  height={260}
+                  onChange={(next) => setPolicyEditState((prev) => ({
+                    ...prev,
+                    [policy.id]: { ...editState, javascriptCode: next }
+                  }))}
+                />
+                <div className="mt-2 flex justify-end">
+                  <button
+                    className="rounded bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white"
+                    onClick={async () => {
+                      await updatePolicy.mutateAsync({
+                        id: policy.id,
+                        stageBindings: editState.stageBindings,
+                        javascriptCode: editState.javascriptCode.trim() || null
+                      })
+                    }}
+                  >
+                    Save Definition
+                  </button>
+                </div>
+              </div>
 
               <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-4">
                 <select

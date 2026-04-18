@@ -2,7 +2,7 @@ import { ChevronRight, Plus, RefreshCw, Shield, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
-import { useRoles, useCreateRole, useUpdateRole, useDeleteRole, useClients } from '../hooks/useApi'
+import { useRoles, useCreateRole, useUpdateRole, useDeleteRole, useClients, useApps } from '../hooks/useApi'
 
 const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
 const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
@@ -15,12 +15,14 @@ const SYSTEM_RESOURCES = [
   { key: 'clients', label: 'OAuth Clients' },
   { key: 'sessions', label: 'Sessions' },
   { key: 'tenants', label: 'Tenants' },
+  { key: 'apps', label: 'Apps' },
   { key: 'audit_log', label: 'Audit Log' },
   { key: 'consents', label: 'Consents' },
   { key: 'federation_providers', label: 'Federation Providers' },
   { key: 'authentication_flows', label: 'Auth Flows' },
   { key: 'policies', label: 'Policies' },
   { key: 'events', label: 'Events & Hooks' },
+  { key: 'administration', label: 'Administration' },
 ]
 
 const ACTIONS = ['view', 'add', 'change', 'delete', 'disable'] as const
@@ -172,18 +174,27 @@ function PermissionMatrix({ permissions, onChange, clientResources }: {
   )
 }
 
-const EMPTY_FORM = { name: '', description: '', scope: 'platform' as 'platform' | 'tenant', permissions: [] as string[] }
+const EMPTY_FORM = { appId: '', name: '', description: '', scope: 'platform' as 'platform' | 'tenant', permissions: [] as string[] }
 
 const Roles = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [editRole, setEditRole] = useState<any | null>(null)
   const [roleToDelete, setRoleToDelete] = useState<any | null>(null)
+  const [appFilterId, setAppFilterId] = useState<string>('all')
   const [formData, setFormData] = useState({ ...EMPTY_FORM })
   const { data: roles = [], isLoading, refetch } = useRoles()
   const { data: clients = [] } = useClients()
+  const { data: apps = [] } = useApps()
   const createRole = useCreateRole()
   const updateRole = useUpdateRole()
   const deleteRole = useDeleteRole()
+
+  const appNameById = new Map((apps as any[]).map((app: any) => [app.id, app.name]))
+  const filteredRoles = (roles as any[]).filter((role) => appFilterId === 'all'
+    ? true
+    : appFilterId === 'none'
+      ? !role.appId
+      : role.appId === appFilterId)
 
   // Flatten all client resources for the matrix
   const clientResources = (clients as any[]).flatMap((c: any) =>
@@ -202,7 +213,7 @@ const Roles = () => {
 
   function openEdit(role: any) {
     setEditRole(role)
-    setFormData({ name: role.name, description: role.description, scope: role.scope, permissions: role.permissions ?? [] })
+    setFormData({ appId: role.appId ?? '', name: role.name, description: role.description, scope: role.scope, permissions: role.permissions ?? [] })
   }
 
   function handleUpdate() {
@@ -235,6 +246,17 @@ const Roles = () => {
         </button>
       </div>
 
+      <div className="mb-4 max-w-sm">
+        <label className={labelCls}>Filter by App</label>
+        <select className={fieldCls} value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
+          <option value="all">All Apps</option>
+          <option value="none">Unassigned</option>
+          {(apps as any[]).map((app: any) => (
+            <option key={app.id} value={app.id}>{app.name}</option>
+          ))}
+        </select>
+      </div>
+
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">All Roles</h4>
@@ -245,8 +267,8 @@ const Roles = () => {
         </div>
         <div className="divide-y divide-slate-100">
           {isLoading && <p className="p-10 text-center text-slate-400 text-sm">Loading…</p>}
-          {!isLoading && roles.length === 0 && <p className="p-10 text-center text-slate-400 text-sm">No roles yet.</p>}
-          {roles.map((role: any) => (
+          {!isLoading && filteredRoles.length === 0 && <p className="p-10 text-center text-slate-400 text-sm">No roles yet.</p>}
+          {filteredRoles.map((role: any) => (
             <div key={role.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50/50 transition-colors group">
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
@@ -255,6 +277,7 @@ const Roles = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h5 className="text-sm font-medium text-slate-900">{role.name}</h5>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">{role.appId ? appNameById.get(role.appId) ?? 'App' : 'No App'}</span>
                     <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500">{role.scope}</span>
                   </div>
                   <p className="text-xs text-slate-500">{role.description || 'No description'} · <span className="font-medium text-slate-600">{activePermCount(role)} permission{activePermCount(role) !== 1 ? 's' : ''}</span></p>
@@ -284,6 +307,15 @@ const Roles = () => {
       <Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Create New Role">
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>App</label>
+              <select value={formData.appId} onChange={e => setFormData(p => ({ ...p, appId: e.target.value }))} className={fieldCls}>
+                <option value="">No app</option>
+                {(apps as any[]).map((app: any) => (
+                  <option key={app.id} value={app.id}>{app.name}</option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className={labelCls}>Role Name</label>
               <input type="text" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} className={`${fieldCls} font-mono`} placeholder="application_user" />
@@ -323,6 +355,15 @@ const Roles = () => {
       <Modal isOpen={!!editRole} onClose={() => setEditRole(null)} title={`Edit Role: ${editRole?.name ?? ''}`}>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>App</label>
+              <select value={formData.appId} onChange={e => setFormData(p => ({ ...p, appId: e.target.value }))} className={fieldCls}>
+                <option value="">No app</option>
+                {(apps as any[]).map((app: any) => (
+                  <option key={app.id} value={app.id}>{app.name}</option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className={labelCls}>Role Name</label>
               <input type="text" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} className={`${fieldCls} font-mono`} />

@@ -1,55 +1,41 @@
 # OAuth2 & OpenID Connect Implementation Progress
 
-This document tracks all missing and in-progress features for full OAuth2/OIDC compliance. Update this checklist as features are completed.
+This document tracks implementation progress for OAuth2/OIDC features.
 
-## Authorization Endpoint (/oauth/authorize)
-- [x] Login UI (React)
-- [ ] Consent UI (React, fully wired to backend)
-- [ ] Session management (cookie-based, persistent login)
-- [ ] Support for prompt, max_age, and other OIDC params
-- [ ] Error handling and redirects
-- [x] User federation login (external OIDC providers with callback flow)
+## Recently Completed
+- [x] Authorization endpoint supports `response_type=token` (implicit flow)
+- [x] Authorization endpoint accepts optional OIDC params: `acr_values`, `ui_locales`, `id_token_hint`
+- [x] Authorization endpoint accepts legacy `approval_prompt` (`auto`/`force`) behavior
+- [x] Device Authorization Grant (`/oauth/device/authorize` + token polling)
+- [x] Dynamic client registration supports optional app linkage via `app_id`
+- [x] Unit/integration test coverage for OAuth/OIDC grant flows
+- [x] End-to-end OIDC happy-path tests
+- [x] Events expansion: broader system event catalog, additional admin/auth emit points, and per-hook test dispatch
 
-## Token Endpoint (/oauth/token)
-- [x] Authorization Code Grant
-- [x] Refresh Token Grant
-- [ ] Client Credentials Grant
-- [ ] Error handling (invalid_grant, etc.)
+## Remaining Items (from checklist)
 
-## UserInfo Endpoint (/oauth/userinfo)
-- [x] Basic user info
-- [ ] Claims and scopes mapping (profile, email, etc.)
-- [ ] Error handling
+### Token Endpoint (/oauth/token)
+- [x] Support for password grant — optional, deprecated
+- [x] Support for device code grant — optional, advanced
 
-## Discovery & JWKS
-- [x] /.well-known/openid-configuration
-- [x] /.well-known/jwks.json
+### UserInfo Endpoint (/oauth/userinfo)
+- [x] Support for signed/encrypted responses — optional
 
-## Logout
-- [ ] /logout endpoint (OIDC RP-Initiated Logout)
-- [ ] Frontend logout UI
+### Discovery & JWKS
+- [x] Support for dynamic client registration (RFC 7591) — optional
 
-## Admin UI
-- [ ] Client registration and management
-- [ ] Consent management (view/revoke)
-- [ ] Session management (view/revoke)
-- [x] User groups with role support (group CRUD + role linking + user membership)
-- [x] Federation providers configuration view (list + create/update/delete)
-- [x] Authentication flows and stages (flow CRUD + stage ordering + active flow)
-- [x] Custom user attributes management (typed definitions + group targeting toggles)
-- [x] Policies management (custom definitions + scoped assignments)
-- [x] Events and hooks notifications (hook CRUD + delivery logs)
+### Logout
+- [x] Front-channel and back-channel logout — optional, advanced
 
-## Security
-- [ ] PKCE enforcement for public clients
-- [ ] Secure cookie/session handling
-- [ ] Scope and claims validation
-- [ ] Rate limiting, brute-force protection
+### Security
+- [x] HTTPS enforcement in production (reverse-proxy recommended)
 
-## Tests & Docs
-- [ ] Unit and integration tests for all flows
-- [ ] API documentation (README, OpenAPI)
+### Tests & Docs
+- [x] Unit and integration tests for all flows
+- [x] API documentation (README, OpenAPI)
+- [x] End-to-end (E2E) tests
+- [x] Example client apps (SPA, mobile, server)
 
 ---
 
-We will follow this checklist until all items are complete.
+Reference status source: OAUTH2_OIDC_CHECKLIST.md

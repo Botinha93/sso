@@ -6,6 +6,7 @@ import {
   useAssignRoleToGroup,
   useCreateGroup,
   useDeleteGroup,
+  useApps,
   useGroups,
   useRemoveRoleFromGroup,
   useUpdateGroup,
@@ -14,6 +15,7 @@ import {
 
 interface GroupItem {
   id: string
+  appId?: string
   name: string
   description: string
   roleIds: string[]
@@ -22,6 +24,11 @@ interface GroupItem {
 }
 
 interface RoleItem {
+  id: string
+  name: string
+}
+
+interface AppItem {
   id: string
   name: string
 }
@@ -36,12 +43,16 @@ const Groups = () => {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [groupName, setGroupName] = useState('')
   const [groupDescription, setGroupDescription] = useState('')
+  const [groupAppId, setGroupAppId] = useState('')
   const [editGroupName, setEditGroupName] = useState('')
   const [editGroupDescription, setEditGroupDescription] = useState('')
+  const [editGroupAppId, setEditGroupAppId] = useState('')
+  const [appFilterId, setAppFilterId] = useState<string>('all')
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([])
   const [rolePickerByGroup, setRolePickerByGroup] = useState<Record<string, string>>({})
 
   const { data: groups = [], isLoading, refetch } = useGroups()
+  const { data: apps = [] } = useApps()
   const { data: roles = [] } = useRoles()
   const createGroup = useCreateGroup()
   const deleteGroup = useDeleteGroup()
@@ -50,6 +61,12 @@ const Groups = () => {
   const removeRole = useRemoveRoleFromGroup()
 
   const roleOptions = roles as RoleItem[]
+  const appNameById = new Map((apps as AppItem[]).map((a) => [a.id, a.name]))
+  const filteredGroups = (groups as GroupItem[]).filter((group) => appFilterId === 'all'
+    ? true
+    : appFilterId === 'none'
+      ? !group.appId
+      : group.appId === appFilterId)
   const roleNameById = useMemo(() => {
     const map = new Map<string, string>()
     for (const role of roleOptions) {
@@ -61,6 +78,7 @@ const Groups = () => {
   const resetModal = () => {
     setGroupName('')
     setGroupDescription('')
+    setGroupAppId('')
     setSelectedRoleIds([])
   }
 
@@ -71,6 +89,7 @@ const Groups = () => {
   const onCreateGroup = async () => {
     if (!groupName || !groupDescription) return
     await createGroup.mutateAsync({
+      appId: groupAppId || undefined,
       name: groupName,
       description: groupDescription,
       roleIds: selectedRoleIds
@@ -87,6 +106,7 @@ const Groups = () => {
     setGroupToEdit(group)
     setEditGroupName(group.name)
     setEditGroupDescription(group.description)
+    setEditGroupAppId((group as any).appId ?? '')
     setEditModalOpen(true)
   }
 
@@ -94,6 +114,7 @@ const Groups = () => {
     if (!groupToEdit || !editGroupName || !editGroupDescription) return
     await updateGroup.mutateAsync({
       id: groupToEdit.id,
+      appId: editGroupAppId || undefined,
       name: editGroupName,
       description: editGroupDescription
     })
@@ -128,6 +149,17 @@ const Groups = () => {
         </button>
       </div>
 
+      <div className="mb-4 max-w-sm">
+        <label className={labelCls}>Filter by App</label>
+        <select className={fieldCls} value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
+          <option value="all">All Apps</option>
+          <option value="none">Unassigned</option>
+          {(apps as AppItem[]).map((app) => (
+            <option key={app.id} value={app.id}>{app.name}</option>
+          ))}
+        </select>
+      </div>
+
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">All Groups</h4>
@@ -139,11 +171,11 @@ const Groups = () => {
 
         {isLoading ? (
           <div className="p-10 text-center text-slate-400 text-sm">Loading groups...</div>
-        ) : (groups as GroupItem[]).length === 0 ? (
+        ) : filteredGroups.length === 0 ? (
           <div className="p-10 text-center text-slate-400 text-sm">No groups created</div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {(groups as GroupItem[]).map((group) => {
+            {filteredGroups.map((group) => {
               const availableRoles = roleOptions.filter((role) => !group.roleIds.includes(role.id))
               const pickerValue = rolePickerByGroup[group.id] ?? availableRoles[0]?.id ?? ''
               return (
@@ -155,6 +187,9 @@ const Groups = () => {
                           <Users size={14} className="text-slate-500" />
                         </div>
                         <h5 className="text-sm font-medium text-slate-900">{group.name}</h5>
+                        <span className="text-xs px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
+                          {group.appId ? appNameById.get(group.appId) ?? 'App' : 'No App'}
+                        </span>
                       </div>
                       <p className="text-xs text-slate-500">{group.description}</p>
                       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -226,6 +261,15 @@ const Groups = () => {
       <Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Create New Group">
         <div className="space-y-4">
           <div>
+            <label className={labelCls}>App</label>
+            <select value={groupAppId} onChange={(e) => setGroupAppId(e.target.value)} className={fieldCls}>
+              <option value="">No app</option>
+              {(apps as AppItem[]).map((app) => (
+                <option key={app.id} value={app.id}>{app.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className={labelCls}>Group Name</label>
             <input
               type="text"
@@ -282,6 +326,15 @@ const Groups = () => {
 
       <Modal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} title={`Edit Group${groupToEdit ? `: ${groupToEdit.name}` : ''}`}>
         <div className="space-y-4">
+          <div>
+            <label className={labelCls}>App</label>
+            <select value={editGroupAppId} onChange={(e) => setEditGroupAppId(e.target.value)} className={fieldCls}>
+              <option value="">No app</option>
+              {(apps as AppItem[]).map((app) => (
+                <option key={app.id} value={app.id}>{app.name}</option>
+              ))}
+            </select>
+          </div>
           <div>
             <label className={labelCls}>Group Name</label>
             <input

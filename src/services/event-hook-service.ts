@@ -5,6 +5,26 @@ import type {
   EventNotificationRepository
 } from "../repositories/contracts.js";
 
+const SYSTEM_EVENT_TYPES = [
+  "auth.login.succeeded",
+  "auth.login.failed",
+  "auth.logout",
+  "user.created",
+  "user.updated",
+  "user.deleted",
+  "user.password_reset",
+  "client.created",
+  "client.updated",
+  "client.deleted",
+  "session.revoked",
+  "consent.revoked",
+  "device.request.revoked",
+  "device.session.revoked",
+  "events.hook.test"
+] as const;
+
+const ALL_EVENTS_TOKEN = "*";
+
 export class EventHookService {
   constructor(
     private readonly eventHookRepository: EventHookRepository,
@@ -19,6 +39,10 @@ export class EventHookService {
     return this.eventNotificationRepository.list(limit);
   }
 
+  listSystemEventTypes() {
+    return [ALL_EVENTS_TOKEN, ...SYSTEM_EVENT_TYPES];
+  }
+
   createHook(input: {
     eventType: string;
     targetUrl: string;
@@ -26,6 +50,7 @@ export class EventHookService {
     headers?: Record<string, string>;
     enabled?: boolean;
   }) {
+    this.assertValidEventType(input.eventType);
     return this.eventHookRepository.create({
       id: nanoid(),
       eventType: input.eventType.trim(),
@@ -43,6 +68,10 @@ export class EventHookService {
     headers?: Record<string, string>;
     enabled?: boolean;
   }) {
+    if (input.eventType !== undefined) {
+      this.assertValidEventType(input.eventType);
+    }
+
     const updated = this.eventHookRepository.update(id, {
       eventType: input.eventType?.trim(),
       targetUrl: input.targetUrl,
@@ -68,37 +97,79 @@ export class EventHookService {
     const hooks = [...exactHooks, ...wildcardHooks].filter((hook) => hook.enabled);
 
     for (const hook of hooks) {
-      const headers = {
-        "content-type": "application/json",
-        ...hook.headers
-      };
+      await this.dispatchToHook(hook, eventType, payload);
+    }
+  }
 
-      try {
-        const response = await fetch(hook.targetUrl, {
-          method: hook.method,
-          headers,
-          body: JSON.stringify({ eventType, payload, sentAt: new Date().toISOString() })
-        });
+  async emitTest(hookId: string, input?: {
+    eventType?: string;
+    payload?: Record<string, unknown>;
+  }) {
+    const hook = this.eventHookRepository.findById(hookId);
+    if (!hook) {
+      throw new ValidationError("Event hook not found");
+    }
 
-        const responseBody = await response.text();
-        this.eventNotificationRepository.create({
-          eventType,
-          hookId: hook.id,
-          payload,
-          status: response.ok ? "delivered" : "failed",
-          responseStatus: response.status,
-          responseBody,
-          error: response.ok ? undefined : `Hook returned HTTP ${response.status}`
-        });
-      } catch (error) {
-        this.eventNotificationRepository.create({
-          eventType,
-          hookId: hook.id,
-          payload,
-          status: "failed",
-          error: error instanceof Error ? error.message : "Unknown hook delivery failure"
-        });
-      }
+    const eventType = input?.eventType?.trim() || "events.hook.test";
+    this.assertValidEventType(eventType);
+    const payload = input?.payload ?? {
+      hookId,
+      targetUrl: hook.targetUrl,
+      method: hook.method,
+      generatedAt: new Date().toISOString()
+    };
+
+    await this.dispatchToHook(hook, eventType, payload);
+    return { deliveredToHookId: hookId, eventType };
+  }
+
+  private assertValidEventType(eventType: string) {
+    const normalized = eventType.trim();
+    if (!this.listSystemEventTypes().includes(normalized)) {
+      throw new ValidationError(`Unsupported event type: ${normalized}`);
+    }
+  }
+
+  private async dispatchToHook(
+    hook: {
+      id: string;
+      targetUrl: string;
+      method: "POST" | "PUT";
+      headers: Record<string, string>;
+    },
+    eventType: string,
+    payload: Record<string, unknown>
+  ) {
+    const headers = {
+      "content-type": "application/json",
+      ...hook.headers
+    };
+
+    try {
+      const response = await fetch(hook.targetUrl, {
+        method: hook.method,
+        headers,
+        body: JSON.stringify({ eventType, payload, sentAt: new Date().toISOString() })
+      });
+
+      const responseBody = await response.text();
+      this.eventNotificationRepository.create({
+        eventType,
+        hookId: hook.id,
+        payload,
+        status: response.ok ? "delivered" : "failed",
+        responseStatus: response.status,
+        responseBody,
+        error: response.ok ? undefined : `Hook returned HTTP ${response.status}`
+      });
+    } catch (error) {
+      this.eventNotificationRepository.create({
+        eventType,
+        hookId: hook.id,
+        payload,
+        status: "failed",
+        error: error instanceof Error ? error.message : "Unknown hook delivery failure"
+      });
     }
   }
 }

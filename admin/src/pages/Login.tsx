@@ -9,6 +9,8 @@ interface FederationProvider {
 export default function Login() {
   const [email, setEmail] = useState(() => new URLSearchParams(window.location.search).get('identifier') ?? "");
   const [password, setPassword] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaTicket, setMfaTicket] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [providers, setProviders] = useState<FederationProvider[]>([]);
@@ -43,15 +45,30 @@ export default function Login() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/auth/login", {
+      const endpoint = mfaTicket ? "/auth/login/mfa" : "/auth/login";
+      const payload = mfaTicket
+        ? { mfaTicket, code: mfaCode.trim() }
+        : { email: email.trim(), password };
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password })
+        body: JSON.stringify(payload)
       });
+
       if (res.ok) {
         window.location.href = buildRedirectAfterLogin();
+      } else if (res.status === 202 && !mfaTicket) {
+        const json = await res.json().catch(() => ({} as Record<string, unknown>));
+        if (typeof json.mfaTicket === "string") {
+          setMfaTicket(json.mfaTicket);
+          setMfaCode("");
+          setError(null);
+        } else {
+          setError("MFA challenge failed to initialize.");
+        }
       } else {
-        setError("Invalid email or password");
+        setError(mfaTicket ? "Invalid one-time code" : "Invalid email or password");
       }
     } catch {
       setError("Network error — is the server running?");
@@ -66,8 +83,8 @@ export default function Login() {
         {/* Dark header */}
         <div className="bg-[linear-gradient(180deg,_#020617_0%,_#0f172a_100%)] px-8 py-7">
           <div className="flex items-center gap-3 mb-2">
-            <img src="/logo.svg" alt="Northstar SSO" className="h-9 w-9 rounded-xl ring-1 ring-sky-400/30" />
-            <div className="text-xl font-semibold text-slate-50 tracking-tight">Northstar SSO</div>
+            <img src="/logo.svg" alt="NexusID" className="h-9 w-9 rounded-xl ring-1 ring-sky-400/30" />
+            <div className="text-xl font-semibold text-slate-50 tracking-tight">NexusID</div>
           </div>
           <p className="text-slate-400 text-sm">
             Sign in to the identity administration workspace.
@@ -94,35 +111,65 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Email or Username</label>
-              <input
-                type="text"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                autoFocus
-                className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
-                placeholder="admin@example.com or admin"
-              />
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+                {mfaTicket ? "Authenticator code" : "Email or Username"}
+              </label>
+              {mfaTicket ? (
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={mfaCode}
+                  onChange={e => setMfaCode(e.target.value.replace(/\D+/g, '').slice(0, 8))}
+                  required
+                  autoFocus
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm tracking-[0.2em] text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+                  placeholder="123456"
+                />
+              ) : (
+                <input
+                  type="text"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  required
+                  autoFocus
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+                  placeholder="admin@example.com or admin"
+                />
+              )}
             </div>
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
-                placeholder="••••••••"
-              />
-            </div>
+            {!mfaTicket && (
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Password</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+                  placeholder="••••••••"
+                />
+              </div>
+            )}
             <button
               type="submit"
               disabled={loading}
               className="h-9 w-full rounded-lg bg-slate-900 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:opacity-50"
             >
-              {loading ? "Signing in…" : "Sign in"}
+              {loading ? "Signing in…" : mfaTicket ? "Verify code" : "Sign in"}
             </button>
+            {mfaTicket && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMfaTicket(null)
+                  setMfaCode('')
+                  setError(null)
+                }}
+                className="h-9 w-full rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                Back
+              </button>
+            )}
           </form>
 
           {providers.length > 0 && (

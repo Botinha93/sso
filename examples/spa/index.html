@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SSO SPA Example</title>
+    <style>
+      body { font-family: sans-serif; margin: 2rem; }
+      input, button { padding: .5rem; margin-right: .5rem; }
+      pre { background: #111; color: #eee; padding: 1rem; border-radius: .5rem; }
+    </style>
+  </head>
+  <body>
+    <h1>SPA Example</h1>
+    <p>Fill OAuth client details and click Start Authorization Code + PKCE.</p>
+    <div>
+      <input id="issuer" value="http://127.0.0.1:4000" />
+      <input id="clientId" placeholder="client id" />
+      <input id="redirectUri" value="http://localhost:8080/callback" />
+      <button id="start">Start Login</button>
+    </div>
+    <pre id="out"></pre>
+    <script>
+      function b64url(bytes) {
+        return btoa(String.fromCharCode(...bytes))
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=+$/g, '')
+      }
+
+      async function pkcePair() {
+        const verifierBytes = crypto.getRandomValues(new Uint8Array(32))
+        const verifier = b64url(verifierBytes)
+        const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
+        const challenge = b64url(new Uint8Array(digest))
+        return { verifier, challenge }
+      }
+
+      document.getElementById('start').onclick = async () => {
+        const issuer = document.getElementById('issuer').value
+        const clientId = document.getElementById('clientId').value
+        const redirectUri = document.getElementById('redirectUri').value
+        const { verifier, challenge } = await pkcePair()
+        localStorage.setItem('pkce_verifier', verifier)
+        const state = Math.random().toString(36).slice(2)
+        const params = new URLSearchParams({
+          response_type: 'code',
+          client_id: clientId,
+          redirect_uri: redirectUri,
+          scope: 'openid profile email',
+          state,
+          code_challenge: challenge,
+          code_challenge_method: 'S256'
+        })
+        document.getElementById('out').textContent = `Saved code_verifier in localStorage. Redirecting...\n${issuer}/oauth/authorize?${params}`
+        window.location.href = `${issuer}/oauth/authorize?${params}`
+      }
+    </script>
+  </body>
+</html>

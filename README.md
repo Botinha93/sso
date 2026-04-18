@@ -1,25 +1,22 @@
 # SSO Platform Foundation
 
-This repository starts a first-party identity platform aligned with OAuth 2.0 and OpenID Connect concepts.
+This repository provides a first-party identity platform aligned with OAuth 2.0 and OpenID Connect.
 
-## Included in this foundation
+## Implemented features
 
-- OIDC discovery endpoint
-- JWKS endpoint for public signing keys
+- OIDC discovery endpoint and JWKS
+- Authorization endpoint with code and implicit token response types
+- Token endpoint with authorization_code, refresh_token, client_credentials, and password grants
+- Token introspection and revocation
+- Dynamic client registration (`/connect/register`)
+- UserInfo endpoint with scope-based claims
+- RP-initiated logout plus front-channel and back-channel logout support
 - JWT issuance for access, ID, and refresh tokens
 - Password hashing with `scrypt`
-- File-backed SQLite database using `better-sqlite3` with WAL mode for local persistence and concurrent access
-- Role and user management APIs
-- Authorization code + PKCE oriented flow skeleton
-- Consent persistence, refresh token rotation, token revocation tracking, and tenant-aware role assignments
-- Seeded admin account for local development
-- Built-in admin console at `http://127.0.0.1:4000/`
-
-## Planned next milestones
-
-- Token introspection endpoint
-- MFA / WebAuthn
-- Audit logs and admin console
+- File-backed SQLite database using `better-sqlite3` with WAL mode
+- Consent persistence, refresh token rotation, token revocation, tenant-aware role assignments
+- Admin console and user portal
+- User federation, authentication flows, policies, events/hooks, and audit logs
 
 ## Quick start
 
@@ -46,6 +43,33 @@ This repository starts a first-party identity platform aligned with OAuth 2.0 an
    ```text
    http://127.0.0.1:4000/
    ```
+
+## API Documentation
+
+- OpenAPI specification: `openapi.yaml`
+
+## Authentication Flows
+
+Authentication behavior is configured through admin-managed flow definitions.
+
+- List flows: `GET /api/admin/authentication/flows`
+- Create flow: `POST /api/admin/authentication/flows`
+- Update flow: `PUT /api/admin/authentication/flows/:id`
+- Delete flow: `DELETE /api/admin/authentication/flows/:id`
+
+Flow payload fields:
+
+- `designation`: `authentication`, `authorization`, `enrollment`, `invalidation`, `recovery`, `stage_configuration`, `unenrollment`
+- `grantTypes`: `authorization_code`, `client_credentials`, `refresh_token`, `password`, `device_code`
+- `stages[].type`: `password`, `federation`, `consent`, `mfa_totp`, `risk_check`, `identification`, `email_verification`, `captcha`, `prompt`, `user_write`, `user_login`, `user_logout`
+- `stages[].required`: boolean
+- `stages[].order`: integer, stage execution order
+
+## Example client apps
+
+- SPA example (Authorization Code + PKCE): `examples/spa/index.html`
+- Server example (Client Credentials): `examples/server/client-credentials.js`
+- Mobile helper example (PKCE utilities): `examples/mobile/pkce.js`
 
 ## Seeded admin
 

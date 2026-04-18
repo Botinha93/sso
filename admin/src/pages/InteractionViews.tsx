@@ -1,0 +1,78 @@
+import { ArrowUpRight, KeyRound, LogIn, MonitorSmartphone, ShieldCheck } from 'lucide-react'
+
+const cards = [
+  {
+    title: 'Login View',
+    description: 'Open the hosted sign-in view used by authorization and admin login flows.',
+    href: '/login',
+    icon: LogIn,
+    note: 'Useful for validating login prompts and federation entry points.'
+  },
+  {
+    title: 'Consent View',
+    description: 'Open the consent screen route used during interactive authorization flows.',
+    href: '/consent',
+    icon: ShieldCheck,
+    note: 'Best launched by a real authorization request so client and scope context are present.'
+  },
+  {
+    title: 'Device Verification View',
+    description: 'Open the device verification screen where end users approve a device_code request.',
+    href: '/oauth/device/verify',
+    icon: MonitorSmartphone,
+    note: 'Can be used directly by entering a user code or via verification_uri_complete.'
+  }
+]
+
+export default function InteractionViews() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Authentication</p>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Interaction Views</h1>
+        <p className="mt-2 max-w-3xl text-sm text-slate-600">
+          Quick access to the hosted OAuth and OIDC user-facing interaction screens. These views are normally opened by live protocol flows,
+          but can be launched here for manual validation.
+        </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        {cards.map((card) => {
+          const Icon = card.icon
+          return (
+            <div key={card.title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
+                <Icon size={20} />
+              </div>
+              <h2 className="text-lg font-semibold text-slate-900">{card.title}</h2>
+              <p className="mt-2 text-sm text-slate-600">{card.description}</p>
+              <p className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-500">{card.note}</p>
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <code className="truncate text-xs text-slate-400">{card.href}</code>
+                <a
+                  href={card.href}
+                  className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800"
+                >
+                  Open
+                  <ArrowUpRight size={14} />
+                </a>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center gap-2 text-slate-900">
+          <KeyRound size={18} />
+          <h2 className="text-base font-semibold">Usage Notes</h2>
+        </div>
+        <div className="mt-3 space-y-2 text-sm text-slate-600">
+          <p>The consent screen is most meaningful when opened by an authorize request that provides client_id, scope, redirect_uri, response_type, and response_mode.</p>
+          <p>The device verification screen is now usable as a standalone page because it accepts a manual user code entry.</p>
+          <p>These links are intended for operator validation and troubleshooting, not as the normal application launch path.</p>
+        </div>
+      </div>
+    </div>
+  )
+}

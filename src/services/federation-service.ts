@@ -244,6 +244,7 @@ export class FederationService {
       user = this.userRepository.create({
         email: email ?? `${username}@federated.local`,
         username,
+        isServiceUser: false,
         passwordHash: hashPassword(asBase64Url(randomBytes(32))),
         givenName,
         familyName,

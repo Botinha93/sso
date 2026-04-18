@@ -8,12 +8,19 @@ export class AppService {
     return this.appRepository.list();
   }
 
-  createApp(input: { name: string; description: string }) {
+  findAppById(id: string) {
+    return this.appRepository.findById(id);
+  }
+
+  createApp(input: { name: string; description: string; icon?: string; url?: string }) {
     return this.appRepository.create(input);
   }
 
-  updateApp(id: string, input: { name?: string; description?: string }) {
-    const updated = this.appRepository.update(id, input);
+  updateApp(id: string, input: { name?: string; description?: string; icon?: string; url?: string | null }) {
+    const updated = this.appRepository.update(id, {
+      ...input,
+      url: input.url ?? undefined
+    });
     if (!updated) {
       throw new ValidationError("App not found");
     }

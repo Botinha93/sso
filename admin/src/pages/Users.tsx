@@ -8,6 +8,7 @@ import {
   useUpdateUser,
   useDeleteUser,
   useResetUserPassword,
+  useApps,
   useGroups,
   useAssignUserToGroup,
   useRemoveUserFromGroup
@@ -15,6 +16,8 @@ import {
 
 interface User {
   id: string
+  appId?: string
+  isServiceUser?: boolean
   email: string
   username: string
   givenName: string
@@ -31,7 +34,14 @@ interface GroupItem {
   name: string
 }
 
+interface AppItem {
+  id: string
+  name: string
+}
+
 const defaultForm = () => ({
+  appId: '',
+  isServiceUser: false,
   email: '',
   username: '',
   givenName: '',
@@ -42,6 +52,8 @@ const defaultForm = () => ({
 })
 
 const defaultEditForm = () => ({
+  appId: '',
+  isServiceUser: false,
   email: '',
   username: '',
   givenName: '',
@@ -65,6 +77,7 @@ const Users = () => {
   const [userToReset, setUserToReset] = useState<User | null>(null)
   const [userToDelete, setUserToDelete] = useState<{ id: string; email: string } | null>(null)
   const { data: users, isLoading, refetch } = useUsers()
+  const { data: apps = [] } = useApps()
   const createUser = useCreateUser()
   const updateUser = useUpdateUser()
   const deleteUser = useDeleteUser()
@@ -79,6 +92,20 @@ const Users = () => {
   const [createFormError, setCreateFormError] = useState<string>('')
   const [editFormError, setEditFormError] = useState<string>('')
   const [resetFormError, setResetFormError] = useState<string>('')
+  const [appFilterId, setAppFilterId] = useState<string>('all')
+  const [userTypeFilter, setUserTypeFilter] = useState<'all' | 'human' | 'service'>('all')
+
+  const appNameById = new Map((apps as AppItem[]).map((a) => [a.id, a.name]))
+  const filteredUsers = (users as User[] | undefined)?.filter((user) => {
+    const appMatches = appFilterId === 'all' ? true : appFilterId === 'none' ? !user.appId : user.appId === appFilterId
+    const typeMatches = userTypeFilter === 'all'
+      ? true
+      : userTypeFilter === 'service'
+        ? Boolean(user.isServiceUser)
+        : !user.isServiceUser
+
+    return appMatches && typeMatches
+  })
 
   const handleCreate = async () => {
     if (!formData.email || !formData.username || !formData.password) return
@@ -99,6 +126,8 @@ const Users = () => {
     setCreateFormError('')
 
     await createUser.mutateAsync({
+      appId: formData.appId || undefined,
+      isServiceUser: formData.isServiceUser,
       email: formData.email,
       username: formData.username,
       givenName: formData.givenName,
@@ -120,6 +149,8 @@ const Users = () => {
     setUserToEdit(user)
     setEditFormError('')
     setEditFormData({
+      appId: user.appId ?? '',
+      isServiceUser: Boolean(user.isServiceUser),
       email: user.email,
       username: user.username,
       givenName: user.givenName,
@@ -149,6 +180,8 @@ const Users = () => {
     setEditFormError('')
     await updateUser.mutateAsync({
       id: userToEdit.id,
+      appId: editFormData.appId || undefined,
+      isServiceUser: editFormData.isServiceUser,
       email: editFormData.email,
       username: editFormData.username,
       givenName: editFormData.givenName,
@@ -228,6 +261,23 @@ const Users = () => {
         </button>
       </div>
 
+      <div className="mb-4 grid gap-3 md:grid-cols-2 md:max-w-2xl">
+        <label className={labelCls}>Filter by App</label>
+        <select className={fieldCls} value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
+          <option value="all">All Apps</option>
+          <option value="none">Unassigned</option>
+          {(apps as AppItem[]).map((app) => (
+            <option key={app.id} value={app.id}>{app.name}</option>
+          ))}
+        </select>
+        <label className={labelCls}>Filter by User Type</label>
+        <select className={fieldCls} value={userTypeFilter} onChange={(e) => setUserTypeFilter(e.target.value as 'all' | 'human' | 'service')}>
+          <option value="all">All Users</option>
+          <option value="human">Human Users</option>
+          <option value="service">Service Users</option>
+        </select>
+      </div>
+
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">All Users</h4>
@@ -239,15 +289,21 @@ const Users = () => {
 
         {isLoading ? (
           <div className="p-10 text-center text-slate-400 text-sm">Loading users…</div>
-        ) : !users?.length ? (
+        ) : !filteredUsers?.length ? (
           <div className="p-10 text-center text-slate-400 text-sm">No users registered</div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {users.map((user: User) => (
+            {filteredUsers.map((user: User) => (
               <div key={user.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50/50 transition-colors gap-4">
                 <div className="space-y-0.5 flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium text-slate-900">{user.givenName} {user.familyName}</p>
+                    <span className="text-xs px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
+                      {user.appId ? appNameById.get(user.appId) ?? 'App' : 'No App'}
+                    </span>
+                    {user.isServiceUser ? (
+                      <span className="text-xs px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100">Service User</span>
+                    ) : null}
                     {!user.active && (
                       <span className="text-xs px-1.5 py-0.5 rounded-md bg-red-50 text-red-600 border border-red-100">Inactive</span>
                     )}
@@ -353,6 +409,15 @@ const Users = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
+              <label className={labelCls}>App</label>
+              <select value={formData.appId} onChange={e => setFormData(f => ({ ...f, appId: e.target.value }))} className={fieldCls}>
+                <option value="">No app</option>
+                {(apps as AppItem[]).map((app) => (
+                  <option key={app.id} value={app.id}>{app.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className={labelCls}>First Name</label>
               <input type="text" value={formData.givenName} onChange={e => setFormData(f => ({ ...f, givenName: e.target.value }))} className={fieldCls} placeholder="Jane" />
             </div>
@@ -369,6 +434,15 @@ const Users = () => {
             <label className={labelCls}>Username</label>
             <input type="text" value={formData.username} onChange={e => setFormData(f => ({ ...f, username: e.target.value }))} className={`${fieldCls} font-mono`} placeholder="janedoe" />
           </div>
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={formData.isServiceUser}
+              onChange={e => setFormData(f => ({ ...f, isServiceUser: e.target.checked }))}
+              className="rounded border-slate-300"
+            />
+            Mark as service user (machine-to-machine/system communication)
+          </label>
           <div>
             <label className={labelCls}>Password</label>
             <input type="password" value={formData.password} onChange={e => setFormData(f => ({ ...f, password: e.target.value }))} className={fieldCls} placeholder="Min 8 characters" />
@@ -419,6 +493,15 @@ const Users = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
+              <label className={labelCls}>App</label>
+              <select value={editFormData.appId} onChange={e => setEditFormData(f => ({ ...f, appId: e.target.value }))} className={fieldCls}>
+                <option value="">No app</option>
+                {(apps as AppItem[]).map((app) => (
+                  <option key={app.id} value={app.id}>{app.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className={labelCls}>First Name</label>
               <input type="text" value={editFormData.givenName} onChange={e => setEditFormData(f => ({ ...f, givenName: e.target.value }))} className={fieldCls} placeholder="Jane" />
             </div>
@@ -435,6 +518,15 @@ const Users = () => {
             <label className={labelCls}>Username</label>
             <input type="text" value={editFormData.username} onChange={e => setEditFormData(f => ({ ...f, username: e.target.value }))} className={`${fieldCls} font-mono`} placeholder="janedoe" />
           </div>
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={editFormData.isServiceUser}
+              onChange={e => setEditFormData(f => ({ ...f, isServiceUser: e.target.checked }))}
+              className="rounded border-slate-300"
+            />
+            Mark as service user (machine-to-machine/system communication)
+          </label>
           <div>
             <label className={labelCls}>Custom Attributes (JSON)</label>
             <textarea

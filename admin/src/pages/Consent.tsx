@@ -20,6 +20,8 @@ export default function Consent() {
   const scopes = scope.split(" ").filter(Boolean);
   const redirectUri = searchParams.get("redirect_uri") || "/";
   const state = searchParams.get("state");
+  const responseType = searchParams.get("response_type");
+  const responseMode = searchParams.get("response_mode") || (responseType === "token" ? "fragment" : "query");
 
   const handleApprove = () => {
     setLoading(true);
@@ -33,7 +35,35 @@ export default function Consent() {
     const params = new URLSearchParams();
     params.set("error", "access_denied");
     if (state) params.set("state", state);
-    window.location.href = `${redirectUri}?${params.toString()}`;
+
+    if (responseMode === "fragment") {
+      const url = new URL(redirectUri);
+      url.hash = params.toString();
+      window.location.href = url.toString();
+      return;
+    }
+
+    if (responseMode === "form_post") {
+      const form = document.createElement("form");
+      form.method = "POST";
+      form.action = redirectUri;
+
+      Array.from(params.entries()).forEach(([key, value]) => {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = key;
+        input.value = value;
+        form.appendChild(input);
+      });
+
+      document.body.appendChild(form);
+      form.submit();
+      return;
+    }
+
+    const url = new URL(redirectUri);
+    Array.from(params.entries()).forEach(([key, value]) => url.searchParams.set(key, value));
+    window.location.href = url.toString();
   };
 
   return (

@@ -17,7 +17,7 @@ const VALID_STAGE_TYPES: AuthenticationStageType[] = [
   "user_login",
   "user_logout"
 ];
-const VALID_GRANT_TYPES: GrantType[] = ["authorization_code", "client_credentials", "refresh_token"];
+const VALID_GRANT_TYPES: GrantType[] = ["authorization_code", "client_credentials", "refresh_token", "password", "device_code"];
 const VALID_DESIGNATIONS: FlowDesignation[] = [
   "authentication",
   "authorization",
@@ -29,6 +29,12 @@ const VALID_DESIGNATIONS: FlowDesignation[] = [
 ];
 
 const DEFAULT_ENABLED_STAGES: AuthenticationStageType[] = ["password", "federation", "consent"];
+const DEFAULT_ENABLED_STAGES_BY_DESIGNATION: Partial<Record<FlowDesignation, AuthenticationStageType[]>> = {
+  authentication: DEFAULT_ENABLED_STAGES,
+  enrollment: ["prompt", "user_write"],
+  recovery: ["identification", "user_write"],
+  invalidation: ["user_logout"]
+};
 
 export class AuthenticationFlowService {
   constructor(private readonly authenticationFlowRepository: AuthenticationFlowRepository) {}
@@ -38,7 +44,11 @@ export class AuthenticationFlowService {
   }
 
   getActiveFlow() {
-    return this.authenticationFlowRepository.list().find((flow) => flow.enabled && flow.designation === "authentication");
+    return this.getActiveFlowByDesignation("authentication");
+  }
+
+  getActiveFlowByDesignation(designation: FlowDesignation) {
+    return this.authenticationFlowRepository.list().find((flow) => flow.enabled && flow.designation === designation);
   }
 
   assertGrantSupported(grantType: GrantType) {
@@ -53,16 +63,25 @@ export class AuthenticationFlowService {
   }
 
   isStageEnabled(stageType: AuthenticationStageType): boolean {
-    const activeFlow = this.getActiveFlow();
+    return this.isStageEnabledForDesignation("authentication", stageType);
+  }
+
+  isStageEnabledForDesignation(designation: FlowDesignation, stageType: AuthenticationStageType): boolean {
+    const activeFlow = this.getActiveFlowByDesignation(designation);
     if (!activeFlow) {
-      return DEFAULT_ENABLED_STAGES.includes(stageType);
+      const defaults = DEFAULT_ENABLED_STAGES_BY_DESIGNATION[designation] ?? [];
+      return defaults.includes(stageType);
     }
 
     return activeFlow.stages.some((stage) => stage.type === stageType && stage.required);
   }
 
   assertStageEnabled(stageType: AuthenticationStageType) {
-    if (!this.isStageEnabled(stageType)) {
+    this.assertStageEnabledForDesignation("authentication", stageType);
+  }
+
+  assertStageEnabledForDesignation(designation: FlowDesignation, stageType: AuthenticationStageType) {
+    if (!this.isStageEnabledForDesignation(designation, stageType)) {
       throw new ValidationError(`Authentication stage \"${stageType}\" is not enabled in active flow`);
     }
   }

@@ -1,0 +1,15 @@
+@import "tailwindcss";
+@import "@fontsource-variable/geist";
+
+@theme {
+  --font-sans: 'Geist Variable', sans-serif;
+}
+
+@layer base {
+  html, body, #root {
+    height: 100%;
+  }
+  body {
+    @apply min-h-screen bg-slate-50 text-slate-800 font-sans antialiased;
+  }
+}

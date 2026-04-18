@@ -144,6 +144,33 @@ export function useRevokeSession() {
   })
 }
 
+// --- Devices ---
+export function useDevices() {
+  return useQuery({
+    queryKey: ['devices'],
+    queryFn: () => jsonFetch(`${API_BASE}/devices`)
+  })
+}
+
+export function useRevokeDeviceRequest() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (deviceCode: string) => jsonFetch(`${API_BASE}/devices/requests/${deviceCode}`, { method: 'DELETE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['devices'] })
+  })
+}
+
+export function useRevokeDeviceSession() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (sessionId: string) => jsonFetch(`${API_BASE}/devices/sessions/${sessionId}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['devices'] })
+      queryClient.invalidateQueries({ queryKey: ['sessions'] })
+    }
+  })
+}
+
 // --- Consents ---
 export function useConsents() {
   return useQuery({
@@ -194,6 +221,8 @@ export function useUpdateUser() {
   return useMutation({
     mutationFn: ({ id, ...data }: {
       id: string
+      appId?: string
+      isServiceUser?: boolean
       email?: string
       username?: string
       givenName?: string
@@ -207,6 +236,46 @@ export function useUpdateUser() {
       body: JSON.stringify(data)
     }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] })
+  })
+}
+
+// --- Apps ---
+export function useApps() {
+  return useQuery({
+    queryKey: ['apps'],
+    queryFn: () => jsonFetch(`${API_BASE}/apps`)
+  })
+}
+
+export function useCreateApp() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (app: { name: string; description: string; icon?: string; url?: string }) => jsonFetch(`${API_BASE}/apps`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(app)
+    }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['apps'] })
+  })
+}
+
+export function useUpdateApp() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; name?: string; description?: string; icon?: string; url?: string | null }) => jsonFetch(`${API_BASE}/apps/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['apps'] })
+  })
+}
+
+export function useDeleteApp() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => jsonFetch(`${API_BASE}/apps/${id}`, { method: 'DELETE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['apps'] })
   })
 }
 
@@ -306,7 +375,7 @@ export function useDeleteGroup() {
 export function useUpdateGroup() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; name?: string; description?: string }) =>
+    mutationFn: ({ id, ...data }: { id: string; appId?: string; name?: string; description?: string }) =>
       jsonFetch(`${API_BASE}/groups/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -636,6 +705,13 @@ export function useEventHooks() {
   })
 }
 
+export function useSystemEventTypes() {
+  return useQuery({
+    queryKey: ['system-event-types'],
+    queryFn: () => jsonFetch(`${API_BASE}/events/types`)
+  })
+}
+
 export function useCreateEventHook() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -668,10 +744,69 @@ export function useDeleteEventHook() {
   })
 }
 
+export function useTestEventHook() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, eventType }: { id: string; eventType?: string }) =>
+      jsonFetch(`${API_BASE}/events/hooks/${id}/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(eventType ? { eventType } : {})
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['event-notifications'] })
+  })
+}
+
 export function useEventNotifications(limit = 100) {
   return useQuery({
     queryKey: ['event-notifications', limit],
     queryFn: () => jsonFetch(`${API_BASE}/events/notifications?limit=${limit}`),
     refetchInterval: 10000
+  })
+}
+
+// --- Administration / Instance Settings ---
+export function useInstanceSettings() {
+  return useQuery({
+    queryKey: ['instance-settings'],
+    queryFn: () => jsonFetch(`${API_BASE}/settings`)
+  })
+}
+
+export function useUpdateInstanceSettings() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (settings: {
+      requireHttps?: boolean
+      secureCookies?: boolean
+      allowAnyCorsOrigin?: boolean
+      corsAllowedOrigins?: string[]
+      requireHttpsRedirectUris?: boolean
+      requireS256Pkce?: boolean
+      allowImplicitFlow?: boolean
+      emailTransport?: 'disabled' | 'log' | 'smtp'
+      emailFrom?: string
+      smtpHost?: string
+      smtpPort?: number
+      smtpSecure?: boolean
+      smtpUser?: string
+      smtpPass?: string
+    }) => jsonFetch(`${API_BASE}/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings)
+    }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['instance-settings'] })
+  })
+}
+
+export function useTestInstanceEmail() {
+  return useMutation({
+    mutationFn: (payload: { to: string; subject?: string; message?: string }) =>
+      jsonFetch(`${API_BASE}/settings/test-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
   })
 }

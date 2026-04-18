@@ -95,6 +95,41 @@ export class JwtService {
     return { accessToken, tokenType: "Bearer", expiresIn: this.appConfig.ttl.accessTokenSeconds, scope: scopeValue };
   }
 
+  async issueUserAccessToken(params: {
+    user: User;
+    client: OAuthClient;
+    scope: string[];
+    roles: string[];
+    accessTokenId: string;
+    tenantId?: string;
+  }) {
+    const { user, client, scope, roles, accessTokenId, tenantId } = params;
+    const now = Math.floor(Date.now() / 1000);
+    const scopeValue = scope.join(" ");
+
+    const accessToken = await new SignJWT({
+      scope: scopeValue,
+      roles,
+      client_id: client.id,
+      tenant_id: tenantId
+    })
+      .setProtectedHeader({ alg: "RS256", kid: this.keys.kid })
+      .setIssuer(this.appConfig.issuer)
+      .setAudience(client.id)
+      .setSubject(user.id)
+      .setJti(accessTokenId)
+      .setIssuedAt(now)
+      .setExpirationTime(now + this.appConfig.ttl.accessTokenSeconds)
+      .sign(this.keys.privateKey);
+
+    return {
+      accessToken,
+      tokenType: "Bearer" as const,
+      expiresIn: this.appConfig.ttl.accessTokenSeconds,
+      scope: scopeValue
+    };
+  }
+
   getJwks() {
     return {
       keys: [this.keys.jwk]
@@ -107,5 +142,21 @@ export class JwtService {
     });
 
     return payload;
+  }
+
+  async signUserInfoClaims(params: {
+    claims: Record<string, unknown>;
+    audience: string;
+    subject: string;
+  }) {
+    const now = Math.floor(Date.now() / 1000);
+    return await new SignJWT(params.claims)
+      .setProtectedHeader({ alg: "RS256", kid: this.keys.kid, typ: "JWT" })
+      .setIssuer(this.appConfig.issuer)
+      .setAudience(params.audience)
+      .setSubject(params.subject)
+      .setIssuedAt(now)
+      .setExpirationTime(now + this.appConfig.ttl.idTokenSeconds)
+      .sign(this.keys.privateKey);
   }
 }

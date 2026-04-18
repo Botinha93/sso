@@ -1,4 +1,4 @@
-import { AppWindow, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { AppWindow, ChevronDown, ChevronUp, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import type { Dispatch, SetStateAction } from 'react'
 import { useMemo, useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -26,6 +26,190 @@ interface FederationProvider {
 const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
 const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
 
+// ─── Provider templates ────────────────────────────────────────────────────────
+
+interface ProviderTemplate {
+  id: string
+  label: string
+  logo: string
+  color: string
+  authorizationEndpoint: string
+  tokenEndpoint: string
+  userInfoEndpoint: string
+  scopes: string
+}
+
+const PROVIDER_TEMPLATES: ProviderTemplate[] = [
+  {
+    id: 'google',
+    label: 'Google',
+    logo: 'https://www.google.com/favicon.ico',
+    color: '#4285F4',
+    authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+    tokenEndpoint: 'https://oauth2.googleapis.com/token',
+    userInfoEndpoint: 'https://openidconnect.googleapis.com/v1/userinfo',
+    scopes: 'openid profile email',
+  },
+  {
+    id: 'microsoft',
+    label: 'Microsoft',
+    logo: 'https://www.microsoft.com/favicon.ico',
+    color: '#00A4EF',
+    authorizationEndpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+    tokenEndpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+    userInfoEndpoint: 'https://graph.microsoft.com/oidc/userinfo',
+    scopes: 'openid profile email User.Read',
+  },
+  {
+    id: 'github',
+    label: 'GitHub',
+    logo: 'https://github.com/favicon.ico',
+    color: '#24292F',
+    authorizationEndpoint: 'https://github.com/login/oauth/authorize',
+    tokenEndpoint: 'https://github.com/login/oauth/access_token',
+    userInfoEndpoint: 'https://api.github.com/user',
+    scopes: 'read:user user:email',
+  },
+  {
+    id: 'linkedin',
+    label: 'LinkedIn',
+    logo: 'https://www.linkedin.com/favicon.ico',
+    color: '#0A66C2',
+    authorizationEndpoint: 'https://www.linkedin.com/oauth/v2/authorization',
+    tokenEndpoint: 'https://www.linkedin.com/oauth/v2/accessToken',
+    userInfoEndpoint: 'https://api.linkedin.com/v2/userinfo',
+    scopes: 'openid profile email',
+  },
+  {
+    id: 'facebook',
+    label: 'Facebook',
+    logo: 'https://www.facebook.com/favicon.ico',
+    color: '#1877F2',
+    authorizationEndpoint: 'https://www.facebook.com/v19.0/dialog/oauth',
+    tokenEndpoint: 'https://graph.facebook.com/v19.0/oauth/access_token',
+    userInfoEndpoint: 'https://graph.facebook.com/me?fields=id,name,email,picture',
+    scopes: 'public_profile email',
+  },
+  {
+    id: 'discord',
+    label: 'Discord',
+    logo: 'https://discord.com/assets/favicon.ico',
+    color: '#5865F2',
+    authorizationEndpoint: 'https://discord.com/api/oauth2/authorize',
+    tokenEndpoint: 'https://discord.com/api/oauth2/token',
+    userInfoEndpoint: 'https://discord.com/api/users/@me',
+    scopes: 'identify email',
+  },
+  {
+    id: 'twitter',
+    label: 'Twitter / X',
+    logo: 'https://twitter.com/favicon.ico',
+    color: '#000000',
+    authorizationEndpoint: 'https://twitter.com/i/oauth2/authorize',
+    tokenEndpoint: 'https://api.twitter.com/2/oauth2/token',
+    userInfoEndpoint: 'https://api.twitter.com/2/users/me',
+    scopes: 'tweet.read users.read offline.access',
+  },
+  {
+    id: 'apple',
+    label: 'Apple',
+    logo: 'https://www.apple.com/favicon.ico',
+    color: '#000000',
+    authorizationEndpoint: 'https://appleid.apple.com/auth/authorize',
+    tokenEndpoint: 'https://appleid.apple.com/auth/token',
+    userInfoEndpoint: 'https://appleid.apple.com/auth/userinfo',
+    scopes: 'openid name email',
+  },
+  {
+    id: 'gitlab',
+    label: 'GitLab',
+    logo: 'https://gitlab.com/favicon.ico',
+    color: '#FC6D26',
+    authorizationEndpoint: 'https://gitlab.com/oauth/authorize',
+    tokenEndpoint: 'https://gitlab.com/oauth/token',
+    userInfoEndpoint: 'https://gitlab.com/oauth/userinfo',
+    scopes: 'openid profile email read_user',
+  },
+  {
+    id: 'okta',
+    label: 'Okta',
+    logo: 'https://www.okta.com/favicon.ico',
+    color: '#007DC1',
+    authorizationEndpoint: 'https://{your-domain}.okta.com/oauth2/default/v1/authorize',
+    tokenEndpoint: 'https://{your-domain}.okta.com/oauth2/default/v1/token',
+    userInfoEndpoint: 'https://{your-domain}.okta.com/oauth2/default/v1/userinfo',
+    scopes: 'openid profile email',
+  },
+  {
+    id: 'auth0',
+    label: 'Auth0',
+    logo: 'https://auth0.com/favicon.ico',
+    color: '#EB5424',
+    authorizationEndpoint: 'https://{your-tenant}.auth0.com/authorize',
+    tokenEndpoint: 'https://{your-tenant}.auth0.com/oauth/token',
+    userInfoEndpoint: 'https://{your-tenant}.auth0.com/userinfo',
+    scopes: 'openid profile email',
+  },
+  {
+    id: 'keycloak',
+    label: 'Keycloak',
+    logo: 'https://www.keycloak.org/resources/favicon.ico',
+    color: '#00B8D9',
+    authorizationEndpoint: 'https://{host}/realms/{realm}/protocol/openid-connect/auth',
+    tokenEndpoint: 'https://{host}/realms/{realm}/protocol/openid-connect/token',
+    userInfoEndpoint: 'https://{host}/realms/{realm}/protocol/openid-connect/userinfo',
+    scopes: 'openid profile email',
+  },
+]
+
+// ─── Template picker component ────────────────────────────────────────────────
+
+function TemplatePicker({ onSelect }: { onSelect: (t: ProviderTemplate) => void }) {
+  const [open, setOpen] = useState(true)
+  return (
+    <div className="rounded-xl border border-slate-200 overflow-hidden mb-5">
+      <button
+        type="button"
+        onClick={() => setOpen(p => !p)}
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors text-sm font-semibold text-slate-700"
+      >
+        <span>Start from a template</span>
+        {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+      </button>
+      {open && (
+        <div className="grid grid-cols-4 gap-2 p-3">
+          {PROVIDER_TEMPLATES.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => onSelect(t)}
+              className="flex flex-col items-center gap-1.5 p-2.5 rounded-lg border border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition-colors group"
+              title={`Use ${t.label} template`}
+            >
+              <img
+                src={t.logo}
+                alt={t.label}
+                className="w-6 h-6 rounded object-contain"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+              />
+              <span className="text-xs text-slate-600 group-hover:text-slate-900 font-medium text-center leading-tight">{t.label}</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="flex flex-col items-center gap-1.5 p-2.5 rounded-lg border border-dashed border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition-colors group"
+            title="Start blank"
+          >
+            <Plus size={18} className="text-slate-400 group-hover:text-slate-700" />
+            <span className="text-xs text-slate-500 group-hover:text-slate-800 font-medium text-center leading-tight">Custom</span>
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 const blankForm = {
   id: '',
   label: '',
@@ -49,12 +233,27 @@ const FederationProviders = () => {
   const [providerToDelete, setProviderToDelete] = useState<FederationProvider | null>(null)
   const [form, setForm] = useState(blankForm)
   const [editingId, setEditingId] = useState<string>('')
+  const [templatePicked, setTemplatePicked] = useState(false)
 
   const providers = useMemo(() => (data ?? []) as FederationProvider[], [data])
 
   const openCreate = () => {
     setForm(blankForm)
+    setTemplatePicked(false)
     setCreateOpen(true)
+  }
+
+  const applyTemplate = (t: ProviderTemplate) => {
+    setForm(p => ({
+      ...p,
+      id: t.id,
+      label: t.label,
+      authorizationEndpoint: t.authorizationEndpoint,
+      tokenEndpoint: t.tokenEndpoint,
+      userInfoEndpoint: t.userInfoEndpoint,
+      scopes: t.scopes,
+    }))
+    setTemplatePicked(true)
   }
 
   const openEdit = (provider: FederationProvider) => {
@@ -204,6 +403,7 @@ const FederationProviders = () => {
       </div>
 
       <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title="Create Federation Provider">
+        <TemplatePicker onSelect={applyTemplate} />
         <ProviderForm form={form} setForm={setForm} showId onSubmit={onCreate} submitLabel={createProvider.isPending ? 'Creating…' : 'Create Provider'} pending={createProvider.isPending} />
       </Modal>
 

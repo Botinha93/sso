@@ -1,0 +1,382 @@
+import { useEffect, useState } from 'react'
+import { AlertTriangle, Lock, Mail, Network, RefreshCw, ShieldCheck } from 'lucide-react'
+import { useInstanceSettings, useTestInstanceEmail, useUpdateInstanceSettings } from '../hooks/useApi'
+
+interface SettingsForm {
+  requireHttps: boolean
+  secureCookies: boolean
+  allowAnyCorsOrigin: boolean
+  corsAllowedOriginsText: string
+  requireHttpsRedirectUris: boolean
+  requireS256Pkce: boolean
+  allowImplicitFlow: boolean
+  emailTransport: 'disabled' | 'log' | 'smtp'
+  emailFrom: string
+  smtpHost: string
+  smtpPort: number
+  smtpSecure: boolean
+  smtpUser: string
+  smtpPass: string
+  testEmailTo: string
+}
+
+const checkboxCls = 'h-4 w-4 rounded border-slate-300 text-slate-900 accent-slate-900'
+const sectionCls = 'rounded-xl border border-slate-200 bg-white p-5 shadow-sm'
+const parseOrigins = (value: string) => value.split('\n').map((item) => item.trim()).filter(Boolean)
+
+const defaultForm: SettingsForm = {
+  requireHttps: false,
+  secureCookies: false,
+  allowAnyCorsOrigin: true,
+  corsAllowedOriginsText: '',
+  requireHttpsRedirectUris: false,
+  requireS256Pkce: true,
+  allowImplicitFlow: true,
+  emailTransport: 'log',
+  emailFrom: 'no-reply@example.local',
+  smtpHost: '',
+  smtpPort: 587,
+  smtpSecure: false,
+  smtpUser: '',
+  smtpPass: '',
+  testEmailTo: '',
+}
+
+export default function Administration() {
+  const { data, isLoading, refetch } = useInstanceSettings()
+  const updateSettings = useUpdateInstanceSettings()
+  const testEmail = useTestInstanceEmail()
+  const [form, setForm] = useState<SettingsForm>(defaultForm)
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!data) {
+      return
+    }
+
+    setForm({
+      requireHttps: Boolean((data as any).requireHttps),
+      secureCookies: Boolean((data as any).secureCookies),
+      allowAnyCorsOrigin: Boolean((data as any).allowAnyCorsOrigin),
+      corsAllowedOriginsText: Array.isArray((data as any).corsAllowedOrigins) ? (data as any).corsAllowedOrigins.join('\n') : '',
+      requireHttpsRedirectUris: Boolean((data as any).requireHttpsRedirectUris),
+      requireS256Pkce: Boolean((data as any).requireS256Pkce),
+      allowImplicitFlow: Boolean((data as any).allowImplicitFlow),
+      emailTransport: ((data as any).emailTransport as SettingsForm['emailTransport']) ?? 'log',
+      emailFrom: String((data as any).emailFrom ?? 'no-reply@example.local'),
+      smtpHost: String((data as any).smtpHost ?? ''),
+      smtpPort: Number((data as any).smtpPort ?? 587),
+      smtpSecure: Boolean((data as any).smtpSecure ?? false),
+      smtpUser: String((data as any).smtpUser ?? ''),
+      smtpPass: String((data as any).smtpPass ?? ''),
+      testEmailTo: String((data as any).emailFrom ?? ''),
+    })
+  }, [data])
+
+  const save = async () => {
+    try {
+      setSaveMessage(null)
+      setSaveError(null)
+      await updateSettings.mutateAsync({
+        requireHttps: form.requireHttps,
+        secureCookies: form.secureCookies,
+        allowAnyCorsOrigin: form.allowAnyCorsOrigin,
+        corsAllowedOrigins: form.allowAnyCorsOrigin ? [] : parseOrigins(form.corsAllowedOriginsText),
+        requireHttpsRedirectUris: form.requireHttpsRedirectUris,
+        requireS256Pkce: form.requireS256Pkce,
+        allowImplicitFlow: form.allowImplicitFlow,
+        emailTransport: form.emailTransport,
+        emailFrom: form.emailFrom,
+        smtpHost: form.smtpHost || undefined,
+        smtpPort: form.smtpPort,
+        smtpSecure: form.smtpSecure,
+        smtpUser: form.smtpUser || undefined,
+        smtpPass: form.smtpPass || undefined,
+      })
+      setSaveMessage('Instance settings saved. Some changes affect the next request immediately.')
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Failed to save instance settings')
+    }
+  }
+
+  const sendTestEmail = async () => {
+    try {
+      setSaveMessage(null)
+      setSaveError(null)
+      await testEmail.mutateAsync({
+        to: form.testEmailTo,
+        subject: 'SSO test email',
+        message: 'This is a test email sent from Administration settings.'
+      })
+      setSaveMessage('Test email submitted successfully.')
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Failed to send test email')
+    }
+  }
+
+  if (isLoading) {
+    return <div className="p-6 text-slate-500">Loading instance settings...</div>
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">Instance Controls</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Administration</h1>
+          <p className="mt-2 max-w-3xl text-sm text-slate-600">
+            Configure instance-wide transport, browser, and OAuth security posture. These settings affect how the server accepts requests and issues tokens.
+          </p>
+        </div>
+        <button onClick={() => refetch()} className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+          <RefreshCw size={14} />
+          Refresh
+        </button>
+      </div>
+
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-sm">
+        <div className="flex items-start gap-3">
+          <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold">Operational warning</p>
+            <p className="mt-1 text-amber-800">
+              Enabling HTTPS or secure cookies while you are still using plain HTTP in development can immediately block login or future admin requests.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <section className={sectionCls}>
+          <div className="flex items-center gap-2">
+            <Lock size={16} className="text-slate-500" />
+            <h2 className="text-base font-semibold text-slate-900">Transport Security</h2>
+          </div>
+          <div className="mt-4 space-y-4">
+            <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-700">
+              <input type="checkbox" checked={form.requireHttps} onChange={(e) => setForm((v) => ({ ...v, requireHttps: e.target.checked }))} className={checkboxCls} />
+              <div>
+                <p className="font-medium text-slate-900">Require HTTPS</p>
+                <p className="mt-1 text-slate-600">Reject non-HTTPS requests at the server edge unless they arrive through a forwarded HTTPS proxy.</p>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-700">
+              <input type="checkbox" checked={form.secureCookies} onChange={(e) => setForm((v) => ({ ...v, secureCookies: e.target.checked }))} className={checkboxCls} />
+              <div>
+                <p className="font-medium text-slate-900">Use secure cookies</p>
+                <p className="mt-1 text-slate-600">Marks admin session and CSRF cookies as secure so browsers only send them over HTTPS.</p>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-700">
+              <input type="checkbox" checked={form.requireHttpsRedirectUris} onChange={(e) => setForm((v) => ({ ...v, requireHttpsRedirectUris: e.target.checked }))} className={checkboxCls} />
+              <div>
+                <p className="font-medium text-slate-900">Require HTTPS redirect URIs</p>
+                <p className="mt-1 text-slate-600">Enforces HTTPS for newly created or updated client redirect URIs, except localhost development callbacks.</p>
+              </div>
+            </label>
+          </div>
+        </section>
+
+        <section className={sectionCls}>
+          <div className="flex items-center gap-2">
+            <Network size={16} className="text-slate-500" />
+            <h2 className="text-base font-semibold text-slate-900">CORS Policy</h2>
+          </div>
+          <div className="mt-4 space-y-4">
+            <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-700">
+              <input type="checkbox" checked={form.allowAnyCorsOrigin} onChange={(e) => setForm((v) => ({ ...v, allowAnyCorsOrigin: e.target.checked }))} className={checkboxCls} />
+              <div>
+                <p className="font-medium text-slate-900">Allow any origin</p>
+                <p className="mt-1 text-slate-600">Permits cross-origin requests from any browser origin. Disable this for production-grade isolation.</p>
+              </div>
+            </label>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Allowed Origins</label>
+              <textarea
+                value={form.corsAllowedOriginsText}
+                onChange={(e) => setForm((v) => ({ ...v, corsAllowedOriginsText: e.target.value }))}
+                disabled={form.allowAnyCorsOrigin}
+                className="min-h-[140px] w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 disabled:bg-slate-50 disabled:text-slate-400 font-mono"
+                placeholder={'https://admin.example.com\nhttps://portal.example.com'}
+              />
+              <p className="mt-2 text-xs text-slate-500">One origin per line. Include scheme and host, for example <span className="font-mono">https://admin.example.com</span>.</p>
+            </div>
+          </div>
+        </section>
+
+        <section className={sectionCls}>
+          <div className="flex items-center gap-2">
+            <ShieldCheck size={16} className="text-slate-500" />
+            <h2 className="text-base font-semibold text-slate-900">OAuth And Token Security</h2>
+          </div>
+          <div className="mt-4 space-y-4">
+            <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-700">
+              <input type="checkbox" checked={form.requireS256Pkce} onChange={(e) => setForm((v) => ({ ...v, requireS256Pkce: e.target.checked }))} className={checkboxCls} />
+              <div>
+                <p className="font-medium text-slate-900">Require S256 PKCE</p>
+                <p className="mt-1 text-slate-600">Rejects plain PKCE and requires the stronger S256 code challenge method for authorization requests.</p>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-700">
+              <input type="checkbox" checked={form.allowImplicitFlow} onChange={(e) => setForm((v) => ({ ...v, allowImplicitFlow: e.target.checked }))} className={checkboxCls} />
+              <div>
+                <p className="font-medium text-slate-900">Allow implicit flow</p>
+                <p className="mt-1 text-slate-600">Keeps <span className="font-mono">response_type=token</span> available. Disable this to remove the weaker implicit flow path.</p>
+              </div>
+            </label>
+
+            <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-700">
+              <p className="font-medium text-slate-900">Token signing algorithm</p>
+              <div className="mt-2 inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-mono text-emerald-700">RS256</div>
+              <p className="mt-2 text-slate-600">Tokens are currently signed using RS256. This implementation remains enforced server-side.</p>
+            </div>
+          </div>
+        </section>
+
+        <section className={sectionCls}>
+          <div className="flex items-center gap-2">
+            <Mail size={16} className="text-slate-500" />
+            <h2 className="text-base font-semibold text-slate-900">Email Delivery</h2>
+          </div>
+          <div className="mt-4 space-y-4">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Transport</label>
+              <select
+                value={form.emailTransport}
+                onChange={(e) => setForm((v) => ({ ...v, emailTransport: e.target.value as SettingsForm['emailTransport'] }))}
+                className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+              >
+                <option value="disabled">Disabled</option>
+                <option value="log">Log only (development)</option>
+                <option value="smtp">SMTP</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">From Address</label>
+              <input
+                type="email"
+                value={form.emailFrom}
+                onChange={(e) => setForm((v) => ({ ...v, emailFrom: e.target.value }))}
+                className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+                placeholder="no-reply@example.com"
+              />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">SMTP Host</label>
+                <input
+                  value={form.smtpHost}
+                  onChange={(e) => setForm((v) => ({ ...v, smtpHost: e.target.value }))}
+                  disabled={form.emailTransport !== 'smtp'}
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 disabled:bg-slate-50"
+                  placeholder="smtp.example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">SMTP Port</label>
+                <input
+                  type="number"
+                  value={form.smtpPort}
+                  onChange={(e) => setForm((v) => ({ ...v, smtpPort: Number(e.target.value || 587) }))}
+                  disabled={form.emailTransport !== 'smtp'}
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 disabled:bg-slate-50"
+                />
+              </div>
+            </div>
+
+            <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={form.smtpSecure}
+                onChange={(e) => setForm((v) => ({ ...v, smtpSecure: e.target.checked }))}
+                disabled={form.emailTransport !== 'smtp'}
+                className={checkboxCls}
+              />
+              <div>
+                <p className="font-medium text-slate-900">Use TLS (secure)</p>
+                <p className="mt-1 text-slate-600">Enable for SMTPS transports, usually port 465.</p>
+              </div>
+            </label>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">SMTP Username</label>
+                <input
+                  value={form.smtpUser}
+                  onChange={(e) => setForm((v) => ({ ...v, smtpUser: e.target.value }))}
+                  disabled={form.emailTransport !== 'smtp'}
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 disabled:bg-slate-50"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">SMTP Password</label>
+                <input
+                  type="password"
+                  value={form.smtpPass}
+                  onChange={(e) => setForm((v) => ({ ...v, smtpPass: e.target.value }))}
+                  disabled={form.emailTransport !== 'smtp'}
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 disabled:bg-slate-50"
+                />
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Send Test Email</label>
+              <div className="flex flex-wrap gap-2">
+                <input
+                  type="email"
+                  value={form.testEmailTo}
+                  onChange={(e) => setForm((v) => ({ ...v, testEmailTo: e.target.value }))}
+                  className="h-9 min-w-[240px] flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+                  placeholder="you@example.com"
+                />
+                <button
+                  onClick={sendTestEmail}
+                  disabled={testEmail.isPending || !form.testEmailTo}
+                  className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {testEmail.isPending ? 'Sending…' : 'Send Test'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className={sectionCls}>
+          <h2 className="text-base font-semibold text-slate-900">What Changes Immediately</h2>
+          <ul className="mt-4 space-y-2 text-sm text-slate-700">
+            <li>HTTPS requirement is applied on the next incoming request.</li>
+            <li>CORS origin policy is checked on the next browser preflight or cross-origin request.</li>
+            <li>Cookie security changes affect the next issued CSRF or session cookie.</li>
+            <li>Redirect URI and PKCE enforcement apply to subsequent client changes and authorize requests.</li>
+            <li>Disabling implicit flow immediately blocks new <span className="font-mono">response_type=token</span> authorize requests.</li>
+            <li>Email transport settings are used immediately for recovery and other email-driven flows.</li>
+          </ul>
+        </section>
+      </div>
+
+      {(saveMessage || saveError) ? (
+        <div className={`rounded-xl border p-4 text-sm shadow-sm ${saveError ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
+          {saveError ?? saveMessage}
+        </div>
+      ) : null}
+
+      <div className="flex justify-end">
+        <button
+          onClick={save}
+          disabled={updateSettings.isPending}
+          className="inline-flex h-10 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:opacity-50"
+        >
+          {updateSettings.isPending ? 'Saving…' : 'Save Instance Settings'}
+        </button>
+      </div>
+    </div>
+  )
+}

@@ -11,13 +11,19 @@ import Sessions from './pages/Sessions'
 import AuditLog from './pages/AuditLog'
 import Consents from './pages/Consents'
 import Tenants from './pages/Tenants'
+import Apps from './pages/Apps'
 import FederationProviders from './pages/FederationProviders'
 import AuthenticationFlows from './pages/AuthenticationFlows'
+import Devices from './pages/Devices'
+import InteractionViews from './pages/InteractionViews'
 import UserAttributes from './pages/UserAttributes'
 import Policies from './pages/Policies'
 import EventHooks from './pages/EventHooks'
+import Administration from './pages/Administration'
+import Documentation from './pages/Documentation'
 import Login from './pages/Login'
 import Consent from './pages/Consent'
+import DeviceVerification from './pages/DeviceVerification'
 import Setup from './pages/Setup'
 import { useAdminMe, useSetupStatus } from './hooks/useApi'
 
@@ -51,7 +57,12 @@ function AppContent() {
     )
   }
 
-  if (meLoading && !location.pathname.startsWith('/login') && !location.pathname.startsWith('/consent')) {
+  if (
+    meLoading &&
+    !location.pathname.startsWith('/login') &&
+    !location.pathname.startsWith('/consent') &&
+    !location.pathname.startsWith('/oauth/device/verify')
+  ) {
     return <div className="h-screen grid place-items-center text-slate-500">Loading session…</div>
   }
 
@@ -66,6 +77,7 @@ function AppContent() {
       <Routes location={location} key={location.pathname}>
         <Route path="/login" element={<Login />} />
         <Route path="/consent" element={<Consent />} />
+        <Route path="/oauth/device/verify" element={<DeviceVerification />} />
         <Route
           path="*"
           element={
@@ -82,14 +94,19 @@ function AppContent() {
                       <Route path="/groups" element={require('groups:view', <Groups />)} />
                       <Route path="/roles" element={require('roles:view', <Roles />)} />
                       <Route path="/sessions" element={require('sessions:view', <Sessions />)} />
+                      <Route path="/devices" element={require('sessions:view', <Devices />)} />
                       <Route path="/audit" element={require('audit_log:view', <AuditLog />)} />
                       <Route path="/consents" element={require('consents:view', <Consents />)} />
                       <Route path="/tenants" element={require('tenants:view', <Tenants />)} />
+                      <Route path="/apps" element={require('apps:view', <Apps />)} />
                       <Route path="/federation" element={require('federation_providers:view', <FederationProviders />)} />
                       <Route path="/authentication" element={require('authentication_flows:view', <AuthenticationFlows />)} />
+                      <Route path="/interaction-views" element={require('authentication_flows:view', <InteractionViews />)} />
                       <Route path="/user-attributes" element={require('user_attributes:view', <UserAttributes />)} />
                       <Route path="/policies" element={require('policies:view', <Policies />)} />
                       <Route path="/events" element={require('events:view', <EventHooks />)} />
+                      <Route path="/administration" element={require('administration:view', <Administration />)} />
+                      <Route path="/documentation" element={require('users:view', <Documentation />)} />
                     </Routes>
                   </div>
                 </main>

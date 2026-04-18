@@ -1,0 +1,135 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+
+const API = '/api/portal'
+
+let csrfToken: string | null = null
+
+async function getCsrfToken(): Promise<string> {
+  if (csrfToken) return csrfToken
+  const res = await fetch('/api/csrf-token', { credentials: 'include' })
+  const data = await res.json()
+  csrfToken = data.csrf_token
+  return csrfToken!
+}
+
+async function apiFetch(url: string, init?: RequestInit) {
+  const method = (init?.method ?? 'GET').toUpperCase()
+  const headers: Record<string, string> = { ...(init?.headers as Record<string, string> | undefined) }
+
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && url.startsWith('/api/account')) {
+    headers['X-CSRF-Token'] = await getCsrfToken()
+  }
+
+  const res = await fetch(url, { credentials: 'include', ...init, headers })
+  if (res.status === 204) return null
+  const json = await res.json()
+  if (!res.ok) throw new Error(json?.message ?? json?.error ?? 'Request failed')
+  return json
+}
+
+export interface PortalApp {
+  id: string
+  name: string
+  description: string
+  icon?: string
+  url?: string
+}
+
+export interface PortalUser {
+  id: string
+  email: string
+  username: string
+  givenName: string
+  familyName: string
+  appId?: string
+  customAttributes: Record<string, string>
+  apps: PortalApp[]
+}
+
+export function usePortalMe() {
+  return useQuery<PortalUser>({
+    queryKey: ['portal-me'],
+    queryFn: () => apiFetch(`${API}/me`),
+    retry: false
+  })
+}
+
+export function usePortalUpdateProfile() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { givenName?: string; familyName?: string; email?: string; username?: string; customAttributes?: Record<string, string> }) =>
+      apiFetch(`${API}/profile`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['portal-me'] })
+  })
+}
+
+export function usePortalChangePassword() {
+  return useMutation({
+    mutationFn: (data: { currentPassword: string; newPassword: string }) =>
+      apiFetch(`${API}/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
+  })
+}
+
+export function usePortalDeleteAccount() {
+  return useMutation({
+    mutationFn: () => apiFetch(`${API}/account`, { method: 'DELETE' })
+  })
+}
+
+export interface TotpStatusResponse {
+  enabled: boolean
+}
+
+export interface TotpEnrollmentResponse {
+  enrollmentId: string
+  secret: string
+  otpauthUri: string
+  expiresIn: number
+}
+
+export function useTotpStatus() {
+  return useQuery<TotpStatusResponse>({
+    queryKey: ['account-totp-status'],
+    queryFn: () => apiFetch('/api/account/mfa/totp')
+  })
+}
+
+export function useTotpEnroll() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (): Promise<TotpEnrollmentResponse> => apiFetch('/api/account/mfa/totp/enroll', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['account-totp-status'] })
+  })
+}
+
+export function useTotpVerify() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { enrollmentId: string; code: string }) => apiFetch('/api/account/mfa/totp/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['account-totp-status'] })
+  })
+}
+
+export function useTotpDisable() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => apiFetch('/api/account/mfa/totp', { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['account-totp-status'] })
+  })
+}

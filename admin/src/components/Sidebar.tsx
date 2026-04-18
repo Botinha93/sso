@@ -9,29 +9,58 @@ import {
   FileText, 
   CheckSquare, 
   Building2,
+  Boxes,
   Network,
   Route,
+  ScanFace,
   Fingerprint,
   Gavel,
   BellRing,
+  Settings2,
+  BookText,
   LogOut
 } from 'lucide-react'
 
-const navItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'users:view' },
-  { path: '/clients', label: 'Clients', icon: AppWindow, permission: 'clients:view' },
-  { path: '/users', label: 'Users', icon: Users, permission: 'users:view' },
-  { path: '/groups', label: 'Groups', icon: UsersRound, permission: 'groups:view' },
-  { path: '/roles', label: 'Roles', icon: Shield, permission: 'roles:view' },
-  { path: '/sessions', label: 'Sessions', icon: MonitorSmartphone, permission: 'sessions:view' },
-  { path: '/audit', label: 'Audit Log', icon: FileText, permission: 'audit_log:view' },
-  { path: '/consents', label: 'Consents', icon: CheckSquare, permission: 'consents:view' },
-  { path: '/tenants', label: 'Tenants', icon: Building2, permission: 'tenants:view' },
-  { path: '/federation', label: 'Federation', icon: Network, permission: 'federation_providers:view' },
-  { path: '/authentication', label: 'Auth Flows', icon: Route, permission: 'authentication_flows:view' },
-  { path: '/user-attributes', label: 'User Attributes', icon: Fingerprint, permission: 'user_attributes:view' },
-  { path: '/policies', label: 'Policies', icon: Gavel, permission: 'policies:view' },
-  { path: '/events', label: 'Events', icon: BellRing, permission: 'events:view' },
+const navGroups = [
+  {
+    label: 'Overview',
+    items: [
+      { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'users:view' },
+    ]
+  },
+  {
+    label: 'Identity & Access',
+    items: [
+      { path: '/users', label: 'Users', icon: Users, permission: 'users:view' },
+      { path: '/groups', label: 'Groups', icon: UsersRound, permission: 'groups:view' },
+      { path: '/roles', label: 'Roles', icon: Shield, permission: 'roles:view' },
+      { path: '/clients', label: 'Clients', icon: AppWindow, permission: 'clients:view' },
+      { path: '/consents', label: 'Consents', icon: CheckSquare, permission: 'consents:view' },
+      { path: '/sessions', label: 'Sessions', icon: MonitorSmartphone, permission: 'sessions:view' },
+      { path: '/devices', label: 'Devices', icon: MonitorSmartphone, permission: 'sessions:view' },
+    ]
+  },
+  {
+    label: 'Authentication',
+    items: [
+      { path: '/federation', label: 'Federation', icon: Network, permission: 'federation_providers:view' },
+      { path: '/authentication', label: 'Auth Flows', icon: Route, permission: 'authentication_flows:view' },
+      { path: '/interaction-views', label: 'Interaction Views', icon: ScanFace, permission: 'authentication_flows:view' },
+      { path: '/policies', label: 'Policies', icon: Gavel, permission: 'policies:view' },
+      { path: '/user-attributes', label: 'User Attributes', icon: Fingerprint, permission: 'user_attributes:view' },
+    ]
+  },
+  {
+    label: 'Platform',
+    items: [
+      { path: '/apps', label: 'Apps', icon: Boxes, permission: 'apps:view' },
+      { path: '/tenants', label: 'Tenants', icon: Building2, permission: 'tenants:view' },
+      { path: '/events', label: 'Events', icon: BellRing, permission: 'events:view' },
+      { path: '/administration', label: 'Administration', icon: Settings2, permission: 'administration:view' },
+      { path: '/audit', label: 'Audit Log', icon: FileText, permission: 'audit_log:view' },
+      { path: '/documentation', label: 'Documentation', icon: BookText, permission: 'users:view' },
+    ]
+  },
 ]
 
 const Sidebar = ({ permissions = [] }: { permissions?: string[] }) => {
@@ -47,9 +76,9 @@ const Sidebar = ({ permissions = [] }: { permissions?: string[] }) => {
       {/* Header */}
       <div className="border-b border-slate-800/80 px-6 py-5">
         <div className="flex items-center gap-3 text-slate-50">
-          <img src="/logo.svg" alt="Northstar SSO" className="h-9 w-9 shrink-0 rounded-xl ring-1 ring-sky-400/30" />
+          <img src="/logo.svg" alt="NexusID" className="h-9 w-9 shrink-0 rounded-xl ring-1 ring-sky-400/30" />
           <div className="min-w-0">
-            <div className="text-sm font-semibold tracking-tight text-slate-50">Northstar SSO</div>
+            <div className="text-sm font-semibold tracking-tight text-slate-50">NexusID</div>
             <div className="text-[10px] text-slate-500">Identity Control</div>
           </div>
         </div>
@@ -57,23 +86,37 @@ const Sidebar = ({ permissions = [] }: { permissions?: string[] }) => {
 
       {/* Nav */}
       <div className="flex flex-1 min-h-0 flex-col overflow-y-auto px-3 py-4">
-        <nav className="space-y-0.5">
-          {navItems.filter(item => can(item.permission)).map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={({ isActive }) =>
-                `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all ${
-                  isActive
-                    ? 'bg-slate-50 text-slate-950 shadow-sm ring-1 ring-white/70'
-                    : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-50'
-                }`
-              }
-            >
-              <item.icon size={15} strokeWidth={2} className="opacity-70 transition-transform group-hover:scale-110" />
-              {item.label}
-            </NavLink>
-          ))}
+        <nav className="space-y-5">
+          {navGroups.map((group) => {
+            const visibleItems = group.items.filter(item => can(item.permission))
+            if (visibleItems.length === 0) return null
+
+            return (
+              <div key={group.label}>
+                <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500/90">
+                  {group.label}
+                </p>
+                <div className="space-y-0.5">
+                  {visibleItems.map((item) => (
+                    <NavLink
+                      key={item.path}
+                      to={item.path}
+                      className={({ isActive }) =>
+                        `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all ${
+                          isActive
+                            ? 'bg-slate-50 text-slate-950 shadow-sm ring-1 ring-white/70'
+                            : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-50'
+                        }`
+                      }
+                    >
+                      <item.icon size={15} strokeWidth={2} className="opacity-70 transition-transform group-hover:scale-110" />
+                      {item.label}
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
         </nav>
       </div>
 

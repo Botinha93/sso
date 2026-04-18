@@ -7,7 +7,25 @@ import { config } from "./core/config.js";
 import { registerRoutes } from "./http/routes.js";
 import { bootstrap } from "./bootstrap.js";
 export const buildApp = async () => {
-    const app = Fastify({ logger: true });
+    const app = Fastify({ logger: process.env.NODE_ENV !== "test", trustProxy: true });
+    const services = await bootstrap(config);
+    app.addHook("onRequest", async (request, reply) => {
+        if (!services.instanceSettingsService.shouldRequireHttps()) {
+            return;
+        }
+        const forwardedProto = request.headers["x-forwarded-proto"];
+        const isForwardedHttps = Array.isArray(forwardedProto)
+            ? forwardedProto.includes("https")
+            : String(forwardedProto ?? "").split(",").map((part) => part.trim()).includes("https");
+        const isSecure = request.protocol === "https" || isForwardedHttps;
+        if (isSecure) {
+            return;
+        }
+        return reply.status(426).send({
+            error: "https_required",
+            message: "HTTPS is required in production"
+        });
+    });
     await app.register(helmet, {
         contentSecurityPolicy: {
             directives: {
@@ -25,9 +43,11 @@ export const buildApp = async () => {
     });
     await app.register(cookie, { secret: process.env.COOKIE_SECRET ?? "northstar-sso-cookie-secret" });
     await app.register(cors, {
-        origin: process.env.CORS_ORIGIN ?? true,
+        origin(origin, callback) {
+            callback(null, services.instanceSettingsService.isCorsOriginAllowed(origin));
+        },
         credentials: true,
-        methods: ["GET", "POST", "OPTIONS"]
+        methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
     });
     await app.register(rateLimit, {
         max: 100,
@@ -35,7 +55,6 @@ export const buildApp = async () => {
         // Stricter limit for sensitive auth endpoints
         keyGenerator: (req) => req.ip
     });
-    const services = await bootstrap(config);
     await registerRoutes(app, services);
     return app;
 };

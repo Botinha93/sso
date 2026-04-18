@@ -1,5 +1,5 @@
 export type RoleScope = "platform" | "tenant";
-export type GrantType = "authorization_code" | "client_credentials" | "refresh_token";
+export type GrantType = "authorization_code" | "client_credentials" | "refresh_token" | "password" | "device_code";
 export type AuthenticationStageType =
   | "password"
   | "federation"
@@ -37,6 +37,7 @@ export interface Role {
 export interface User {
   id: string;
   appId?: string;
+  isServiceUser: boolean;
   email: string;
   username: string;
   passwordHash: string;
@@ -78,6 +79,14 @@ export interface Session {
   revokedAt?: Date;
 }
 
+export interface TotpCredential {
+  userId: string;
+  secret: string;
+  enabled: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface AuthorizationCode {
   id: string;
   code: string;
@@ -111,7 +120,29 @@ export interface App {
   id: string;
   name: string;
   description: string;
+  icon?: string;
+  url?: string;
   createdAt: Date;
+}
+
+export interface InstanceSettings {
+  id: string;
+  requireHttps: boolean;
+  secureCookies: boolean;
+  allowAnyCorsOrigin: boolean;
+  corsAllowedOrigins: string[];
+  requireHttpsRedirectUris: boolean;
+  requireS256Pkce: boolean;
+  allowImplicitFlow: boolean;
+  emailTransport: "disabled" | "log" | "smtp";
+  emailFrom: string;
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpSecure?: boolean;
+  smtpUser?: string;
+  smtpPass?: string;
+  tokenSigningAlgorithm: "RS256";
+  updatedAt: Date;
 }
 
 export interface UserGroupAssignment {
@@ -204,6 +235,8 @@ export interface PolicyDefinition {
   key: string;
   name: string;
   description: string;
+  stageBindings: AuthenticationStageType[];
+  javascriptCode?: string;
   enabled: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -308,7 +341,9 @@ export type AuditEventType =
   | "client_created"
   | "client_updated"
   | "client_deleted"
-  | "user_created";
+  | "user_created"
+  | "user_password_reset"
+  | "security_sqli_blocked";
 
 export interface AuditEvent {
   id: string;

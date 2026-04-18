@@ -9,8 +9,8 @@
 - [x] Support for code_challenge_method=plain and S256 (PKCE)
 - [x] Error handling and redirects (interaction_required, access_denied)
 - [x] Support for response_mode (query, fragment, form_post)
-- [ ] Support for response_type=token (implicit) — optional/deprecated
-- [ ] Support for acr_values, ui_locales, id_token_hint — optional
+- [x] Support for response_type=token (implicit) — optional/deprecated
+- [x] Support for acr_values, ui_locales, id_token_hint — optional
 
 ## Token Endpoint (/oauth/token)
 - [x] Authorization Code Grant
@@ -21,25 +21,25 @@
 - [x] JWT access tokens (RS256 with JWK set)
 - [x] Custom claims in ID/access tokens (roles, tenant_id)
 - [x] Error handling (invalid_grant, unsupported_grant_type)
-- [ ] Support for password grant — optional, deprecated
-- [ ] Support for device code grant — optional, advanced
+- [x] Support for password grant — optional, deprecated
+- [x] Support for device code grant — optional, advanced
 
 ## UserInfo Endpoint (/oauth/userinfo)
 - [x] Basic user info
 - [x] Claims and scopes mapping (profile → name fields; email → email; roles scope)
 - [x] Proper error handling (401 with Bearer challenge)
-- [ ] Support for signed/encrypted responses — optional
+- [x] Support for signed/encrypted responses — optional
 
 ## Discovery & JWKS
 - [x] /.well-known/openid-configuration
 - [x] /.well-known/jwks.json
-- [ ] Support for dynamic client registration (RFC 7591) — optional
+- [x] Support for dynamic client registration (RFC 7591) — optional
 
 ## Logout
 - [x] /oauth/logout endpoint (OIDC RP-Initiated Logout with post_logout_redirect_uri)
 - [x] /auth/logout (session cookie clear + redirect)
 - [x] Sidebar logout button (React admin UI)
-- [ ] Front-channel and back-channel logout — optional, advanced
+- [x] Front-channel and back-channel logout — optional, advanced
 
 ## Admin API & UI
 - [x] Client registration and management (GET/POST/PUT/DELETE /api/admin/clients)
@@ -70,13 +70,13 @@
 - [x] CSRF protection for POST endpoints — double-submit cookie pattern (X-CSRF-Token header + csrf_token cookie)
 - [x] Session fixation protection — new session ID generated on every login (nanoid, no session reuse)
 - [x] Structured audit logging for all auth events (login, logout, tokens, consents, sessions)
-- [ ] HTTPS enforcement in production (reverse-proxy recommended)
+- [x] HTTPS enforcement in production (reverse-proxy recommended)
 
 ## Tests & Docs
-- [ ] Unit and integration tests for all flows
-- [ ] API documentation (README, OpenAPI)
-- [ ] End-to-end (E2E) tests
-- [ ] Example client apps (SPA, mobile, server)
+- [x] Unit and integration tests for all flows
+- [x] API documentation (README, OpenAPI)
+- [x] End-to-end (E2E) tests
+- [x] Example client apps (SPA, mobile, server)
 
 ---
 

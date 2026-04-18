@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import type {
   AccessTokenRecord,
   App,
+  InstanceSettings,
   AuthenticationFlow,
   AuditEvent,
   AuthorizationCode,
@@ -26,6 +27,7 @@ import type {
   Role,
   Session,
   Tenant,
+  TotpCredential,
   User,
   UserAttributeDefinition,
   UserGroupAssignment,
@@ -34,6 +36,7 @@ import type {
 import type {
   AccessTokenRepository,
   AppRepository,
+  InstanceSettingsRepository,
   AuthenticationFlowRepository,
   AuditRepository,
   AuthorizationCodeRepository,
@@ -54,6 +57,7 @@ import type {
   RoleRepository,
   SessionRepository,
   TenantRepository,
+  TotpCredentialRepository,
   UserAttributeRepository,
   UserGroupAssignmentRepository,
   UserRepository,
@@ -109,7 +113,15 @@ export class SqliteDatabase {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL UNIQUE,
         description TEXT NOT NULL,
+        icon TEXT,
+        url TEXT,
         created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS instance_settings (
+        id TEXT PRIMARY KEY,
+        settings_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS roles (
@@ -125,6 +137,7 @@ export class SqliteDatabase {
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
         app_id TEXT,
+        is_service_user INTEGER NOT NULL DEFAULT 0,
         email TEXT NOT NULL UNIQUE,
         username TEXT NOT NULL UNIQUE,
         password_hash TEXT NOT NULL,
@@ -166,6 +179,15 @@ export class SqliteDatabase {
         revoked_at TEXT,
         FOREIGN KEY (user_id) REFERENCES users(id),
         FOREIGN KEY (client_id) REFERENCES oauth_clients(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS totp_credentials (
+        user_id TEXT PRIMARY KEY,
+        secret TEXT NOT NULL,
+        enabled INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       );
 
       CREATE TABLE IF NOT EXISTS authorization_codes (
@@ -361,6 +383,8 @@ export class SqliteDatabase {
         key TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         description TEXT NOT NULL,
+        stage_bindings_json TEXT NOT NULL DEFAULT '[]',
+        javascript_code TEXT,
         enabled INTEGER NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -413,6 +437,10 @@ export class SqliteDatabase {
     if (!hasUserAppIdColumn) {
       this.connection.exec("ALTER TABLE users ADD COLUMN app_id TEXT;");
     }
+    const hasIsServiceUserColumn = userColumns.some((column) => column.name === "is_service_user");
+    if (!hasIsServiceUserColumn) {
+      this.connection.exec("ALTER TABLE users ADD COLUMN is_service_user INTEGER NOT NULL DEFAULT 0;");
+    }
 
     const clientColumns = this.connection.prepare("PRAGMA table_info(oauth_clients)").all() as Array<{ name: string }>;
     const hasResourcesColumn = clientColumns.some((column) => column.name === "resources_json");
@@ -440,6 +468,16 @@ export class SqliteDatabase {
       this.connection.exec("ALTER TABLE groups ADD COLUMN app_id TEXT;");
     }
 
+    const appColumns = this.connection.prepare("PRAGMA table_info(apps)").all() as Array<{ name: string }>;
+    const hasAppIconColumn = appColumns.some((column) => column.name === "icon");
+    if (!hasAppIconColumn) {
+      this.connection.exec("ALTER TABLE apps ADD COLUMN icon TEXT;");
+    }
+    const hasAppUrlColumn = appColumns.some((column) => column.name === "url");
+    if (!hasAppUrlColumn) {
+      this.connection.exec("ALTER TABLE apps ADD COLUMN url TEXT;");
+    }
+
     const authFlowColumns = this.connection.prepare("PRAGMA table_info(authentication_flows)").all() as Array<{ name: string }>;
     const hasDesignationColumn = authFlowColumns.some((column) => column.name === "designation");
     if (!hasDesignationColumn) {
@@ -448,6 +486,16 @@ export class SqliteDatabase {
     const hasGrantsColumn = authFlowColumns.some((column) => column.name === "grants_json");
     if (!hasGrantsColumn) {
       this.connection.exec("ALTER TABLE authentication_flows ADD COLUMN grants_json TEXT NOT NULL DEFAULT '[\"authorization_code\"]';");
+    }
+
+    const policyDefinitionColumns = this.connection.prepare("PRAGMA table_info(policy_definitions)").all() as Array<{ name: string }>;
+    const hasStageBindingsColumn = policyDefinitionColumns.some((column) => column.name === "stage_bindings_json");
+    if (!hasStageBindingsColumn) {
+      this.connection.exec("ALTER TABLE policy_definitions ADD COLUMN stage_bindings_json TEXT NOT NULL DEFAULT '[]';");
+    }
+    const hasJavascriptCodeColumn = policyDefinitionColumns.some((column) => column.name === "javascript_code");
+    if (!hasJavascriptCodeColumn) {
+      this.connection.exec("ALTER TABLE policy_definitions ADD COLUMN javascript_code TEXT;");
     }
   }
 }
@@ -465,6 +513,7 @@ const mapRole = (row: DbRow): Role => ({
 const mapUser = (row: DbRow): User => ({
   id: String(row.id),
   appId: row.app_id ? String(row.app_id) : undefined,
+  isServiceUser: Boolean(row.is_service_user),
   email: String(row.email),
   username: String(row.username),
   passwordHash: String(row.password_hash),
@@ -506,6 +555,14 @@ const mapSession = (row: DbRow): Session => ({
   revokedAt: maybeDate(row.revoked_at)
 });
 
+const mapTotpCredential = (row: DbRow): TotpCredential => ({
+  userId: String(row.user_id),
+  secret: String(row.secret),
+  enabled: Boolean(row.enabled),
+  createdAt: asDate(row.created_at),
+  updatedAt: asDate(row.updated_at)
+});
+
 const mapAuthorizationCode = (row: DbRow): AuthorizationCode => ({
   id: String(row.id),
   code: String(row.code),
@@ -539,8 +596,34 @@ const mapApp = (row: DbRow): App => ({
   id: String(row.id),
   name: String(row.name),
   description: String(row.description),
+  icon: row.icon ? String(row.icon) : undefined,
+  url: row.url ? String(row.url) : undefined,
   createdAt: asDate(row.created_at)
 });
+
+const mapInstanceSettings = (row: DbRow): InstanceSettings => {
+  const parsed = JSON.parse(String(row.settings_json)) as Omit<InstanceSettings, "id" | "updatedAt">;
+
+  return {
+    id: String(row.id),
+    requireHttps: Boolean(parsed.requireHttps),
+    secureCookies: Boolean(parsed.secureCookies),
+    allowAnyCorsOrigin: Boolean(parsed.allowAnyCorsOrigin),
+    corsAllowedOrigins: Array.isArray(parsed.corsAllowedOrigins) ? parsed.corsAllowedOrigins.map(String) : [],
+    requireHttpsRedirectUris: Boolean(parsed.requireHttpsRedirectUris),
+    requireS256Pkce: Boolean(parsed.requireS256Pkce),
+    allowImplicitFlow: Boolean(parsed.allowImplicitFlow),
+    emailTransport: parsed.emailTransport === "smtp" || parsed.emailTransport === "disabled" ? parsed.emailTransport : "log",
+    emailFrom: typeof parsed.emailFrom === "string" && parsed.emailFrom.length > 0 ? parsed.emailFrom : "no-reply@example.local",
+    smtpHost: typeof parsed.smtpHost === "string" && parsed.smtpHost.length > 0 ? parsed.smtpHost : undefined,
+    smtpPort: typeof parsed.smtpPort === "number" ? parsed.smtpPort : undefined,
+    smtpSecure: typeof parsed.smtpSecure === "boolean" ? parsed.smtpSecure : false,
+    smtpUser: typeof parsed.smtpUser === "string" && parsed.smtpUser.length > 0 ? parsed.smtpUser : undefined,
+    smtpPass: typeof parsed.smtpPass === "string" && parsed.smtpPass.length > 0 ? parsed.smtpPass : undefined,
+    tokenSigningAlgorithm: "RS256",
+    updatedAt: asDate(row.updated_at)
+  };
+};
 
 const mapUserGroupAssignment = (row: DbRow): UserGroupAssignment => ({
   id: String(row.id),
@@ -626,6 +709,8 @@ const mapPolicyDefinition = (row: DbRow): PolicyDefinition => ({
   key: String(row.key),
   name: String(row.name),
   description: String(row.description),
+  stageBindings: parseStringArray(row.stage_bindings_json) as PolicyDefinition["stageBindings"],
+  javascriptCode: row.javascript_code ? String(row.javascript_code) : undefined,
   enabled: Boolean(row.enabled),
   createdAt: asDate(row.created_at),
   updatedAt: asDate(row.updated_at)
@@ -763,11 +848,12 @@ export class SqliteUserRepository implements UserRepository {
     const now = new Date();
     const user: User = { ...input, id: nanoid(), createdAt: now, updatedAt: now };
     this.db.prepare(`
-      INSERT INTO users (id, app_id, email, username, password_hash, given_name, family_name, custom_attributes_json, active, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO users (id, app_id, is_service_user, email, username, password_hash, given_name, family_name, custom_attributes_json, active, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       user.id,
       user.appId ?? null,
+      user.isServiceUser ? 1 : 0,
       user.email,
       user.username,
       user.passwordHash,
@@ -801,13 +887,14 @@ export class SqliteUserRepository implements UserRepository {
     return row ? mapUser(row as DbRow) : undefined;
   }
 
-  updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId">>): User | undefined {
+  updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId" | "isServiceUser">>): User | undefined {
     const current = this.findById(id);
     if (!current) return undefined;
 
     const updated = {
       ...current,
       appId: input.appId !== undefined ? input.appId : current.appId,
+      isServiceUser: input.isServiceUser ?? current.isServiceUser,
       email: input.email ?? current.email,
       username: input.username ?? current.username,
       givenName: input.givenName ?? current.givenName,
@@ -817,10 +904,11 @@ export class SqliteUserRepository implements UserRepository {
 
     this.db.prepare(`
       UPDATE users
-      SET app_id = ?, email = ?, username = ?, given_name = ?, family_name = ?, updated_at = ?
+      SET app_id = ?, is_service_user = ?, email = ?, username = ?, given_name = ?, family_name = ?, updated_at = ?
       WHERE id = ?
     `).run(
       updated.appId ?? null,
+      updated.isServiceUser ? 1 : 0,
       updated.email,
       updated.username,
       updated.givenName,
@@ -985,6 +1073,48 @@ export class SqliteSessionRepository implements SessionRepository {
   }
 }
 
+export class SqliteTotpCredentialRepository implements TotpCredentialRepository {
+  constructor(private readonly db: Database.Database) {}
+
+  findByUserId(userId: string): TotpCredential | undefined {
+    const row = this.db.prepare("SELECT * FROM totp_credentials WHERE user_id = ?").get(userId) as DbRow | undefined;
+    return row ? mapTotpCredential(row) : undefined;
+  }
+
+  upsert(input: Omit<TotpCredential, "createdAt" | "updatedAt">): TotpCredential {
+    const existing = this.findByUserId(input.userId);
+    const createdAt = existing?.createdAt ?? new Date();
+    const updatedAt = new Date();
+
+    this.db.prepare(`
+      INSERT INTO totp_credentials (user_id, secret, enabled, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(user_id) DO UPDATE SET
+        secret = excluded.secret,
+        enabled = excluded.enabled,
+        updated_at = excluded.updated_at
+    `).run(
+      input.userId,
+      input.secret,
+      input.enabled ? 1 : 0,
+      createdAt.toISOString(),
+      updatedAt.toISOString()
+    );
+
+    return {
+      userId: input.userId,
+      secret: input.secret,
+      enabled: input.enabled,
+      createdAt,
+      updatedAt
+    };
+  }
+
+  delete(userId: string): void {
+    this.db.prepare("DELETE FROM totp_credentials WHERE user_id = ?").run(userId);
+  }
+}
+
 export class SqliteAuthorizationCodeRepository implements AuthorizationCodeRepository {
   constructor(private readonly db: Database.Database) {}
 
@@ -1073,9 +1203,9 @@ export class SqliteAppRepository implements AppRepository {
   create(input: Omit<App, "id" | "createdAt">): App {
     const app: App = { ...input, id: nanoid(), createdAt: new Date() };
     this.db.prepare(`
-      INSERT INTO apps (id, name, description, created_at)
-      VALUES (?, ?, ?, ?)
-    `).run(app.id, app.name, app.description, app.createdAt.toISOString());
+      INSERT INTO apps (id, name, description, icon, url, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(app.id, app.name, app.description, app.icon ?? null, app.url ?? null, app.createdAt.toISOString());
     return app;
   }
 
@@ -1096,15 +1226,54 @@ export class SqliteAppRepository implements AppRepository {
     const updated: App = {
       ...existing,
       name: input.name ?? existing.name,
-      description: input.description ?? existing.description
+      description: input.description ?? existing.description,
+      icon: input.icon !== undefined ? input.icon : existing.icon,
+      url: input.url !== undefined ? input.url : existing.url
     };
 
-    this.db.prepare("UPDATE apps SET name = ?, description = ? WHERE id = ?").run(updated.name, updated.description, id);
+    this.db.prepare("UPDATE apps SET name = ?, description = ?, icon = ?, url = ? WHERE id = ?").run(updated.name, updated.description, updated.icon ?? null, updated.url ?? null, id);
     return updated;
   }
 
   delete(id: string): void {
     this.db.prepare("DELETE FROM apps WHERE id = ?").run(id);
+  }
+}
+
+export class SqliteInstanceSettingsRepository implements InstanceSettingsRepository {
+  constructor(private readonly db: Database.Database) {}
+
+  get(): InstanceSettings | undefined {
+    const row = this.db.prepare("SELECT * FROM instance_settings WHERE id = ?").get("instance");
+    return row ? mapInstanceSettings(row as DbRow) : undefined;
+  }
+
+  upsert(input: Omit<InstanceSettings, "updatedAt">): InstanceSettings {
+    const updatedAt = new Date();
+    this.db.prepare(`
+      INSERT INTO instance_settings (id, settings_json, updated_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET settings_json = excluded.settings_json, updated_at = excluded.updated_at
+    `).run(
+      input.id,
+      JSON.stringify({
+        requireHttps: input.requireHttps,
+        secureCookies: input.secureCookies,
+        allowAnyCorsOrigin: input.allowAnyCorsOrigin,
+        corsAllowedOrigins: input.corsAllowedOrigins,
+        requireHttpsRedirectUris: input.requireHttpsRedirectUris,
+        requireS256Pkce: input.requireS256Pkce,
+        allowImplicitFlow: input.allowImplicitFlow,
+        tokenSigningAlgorithm: input.tokenSigningAlgorithm
+      }),
+      updatedAt.toISOString()
+    );
+
+    return {
+      ...input,
+      tokenSigningAlgorithm: "RS256",
+      updatedAt
+    };
   }
 }
 
@@ -1828,13 +1997,15 @@ export class SqlitePolicyDefinitionRepository implements PolicyDefinitionReposit
     const now = new Date();
     const policy: PolicyDefinition = { ...input, createdAt: now, updatedAt: now };
     this.db.prepare(`
-      INSERT INTO policy_definitions (id, key, name, description, enabled, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO policy_definitions (id, key, name, description, stage_bindings_json, javascript_code, enabled, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       policy.id,
       policy.key,
       policy.name,
       policy.description,
+      JSON.stringify(policy.stageBindings),
+      policy.javascriptCode ?? null,
       policy.enabled ? 1 : 0,
       policy.createdAt.toISOString(),
       policy.updatedAt.toISOString()
@@ -1857,12 +2028,14 @@ export class SqlitePolicyDefinitionRepository implements PolicyDefinitionReposit
 
     this.db.prepare(`
       UPDATE policy_definitions
-      SET key = ?, name = ?, description = ?, enabled = ?, updated_at = ?
+      SET key = ?, name = ?, description = ?, stage_bindings_json = ?, javascript_code = ?, enabled = ?, updated_at = ?
       WHERE id = ?
     `).run(
       updated.key,
       updated.name,
       updated.description,
+      JSON.stringify(updated.stageBindings),
+      updated.javascriptCode ?? null,
       updated.enabled ? 1 : 0,
       updated.updatedAt.toISOString(),
       id

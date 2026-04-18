@@ -1,4 +1,4 @@
-# Northstar SSO Admin Console
+# NexusID Admin Console
 
 Modern React admin interface for the SSO identity platform.
 

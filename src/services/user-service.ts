@@ -13,6 +13,7 @@ export class UserService {
 
   createUser(input: {
     appId?: string;
+    isServiceUser?: boolean;
     email: string;
     username: string;
     password: string;
@@ -29,6 +30,7 @@ export class UserService {
 
     const user = this.userRepository.create({
       appId: input.appId,
+      isServiceUser: input.isServiceUser ?? false,
       email: input.email,
       username: input.username,
       passwordHash: hashPassword(input.password),
@@ -72,7 +74,7 @@ export class UserService {
     return this.userRepository.findById(id);
   }
 
-  updateUserProfile(id: string, input: { appId?: string; email?: string; username?: string; givenName?: string; familyName?: string }) {
+  updateUserProfile(id: string, input: { appId?: string; isServiceUser?: boolean; email?: string; username?: string; givenName?: string; familyName?: string }) {
     const existing = this.userRepository.findById(id);
     if (!existing) {
       throw new ValidationError("User not found");
