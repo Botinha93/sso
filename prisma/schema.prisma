@@ -1,0 +1,390 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model access_tokens {
+  id            String?       @id
+  token_id      String        @unique(map: "sqlite_autoindex_access_tokens_2")
+  user_id       String
+  client_id     String
+  session_id    String
+  expires_at    String
+  created_at    String
+  revoked_at    String?
+  sessions      sessions      @relation(fields: [session_id], references: [id], onDelete: NoAction, onUpdate: NoAction) @ignore
+  oauth_clients oauth_clients @relation(fields: [client_id], references: [id], onDelete: NoAction, onUpdate: NoAction) @ignore
+  users         users         @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model apps {
+  id          String? @id
+  name        String  @unique(map: "sqlite_autoindex_apps_2")
+  description String
+  created_at  String
+  icon        String?
+  url         String?
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model audit_events {
+  id            String? @id
+  type          String
+  actor_id      String?
+  actor_type    String
+  client_id     String?
+  ip            String?
+  metadata_json String?
+  created_at    String
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model authentication_flows {
+  id          String? @id
+  name        String
+  description String
+  designation String  @default("authentication")
+  enabled     Int
+  grants_json String  @default("[\"authorization_code\"]")
+  stages_json String
+  created_at  String
+  updated_at  String
+
+  @@ignore
+}
+
+model authorization_codes {
+  id                    String?       @id
+  code                  String        @unique(map: "sqlite_autoindex_authorization_codes_2")
+  client_id             String
+  user_id               String
+  redirect_uri          String
+  scope_json            String
+  code_challenge        String?
+  code_challenge_method String?
+  expires_at            String
+  created_at            String
+  users                 users         @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  oauth_clients         oauth_clients @relation(fields: [client_id], references: [id], onDelete: NoAction, onUpdate: NoAction) @ignore
+}
+
+model consents {
+  id            String?       @id
+  user_id       String
+  client_id     String
+  scope_json    String
+  created_at    String
+  updated_at    String
+  oauth_clients oauth_clients @relation(fields: [client_id], references: [id], onDelete: NoAction, onUpdate: NoAction) @ignore
+  users         users         @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([user_id, client_id], map: "sqlite_autoindex_consents_2")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model event_hooks {
+  id                  String?               @id
+  event_type          String
+  target_url          String
+  method              String
+  headers_json        String
+  enabled             Int
+  created_at          String
+  updated_at          String
+  event_notifications event_notifications[]
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model event_notifications {
+  id              String?      @id
+  event_type      String
+  hook_id         String?
+  payload_json    String
+  status          String
+  response_status Int?
+  response_body   String?
+  error           String?
+  created_at      String
+  event_hooks     event_hooks? @relation(fields: [hook_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@ignore
+}
+
+model federated_identities {
+  id               String? @id
+  provider_id      String
+  provider_subject String
+  user_id          String
+  email            String?
+  created_at       String
+  last_login_at    String
+  users            users   @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([provider_id, provider_subject], map: "sqlite_autoindex_federated_identities_2")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model federation_providers {
+  id                     String? @id
+  label                  String
+  authorization_endpoint String
+  token_endpoint         String
+  userinfo_endpoint      String
+  client_id              String
+  client_secret          String
+  scopes_json            String
+  enabled                Int
+  created_at             String
+  updated_at             String
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model federation_transactions {
+  state                String? @id
+  provider_id          String
+  code_verifier        String
+  redirect_after_login String
+  created_at           String
+  expires_at           String
+
+  @@ignore
+}
+
+model group_role_assignments {
+  id         String? @id
+  group_id   String
+  role_id    String
+  created_at String
+  roles      roles   @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  groups     groups  @relation(fields: [group_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([group_id, role_id], map: "sqlite_autoindex_group_role_assignments_2")
+}
+
+model group_user_attribute_assignments {
+  id                         String?                    @id
+  group_id                   String
+  attribute_id               String
+  enabled                    Int
+  created_at                 String
+  updated_at                 String
+  user_attribute_definitions user_attribute_definitions @relation(fields: [attribute_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  groups                     groups                     @relation(fields: [group_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([group_id, attribute_id], map: "sqlite_autoindex_group_user_attribute_assignments_2")
+}
+
+model groups {
+  id                               String?                            @id
+  name                             String                             @unique(map: "sqlite_autoindex_groups_2")
+  description                      String
+  created_at                       String
+  app_id                           String?
+  group_role_assignments           group_role_assignments[]
+  group_user_attribute_assignments group_user_attribute_assignments[]
+  user_group_assignments           user_group_assignments[]
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model instance_settings {
+  id            String? @id
+  settings_json String
+  updated_at    String
+
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model oauth_clients {
+  id                  String?               @id
+  name                String
+  secret              String
+  redirect_uris_json  String
+  allowed_scopes_json String
+  grants_json         String
+  require_pkce        Int
+  resources_json      String                @default("[]")
+  flow_ids_json       String                @default("[]")
+  created_at          String
+  app_id              String?
+  access_tokens       access_tokens[]
+  authorization_codes authorization_codes[]
+  consents            consents[]
+  refresh_tokens      refresh_tokens[]
+  sessions            sessions[]
+
+  @@ignore
+}
+
+model oauth_scopes {
+  id          String? @id
+  name        String  @unique(map: "sqlite_autoindex_oauth_scopes_2")
+  description String
+  created_at  String
+}
+
+model policy_assignments {
+  id                 String?            @id
+  policy_id          String
+  scope_type         String
+  scope_id           String
+  enabled            Int
+  config_json        String
+  created_at         String
+  updated_at         String
+  policy_definitions policy_definitions @relation(fields: [policy_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([policy_id, scope_type, scope_id], map: "sqlite_autoindex_policy_assignments_2")
+}
+
+model policy_definitions {
+  id                  String?              @id
+  key                 String               @unique(map: "sqlite_autoindex_policy_definitions_2")
+  name                String
+  description         String
+  enabled             Int
+  created_at          String
+  updated_at          String
+  stage_bindings_json String               @default("[]")
+  javascript_code     String?
+  policy_assignments  policy_assignments[]
+}
+
+model refresh_tokens {
+  id                    String?       @id
+  token_id              String        @unique(map: "sqlite_autoindex_refresh_tokens_2")
+  token_hash            String        @unique(map: "sqlite_autoindex_refresh_tokens_3")
+  user_id               String
+  client_id             String
+  session_id            String
+  scope_json            String
+  expires_at            String
+  created_at            String
+  consumed_at           String?
+  revoked_at            String?
+  rotated_from_token_id String?
+  sessions              sessions      @relation(fields: [session_id], references: [id], onDelete: NoAction, onUpdate: NoAction) @ignore
+  oauth_clients         oauth_clients @relation(fields: [client_id], references: [id], onDelete: NoAction, onUpdate: NoAction) @ignore
+  users                 users         @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model roles {
+  id                     String?                  @id
+  name                   String                   @unique(map: "sqlite_autoindex_roles_2")
+  description            String
+  permissions_json       String
+  scope                  String
+  created_at             String
+  app_id                 String?
+  group_role_assignments group_role_assignments[]
+  user_role_assignments  user_role_assignments[]  @ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model sessions {
+  id             String?          @id
+  user_id        String
+  client_id      String
+  created_at     String
+  expires_at     String
+  revoked_at     String?
+  access_tokens  access_tokens[]
+  refresh_tokens refresh_tokens[]
+  oauth_clients  oauth_clients    @relation(fields: [client_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users          users            @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@ignore
+}
+
+model tenants {
+  id                    String?                 @id
+  slug                  String                  @unique(map: "sqlite_autoindex_tenants_2")
+  name                  String
+  active                Int
+  created_at            String
+  user_role_assignments user_role_assignments[] @ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model totp_credentials {
+  user_id    String? @id
+  secret     String
+  enabled    Int
+  created_at String
+  updated_at String
+  users      users?  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@ignore
+}
+
+model user_attribute_definitions {
+  id                               String?                            @id
+  key                              String                             @unique(map: "sqlite_autoindex_user_attribute_definitions_2")
+  name                             String
+  description                      String
+  type                             String
+  enabled                          Int
+  created_at                       String
+  updated_at                       String
+  group_user_attribute_assignments group_user_attribute_assignments[]
+}
+
+model user_group_assignments {
+  id         String? @id
+  user_id    String
+  group_id   String
+  created_at String
+  groups     groups  @relation(fields: [group_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users      users   @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([user_id, group_id], map: "sqlite_autoindex_user_group_assignments_2")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model user_role_assignments {
+  id         String?  @id
+  user_id    String
+  role_id    String
+  tenant_id  String?
+  created_at String
+  tenants    tenants? @relation(fields: [tenant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  roles      roles    @relation(fields: [role_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users      users    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([user_id, role_id, tenant_id], map: "sqlite_autoindex_user_role_assignments_2")
+  @@ignore
+}
+
+model users {
+  id                     String?                  @id
+  email                  String                   @unique(map: "sqlite_autoindex_users_2")
+  username               String                   @unique(map: "sqlite_autoindex_users_3")
+  password_hash          String
+  given_name             String
+  family_name            String
+  custom_attributes_json String                   @default("{}")
+  active                 Int
+  created_at             String
+  updated_at             String
+  app_id                 String?
+  is_service_user        Int                      @default(0)
+  access_tokens          access_tokens[]
+  authorization_codes    authorization_codes[]
+  consents               consents[]
+  federated_identities   federated_identities[]
+  refresh_tokens         refresh_tokens[]
+  sessions               sessions[]               @ignore
+  totp_credentials       totp_credentials?        @ignore
+  user_group_assignments user_group_assignments[]
+  user_role_assignments  user_role_assignments[]  @ignore
+}

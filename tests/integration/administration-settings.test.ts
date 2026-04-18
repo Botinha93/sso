@@ -43,6 +43,8 @@ test("administration settings update security thresholds immediately", async (t)
       "x-csrf-token": csrfToken
     },
     payload: {
+      databaseProvider: "sqlite",
+      databasePath: "./data/sso.sqlite",
       loginFailureWindowMs: 60_000,
       loginLockoutThreshold: 2,
       loginLockoutDurationMs: 60_000,
@@ -62,10 +64,42 @@ test("administration settings update security thresholds immediately", async (t)
 
   assert.equal(settingsResponse.statusCode, 200);
   const settings = settingsResponse.json() as Record<string, unknown>;
+  assert.equal(settings.databaseProvider, "sqlite");
+  assert.equal(settings.databasePath, "./data/sso.sqlite");
   assert.equal(settings.loginLockoutThreshold, 2);
   assert.equal(settings.loginFailureWindowMs, 60_000);
   assert.equal(settings.loginLockoutDurationMs, 60_000);
   assert.equal(settings.sessionAnomalyConcurrencyThreshold, 3);
+
+  const invalidDbTest = await app.inject({
+    method: "POST",
+    url: "/api/admin/settings/database/test",
+    headers: {
+      cookie: `${sid}; ${csrfCookie}`,
+      "x-csrf-token": csrfToken
+    },
+    payload: {
+      provider: "postgresql",
+      externalDatabaseUrl: "not-a-url"
+    }
+  });
+
+  assert.equal(invalidDbTest.statusCode, 422);
+
+  const invalidDbMigrate = await app.inject({
+    method: "POST",
+    url: "/api/admin/settings/database/migrate",
+    headers: {
+      cookie: `${sid}; ${csrfCookie}`,
+      "x-csrf-token": csrfToken
+    },
+    payload: {
+      provider: "mysql",
+      externalDatabaseUrl: "not-a-url"
+    }
+  });
+
+  assert.equal(invalidDbMigrate.statusCode, 422);
 
   const createUserResponse = await app.inject({
     method: "POST",

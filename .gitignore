@@ -4,3 +4,5 @@ dist-portal/
 data/
 .env
 .github/
+
+/src/generated/prisma

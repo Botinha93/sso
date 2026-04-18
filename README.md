@@ -14,6 +14,7 @@ This repository provides a first-party identity platform aligned with OAuth 2.0 
 - JWT issuance for access, ID, and refresh tokens
 - Password hashing with `scrypt`
 - File-backed SQLite database using `better-sqlite3` with WAL mode
+- External database migration tooling for PostgreSQL/MySQL targets (connection test + data copy from SQLite)
 - Consent persistence, refresh token rotation, token revocation, tenant-aware role assignments
 - Admin console and user portal
 - User federation, authentication flows, policies, events/hooks, and audit logs
@@ -47,6 +48,23 @@ This repository provides a first-party identity platform aligned with OAuth 2.0 
 ## API Documentation
 
 - OpenAPI specification: `openapi.yaml`
+
+## Database Provider Rewrite
+
+The platform is mid-rewrite to support both SQLite and external databases.
+
+- Setup and Administration now persist database provider configuration (`sqlite`, `postgresql`, `mysql`).
+- Admin utilities:
+   - `POST /api/admin/settings/database/test`
+   - `POST /api/admin/settings/database/migrate`
+- Current migration utility can test external connectivity and copy data from SQLite into PostgreSQL/MySQL.
+
+Transitional runtime behavior:
+
+- If `DATABASE_PROVIDER` is `postgresql` or `mysql`, the server currently runs in compatibility mode and still uses `DATABASE_PATH` for live runtime repositories while provider-specific repositories are being completed.
+- The configured external target (`DATABASE_URL`) is used by migration/test tooling.
+
+Note: Runtime repository execution is still in migration from SQLite-native repositories to multi-database repositories.
 
 ## Authentication Flows
 

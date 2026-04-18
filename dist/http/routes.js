@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { AppError, AuthenticationError } from "../core/errors.js";
 import { verifyPassword } from "../security/password.js";
 import { readViewAsset } from "./view-assets.js";
-import { assignGroupRoleSchema, assignRoleSchema, assignUserGroupSchema, backChannelLogoutSchema, authorizeSchema, createAppSchema, createClientSchema, createScopeSchema, createAuthenticationFlowSchema, deviceAuthorizationSchema, deviceVerificationSchema, dynamicClientRegistrationSchema, frontChannelLogoutSchema, createFederationProviderSchema, createGroupSchema, createUserAttributeSchema, createPolicySchema, createEventHookSchema, createTenantSchema, createRoleSchema, updateGroupSchema, updateRoleSchema, createUserSchema, introspectSchema, loginSchema, oidcRevokeSchema, portalChangePasswordSchema, portalUpdateProfileSchema, recoverySchema, recoveryRequestSchema, sendTestEmailSchema, mfaLoginSchema, verifyTotpEnrollmentSchema, resetUserPasswordSchema, revokeTokenSchema, tokenSchema, setUserAttributeGroupAssignmentSchema, setPolicyAssignmentSchema, removePolicyAssignmentSchema, setupInitializeSchema, testEventHookSchema, updateInstanceSettingsSchema, updateAppSchema, updateAuthenticationFlowSchema, updateClientSchema, updateEventHookSchema, updateFederationProviderSchema, updatePolicySchema, updateTenantSchema, updateUserAttributeSchema, updateUserSchema } from "./schemas.js";
+import { assignGroupRoleSchema, assignRoleSchema, assignUserGroupSchema, backChannelLogoutSchema, authorizeSchema, createAppSchema, createClientSchema, createScopeSchema, createAuthenticationFlowSchema, deviceAuthorizationSchema, deviceVerificationSchema, dynamicClientRegistrationSchema, frontChannelLogoutSchema, createFederationProviderSchema, createGroupSchema, createUserAttributeSchema, createPolicySchema, createEventHookSchema, createTenantSchema, createRoleSchema, updateGroupSchema, updateRoleSchema, createUserSchema, introspectSchema, loginSchema, migrateDatabaseSchema, oidcRevokeSchema, portalChangePasswordSchema, portalUpdateProfileSchema, recoverySchema, recoveryRequestSchema, sendTestEmailSchema, testDatabaseConnectionSchema, mfaLoginSchema, verifyTotpEnrollmentSchema, resetUserPasswordSchema, revokeTokenSchema, tokenSchema, setUserAttributeGroupAssignmentSchema, setPolicyAssignmentSchema, removePolicyAssignmentSchema, setupInitializeSchema, testEventHookSchema, updateInstanceSettingsSchema, updateAppSchema, updateAuthenticationFlowSchema, updateClientSchema, updateEventHookSchema, updateFederationProviderSchema, updatePolicySchema, updateTenantSchema, updateUserAttributeSchema, updateUserSchema } from "./schemas.js";
 export const registerRoutes = async (app, deps) => {
     const sendAdminShell = async (reply) => {
         const html = await readViewAsset("admin.html");
@@ -810,6 +810,20 @@ export const registerRoutes = async (app, deps) => {
             text: input.message
         });
         return reply.status(200).send({ ok: true, ...result });
+    });
+    app.post("/api/admin/settings/database/test", async (request, reply) => {
+        const input = testDatabaseConnectionSchema.parse(request.body);
+        const result = await deps.databaseMigrationService.testConnection(input.provider, input.externalDatabaseUrl);
+        return reply.status(200).send(result);
+    });
+    app.post("/api/admin/settings/database/migrate", async (request, reply) => {
+        const input = migrateDatabaseSchema.parse(request.body);
+        const result = await deps.databaseMigrationService.migrateFromSqlite({
+            sqlitePath: input.sqlitePath ?? deps.instanceSettingsService.getSettings().databasePath,
+            provider: input.provider,
+            externalDatabaseUrl: input.externalDatabaseUrl
+        });
+        return reply.status(200).send(result);
     });
     app.get("/api/admin/authentication/flows", async () => deps.authenticationFlowService.listFlows());
     app.post("/api/admin/authentication/flows", async (request, reply) => {

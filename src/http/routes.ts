@@ -32,12 +32,14 @@ import {
   createUserSchema,
   introspectSchema,
   loginSchema,
+  migrateDatabaseSchema,
   oidcRevokeSchema,
   portalChangePasswordSchema,
   portalUpdateProfileSchema,
   recoverySchema,
   recoveryRequestSchema,
   sendTestEmailSchema,
+  testDatabaseConnectionSchema,
   mfaLoginSchema,
   verifyTotpEnrollmentSchema,
   refreshTokenSchema,
@@ -77,6 +79,7 @@ import { UserAttributeService } from "../services/user-attribute-service.js";
 import { PolicyService } from "../services/policy-service.js";
 import { EventHookService } from "../services/event-hook-service.js";
 import { EmailService } from "../services/email-service.js";
+import { DatabaseMigrationService } from "../services/database-migration-service.js";
 import { InstanceSettingsService } from "../services/instance-settings-service.js";
 import { RecoveryService } from "../services/recovery-service.js";
 import { SecurityService } from "../services/security-service.js";
@@ -100,6 +103,7 @@ interface RouteDeps {
   policyService: PolicyService;
   eventHookService: EventHookService;
   emailService: EmailService;
+  databaseMigrationService: DatabaseMigrationService;
   recoveryService: RecoveryService;
   securityService: SecurityService;
   instanceSettingsService: InstanceSettingsService;
@@ -1023,6 +1027,28 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       text: input.message
     });
     return reply.status(200).send({ ok: true, ...result });
+  });
+
+  app.post("/api/admin/settings/database/test", async (request, reply) => {
+    const input = testDatabaseConnectionSchema.parse(request.body);
+    const result = await deps.databaseMigrationService.testConnection(input.provider, input.externalDatabaseUrl);
+    return reply.status(200).send(result);
+  });
+
+  app.post("/api/admin/settings/database/migrate", async (request, reply) => {
+    const input = migrateDatabaseSchema.parse(request.body);
+    const result = await deps.databaseMigrationService.migrateFromSqlite({
+      sqlitePath: input.sqlitePath ?? deps.instanceSettingsService.getSettings().databasePath,
+      provider: input.provider,
+      externalDatabaseUrl: input.externalDatabaseUrl
+    });
+
+    deps.instanceSettingsService.updateSettings({
+      databaseProvider: input.provider,
+      externalDatabaseUrl: input.externalDatabaseUrl
+    });
+
+    return reply.status(200).send(result);
   });
 
   app.get("/api/admin/authentication/flows", async () => deps.authenticationFlowService.listFlows());

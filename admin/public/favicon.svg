@@ -1,11 +1,25 @@
-<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="NexusID favicon">
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="favbg" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#0EA5E9"/>
-      <stop offset="1" stop-color="#1D4ED8"/>
+    <linearGradient id="markGradient" x1="144" y1="176" x2="368" y2="400" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#72E7FF"/>
+      <stop offset="100%" stop-color="#2F6BFF"/>
     </linearGradient>
   </defs>
-  <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#favbg)"/>
-  <path d="M32 11L38 25L53 32L38 39L32 53L26 39L11 32L26 25L32 11Z" fill="#0B1630" fill-opacity="0.25"/>
-  <path d="M18 45V19h5l16 16V19h7v26h-5L25 29v16h-7Z" fill="#E0F2FE"/>
+
+  <path
+    d="M176 212V184C176 139.817 211.817 104 256 104C300.183 104 336 139.817 336 184V212"
+    stroke="#081120"
+    stroke-width="36"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <rect x="118" y="198" width="276" height="210" rx="64" fill="url(#markGradient)"/>
+
+  <path
+    d="M188 332V252H222L290 329V252H324V332H290L222 255V332H188Z"
+    fill="#F5FBFF"
+  />
+
+  <circle cx="256" cy="352" r="16" fill="#081120"/>
+  <path d="M247 366H265L261 392H251L247 366Z" fill="#081120"/>
 </svg>

@@ -409,6 +409,15 @@ export const sendTestEmailSchema = z.object({
     subject: z.string().min(1).default("SSO email test"),
     message: z.string().min(1).default("This is a test email from the SSO platform.")
 });
+export const testDatabaseConnectionSchema = z.object({
+    provider: z.enum(["postgresql", "mysql"]),
+    externalDatabaseUrl: z.string().url()
+});
+export const migrateDatabaseSchema = z.object({
+    provider: z.enum(["postgresql", "mysql"]),
+    externalDatabaseUrl: z.string().url(),
+    sqlitePath: z.string().min(1).optional()
+});
 export const setupInitializeSchema = z.object({
     name: z.string().min(2),
     email: z.string().email(),

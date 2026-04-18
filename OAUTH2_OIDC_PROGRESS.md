@@ -12,6 +12,10 @@ This document tracks implementation progress for OAuth2/OIDC features.
 - [x] End-to-end OIDC happy-path tests
 - [x] Events expansion: broader system event catalog, additional admin/auth emit points, and per-hook test dispatch
 - [x] Security hardening: account lockout, endpoint-specific throttling, expanded security events, and session anomaly auditing
+- [x] Database rewrite groundwork: centralized repository factory for runtime provider wiring
+- [x] External migration schema now preserves SQLite unique indexes for PostgreSQL/MySQL targets
+- [x] External migration schema now preserves SQLite foreign-key constraints for PostgreSQL/MySQL targets
+- [x] Compatibility runtime mode for external provider config (warn + continue on SQLite while provider-specific repositories are completed)
 
 ## Remaining Items (from checklist)
 

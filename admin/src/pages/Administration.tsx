@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, Lock, Mail, Network, RefreshCw, ShieldCheck } from 'lucide-react'
-import { useInstanceSettings, useTestInstanceEmail, useUpdateInstanceSettings } from '../hooks/useApi'
+import {
+  useInstanceSettings,
+  useMigrateDatabaseFromSqlite,
+  useTestExternalDatabaseConnection,
+  useTestInstanceEmail,
+  useUpdateInstanceSettings
+} from '../hooks/useApi'
 
 interface SettingsForm {
   databaseProvider: 'sqlite' | 'postgresql' | 'mysql'
@@ -60,6 +66,8 @@ export default function Administration() {
   const { data, isLoading, refetch } = useInstanceSettings()
   const updateSettings = useUpdateInstanceSettings()
   const testEmail = useTestInstanceEmail()
+  const testExternalDb = useTestExternalDatabaseConnection()
+  const migrateDatabase = useMigrateDatabaseFromSqlite()
   const [form, setForm] = useState<SettingsForm>(defaultForm)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -143,6 +151,47 @@ export default function Administration() {
     }
   }
 
+  const testDatabaseConnection = async () => {
+    if (form.databaseProvider === 'sqlite') {
+      setSaveError('Connection test is available only for PostgreSQL/MySQL providers')
+      setSaveMessage(null)
+      return
+    }
+
+    try {
+      setSaveMessage(null)
+      setSaveError(null)
+      await testExternalDb.mutateAsync({
+        provider: form.databaseProvider,
+        externalDatabaseUrl: form.externalDatabaseUrl
+      })
+      setSaveMessage('External database connection is valid.')
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Failed to connect to external database')
+    }
+  }
+
+  const migrateFromSqlite = async () => {
+    if (form.databaseProvider === 'sqlite') {
+      setSaveError('Select PostgreSQL or MySQL provider before migration')
+      setSaveMessage(null)
+      return
+    }
+
+    try {
+      setSaveMessage(null)
+      setSaveError(null)
+      const result = await migrateDatabase.mutateAsync({
+        provider: form.databaseProvider,
+        externalDatabaseUrl: form.externalDatabaseUrl,
+        sqlitePath: form.databasePath
+      }) as { migratedTables?: number }
+      setSaveMessage(`SQLite migration completed${typeof result?.migratedTables === 'number' ? ` (${result.migratedTables} tables)` : ''}.`)
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Database migration failed')
+    }
+  }
+
   if (isLoading) {
     return <div className="p-6 text-slate-500">Loading instance settings...</div>
   }
@@ -220,6 +269,25 @@ export default function Administration() {
             <p className="text-xs text-slate-500">
               Provider settings are persisted now; full PostgreSQL/MySQL runtime persistence is part of the ongoing repository rewrite.
             </p>
+
+            {form.databaseProvider !== 'sqlite' ? (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={testDatabaseConnection}
+                  disabled={testExternalDb.isPending || !form.externalDatabaseUrl}
+                  className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {testExternalDb.isPending ? 'Testing…' : 'Test Connection'}
+                </button>
+                <button
+                  onClick={migrateFromSqlite}
+                  disabled={migrateDatabase.isPending || !form.externalDatabaseUrl}
+                  className="inline-flex h-9 items-center rounded-lg bg-slate-900 px-3 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:opacity-50"
+                >
+                  {migrateDatabase.isPending ? 'Migrating…' : 'Migrate From SQLite'}
+                </button>
+              </div>
+            ) : null}
           </div>
         </section>
 

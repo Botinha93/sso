@@ -5,6 +5,7 @@ import { AuthService } from "./services/auth-service.js";
 import { AppService } from "./services/app-service.js";
 import { AuthenticationFlowService } from "./services/authentication-flow-service.js";
 import { ClientService } from "./services/client-service.js";
+import { DatabaseMigrationService } from "./services/database-migration-service.js";
 import { FederationService } from "./services/federation-service.js";
 import { GroupService } from "./services/group-service.js";
 import { OidcService } from "./services/oidc-service.js";
@@ -64,6 +65,7 @@ export const bootstrap = async (config) => {
     const eventHookService = new EventHookService(eventHookRepository, eventNotificationRepository);
     const securityService = new SecurityService(auditRepository, eventHookService, instanceSettingsService);
     const emailService = new EmailService(instanceSettingsService);
+    const databaseMigrationService = new DatabaseMigrationService();
     const recoveryService = new RecoveryService();
     const federationService = new FederationService(config, userRepository, federationProviderRepository, federatedIdentityRepository, federationTransactionRepository, authenticationFlowService);
     const tenantService = new TenantService(tenantRepository);
@@ -248,6 +250,7 @@ export const bootstrap = async (config) => {
         eventHookService,
         securityService,
         emailService,
+        databaseMigrationService,
         recoveryService,
         instanceSettingsService,
         tenantService,

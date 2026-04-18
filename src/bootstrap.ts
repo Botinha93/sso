@@ -1,41 +1,12 @@
 import type { AppConfig } from "./core/config.js";
 import { createSigningKeys } from "./security/keys.js";
 import { JwtService } from "./security/jwt.js";
-import {
-  SqliteAccessTokenRepository,
-  SqliteAppRepository,
-  SqliteAuthenticationFlowRepository,
-  SqliteAuditRepository,
-  SqliteAuthorizationCodeRepository,
-  SqliteClientRepository,
-  SqliteScopeRepository,
-  SqliteConsentRepository,
-  SqliteTotpCredentialRepository,
-  SqliteDatabase,
-  SqliteFederationProviderRepository,
-  SqliteFederatedIdentityRepository,
-  SqliteFederationTransactionRepository,
-  SqliteGroupRepository,
-  SqliteGroupRoleAssignmentRepository,
-  SqlitePolicyAssignmentRepository,
-  SqlitePolicyDefinitionRepository,
-  SqliteEventHookRepository,
-  SqliteEventNotificationRepository,
-  SqliteInstanceSettingsRepository,
-  SqliteRefreshTokenRepository,
-  SqliteRoleRepository,
-  SqliteSessionRepository,
-  SqliteTenantRepository,
-  SqliteUserAttributeRepository,
-  SqliteGroupUserAttributeAssignmentRepository,
-  SqliteUserGroupAssignmentRepository,
-  SqliteUserRepository,
-  SqliteUserRoleAssignmentRepository
-} from "./repositories/sqlite.js";
+import { createRepositoryBundle } from "./repositories/factory.js";
 import { AuthService } from "./services/auth-service.js";
 import { AppService } from "./services/app-service.js";
 import { AuthenticationFlowService } from "./services/authentication-flow-service.js";
 import { ClientService } from "./services/client-service.js";
+import { DatabaseMigrationService } from "./services/database-migration-service.js";
 import { FederationService } from "./services/federation-service.js";
 import { GroupService } from "./services/group-service.js";
 import { OidcService } from "./services/oidc-service.js";
@@ -54,37 +25,36 @@ import { UserAttributeService } from "./services/user-attribute-service.js";
 import { UserService } from "./services/user-service.js";
 
 export const bootstrap = async (config: AppConfig) => {
-  const sqlite = new SqliteDatabase(config.databasePath);
-  sqlite.migrate();
-
-  const roleRepository = new SqliteRoleRepository(sqlite.connection);
-  const tenantRepository = new SqliteTenantRepository(sqlite.connection);
-  const appRepository = new SqliteAppRepository(sqlite.connection);
-  const groupRepository = new SqliteGroupRepository(sqlite.connection);
-  const userGroupAssignmentRepository = new SqliteUserGroupAssignmentRepository(sqlite.connection);
-  const groupRoleAssignmentRepository = new SqliteGroupRoleAssignmentRepository(sqlite.connection);
-  const assignmentRepository = new SqliteUserRoleAssignmentRepository(sqlite.connection);
-  const userRepository = new SqliteUserRepository(sqlite.connection);
-  const clientRepository = new SqliteClientRepository(sqlite.connection);
-  const scopeRepository = new SqliteScopeRepository(sqlite.connection);
-  const sessionRepository = new SqliteSessionRepository(sqlite.connection);
-  const totpCredentialRepository = new SqliteTotpCredentialRepository(sqlite.connection);
-  const authorizationCodeRepository = new SqliteAuthorizationCodeRepository(sqlite.connection);
-  const consentRepository = new SqliteConsentRepository(sqlite.connection);
-  const refreshTokenRepository = new SqliteRefreshTokenRepository(sqlite.connection);
-  const accessTokenRepository = new SqliteAccessTokenRepository(sqlite.connection);
-  const auditRepository = new SqliteAuditRepository(sqlite.connection);
-  const authenticationFlowRepository = new SqliteAuthenticationFlowRepository(sqlite.connection);
-  const federationProviderRepository = new SqliteFederationProviderRepository(sqlite.connection);
-  const federatedIdentityRepository = new SqliteFederatedIdentityRepository(sqlite.connection);
-  const federationTransactionRepository = new SqliteFederationTransactionRepository(sqlite.connection);
-  const userAttributeRepository = new SqliteUserAttributeRepository(sqlite.connection);
-  const groupUserAttributeAssignmentRepository = new SqliteGroupUserAttributeAssignmentRepository(sqlite.connection);
-  const policyDefinitionRepository = new SqlitePolicyDefinitionRepository(sqlite.connection);
-  const policyAssignmentRepository = new SqlitePolicyAssignmentRepository(sqlite.connection);
-  const eventHookRepository = new SqliteEventHookRepository(sqlite.connection);
-  const eventNotificationRepository = new SqliteEventNotificationRepository(sqlite.connection);
-  const instanceSettingsRepository = new SqliteInstanceSettingsRepository(sqlite.connection);
+  const {
+    roleRepository,
+    tenantRepository,
+    appRepository,
+    groupRepository,
+    userGroupAssignmentRepository,
+    groupRoleAssignmentRepository,
+    assignmentRepository,
+    userRepository,
+    clientRepository,
+    scopeRepository,
+    sessionRepository,
+    totpCredentialRepository,
+    authorizationCodeRepository,
+    consentRepository,
+    refreshTokenRepository,
+    accessTokenRepository,
+    auditRepository,
+    authenticationFlowRepository,
+    federationProviderRepository,
+    federatedIdentityRepository,
+    federationTransactionRepository,
+    userAttributeRepository,
+    groupUserAttributeAssignmentRepository,
+    policyDefinitionRepository,
+    policyAssignmentRepository,
+    eventHookRepository,
+    eventNotificationRepository,
+    instanceSettingsRepository
+  } = createRepositoryBundle(config);
 
   const roleService = new RoleService(
     roleRepository,
@@ -118,6 +88,7 @@ export const bootstrap = async (config: AppConfig) => {
   const eventHookService = new EventHookService(eventHookRepository, eventNotificationRepository);
   const securityService = new SecurityService(auditRepository, eventHookService, instanceSettingsService);
   const emailService = new EmailService(instanceSettingsService);
+  const databaseMigrationService = new DatabaseMigrationService();
   const recoveryService = new RecoveryService();
   const federationService = new FederationService(
     config,
@@ -348,6 +319,7 @@ export const bootstrap = async (config: AppConfig) => {
     eventHookService,
     securityService,
     emailService,
+    databaseMigrationService,
     recoveryService,
     instanceSettingsService,
     tenantService,

@@ -88,6 +88,8 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'GET', path: '/api/admin/me', auth: 'session', description: 'Returns authenticated admin profile, roles, groups, and permissions.' },
   { method: 'GET', path: '/api/admin/settings', auth: 'session', description: 'Returns persisted instance-wide administration and security settings.' },
   { method: 'PUT', path: '/api/admin/settings', auth: 'session+csrf', description: 'Updates instance-wide transport, CORS, OAuth, email, and runtime security controls.' },
+  { method: 'POST', path: '/api/admin/settings/database/test', auth: 'session+csrf', description: 'Tests connectivity to a PostgreSQL/MySQL target database URL.' },
+  { method: 'POST', path: '/api/admin/settings/database/migrate', auth: 'session+csrf', description: 'Copies data from SQLite into the configured external PostgreSQL/MySQL database.' },
 
   { method: 'GET', path: '/api/admin/users', auth: 'session', description: 'Lists users.' },
   { method: 'POST', path: '/api/admin/users', auth: 'session+csrf', description: 'Creates user and emits user.created event.' },

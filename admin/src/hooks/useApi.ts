@@ -825,3 +825,25 @@ export function useTestInstanceEmail() {
       })
   })
 }
+
+export function useTestExternalDatabaseConnection() {
+  return useMutation({
+    mutationFn: (payload: { provider: 'postgresql' | 'mysql'; externalDatabaseUrl: string }) =>
+      jsonFetch(`${API_BASE}/settings/database/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+  })
+}
+
+export function useMigrateDatabaseFromSqlite() {
+  return useMutation({
+    mutationFn: (payload: { provider: 'postgresql' | 'mysql'; externalDatabaseUrl: string; sqlitePath?: string }) =>
+      jsonFetch(`${API_BASE}/settings/database/migrate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+  })
+}
