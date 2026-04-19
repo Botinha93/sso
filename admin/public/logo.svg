@@ -1,25 +1,23 @@
-<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="512" height="512" viewBox="132 108 248 296" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="markGradient" x1="140" y1="168" x2="372" y2="402" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#72E7FF"/>
-      <stop offset="100%" stop-color="#2F6BFF"/>
+    <linearGradient id="lockGradient" x1="166" y1="172" x2="346" y2="370" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#88EEFF"/>
+      <stop offset="100%" stop-color="#316CFF"/>
     </linearGradient>
   </defs>
 
   <path
-    d="M176 212V184C176 139.817 211.817 104 256 104C300.183 104 336 139.817 336 184V212"
-    stroke="#081120"
-    stroke-width="36"
+    d="M196 214V186C196 152.863 222.863 126 256 126C289.137 126 316 152.863 316 186V214"
+    stroke="url(#lockGradient)"
+    stroke-width="34"
     stroke-linecap="round"
-    stroke-linejoin="round"
-  />
-  <rect x="118" y="198" width="276" height="210" rx="64" fill="url(#markGradient)"/>
-
-  <path
-    d="M186 328V246H222L290 323V246H326V328H290L222 251V328H186Z"
-    fill="#F5FBFF"
   />
 
-  <circle cx="256" cy="352" r="16" fill="#081120"/>
-  <path d="M247 366H265L261 392H251L247 366Z" fill="#081120"/>
+  <path d="M214 214H298" stroke="url(#lockGradient)" stroke-width="18" stroke-linecap="round"/>
+
+  <rect x="140" y="206" width="232" height="188" rx="48" fill="url(#lockGradient)"/>
+  <path d="M280 206H372V286L280 206Z" fill="white" fill-opacity="0.14"/>
+
+  <circle cx="256" cy="278" r="20" fill="#07101F"/>
+  <path d="M247 292H265L261 334H251L247 292Z" fill="#07101F"/>
 </svg>

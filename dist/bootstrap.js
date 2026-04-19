@@ -23,7 +23,8 @@ import { TotpService } from "./services/totp-service.js";
 import { UserAttributeService } from "./services/user-attribute-service.js";
 import { UserService } from "./services/user-service.js";
 export const bootstrap = async (config) => {
-    const { roleRepository, tenantRepository, appRepository, groupRepository, userGroupAssignmentRepository, groupRoleAssignmentRepository, assignmentRepository, userRepository, clientRepository, scopeRepository, sessionRepository, totpCredentialRepository, authorizationCodeRepository, consentRepository, refreshTokenRepository, accessTokenRepository, auditRepository, authenticationFlowRepository, federationProviderRepository, federatedIdentityRepository, federationTransactionRepository, userAttributeRepository, groupUserAttributeAssignmentRepository, policyDefinitionRepository, policyAssignmentRepository, eventHookRepository, eventNotificationRepository, instanceSettingsRepository } = await createRepositoryBundle(config);
+    const repositories = await createRepositoryBundle(config);
+    const { roleRepository, tenantRepository, appRepository, groupRepository, userGroupAssignmentRepository, groupRoleAssignmentRepository, assignmentRepository, userRepository, clientRepository, scopeRepository, sessionRepository, totpCredentialRepository, authorizationCodeRepository, consentRepository, refreshTokenRepository, accessTokenRepository, auditRepository, authenticationFlowRepository, federationProviderRepository, federatedIdentityRepository, federationTransactionRepository, userAttributeRepository, groupUserAttributeAssignmentRepository, policyDefinitionRepository, policyAssignmentRepository, eventHookRepository, eventNotificationRepository, instanceSettingsRepository } = repositories;
     const roleService = new RoleService(roleRepository, assignmentRepository, tenantRepository, userGroupAssignmentRepository, groupRoleAssignmentRepository);
     const authenticationFlowService = new AuthenticationFlowService(authenticationFlowRepository);
     const groupService = new GroupService(groupRepository, groupRoleAssignmentRepository, userGroupAssignmentRepository, roleRepository, userRepository);
@@ -233,6 +234,7 @@ export const bootstrap = async (config) => {
         totpService,
         authService,
         oidcService,
-        auditRepository
+        auditRepository,
+        dispose: repositories.dispose ?? (async () => undefined)
     };
 };

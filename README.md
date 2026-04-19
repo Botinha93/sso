@@ -45,6 +45,36 @@ This repository provides a first-party identity platform aligned with OAuth 2.0 
    http://127.0.0.1:4000/
    ```
 
+## Docker
+
+Build the production image:
+
+```bash
+docker build -t sso-platform .
+```
+
+Run it with the default SQLite configuration and a persisted data directory:
+
+```bash
+docker run --rm -p 4000:4000 \
+   -e ISSUER=http://localhost:4000 \
+   -e ADMIN_EMAIL=admin@example.com \
+   -e ADMIN_PASSWORD=change-me-now \
+   -v sso-data:/app/data \
+   sso-platform
+```
+
+Notes:
+
+- The container listens on `0.0.0.0:4000`.
+- SQLite data is stored at `/app/data/sso.sqlite` by default.
+- The admin frontend is served from `/` and the account portal is served from `/portal`.
+- Set `DATABASE_PROVIDER=postgresql` or `DATABASE_PROVIDER=mysql` together with `DATABASE_URL` to use an external database.
+- The container healthcheck targets `GET /health`.
+- On first boot, the container can auto-run setup using `ADMIN_NAME`, `ADMIN_USERNAME`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD`.
+- For PostgreSQL/MySQL, the entrypoint runs `prisma db push` by default before the server starts. Set `RUN_PRISMA_DB_PUSH=false` to disable that.
+- To perform a one-time SQLite import into PostgreSQL/MySQL at startup, set `MIGRATE_FROM_SQLITE_PATH` and keep `INIT_SENTINEL_PATH` on persistent storage so the import is not repeated on restart.
+
 ## API Documentation
 
 - OpenAPI specification: `openapi.yaml`

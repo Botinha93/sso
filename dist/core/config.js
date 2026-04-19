@@ -31,7 +31,7 @@ const asFederationProviders = () => {
         throw new Error("FEDERATION_PROVIDERS_JSON must be valid JSON array");
     }
 };
-export const config = {
+export const loadConfig = () => ({
     port: asNumber("PORT", 4000),
     host: process.env.HOST ?? "127.0.0.1",
     databaseProvider: (() => {
@@ -56,4 +56,5 @@ export const config = {
     federation: {
         providers: asFederationProviders()
     }
-};
+});
+export const config = loadConfig();

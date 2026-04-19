@@ -3,13 +3,16 @@ import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import helmet from "@fastify/helmet";
-import { config } from "./core/config.js";
+import { loadConfig } from "./core/config.js";
 import { registerRoutes } from "./http/routes.js";
 import { bootstrap } from "./bootstrap.js";
 import { hasSqlInjectionPayload } from "./http/sql-injection-guard.js";
 export const buildApp = async () => {
     const app = Fastify({ logger: process.env.NODE_ENV !== "test", trustProxy: true });
-    const services = await bootstrap(config);
+    const services = await bootstrap(loadConfig());
+    app.addHook("onClose", async () => {
+        await services.dispose();
+    });
     app.addHook("onRequest", async (request, reply) => {
         if (!await services.instanceSettingsService.shouldRequireHttps()) {
             return;

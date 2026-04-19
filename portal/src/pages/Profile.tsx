@@ -15,6 +15,7 @@ import {
 
 const fieldCls = 'h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
 const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
+const portalHome = import.meta.env.BASE_URL
 
 interface Props {
   user: PortalUser
@@ -28,7 +29,7 @@ export default function Profile({ user }: Props) {
 
   const handleLogout = async () => {
     await fetch('/auth/logout', { method: 'POST', credentials: 'include' })
-    window.location.href = '/'
+    window.location.href = portalHome
   }
 
   return (
@@ -521,7 +522,7 @@ function DangerSection({ user, onDeleted }: { user: PortalUser; onDeleted: () =>
     try {
       await deleteAccount.mutateAsync()
       onDeleted()
-      window.location.href = '/'
+      window.location.href = portalHome
     } catch (e: any) {
       setError(e.message ?? 'Failed to delete account')
     }

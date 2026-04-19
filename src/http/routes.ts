@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import type { AuthenticationStageType, FlowDesignation, GrantType, User } from "../domain/models.js";
 import { AppError, AuthenticationError } from "../core/errors.js";
 import { verifyPassword } from "../security/password.js";
-import { readViewAsset } from "./view-assets.js";
+import { getAssetContentType, readFrontendAsset } from "./view-assets.js";
 import {
   assignGroupRoleSchema,
   assignRoleSchema,
@@ -112,9 +112,14 @@ interface RouteDeps {
 
 export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
-  const sendAdminShell = async (reply: any) => {
-    const html = await readViewAsset("admin.html");
+  const sendFrontendIndex = async (reply: any, frontend: "admin" | "portal") => {
+    const html = await readFrontendAsset(frontend, "index.html");
     return reply.type("text/html; charset=utf-8").send(html);
+  };
+
+  const sendFrontendFile = async (reply: any, frontend: "admin" | "portal", relativePath: string) => {
+    const file = await readFrontendAsset(frontend, relativePath);
+    return reply.type(getAssetContentType(relativePath)).send(file);
   };
 
   function asSafeRedirect(value: unknown): string {
@@ -435,41 +440,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
 
   app.get("/", async (_request, reply) => {
-    return sendAdminShell(reply);
-  });
-
-  const adminShellPaths = [
-    "/login",
-    "/consent",
-    "/oauth/device/verify",
-    "/dashboard",
-    "/sessions",
-    "/devices",
-    "/audit",
-    "/consents",
-    "/apps",
-    "/federation",
-    "/authentication",
-    "/interaction-views",
-    "/user-attributes",
-    "/policies",
-    "/events",
-    "/administration",
-    "/documentation",
-  ];
-
-  for (const path of adminShellPaths) {
-    app.get(path, async (_request, reply) => sendAdminShell(reply));
-  }
-
-  app.get("/assets/admin.css", async (_request, reply) => {
-    const css = await readViewAsset("admin.css");
-    return reply.type("text/css; charset=utf-8").send(css);
-  });
-
-  app.get("/assets/admin.js", async (_request, reply) => {
-    const js = await readViewAsset("admin.js");
-    return reply.type("application/javascript; charset=utf-8").send(js);
+    return sendFrontendIndex(reply, "admin");
   });
 
   app.get("/health", async () => ({
@@ -1972,6 +1943,34 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     await deps.userService.deleteUser(session.userId);
     reply.clearCookie("sid", { path: "/" });
     return reply.status(204).send();
+  });
+
+  app.get("/portal", async (_request, reply) => {
+    return sendFrontendIndex(reply, "portal");
+  });
+
+  app.get("/portal/*", async (request, reply) => {
+    const relativePath = String((request.params as Record<string, string>)["*"] ?? "");
+
+    if (relativePath.startsWith("assets/")) {
+      return sendFrontendFile(reply, "portal", relativePath);
+    }
+
+    return sendFrontendIndex(reply, "portal");
+  });
+
+  app.get("/*", async (request, reply) => {
+    const relativePath = String((request.params as Record<string, string>)["*"] ?? "");
+
+    if (["favicon.ico", "favicon.svg", "logo.svg"].includes(relativePath)) {
+      return sendFrontendFile(reply, "admin", relativePath);
+    }
+
+    if (relativePath.startsWith("assets/")) {
+      return sendFrontendFile(reply, "admin", relativePath);
+    }
+
+    return sendFrontendIndex(reply, "admin");
   });
 
   app.setErrorHandler((error, request, reply) => {

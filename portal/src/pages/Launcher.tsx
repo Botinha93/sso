@@ -6,10 +6,12 @@ interface Props {
   user: PortalUser
 }
 
+const portalHome = import.meta.env.BASE_URL
+
 export default function Launcher({ user }: Props) {
   const handleLogout = async () => {
     await fetch('/auth/logout', { method: 'POST', credentials: 'include' })
-    window.location.href = '/'
+    window.location.href = portalHome
   }
 
   return (

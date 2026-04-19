@@ -1,6 +1,8 @@
 import { buildApp } from "./app.js";
-import { config } from "./core/config.js";
-const start = async () => {
+import { loadConfig } from "./core/config.js";
+import { pathToFileURL } from "node:url";
+export const startServer = async () => {
+    const config = loadConfig();
     const app = await buildApp();
     try {
         await app.listen({
@@ -13,4 +15,6 @@ const start = async () => {
         process.exit(1);
     }
 };
-void start();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+    void startServer();
+}
