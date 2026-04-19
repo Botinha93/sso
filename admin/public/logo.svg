@@ -1,23 +1,22 @@
-<svg width="512" height="512" viewBox="132 108 248 296" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="512" height="512" viewBox="132 112 248 288" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="lockGradient" x1="166" y1="172" x2="346" y2="370" gradientUnits="userSpaceOnUse">
+    <linearGradient id="shieldGradient" x1="168" y1="146" x2="344" y2="382" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#88EEFF"/>
       <stop offset="100%" stop-color="#316CFF"/>
     </linearGradient>
   </defs>
 
   <path
-    d="M196 214V186C196 152.863 222.863 126 256 126C289.137 126 316 152.863 316 186V214"
-    stroke="url(#lockGradient)"
-    stroke-width="34"
+    d="M256 124L356 166V242C356 311.228 314.786 361.774 256 388C197.214 361.774 156 311.228 156 242V166L256 124Z"
+    fill="url(#shieldGradient)"
+  />
+  <path
+    d="M226 242V222C226 205.431 239.431 192 256 192C272.569 192 286 205.431 286 222V242"
+    stroke="#07101F"
+    stroke-width="20"
     stroke-linecap="round"
   />
-
-  <path d="M214 214H298" stroke="url(#lockGradient)" stroke-width="18" stroke-linecap="round"/>
-
-  <rect x="140" y="206" width="232" height="188" rx="48" fill="url(#lockGradient)"/>
-  <path d="M280 206H372V286L280 206Z" fill="white" fill-opacity="0.14"/>
-
-  <circle cx="256" cy="278" r="20" fill="#07101F"/>
-  <path d="M247 292H265L261 334H251L247 292Z" fill="#07101F"/>
+  <rect x="204" y="236" width="104" height="90" rx="26" fill="#07101F"/>
+  <circle cx="256" cy="274" r="11" fill="url(#shieldGradient)"/>
+  <path d="M251 283H261L259 308H253L251 283Z" fill="url(#shieldGradient)"/>
 </svg>
