@@ -2270,6 +2270,64 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
     }
   }
 
+    if (route.path === '/api/admin/access-requests/stalled' && route.method === 'GET') {
+      return {
+        parameters: params,
+        expectedResponse: prettyJson({
+          stalledRequests: [
+            { id: 'gar_xxx', requesterId: 'usr_yyy', entitlement: 'role:admin', status: 'pending', createdAt: '2026-04-20T10:00:00.000Z', stalledMinutes: 85 }
+          ]
+        })
+      }
+    }
+
+    if (route.path === '/api/admin/elevations' && route.method === 'POST') {
+      return {
+        parameters: params,
+        requestJson: prettyJson({ justification: 'Emergency database maintenance', resource: 'db:prod', action: 'write', durationMinutes: 60 }),
+        expectedResponse: prettyJson({ id: 'elv_xxx', requesterId: 'usr_yyy', resource: 'db:prod', action: 'write', status: 'pending', durationMinutes: 60, createdAt: '2026-04-20T12:00:00.000Z' })
+      }
+    }
+
+    if (route.path === '/api/admin/elevations' && route.method === 'GET') {
+      return {
+        parameters: params,
+        expectedResponse: prettyJson([
+          { id: 'elv_xxx', requesterId: 'usr_yyy', resource: 'db:prod', action: 'write', status: 'pending', durationMinutes: 60, createdAt: '2026-04-20T12:00:00.000Z' }
+        ])
+      }
+    }
+
+    if (route.path === '/api/admin/elevations/:id/approve' && route.method === 'POST') {
+      return {
+        parameters: params,
+        requestJson: prettyJson({ rationale: 'Verified emergency maintenance window' }),
+        expectedResponse: prettyJson({ id: 'elv_xxx', status: 'approved', approvedByUserId: 'adm_zzz', approvedAt: '2026-04-20T12:05:00.000Z' })
+      }
+    }
+
+    if (route.path === '/api/admin/elevations/:id/activate' && route.method === 'POST') {
+      return {
+        parameters: params,
+        expectedResponse: prettyJson({ id: 'elv_xxx', status: 'active', activatedAt: '2026-04-20T12:10:00.000Z', expiresAt: '2026-04-20T13:10:00.000Z' })
+      }
+    }
+
+    if (route.path === '/api/admin/elevations/:id/revoke' && route.method === 'POST') {
+      return {
+        parameters: params,
+        requestJson: prettyJson({ reason: 'Maintenance completed early' }),
+        expectedResponse: prettyJson({ id: 'elv_xxx', status: 'revoked', revokedAt: '2026-04-20T12:45:00.000Z' })
+      }
+    }
+
+    if (route.path === '/api/admin/elevations/process-expirations' && route.method === 'POST') {
+      return {
+        parameters: params,
+        expectedResponse: prettyJson({ processed: 2, expired: ['elv_xxx', 'elv_yyy'] })
+      }
+    }
+
   if (route.path === '/api/admin/events/notifications') {
     return {
       parameters: params,
