@@ -17,6 +17,8 @@ const ADMIN_RESOURCE_MAP: Record<string, string> = {
   events: "events",
   scopes: "scopes",
   provisioning: "administration",
+  "access-requests": "administration",
+  "access-reviews": "administration",
   settings: "administration",
   administration: "administration",
   apps: "apps",

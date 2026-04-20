@@ -483,6 +483,19 @@ export const reconcileProvisioningJobSchema = z.object({
   dryRun: z.boolean().default(true)
 });
 
+export const createAccessRequestSchema = z.object({
+  subjectUserId: z.string().min(2),
+  entitlementType: z.string().min(1),
+  entitlementValue: z.string().min(1),
+  justification: z.string().min(3),
+  expiresAt: z.string().datetime().optional()
+});
+
+export const listAccessRequestsQuerySchema = z.object({
+  status: z.enum(["pending", "approved", "rejected", "expired", "cancelled"]).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional()
+});
+
 export const updateInstanceSettingsSchema = z.object({
   databaseProvider: z.enum(["sqlite", "postgresql", "mysql"]).optional(),
   databasePath: z.string().min(1).optional(),

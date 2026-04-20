@@ -1,5 +1,6 @@
 import type {
   AccessTokenRecord,
+  AccessRequest,
   AuthenticationFlow,
   AuditEvent,
   AuthorizationCode,
@@ -256,6 +257,12 @@ export interface DeprovisioningQueueRepository {
     error?: string;
     processedAt?: Date;
   }): Promise<DeprovisioningQueueItem | undefined>;
+}
+
+export interface AccessRequestRepository {
+  list(input?: { limit?: number; status?: AccessRequest["status"] }): Promise<AccessRequest[]>;
+  create(input: Omit<AccessRequest, "id" | "createdAt" | "updatedAt">): Promise<AccessRequest>;
+  update(id: string, input: Partial<Omit<AccessRequest, "id" | "createdAt">>): Promise<AccessRequest | undefined>;
 }
 
 export interface EventHookRepository {

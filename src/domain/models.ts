@@ -331,6 +331,19 @@ export interface DeprovisioningQueueItem {
   processedAt?: Date;
 }
 
+export interface AccessRequest {
+  id: string;
+  requesterId: string;
+  subjectUserId: string;
+  entitlementType: string;
+  entitlementValue: string;
+  status: "pending" | "approved" | "rejected" | "expired" | "cancelled";
+  justification: string;
+  expiresAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface EventHook {
   id: string;
   eventType: string;

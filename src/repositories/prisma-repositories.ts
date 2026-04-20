@@ -1,6 +1,7 @@
 import { nanoid } from "nanoid";
 import type {
   AccessTokenRecord,
+  AccessRequest,
   App,
   AuditEvent,
   AuthenticationFlow,
@@ -81,6 +82,7 @@ type PrismaClientLike = {
   provisioningMapping: any;
   provisioningJob: any;
   deprovisioningQueue: any;
+  accessRequest: any;
   eventHook: any;
   eventNotification: any;
   $queryRaw<T = PrismaRow[]>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>;
@@ -504,6 +506,19 @@ const mapDeprovisioningQueueItem = (row: PrismaRow): DeprovisioningQueueItem => 
   error: readField(row, "error") ? String(readField(row, "error")) : undefined,
   createdAt: asDate(readField(row, "createdAt", "created_at")),
   processedAt: maybeDate(readField(row, "processedAt", "processed_at"))
+});
+
+const mapAccessRequest = (row: PrismaRow): AccessRequest => ({
+  id: String(readField(row, "id")),
+  requesterId: String(readField(row, "requesterId", "requester_id")),
+  subjectUserId: String(readField(row, "subjectUserId", "subject_user_id")),
+  entitlementType: String(readField(row, "entitlementType", "entitlement_type")),
+  entitlementValue: String(readField(row, "entitlementValue", "entitlement_value")),
+  status: String(readField(row, "status")) as AccessRequest["status"],
+  justification: String(readField(row, "justification")),
+  expiresAt: maybeDate(readField(row, "expiresAt", "expires_at")),
+  createdAt: asDate(readField(row, "createdAt", "created_at")),
+  updatedAt: asDate(readField(row, "updatedAt", "updated_at"))
 });
 
 const mapEventHook = (row: PrismaRow): EventHook => ({
@@ -1755,6 +1770,79 @@ class PrismaDeprovisioningQueueRepository {
   }
 }
 
+class PrismaAccessRequestRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+
+  async list(input?: { limit?: number; status?: AccessRequest["status"] }): Promise<AccessRequest[]> {
+    const limit = Math.max(1, Math.min(200, input?.limit ?? 100));
+    const where = input?.status ? { status: input.status } : undefined;
+    const rows = await this.prisma.accessRequest.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: limit
+    });
+
+    return rows.map((row: PrismaRow) => mapAccessRequest(row));
+  }
+
+  async create(input: Omit<AccessRequest, "id" | "createdAt" | "updatedAt">): Promise<AccessRequest> {
+    const now = new Date();
+    const request: AccessRequest = {
+      ...input,
+      id: nanoid(),
+      createdAt: now,
+      updatedAt: now
+    };
+
+    await this.prisma.accessRequest.create({
+      data: {
+        id: request.id,
+        requesterId: request.requesterId,
+        subjectUserId: request.subjectUserId,
+        entitlementType: request.entitlementType,
+        entitlementValue: request.entitlementValue,
+        status: request.status,
+        justification: request.justification,
+        expiresAt: request.expiresAt ? request.expiresAt.toISOString() : null,
+        createdAt: request.createdAt.toISOString(),
+        updatedAt: request.updatedAt.toISOString()
+      }
+    });
+
+    return request;
+  }
+
+  async update(id: string, input: Partial<Omit<AccessRequest, "id" | "createdAt">>): Promise<AccessRequest | undefined> {
+    const existing = await this.prisma.accessRequest.findUnique({ where: { id } });
+    if (!existing) {
+      return undefined;
+    }
+
+    const current = mapAccessRequest(existing as PrismaRow);
+    const updated: AccessRequest = {
+      ...current,
+      ...input,
+      updatedAt: new Date()
+    };
+
+    await this.prisma.accessRequest.update({
+      where: { id },
+      data: {
+        requesterId: updated.requesterId,
+        subjectUserId: updated.subjectUserId,
+        entitlementType: updated.entitlementType,
+        entitlementValue: updated.entitlementValue,
+        status: updated.status,
+        justification: updated.justification,
+        expiresAt: updated.expiresAt ? updated.expiresAt.toISOString() : null,
+        updatedAt: updated.updatedAt.toISOString()
+      }
+    });
+
+    return updated;
+  }
+}
+
 class PrismaEventHookRepository {
   constructor(private readonly prisma: PrismaClientLike) {}
 
@@ -1841,6 +1929,7 @@ export const createPrismaRepositories = (prisma: PrismaClientLike): RepositoryBu
   provisioningMappingRepository: new PrismaProvisioningMappingRepository(prisma),
   provisioningJobRepository: new PrismaProvisioningJobRepository(prisma),
   deprovisioningQueueRepository: new PrismaDeprovisioningQueueRepository(prisma),
+  accessRequestRepository: new PrismaAccessRequestRepository(prisma),
   eventHookRepository: new PrismaEventHookRepository(prisma),
   eventNotificationRepository: new PrismaEventNotificationRepository(prisma),
   instanceSettingsRepository: new PrismaInstanceSettingsRepository(prisma)

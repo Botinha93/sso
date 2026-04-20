@@ -4,6 +4,7 @@ import Database from "better-sqlite3";
 import { nanoid } from "nanoid";
 import type {
   AccessTokenRecord,
+  AccessRequest,
   App,
   InstanceSettings,
   AuthenticationFlow,
@@ -40,6 +41,7 @@ import type {
 } from "../domain/models.js";
 import type {
   AccessTokenRepository,
+  AccessRequestRepository,
   AppRepository,
   InstanceSettingsRepository,
   AuthenticationFlowRepository,
@@ -481,6 +483,21 @@ export class SqliteDatabase {
         processed_at TEXT
       );
 
+      CREATE TABLE IF NOT EXISTS access_requests (
+        id TEXT PRIMARY KEY,
+        requester_id TEXT NOT NULL,
+        subject_user_id TEXT NOT NULL,
+        entitlement_type TEXT NOT NULL,
+        entitlement_value TEXT NOT NULL,
+        status TEXT NOT NULL,
+        justification TEXT NOT NULL,
+        expires_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (requester_id) REFERENCES users(id),
+        FOREIGN KEY (subject_user_id) REFERENCES users(id)
+      );
+
       CREATE TABLE IF NOT EXISTS event_hooks (
         id TEXT PRIMARY KEY,
         event_type TEXT NOT NULL,
@@ -632,6 +649,26 @@ export class SqliteDatabase {
           error TEXT,
           created_at TEXT NOT NULL,
           processed_at TEXT
+        );
+      `);
+    }
+
+    const accessRequestColumns = this.connection.prepare("PRAGMA table_info(access_requests)").all() as Array<{ name: string }>;
+    if (accessRequestColumns.length === 0) {
+      this.connection.exec(`
+        CREATE TABLE IF NOT EXISTS access_requests (
+          id TEXT PRIMARY KEY,
+          requester_id TEXT NOT NULL,
+          subject_user_id TEXT NOT NULL,
+          entitlement_type TEXT NOT NULL,
+          entitlement_value TEXT NOT NULL,
+          status TEXT NOT NULL,
+          justification TEXT NOT NULL,
+          expires_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (requester_id) REFERENCES users(id),
+          FOREIGN KEY (subject_user_id) REFERENCES users(id)
         );
       `);
     }
@@ -938,6 +975,19 @@ const mapDeprovisioningQueueItem = (row: DbRow): DeprovisioningQueueItem => ({
   error: row.error ? String(row.error) : undefined,
   createdAt: asDate(row.created_at),
   processedAt: maybeDate(row.processed_at)
+});
+
+const mapAccessRequest = (row: DbRow): AccessRequest => ({
+  id: String(row.id),
+  requesterId: String(row.requester_id),
+  subjectUserId: String(row.subject_user_id),
+  entitlementType: String(row.entitlement_type),
+  entitlementValue: String(row.entitlement_value),
+  status: String(row.status) as AccessRequest["status"],
+  justification: String(row.justification),
+  expiresAt: maybeDate(row.expires_at),
+  createdAt: asDate(row.created_at),
+  updatedAt: asDate(row.updated_at)
 });
 
 const mapEventHook = (row: DbRow): EventHook => ({
@@ -2644,6 +2694,83 @@ export class SqliteDeprovisioningQueueRepository implements DeprovisioningQueueR
       updated.status,
       updated.error ?? null,
       updated.processedAt ? updated.processedAt.toISOString() : null,
+      id
+    );
+
+    return updated;
+  }
+}
+
+export class SqliteAccessRequestRepository implements AccessRequestRepository {
+  constructor(private readonly db: Database.Database) {}
+
+  async list(input?: { limit?: number; status?: AccessRequest["status"] }): Promise<AccessRequest[]> {
+    const limit = Math.max(1, Math.min(200, input?.limit ?? 100));
+    if (input?.status) {
+      const rows = this.db.prepare(
+        "SELECT * FROM access_requests WHERE status = ? ORDER BY created_at DESC LIMIT ?"
+      ).all(input.status, limit) as DbRow[];
+      return rows.map(mapAccessRequest);
+    }
+
+    const rows = this.db.prepare("SELECT * FROM access_requests ORDER BY created_at DESC LIMIT ?").all(limit) as DbRow[];
+    return rows.map(mapAccessRequest);
+  }
+
+  async create(input: Omit<AccessRequest, "id" | "createdAt" | "updatedAt">): Promise<AccessRequest> {
+    const now = new Date();
+    const request: AccessRequest = {
+      ...input,
+      id: nanoid(),
+      createdAt: now,
+      updatedAt: now
+    };
+
+    this.db.prepare(`
+      INSERT INTO access_requests (id, requester_id, subject_user_id, entitlement_type, entitlement_value, status, justification, expires_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      request.id,
+      request.requesterId,
+      request.subjectUserId,
+      request.entitlementType,
+      request.entitlementValue,
+      request.status,
+      request.justification,
+      request.expiresAt ? request.expiresAt.toISOString() : null,
+      request.createdAt.toISOString(),
+      request.updatedAt.toISOString()
+    );
+
+    return request;
+  }
+
+  async update(id: string, input: Partial<Omit<AccessRequest, "id" | "createdAt">>): Promise<AccessRequest | undefined> {
+    const existing = this.db.prepare("SELECT * FROM access_requests WHERE id = ?").get(id) as DbRow | undefined;
+    if (!existing) {
+      return undefined;
+    }
+
+    const current = mapAccessRequest(existing);
+    const updated: AccessRequest = {
+      ...current,
+      ...input,
+      updatedAt: new Date()
+    };
+
+    this.db.prepare(`
+      UPDATE access_requests
+      SET requester_id = ?, subject_user_id = ?, entitlement_type = ?, entitlement_value = ?, status = ?, justification = ?, expires_at = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      updated.requesterId,
+      updated.subjectUserId,
+      updated.entitlementType,
+      updated.entitlementValue,
+      updated.status,
+      updated.justification,
+      updated.expiresAt ? updated.expiresAt.toISOString() : null,
+      updated.updatedAt.toISOString(),
       id
     );
 

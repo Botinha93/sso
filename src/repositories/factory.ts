@@ -1,5 +1,6 @@
 import type { AppConfig } from "../core/config.js";
 import type {
+  AccessRequestRepository,
   AccessTokenRepository,
   AppRepository,
   AuditRepository,
@@ -37,6 +38,7 @@ import type {
 import { createPrismaRepositoryBundle } from "./prisma-factory.js";
 import {
   SqliteAccessTokenRepository,
+  SqliteAccessRequestRepository,
   SqliteAppRepository,
   SqliteAuditRepository,
   SqliteAuthenticationFlowRepository,
@@ -103,6 +105,7 @@ export interface RepositoryBundle {
   provisioningMappingRepository: ProvisioningMappingRepository;
   provisioningJobRepository: ProvisioningJobRepository;
   deprovisioningQueueRepository: DeprovisioningQueueRepository;
+  accessRequestRepository: AccessRequestRepository;
   eventHookRepository: EventHookRepository;
   eventNotificationRepository: EventNotificationRepository;
   instanceSettingsRepository: InstanceSettingsRepository;
@@ -149,6 +152,7 @@ export const createRepositoryBundle = async (config: AppConfig): Promise<Reposit
       provisioningMappingRepository: new SqliteProvisioningMappingRepository(sqlite.connection),
       provisioningJobRepository: new SqliteProvisioningJobRepository(sqlite.connection),
       deprovisioningQueueRepository: new SqliteDeprovisioningQueueRepository(sqlite.connection),
+      accessRequestRepository: new SqliteAccessRequestRepository(sqlite.connection),
       eventHookRepository: new SqliteEventHookRepository(sqlite.connection),
       eventNotificationRepository: new SqliteEventNotificationRepository(sqlite.connection),
       instanceSettingsRepository: new SqliteInstanceSettingsRepository(sqlite.connection),

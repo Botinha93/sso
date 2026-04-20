@@ -92,6 +92,19 @@ model deprovisioning_queue {
   processed_at String?
 }
 
+model access_requests {
+  id                String? @id
+  requester_id      String
+  subject_user_id   String
+  entitlement_type  String
+  entitlement_value String
+  status            String
+  justification     String
+  expires_at        String?
+  created_at        String
+  updated_at        String
+}
+
 model authorization_codes {
   id                    String?       @id
   code                  String        @unique(map: "sqlite_autoindex_authorization_codes_2")

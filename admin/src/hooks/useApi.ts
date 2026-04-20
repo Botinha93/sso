@@ -851,6 +851,19 @@ export interface ProvisioningJobDto {
   completedAt?: string
 }
 
+export interface AccessRequestDto {
+  id: string
+  requesterId: string
+  subjectUserId: string
+  entitlementType: string
+  entitlementValue: string
+  status: 'pending' | 'approved' | 'rejected' | 'expired' | 'cancelled'
+  justification: string
+  expiresAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export function useProvisioningTokens() {
   return useQuery({
     queryKey: ['provisioning-tokens'],
@@ -933,6 +946,39 @@ export function useRunProvisioningReconcile() {
       queryClient.invalidateQueries({ queryKey: ['provisioning-jobs'] })
       queryClient.invalidateQueries({ queryKey: ['provisioning-mappings'] })
     }
+  })
+}
+
+export function useAccessRequests(status?: AccessRequestDto['status'], limit = 50) {
+  return useQuery({
+    queryKey: ['access-requests', status ?? 'all', limit],
+    queryFn: () => {
+      const search = new URLSearchParams()
+      search.set('limit', String(limit))
+      if (status) {
+        search.set('status', status)
+      }
+      return jsonFetch(`${API_BASE}/access-requests?${search.toString()}`) as Promise<AccessRequestDto[]>
+    }
+  })
+}
+
+export function useCreateAccessRequest() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: {
+      subjectUserId: string
+      entitlementType: string
+      entitlementValue: string
+      justification: string
+      expiresAt?: string
+    }) =>
+      jsonFetch(`${API_BASE}/access-requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }) as Promise<AccessRequestDto>,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['access-requests'] })
   })
 }
 

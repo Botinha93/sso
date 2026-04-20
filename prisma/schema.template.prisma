@@ -408,6 +408,21 @@ model DeprovisioningQueue {
   @@map("deprovisioning_queue")
 }
 
+model AccessRequest {
+  id               String  @id
+  requesterId      String  @map("requester_id")
+  subjectUserId    String  @map("subject_user_id")
+  entitlementType  String  @map("entitlement_type")
+  entitlementValue String  @map("entitlement_value")
+  status           String
+  justification    String
+  expiresAt        String? @map("expires_at")
+  createdAt        String  @map("created_at")
+  updatedAt        String  @map("updated_at")
+
+  @@map("access_requests")
+}
+
 model EventHook {
   id         String @id
   eventType  String @map("event_type")

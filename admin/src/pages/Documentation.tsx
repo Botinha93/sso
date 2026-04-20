@@ -115,6 +115,8 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'GET', path: '/api/admin/provisioning/jobs', auth: 'session', description: 'Lists recent provisioning reconciliation jobs.' },
   { method: 'GET', path: '/api/admin/provisioning/deprovisioning-queue', auth: 'session', description: 'Lists queued downstream deprovisioning/offboarding tasks.' },
   { method: 'POST', path: '/api/admin/provisioning/jobs/reconcile', auth: 'session+csrf', description: 'Starts a provisioning reconciliation run and reports drift/updated counters (dry-run supported).' },
+  { method: 'GET', path: '/api/admin/access-requests', auth: 'session', description: 'Lists access governance requests with optional status filtering.' },
+  { method: 'POST', path: '/api/admin/access-requests', auth: 'session+csrf', description: 'Creates an access governance request for a target entitlement.' },
 
   { method: 'GET', path: '/api/admin/users', auth: 'session', description: 'Lists users.' },
   { method: 'POST', path: '/api/admin/users', auth: 'session+csrf', description: 'Creates user and emits user.created event.' },
@@ -1718,6 +1720,9 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
   if (route.path === '/api/admin/events/notifications' || route.path === '/api/admin/audit') {
     params.push('Query: limit (number, optional)')
   }
+  if (route.path === '/api/admin/access-requests') {
+    params.push('Query: status? (pending|approved|rejected|expired|cancelled), limit?')
+  }
   if (route.path === '/oauth/frontchannel-logout') {
     params.push('Query: sid? | sub? | post_logout_redirect_uri? | state?')
   }
@@ -2097,6 +2102,50 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
           },
           createdAt: '2026-04-20T12:00:00.000Z',
           completedAt: '2026-04-20T12:00:01.000Z'
+        }
+      ])
+    }
+  }
+
+  if (route.path === '/api/admin/access-requests' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        subjectUserId: 'user_xxx',
+        entitlementType: 'role',
+        entitlementValue: 'finance_approver',
+        justification: 'User is onboarding to the Accounts Payable rotation.',
+        expiresAt: '2026-05-20T12:00:00.000Z'
+      }),
+      expectedResponse: prettyJson({
+        id: 'ar_xxx',
+        requesterId: 'admin_xxx',
+        subjectUserId: 'user_xxx',
+        entitlementType: 'role',
+        entitlementValue: 'finance_approver',
+        status: 'pending',
+        justification: 'User is onboarding to the Accounts Payable rotation.',
+        expiresAt: '2026-05-20T12:00:00.000Z',
+        createdAt: '2026-04-20T12:00:00.000Z',
+        updatedAt: '2026-04-20T12:00:00.000Z'
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/access-requests' && route.method === 'GET') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson([
+        {
+          id: 'ar_xxx',
+          requesterId: 'admin_xxx',
+          subjectUserId: 'user_xxx',
+          entitlementType: 'role',
+          entitlementValue: 'finance_approver',
+          status: 'pending',
+          justification: 'User is onboarding to the Accounts Payable rotation.',
+          createdAt: '2026-04-20T12:00:00.000Z',
+          updatedAt: '2026-04-20T12:00:00.000Z'
         }
       ])
     }

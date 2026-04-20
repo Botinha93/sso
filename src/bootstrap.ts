@@ -14,6 +14,7 @@ import { OidcService } from "./services/oidc-service.js";
 import { PolicyService } from "./services/policy-service.js";
 import { ProvisioningService } from "./services/provisioning-service.js";
 import { DeprovisioningService } from "./services/deprovisioning-service.js";
+import { AccessGovernanceService } from "./services/access-governance-service.js";
 import { EventHookService } from "./services/event-hook-service.js";
 import { EmailService } from "./services/email-service.js";
 import { InstanceSettingsService } from "./services/instance-settings-service.js";
@@ -62,6 +63,7 @@ export const bootstrap = async (config: AppConfig) => {
     provisioningMappingRepository,
     provisioningJobRepository,
     deprovisioningQueueRepository,
+    accessRequestRepository,
     eventHookRepository,
     eventNotificationRepository,
     instanceSettingsRepository
@@ -123,6 +125,7 @@ export const bootstrap = async (config: AppConfig) => {
     groupRepository
   );
   const deprovisioningService = new DeprovisioningService(deprovisioningQueueRepository);
+  const accessGovernanceService = new AccessGovernanceService(accessRequestRepository, userRepository);
   const setupService = new SetupService(
     userService,
     roleService,
@@ -350,6 +353,7 @@ export const bootstrap = async (config: AppConfig) => {
     scimTokenService,
     provisioningService,
     deprovisioningService,
+    accessGovernanceService,
     clientService,
     scopeService,
     appService,

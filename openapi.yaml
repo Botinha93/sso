@@ -399,6 +399,29 @@ paths:
       responses:
         '202':
           description: Reconciliation job accepted
+  /api/admin/access-requests:
+    get:
+      summary: List access governance requests
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, approved, rejected, expired, cancelled]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+      responses:
+        '200':
+          description: Access request list
+    post:
+      summary: Create access governance request
+      responses:
+        '201':
+          description: Access request created
   /api/admin/authentication/flows:
     get:
       summary: List authentication flows

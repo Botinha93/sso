@@ -57,7 +57,9 @@ import {
   testEventHookSchema,
   createScimTokenSchema,
   createProvisioningMappingSchema,
+  createAccessRequestSchema,
   updateInstanceSettingsSchema,
+  listAccessRequestsQuerySchema,
   reconcileProvisioningJobSchema,
   updateAppSchema,
   updateAuthenticationFlowSchema,
@@ -82,6 +84,7 @@ import { ScimService } from "../services/scim-service.js";
 import { ScimTokenService } from "../services/scim-token-service.js";
 import { ProvisioningService } from "../services/provisioning-service.js";
 import { DeprovisioningService } from "../services/deprovisioning-service.js";
+import { AccessGovernanceService } from "../services/access-governance-service.js";
 import { SetupService } from "../services/setup-service.js";
 import { TenantService } from "../services/tenant-service.js";
 import { TotpService } from "../services/totp-service.js";
@@ -113,6 +116,7 @@ interface RouteDeps {
   scimTokenService: ScimTokenService;
   provisioningService: ProvisioningService;
   deprovisioningService: DeprovisioningService;
+  accessGovernanceService: AccessGovernanceService;
   totpService: TotpService;
   userService: UserService;
   userAttributeService: UserAttributeService;
@@ -1018,6 +1022,31 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.get("/api/admin/provisioning/jobs", async (request) => {
     const limit = Number((request.query as { limit?: string } | undefined)?.limit ?? "20");
     return deps.provisioningService.listJobs(Number.isFinite(limit) ? limit : 20);
+  });
+  app.get("/api/admin/access-requests", async (request) => {
+    const query = listAccessRequestsQuerySchema.parse(request.query ?? {});
+    return deps.accessGovernanceService.listAccessRequests({
+      status: query.status,
+      limit: query.limit
+    });
+  });
+  app.post("/api/admin/access-requests", async (request, reply) => {
+    const auth = await requireSessionUser(request, reply);
+    if (!auth) {
+      return;
+    }
+
+    const input = createAccessRequestSchema.parse(request.body);
+    const created = await deps.accessGovernanceService.createAccessRequest({
+      requesterId: auth.user.id,
+      subjectUserId: input.subjectUserId,
+      entitlementType: input.entitlementType,
+      entitlementValue: input.entitlementValue,
+      justification: input.justification,
+      expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined
+    });
+
+    return reply.status(201).send(created);
   });
   app.get("/api/admin/provisioning/deprovisioning-queue", async (request) => {
     const limit = Number((request.query as { limit?: string } | undefined)?.limit ?? "100");

@@ -178,8 +178,8 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 
 ### API backlog
 
-- [ ] `POST /api/admin/access-requests`
-- [ ] `GET /api/admin/access-requests`
+- [x] `POST /api/admin/access-requests`
+- [x] `GET /api/admin/access-requests`
 - [ ] `POST /api/admin/access-requests/:id/approve`
 - [ ] `POST /api/admin/access-requests/:id/reject`
 - [ ] `POST /api/admin/access-reviews/campaigns`
@@ -188,14 +188,14 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 
 ### Schema and model backlog
 
-- [ ] Add `access_requests` table (requester, subject, entitlement, status, justification, expires_at).
+- [x] Add `access_requests` table (requester, subject, entitlement, status, justification, expires_at).
 - [ ] Add `access_request_approvals` table (approver, decision, rationale, timestamp).
 - [ ] Add `review_campaigns` and `review_items` tables.
 - [ ] Add attestation metadata to audit events for evidence export.
 
 ### Code implementation backlog
 
-- [ ] Create `src/services/access-governance-service.ts`.
+- [x] Create `src/services/access-governance-service.ts`.
 - [ ] Add SLA/escalation logic for stalled approvals.
 - [ ] Auto-create assignments on approval, auto-revoke on expiry.
 - [ ] Add campaign UI pages in admin app.

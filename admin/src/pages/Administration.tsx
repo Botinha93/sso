@@ -8,6 +8,7 @@ import {
   useUpdateInstanceSettings
 } from '../hooks/useApi'
 import ProvisioningAdminPanel from '../components/ProvisioningAdminPanel'
+import AccessGovernancePanel from '../components/AccessGovernancePanel'
 
 interface SettingsForm {
   databaseProvider: 'sqlite' | 'postgresql' | 'mysql'
@@ -226,6 +227,7 @@ export default function Administration() {
       </div>
 
       <ProvisioningAdminPanel />
+      <AccessGovernancePanel />
 
       <div className="grid gap-6 xl:grid-cols-2">
         <section className={sectionCls}>
