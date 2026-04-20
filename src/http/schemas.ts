@@ -496,6 +496,15 @@ export const listAccessRequestsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).optional()
 });
 
+export const decideAccessRequestSchema = z.object({
+  rationale: z.string().min(1).max(2000).optional()
+});
+
+export const processExpiredAccessRequestsSchema = z.object({
+  dryRun: z.boolean().default(false),
+  now: z.string().datetime().optional()
+});
+
 export const updateInstanceSettingsSchema = z.object({
   databaseProvider: z.enum(["sqlite", "postgresql", "mysql"]).optional(),
   databasePath: z.string().min(1).optional(),

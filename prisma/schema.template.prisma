@@ -423,6 +423,17 @@ model AccessRequest {
   @@map("access_requests")
 }
 
+model AccessRequestApproval {
+  id              String  @id
+  accessRequestId String  @map("access_request_id")
+  approverId      String  @map("approver_id")
+  decision        String
+  rationale       String?
+  createdAt       String  @map("created_at")
+
+  @@map("access_request_approvals")
+}
+
 model EventHook {
   id         String @id
   eventType  String @map("event_type")

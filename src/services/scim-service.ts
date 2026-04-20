@@ -116,11 +116,7 @@ export class ScimService {
     if (!user) {
       return undefined;
     }
-    return this.toScimUser({
-      ...user,
-      roles: [],
-      groups: await this.groupService.resolveGroupNamesForUser(id)
-    });
+    return this.toScimUser(user);
   }
 
   async createUser(input: {
@@ -149,11 +145,7 @@ export class ScimService {
       active: input.active ?? true
     });
 
-    return this.toScimUser({
-      ...created,
-      roles: [],
-      groups: []
-    });
+    return this.toScimUser(created);
   }
 
   async replaceUser(id: string, input: {
@@ -178,6 +170,9 @@ export class ScimService {
       givenName: input.name?.givenName ?? existing.givenName,
       familyName: input.name?.familyName ?? existing.familyName
     });
+    if (!updated) {
+      throw new ValidationError("User not found");
+    }
 
     if (typeof input.active === "boolean") {
       await this.userService.setUserActive(id, input.active);
@@ -188,9 +183,7 @@ export class ScimService {
 
     return this.toScimUser({
       ...updated,
-      active: typeof input.active === "boolean" ? input.active : updated.active,
-      roles: [],
-      groups: await this.groupService.resolveGroupNamesForUser(id)
+      active: typeof input.active === "boolean" ? input.active : updated.active
     });
   }
 
@@ -237,15 +230,16 @@ export class ScimService {
     }
 
     const updatedProfile = await this.userService.updateUserProfile(id, profilePatch);
+    if (!updatedProfile) {
+      throw new ValidationError("User not found");
+    }
     if (typeof activePatch === "boolean") {
       await this.userService.setUserActive(id, activePatch);
     }
 
     return this.toScimUser({
       ...updatedProfile,
-      active: typeof activePatch === "boolean" ? activePatch : updatedProfile.active,
-      roles: [],
-      groups: await this.groupService.resolveGroupNamesForUser(id)
+      active: typeof activePatch === "boolean" ? activePatch : updatedProfile.active
     });
   }
 
@@ -275,7 +269,7 @@ export class ScimService {
     if (!group) {
       return undefined;
     }
-    return this.toScimGroup({ ...group, roleIds: [], roles: [] });
+    return this.toScimGroup(group);
   }
 
   async createGroup(input: { externalId?: string; displayName: string; members?: Array<{ value: string }> }) {
@@ -291,7 +285,7 @@ export class ScimService {
       await this.groupService.assignUserToGroup({ userId: member.value, groupId: created.id });
     }
 
-    return this.toScimGroup({ ...created, roleIds: [], roles: [] });
+    return this.toScimGroup(created);
   }
 
   async replaceGroup(id: string, input: { externalId?: string; displayName: string; members?: Array<{ value: string }> }) {
@@ -323,7 +317,7 @@ export class ScimService {
     if (!updated) {
       throw new ValidationError("Group not found");
     }
-    return this.toScimGroup({ ...updated, roleIds: [], roles: [] });
+    return this.toScimGroup(updated);
   }
 
   async patchGroup(id: string, operations: Array<{ op: "add" | "replace" | "remove"; path?: string; value?: unknown }>) {
@@ -360,7 +354,7 @@ export class ScimService {
     if (!updated) {
       throw new ValidationError("Group not found");
     }
-    return this.toScimGroup({ ...updated, roleIds: [], roles: [] });
+    return this.toScimGroup(updated);
   }
 
   async deleteGroup(id: string) {
@@ -375,6 +369,7 @@ export class ScimService {
     givenName: string;
     familyName: string;
     active: boolean;
+    [key: string]: unknown;
   }) {
     return {
       schemas: [USER_SCHEMA_ID],
@@ -399,7 +394,7 @@ export class ScimService {
     };
   }
 
-  private async toScimGroup(group: { id: string; name: string; externalId?: string }) {
+  private async toScimGroup(group: { id: string; name: string; externalId?: string; [key: string]: unknown }) {
     const users = await this.userService.listUsers();
     const members: Array<{ value: string; display: string }> = [];
 
@@ -423,10 +418,10 @@ export class ScimService {
     };
   }
 
-  private filterUsers(
-    users: Array<{ username: string; email: string }>,
+  private filterUsers<T extends { username: string; email: string }>(
+    users: T[],
     filter: string | undefined
-  ) {
+  ): T[] {
     if (!filter) {
       return users;
     }
@@ -443,10 +438,10 @@ export class ScimService {
     return users;
   }
 
-  private filterGroups(
-    groups: Array<{ name: string }>,
+  private filterGroups<T extends { name: string }>(
+    groups: T[],
     filter: string | undefined
-  ) {
+  ): T[] {
     if (!filter) {
       return groups;
     }

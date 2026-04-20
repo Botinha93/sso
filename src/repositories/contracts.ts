@@ -1,6 +1,7 @@
 import type {
   AccessTokenRecord,
   AccessRequest,
+  AccessRequestApproval,
   AuthenticationFlow,
   AuditEvent,
   AuthorizationCode,
@@ -35,246 +36,256 @@ import type {
   UserGroupAssignment,
   UserRoleAssignment
 } from "../domain/models.js";
+
+type Awaitable<T> = T | Promise<T>;
+
 export interface RoleRepository {
-  create(input: Omit<Role, "id" | "createdAt">): Promise<Role>;
-  update(id: string, input: Partial<Omit<Role, "id" | "createdAt">>): Promise<Role | undefined>;
-  list(): Promise<Role[]>;
-  findByIds(ids: string[]): Promise<Role[]>;
-  findByName(name: string): Promise<Role | undefined>;
-  delete(id: string): Promise<void>;
+  create(input: Omit<Role, "id" | "createdAt">): Awaitable<Role>;
+  update(id: string, input: Partial<Omit<Role, "id" | "createdAt">>): Awaitable<Role | undefined>;
+  list(): Awaitable<Role[]>;
+  findByIds(ids: string[]): Awaitable<Role[]>;
+  findByName(name: string): Awaitable<Role | undefined>;
+  delete(id: string): Awaitable<void>;
 }
 
 export interface UserRepository {
-  create(input: Omit<User, "id" | "createdAt" | "updatedAt">): Promise<User>;
-  list(): Promise<User[]>;
-  findByEmail(email: string): Promise<User | undefined>;
-  findByUsername(username: string): Promise<User | undefined>;
-  findById(id: string): Promise<User | undefined>;
-  updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId" | "externalSource" | "externalId" | "isServiceUser">>): Promise<User | undefined>;
-  setPasswordHash(id: string, passwordHash: string): Promise<void>;
-  setActive(id: string, active: boolean): Promise<void>;
-  setCustomAttributes(id: string, customAttributes: Record<string, string>): Promise<void>;
-  delete(id: string): Promise<void>;
+  create(input: Omit<User, "id" | "createdAt" | "updatedAt">): Awaitable<User>;
+  list(): Awaitable<User[]>;
+  findByEmail(email: string): Awaitable<User | undefined>;
+  findByUsername(username: string): Awaitable<User | undefined>;
+  findById(id: string): Awaitable<User | undefined>;
+  updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId" | "externalSource" | "externalId" | "isServiceUser">>): Awaitable<User | undefined>;
+  setPasswordHash(id: string, passwordHash: string): Awaitable<void>;
+  setActive(id: string, active: boolean): Awaitable<void>;
+  setCustomAttributes(id: string, customAttributes: Record<string, string>): Awaitable<void>;
+  delete(id: string): Awaitable<void>;
 }
 
 export interface AppRepository {
-  create(input: Omit<App, "id" | "createdAt">): Promise<App>;
-  list(): Promise<App[]>;
-  findById(id: string): Promise<App | undefined>;
-  update(id: string, input: Partial<Omit<App, "id" | "createdAt">>): Promise<App | undefined>;
-  delete(id: string): Promise<void>;
+  create(input: Omit<App, "id" | "createdAt">): Awaitable<App>;
+  list(): Awaitable<App[]>;
+  findById(id: string): Awaitable<App | undefined>;
+  update(id: string, input: Partial<Omit<App, "id" | "createdAt">>): Awaitable<App | undefined>;
+  delete(id: string): Awaitable<void>;
 }
 
 export interface InstanceSettingsRepository {
-  get(): Promise<InstanceSettings | undefined>;
-  upsert(input: Omit<InstanceSettings, "updatedAt">): Promise<InstanceSettings>;
+  get(): Awaitable<InstanceSettings | undefined>;
+  upsert(input: Omit<InstanceSettings, "updatedAt">): Awaitable<InstanceSettings>;
 }
 
 export interface ClientRepository {
-  create(input: Omit<OAuthClient, "createdAt">): Promise<OAuthClient>;
-  findById(id: string): Promise<OAuthClient | undefined>;
-  list(): Promise<OAuthClient[]>;
-  update(id: string, input: Partial<Omit<OAuthClient, "id" | "createdAt">>): Promise<OAuthClient | undefined>;
-  delete(id: string): Promise<void>;
+  create(input: Omit<OAuthClient, "createdAt">): Awaitable<OAuthClient>;
+  findById(id: string): Awaitable<OAuthClient | undefined>;
+  list(): Awaitable<OAuthClient[]>;
+  update(id: string, input: Partial<Omit<OAuthClient, "id" | "createdAt">>): Awaitable<OAuthClient | undefined>;
+  delete(id: string): Awaitable<void>;
 }
 
 export interface ScopeRepository {
-  create(input: Omit<OAuthScope, "id" | "createdAt">): Promise<OAuthScope>;
-  list(): Promise<OAuthScope[]>;
-  findByName(name: string): Promise<OAuthScope | undefined>;
-  delete(id: string): Promise<void>;
+  create(input: Omit<OAuthScope, "id" | "createdAt">): Awaitable<OAuthScope>;
+  list(): Awaitable<OAuthScope[]>;
+  findByName(name: string): Awaitable<OAuthScope | undefined>;
+  delete(id: string): Awaitable<void>;
 }
 
 export interface SessionRepository {
-  create(input: Omit<Session, "id">): Promise<Session>;
-  findById(id: string): Promise<Session | undefined>;
-  list(): Promise<Session[]>;
-  revoke(id: string, revokedAt: Date): Promise<void>;
+  create(input: Omit<Session, "id">): Awaitable<Session>;
+  findById(id: string): Awaitable<Session | undefined>;
+  list(): Awaitable<Session[]>;
+  revoke(id: string, revokedAt: Date): Awaitable<void>;
 }
 
 export interface TotpCredentialRepository {
-  findByUserId(userId: string): Promise<TotpCredential | undefined>;
-  upsert(input: Omit<TotpCredential, "createdAt" | "updatedAt">): Promise<TotpCredential>;
-  delete(userId: string): Promise<void>;
+  findByUserId(userId: string): Awaitable<TotpCredential | undefined>;
+  upsert(input: Omit<TotpCredential, "createdAt" | "updatedAt">): Awaitable<TotpCredential>;
+  delete(userId: string): Awaitable<void>;
 }
 
 export interface AuthorizationCodeRepository {
-  create(input: Omit<AuthorizationCode, "id" | "createdAt">): Promise<AuthorizationCode>;
-  consume(code: string): Promise<AuthorizationCode | undefined>;
+  create(input: Omit<AuthorizationCode, "id" | "createdAt">): Awaitable<AuthorizationCode>;
+  consume(code: string): Awaitable<AuthorizationCode | undefined>;
 }
 
 export interface TenantRepository {
-  create(input: Omit<Tenant, "id" | "createdAt">): Promise<Tenant>;
-  list(): Promise<Tenant[]>;
-  findBySlug(slug: string): Promise<Tenant | undefined>;
-  findById(id: string): Promise<Tenant | undefined>;
-  update(id: string, input: Partial<Omit<Tenant, "id" | "createdAt">>): Promise<Tenant | undefined>;
+  create(input: Omit<Tenant, "id" | "createdAt">): Awaitable<Tenant>;
+  list(): Awaitable<Tenant[]>;
+  findBySlug(slug: string): Awaitable<Tenant | undefined>;
+  findById(id: string): Awaitable<Tenant | undefined>;
+  update(id: string, input: Partial<Omit<Tenant, "id" | "createdAt">>): Awaitable<Tenant | undefined>;
 }
 
 export interface GroupRepository {
-  create(input: Omit<Group, "id" | "createdAt">): Promise<Group>;
-  list(): Promise<Group[]>;
-  findById(id: string): Promise<Group | undefined>;
-  update(id: string, input: Partial<Omit<Group, "id" | "createdAt">>): Promise<Group | undefined>;
-  delete(id: string): Promise<void>;
+  create(input: Omit<Group, "id" | "createdAt">): Awaitable<Group>;
+  list(): Awaitable<Group[]>;
+  findById(id: string): Awaitable<Group | undefined>;
+  update(id: string, input: Partial<Omit<Group, "id" | "createdAt">>): Awaitable<Group | undefined>;
+  delete(id: string): Awaitable<void>;
 }
 
 export interface UserGroupAssignmentRepository {
-  assign(input: Omit<UserGroupAssignment, "id" | "createdAt">): Promise<UserGroupAssignment>;
-  listByUser(userId: string): Promise<UserGroupAssignment[]>;
-  remove(userId: string, groupId: string): Promise<void>;
+  assign(input: Omit<UserGroupAssignment, "id" | "createdAt">): Awaitable<UserGroupAssignment>;
+  listByUser(userId: string): Awaitable<UserGroupAssignment[]>;
+  remove(userId: string, groupId: string): Awaitable<void>;
 }
 
 export interface GroupRoleAssignmentRepository {
-  assign(input: Omit<GroupRoleAssignment, "id" | "createdAt">): Promise<GroupRoleAssignment>;
-  listByGroup(groupId: string): Promise<GroupRoleAssignment[]>;
-  listByGroups(groupIds: string[]): Promise<GroupRoleAssignment[]>;
-  remove(groupId: string, roleId: string): Promise<void>;
+  assign(input: Omit<GroupRoleAssignment, "id" | "createdAt">): Awaitable<GroupRoleAssignment>;
+  listByGroup(groupId: string): Awaitable<GroupRoleAssignment[]>;
+  listByGroups(groupIds: string[]): Awaitable<GroupRoleAssignment[]>;
+  remove(groupId: string, roleId: string): Awaitable<void>;
 }
 
 export interface UserRoleAssignmentRepository {
-  assign(input: Omit<UserRoleAssignment, "id" | "createdAt">): Promise<UserRoleAssignment>;
-  listByUser(userId: string): Promise<UserRoleAssignment[]>;
+  assign(input: Omit<UserRoleAssignment, "id" | "createdAt">): Awaitable<UserRoleAssignment>;
+  listByUser(userId: string): Awaitable<UserRoleAssignment[]>;
+  remove(input: { userId: string; roleId: string; tenantId?: string }): Awaitable<void>;
 }
 
 export interface ConsentRepository {
-  upsert(input: Omit<Consent, "id" | "createdAt" | "updatedAt">): Promise<Consent>;
-  findByUserAndClient(userId: string, clientId: string): Promise<Consent | undefined>;
-  list(): Promise<Consent[]>;
-  revoke(id: string): Promise<void>;
+  upsert(input: Omit<Consent, "id" | "createdAt" | "updatedAt">): Awaitable<Consent>;
+  findByUserAndClient(userId: string, clientId: string): Awaitable<Consent | undefined>;
+  list(): Awaitable<Consent[]>;
+  revoke(id: string): Awaitable<void>;
 }
 
 export interface RefreshTokenRepository {
-  create(input: Omit<RefreshTokenRecord, "id" | "createdAt">): Promise<RefreshTokenRecord>;
-  findActiveByHash(tokenHash: string): Promise<RefreshTokenRecord | undefined>;
-  markConsumed(tokenId: string, consumedAt: Date): Promise<void>;
-  revokeTokenFamily(tokenId: string, revokedAt: Date): Promise<void>;
-  revokeByTokenId(tokenId: string, revokedAt: Date): Promise<void>;
+  create(input: Omit<RefreshTokenRecord, "id" | "createdAt">): Awaitable<RefreshTokenRecord>;
+  findActiveByHash(tokenHash: string): Awaitable<RefreshTokenRecord | undefined>;
+  markConsumed(tokenId: string, consumedAt: Date): Awaitable<void>;
+  revokeTokenFamily(tokenId: string, revokedAt: Date): Awaitable<void>;
+  revokeByTokenId(tokenId: string, revokedAt: Date): Awaitable<void>;
 }
 
 export interface AccessTokenRepository {
-  create(input: Omit<AccessTokenRecord, "id" | "createdAt">): Promise<AccessTokenRecord>;
-  isRevoked(tokenId: string): Promise<boolean>;
-  revokeByTokenId(tokenId: string, revokedAt: Date): Promise<void>;
+  create(input: Omit<AccessTokenRecord, "id" | "createdAt">): Awaitable<AccessTokenRecord>;
+  isRevoked(tokenId: string): Awaitable<boolean>;
+  revokeByTokenId(tokenId: string, revokedAt: Date): Awaitable<void>;
 }
 
 export interface AuditRepository {
-  log(input: Omit<AuditEvent, "id" | "createdAt">): Promise<AuditEvent>;
-  list(limit?: number): Promise<AuditEvent[]>;
+  log(input: Omit<AuditEvent, "id" | "createdAt">): Awaitable<AuditEvent>;
+  list(limit?: number): Awaitable<AuditEvent[]>;
 }
 
 export interface FederatedIdentityRepository {
-  findByProviderSubject(providerId: string, providerSubject: string): Promise<FederatedIdentity | undefined>;
-  create(input: Omit<FederatedIdentity, "id" | "createdAt" | "lastLoginAt">): Promise<FederatedIdentity>;
-  touchLogin(id: string, loggedAt: Date): Promise<void>;
+  findByProviderSubject(providerId: string, providerSubject: string): Awaitable<FederatedIdentity | undefined>;
+  create(input: Omit<FederatedIdentity, "id" | "createdAt" | "lastLoginAt">): Awaitable<FederatedIdentity>;
+  touchLogin(id: string, loggedAt: Date): Awaitable<void>;
 }
 
 export interface FederationTransactionRepository {
-  create(input: Omit<FederationTransaction, "createdAt">): Promise<FederationTransaction>;
-  consume(state: string): Promise<FederationTransaction | undefined>;
-  purgeExpired(now: Date): Promise<void>;
+  create(input: Omit<FederationTransaction, "createdAt">): Awaitable<FederationTransaction>;
+  consume(state: string): Awaitable<FederationTransaction | undefined>;
+  purgeExpired(now: Date): Awaitable<void>;
 }
 
 export interface FederationProviderRepository {
-  list(): Promise<FederationProvider[]>;
-  findById(id: string): Promise<FederationProvider | undefined>;
-  create(input: Omit<FederationProvider, "createdAt" | "updatedAt">): Promise<FederationProvider>;
-  update(id: string, input: Partial<Omit<FederationProvider, "id" | "createdAt" | "updatedAt">>): Promise<FederationProvider | undefined>;
-  delete(id: string): Promise<void>;
+  list(): Awaitable<FederationProvider[]>;
+  findById(id: string): Awaitable<FederationProvider | undefined>;
+  create(input: Omit<FederationProvider, "createdAt" | "updatedAt">): Awaitable<FederationProvider>;
+  update(id: string, input: Partial<Omit<FederationProvider, "id" | "createdAt" | "updatedAt">>): Awaitable<FederationProvider | undefined>;
+  delete(id: string): Awaitable<void>;
 }
 
 export interface AuthenticationFlowRepository {
-  list(): Promise<AuthenticationFlow[]>;
-  findById(id: string): Promise<AuthenticationFlow | undefined>;
-  create(input: Omit<AuthenticationFlow, "createdAt" | "updatedAt">): Promise<AuthenticationFlow>;
-  update(id: string, input: Partial<Omit<AuthenticationFlow, "id" | "createdAt" | "updatedAt">>): Promise<AuthenticationFlow | undefined>;
-  delete(id: string): Promise<void>;
+  list(): Awaitable<AuthenticationFlow[]>;
+  findById(id: string): Awaitable<AuthenticationFlow | undefined>;
+  create(input: Omit<AuthenticationFlow, "createdAt" | "updatedAt">): Awaitable<AuthenticationFlow>;
+  update(id: string, input: Partial<Omit<AuthenticationFlow, "id" | "createdAt" | "updatedAt">>): Awaitable<AuthenticationFlow | undefined>;
+  delete(id: string): Awaitable<void>;
 }
 
 export interface UserAttributeRepository {
-  list(): Promise<UserAttributeDefinition[]>;
-  findById(id: string): Promise<UserAttributeDefinition | undefined>;
-  findByKey(key: string): Promise<UserAttributeDefinition | undefined>;
-  create(input: Omit<UserAttributeDefinition, "createdAt" | "updatedAt">): Promise<UserAttributeDefinition>;
-  update(id: string, input: Partial<Omit<UserAttributeDefinition, "id" | "createdAt" | "updatedAt">>): Promise<UserAttributeDefinition | undefined>;
-  delete(id: string): Promise<void>;
+  list(): Awaitable<UserAttributeDefinition[]>;
+  findById(id: string): Awaitable<UserAttributeDefinition | undefined>;
+  findByKey(key: string): Awaitable<UserAttributeDefinition | undefined>;
+  create(input: Omit<UserAttributeDefinition, "createdAt" | "updatedAt">): Awaitable<UserAttributeDefinition>;
+  update(id: string, input: Partial<Omit<UserAttributeDefinition, "id" | "createdAt" | "updatedAt">>): Awaitable<UserAttributeDefinition | undefined>;
+  delete(id: string): Awaitable<void>;
 }
 
 export interface GroupUserAttributeAssignmentRepository {
-  list(): Promise<GroupUserAttributeAssignment[]>;
-  listByAttribute(attributeId: string): Promise<GroupUserAttributeAssignment[]>;
-  upsert(input: Omit<GroupUserAttributeAssignment, "id" | "createdAt" | "updatedAt">): Promise<GroupUserAttributeAssignment>;
-  delete(attributeId: string, groupId: string): Promise<void>;
+  list(): Awaitable<GroupUserAttributeAssignment[]>;
+  listByAttribute(attributeId: string): Awaitable<GroupUserAttributeAssignment[]>;
+  upsert(input: Omit<GroupUserAttributeAssignment, "id" | "createdAt" | "updatedAt">): Awaitable<GroupUserAttributeAssignment>;
+  delete(attributeId: string, groupId: string): Awaitable<void>;
 }
 
 export interface PolicyDefinitionRepository {
-  list(): Promise<PolicyDefinition[]>;
-  findById(id: string): Promise<PolicyDefinition | undefined>;
-  findByKey(key: string): Promise<PolicyDefinition | undefined>;
-  create(input: Omit<PolicyDefinition, "createdAt" | "updatedAt">): Promise<PolicyDefinition>;
-  update(id: string, input: Partial<Omit<PolicyDefinition, "id" | "createdAt" | "updatedAt">>): Promise<PolicyDefinition | undefined>;
-  delete(id: string): Promise<void>;
+  list(): Awaitable<PolicyDefinition[]>;
+  findById(id: string): Awaitable<PolicyDefinition | undefined>;
+  findByKey(key: string): Awaitable<PolicyDefinition | undefined>;
+  create(input: Omit<PolicyDefinition, "createdAt" | "updatedAt">): Awaitable<PolicyDefinition>;
+  update(id: string, input: Partial<Omit<PolicyDefinition, "id" | "createdAt" | "updatedAt">>): Awaitable<PolicyDefinition | undefined>;
+  delete(id: string): Awaitable<void>;
 }
 
 export interface PolicyAssignmentRepository {
-  list(): Promise<PolicyAssignment[]>;
-  listByPolicy(policyId: string): Promise<PolicyAssignment[]>;
-  upsert(input: Omit<PolicyAssignment, "id" | "createdAt" | "updatedAt">): Promise<PolicyAssignment>;
-  delete(policyId: string, scopeType: PolicyScopeType, scopeId: string): Promise<void>;
+  list(): Awaitable<PolicyAssignment[]>;
+  listByPolicy(policyId: string): Awaitable<PolicyAssignment[]>;
+  upsert(input: Omit<PolicyAssignment, "id" | "createdAt" | "updatedAt">): Awaitable<PolicyAssignment>;
+  delete(policyId: string, scopeType: PolicyScopeType, scopeId: string): Awaitable<void>;
 }
 
 export interface PolicyDecisionLogRepository {
-  list(limit?: number): Promise<PolicyDecisionLog[]>;
-  create(input: Omit<PolicyDecisionLog, "id" | "createdAt">): Promise<PolicyDecisionLog>;
+  list(limit?: number): Awaitable<PolicyDecisionLog[]>;
+  create(input: Omit<PolicyDecisionLog, "id" | "createdAt">): Awaitable<PolicyDecisionLog>;
 }
 
 export interface ScimTokenRepository {
-  list(): Promise<ScimToken[]>;
-  findByTokenHash(tokenHash: string): Promise<ScimToken | undefined>;
-  create(input: Omit<ScimToken, "id" | "createdAt" | "updatedAt" | "lastUsedAt">): Promise<ScimToken>;
-  touchLastUsed(id: string, usedAt: Date): Promise<void>;
-  delete(id: string): Promise<void>;
+  list(): Awaitable<ScimToken[]>;
+  findByTokenHash(tokenHash: string): Awaitable<ScimToken | undefined>;
+  create(input: Omit<ScimToken, "id" | "createdAt" | "updatedAt" | "lastUsedAt">): Awaitable<ScimToken>;
+  touchLastUsed(id: string, usedAt: Date): Awaitable<void>;
+  delete(id: string): Awaitable<void>;
 }
 
 export interface ProvisioningMappingRepository {
-  list(): Promise<ProvisioningMapping[]>;
-  create(input: Omit<ProvisioningMapping, "id" | "createdAt" | "updatedAt">): Promise<ProvisioningMapping>;
-  update(id: string, input: Partial<Omit<ProvisioningMapping, "id" | "createdAt" | "updatedAt">>): Promise<ProvisioningMapping | undefined>;
-  delete(id: string): Promise<void>;
+  list(): Awaitable<ProvisioningMapping[]>;
+  create(input: Omit<ProvisioningMapping, "id" | "createdAt" | "updatedAt">): Awaitable<ProvisioningMapping>;
+  update(id: string, input: Partial<Omit<ProvisioningMapping, "id" | "createdAt" | "updatedAt">>): Awaitable<ProvisioningMapping | undefined>;
+  delete(id: string): Awaitable<void>;
 }
 
 export interface ProvisioningJobRepository {
-  list(limit?: number): Promise<ProvisioningJob[]>;
-  create(input: Omit<ProvisioningJob, "id" | "createdAt">): Promise<ProvisioningJob>;
-  update(id: string, input: Partial<Omit<ProvisioningJob, "id" | "createdAt">>): Promise<ProvisioningJob | undefined>;
+  list(limit?: number): Awaitable<ProvisioningJob[]>;
+  create(input: Omit<ProvisioningJob, "id" | "createdAt">): Awaitable<ProvisioningJob>;
+  update(id: string, input: Partial<Omit<ProvisioningJob, "id" | "createdAt">>): Awaitable<ProvisioningJob | undefined>;
 }
 
 export interface DeprovisioningQueueRepository {
-  list(limit?: number): Promise<DeprovisioningQueueItem[]>;
-  enqueue(input: Omit<DeprovisioningQueueItem, "id" | "createdAt">): Promise<DeprovisioningQueueItem>;
+  list(limit?: number): Awaitable<DeprovisioningQueueItem[]>;
+  enqueue(input: Omit<DeprovisioningQueueItem, "id" | "createdAt">): Awaitable<DeprovisioningQueueItem>;
   updateStatus(id: string, input: {
     status: DeprovisioningQueueItem["status"];
     error?: string;
     processedAt?: Date;
-  }): Promise<DeprovisioningQueueItem | undefined>;
+  }): Awaitable<DeprovisioningQueueItem | undefined>;
 }
 
 export interface AccessRequestRepository {
-  list(input?: { limit?: number; status?: AccessRequest["status"] }): Promise<AccessRequest[]>;
-  create(input: Omit<AccessRequest, "id" | "createdAt" | "updatedAt">): Promise<AccessRequest>;
-  update(id: string, input: Partial<Omit<AccessRequest, "id" | "createdAt">>): Promise<AccessRequest | undefined>;
+  list(input?: { limit?: number; status?: AccessRequest["status"] }): Awaitable<AccessRequest[]>;
+  findById(id: string): Awaitable<AccessRequest | undefined>;
+  create(input: Omit<AccessRequest, "id" | "createdAt" | "updatedAt">): Awaitable<AccessRequest>;
+  update(id: string, input: Partial<Omit<AccessRequest, "id" | "createdAt">>): Awaitable<AccessRequest | undefined>;
+}
+
+export interface AccessRequestApprovalRepository {
+  listByAccessRequestId(accessRequestId: string): Awaitable<AccessRequestApproval[]>;
+  create(input: Omit<AccessRequestApproval, "id" | "createdAt">): Awaitable<AccessRequestApproval>;
 }
 
 export interface EventHookRepository {
-  list(): Promise<EventHook[]>;
-  listByEventType(eventType: string): Promise<EventHook[]>;
-  findById(id: string): Promise<EventHook | undefined>;
-  create(input: Omit<EventHook, "createdAt" | "updatedAt">): Promise<EventHook>;
-  update(id: string, input: Partial<Omit<EventHook, "id" | "createdAt" | "updatedAt">>): Promise<EventHook | undefined>;
-  delete(id: string): Promise<void>;
+  list(): Awaitable<EventHook[]>;
+  listByEventType(eventType: string): Awaitable<EventHook[]>;
+  findById(id: string): Awaitable<EventHook | undefined>;
+  create(input: Omit<EventHook, "createdAt" | "updatedAt">): Awaitable<EventHook>;
+  update(id: string, input: Partial<Omit<EventHook, "id" | "createdAt" | "updatedAt">>): Awaitable<EventHook | undefined>;
+  delete(id: string): Awaitable<void>;
 }
 
 export interface EventNotificationRepository {
-  list(limit?: number): Promise<EventNotification[]>;
-  create(input: Omit<EventNotification, "id" | "createdAt">): Promise<EventNotification>;
+  list(limit?: number): Awaitable<EventNotification[]>;
+  create(input: Omit<EventNotification, "id" | "createdAt">): Awaitable<EventNotification>;
 }

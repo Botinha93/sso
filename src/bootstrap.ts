@@ -64,6 +64,7 @@ export const bootstrap = async (config: AppConfig) => {
     provisioningJobRepository,
     deprovisioningQueueRepository,
     accessRequestRepository,
+      accessRequestApprovalRepository,
     eventHookRepository,
     eventNotificationRepository,
     instanceSettingsRepository
@@ -125,7 +126,15 @@ export const bootstrap = async (config: AppConfig) => {
     groupRepository
   );
   const deprovisioningService = new DeprovisioningService(deprovisioningQueueRepository);
-  const accessGovernanceService = new AccessGovernanceService(accessRequestRepository, userRepository);
+  const accessGovernanceService = new AccessGovernanceService(
+    accessRequestRepository,
+    accessRequestApprovalRepository,
+    userRepository,
+    roleRepository,
+    groupRepository,
+    roleService,
+    groupService
+  );
   const setupService = new SetupService(
     userService,
     roleService,

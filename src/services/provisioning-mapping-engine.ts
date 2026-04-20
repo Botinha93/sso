@@ -11,7 +11,7 @@ const isUppercaseTransform = (expression: string) =>
 const isTrimTransform = (expression: string) =>
   expression === "trim" || expression === "value?.trim()" || expression === "value.trim()";
 
-const applyTransformExpression = (rawValue: string, transformExpression: string | undefined) => {
+const applyTransformExpression = (rawValue: string, transformExpression: string | undefined): string => {
   if (!transformExpression) {
     return rawValue;
   }
@@ -47,7 +47,7 @@ const resolveSourceAttributeValue = (attributes: Record<string, string>, sourceA
   return undefined;
 };
 
-const normalizeTargetAttribute = (targetAttribute: string) => {
+const normalizeTargetAttribute = (targetAttribute: string): string => {
   if (targetAttribute.startsWith(CUSTOM_ATTRIBUTES_PREFIX)) {
     return targetAttribute.slice(CUSTOM_ATTRIBUTES_PREFIX.length);
   }

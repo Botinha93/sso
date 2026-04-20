@@ -15,6 +15,8 @@ export const updateRoleSchema = z.object({
 });
 export const createUserSchema = z.object({
     appId: z.string().min(2).optional(),
+    externalSource: z.string().min(1).optional(),
+    externalId: z.string().min(1).optional(),
     isServiceUser: z.boolean().default(false),
     email: z.string().email(),
     username: z.string().min(3),
@@ -27,6 +29,8 @@ export const createUserSchema = z.object({
 });
 export const updateUserSchema = z.object({
     appId: z.string().min(2).optional(),
+    externalSource: z.string().min(1).optional(),
+    externalId: z.string().min(1).optional(),
     isServiceUser: z.boolean().optional(),
     email: z.string().email().optional(),
     username: z.string().min(3).optional(),
@@ -52,12 +56,16 @@ export const portalChangePasswordSchema = z.object({
 });
 export const createGroupSchema = z.object({
     appId: z.string().min(2).optional(),
+    externalSource: z.string().min(1).optional(),
+    externalId: z.string().min(1).optional(),
     name: z.string().min(2),
     description: z.string().min(2),
     roleIds: z.array(z.string()).default([])
 });
 export const updateGroupSchema = z.object({
     appId: z.string().min(2).optional(),
+    externalSource: z.string().min(1).optional(),
+    externalId: z.string().min(1).optional(),
     name: z.string().min(2).optional(),
     description: z.string().min(2).optional()
 });
@@ -341,6 +349,10 @@ export const createPolicySchema = z.object({
     key: z.string().min(2),
     name: z.string().min(2),
     description: z.string().min(2),
+    category: z.enum(["authentication", "authorization"]).optional(),
+    effect: z.enum(["allow", "deny"]).optional(),
+    resourcePattern: z.string().min(1).optional(),
+    actionPattern: z.string().min(1).optional(),
     stageBindings: z.array(authenticationStageTypeSchema).default([]),
     javascriptCode: z.string().optional(),
     enabled: z.boolean().default(true)
@@ -349,6 +361,10 @@ export const updatePolicySchema = z.object({
     key: z.string().min(2).optional(),
     name: z.string().min(2).optional(),
     description: z.string().min(2).optional(),
+    category: z.enum(["authentication", "authorization"]).optional(),
+    effect: z.enum(["allow", "deny"]).optional(),
+    resourcePattern: z.string().min(1).optional().nullable(),
+    actionPattern: z.string().min(1).optional().nullable(),
     stageBindings: z.array(authenticationStageTypeSchema).optional(),
     javascriptCode: z.string().optional().nullable(),
     enabled: z.boolean().optional()
@@ -357,12 +373,25 @@ export const setPolicyAssignmentSchema = z.object({
     scopeType: z.enum(["global", "tenant", "group", "user"]),
     scopeId: z.string().min(1).optional(),
     enabled: z.boolean(),
+    priority: z.number().int().optional(),
+    decisionStrategy: z.enum(["deny_overrides", "allow_overrides", "first_applicable"]).optional(),
     config: z.record(z.string(), z.unknown()).default({})
 });
 export const removePolicyAssignmentSchema = z.object({
     scopeType: z.enum(["global", "tenant", "group", "user"]),
     scopeId: z.string().min(1).optional()
 });
+export const evaluatePolicyDecisionSchema = z.object({
+    userId: z.string().min(2),
+    resource: z.string().min(1),
+    action: z.string().min(1),
+    decisionStrategy: z.enum(["deny_overrides", "allow_overrides", "first_applicable"]).optional(),
+    tenantId: z.string().min(1).optional(),
+    clientId: z.string().min(1).optional(),
+    ip: z.string().min(1).optional(),
+    context: z.record(z.string(), z.unknown()).default({})
+});
+export const authorizationCheckSchema = evaluatePolicyDecisionSchema;
 export const createEventHookSchema = z.object({
     eventType: z.string().min(1),
     targetUrl: z.string().url(),
@@ -380,6 +409,38 @@ export const updateEventHookSchema = z.object({
 export const testEventHookSchema = z.object({
     eventType: z.string().min(1).optional(),
     payload: z.record(z.string(), z.unknown()).optional()
+});
+export const createScimTokenSchema = z.object({
+    label: z.string().min(2),
+    expiresAt: z.string().datetime().optional()
+});
+export const createProvisioningMappingSchema = z.object({
+    name: z.string().min(2),
+    sourceAttribute: z.string().min(1),
+    targetAttribute: z.string().min(1),
+    transformExpression: z.string().min(1).optional(),
+    enabled: z.boolean().default(true)
+});
+export const reconcileProvisioningJobSchema = z.object({
+    dryRun: z.boolean().default(true)
+});
+export const createAccessRequestSchema = z.object({
+    subjectUserId: z.string().min(2),
+    entitlementType: z.string().min(1),
+    entitlementValue: z.string().min(1),
+    justification: z.string().min(3),
+    expiresAt: z.string().datetime().optional()
+});
+export const listAccessRequestsQuerySchema = z.object({
+    status: z.enum(["pending", "approved", "rejected", "expired", "cancelled"]).optional(),
+    limit: z.coerce.number().int().min(1).max(200).optional()
+});
+export const decideAccessRequestSchema = z.object({
+    rationale: z.string().min(1).max(2000).optional()
+});
+export const processExpiredAccessRequestsSchema = z.object({
+    dryRun: z.boolean().default(false),
+    now: z.string().datetime().optional()
 });
 export const updateInstanceSettingsSchema = z.object({
     databaseProvider: z.enum(["sqlite", "postgresql", "mysql"]).optional(),

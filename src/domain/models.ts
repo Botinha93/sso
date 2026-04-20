@@ -344,6 +344,15 @@ export interface AccessRequest {
   updatedAt: Date;
 }
 
+export interface AccessRequestApproval {
+  id: string;
+  accessRequestId: string;
+  approverId: string;
+  decision: "approved" | "rejected";
+  rationale?: string;
+  createdAt: Date;
+}
+
 export interface EventHook {
   id: string;
   eventType: string;

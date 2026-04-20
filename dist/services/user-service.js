@@ -15,6 +15,8 @@ export class UserService {
         }
         const user = await this.userRepository.create({
             appId: input.appId,
+            externalSource: input.externalSource,
+            externalId: input.externalId,
             isServiceUser: input.isServiceUser ?? false,
             email: input.email,
             username: input.username,
@@ -85,6 +87,10 @@ export class UserService {
         await this.userRepository.setCustomAttributes(id, customAttributes);
     }
     async deleteUser(id) {
+        const groupIds = await this.groupService.listGroupIdsForUser(id);
+        for (const groupId of groupIds) {
+            await this.groupService.removeUserFromGroup({ userId: id, groupId });
+        }
         await this.userRepository.delete(id);
     }
 }

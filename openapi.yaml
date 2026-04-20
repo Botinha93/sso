@@ -422,6 +422,45 @@ paths:
       responses:
         '201':
           description: Access request created
+  /api/admin/access-requests/{id}/approve:
+    post:
+      summary: Approve access governance request
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Access request approved
+  /api/admin/access-requests/{id}/reject:
+    post:
+      summary: Reject access governance request
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Access request rejected
+  /api/admin/access-requests/process-expirations:
+    post:
+      summary: Process expired approved access requests and revoke granted assignments
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dryRun:
+                  type: boolean
+      responses:
+        '200':
+          description: Expiration processing summary
   /api/admin/authentication/flows:
     get:
       summary: List authentication flows

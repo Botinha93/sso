@@ -2,7 +2,9 @@ import { randomBytes } from "node:crypto";
 import { AppError, AuthenticationError } from "../core/errors.js";
 import { verifyPassword } from "../security/password.js";
 import { getAssetContentType, readFrontendAsset } from "./view-assets.js";
-import { assignGroupRoleSchema, assignRoleSchema, assignUserGroupSchema, backChannelLogoutSchema, authorizeSchema, createAppSchema, createClientSchema, createScopeSchema, createAuthenticationFlowSchema, deviceAuthorizationSchema, deviceVerificationSchema, dynamicClientRegistrationSchema, frontChannelLogoutSchema, createFederationProviderSchema, createGroupSchema, createUserAttributeSchema, createPolicySchema, createEventHookSchema, createTenantSchema, createRoleSchema, updateGroupSchema, updateRoleSchema, createUserSchema, introspectSchema, loginSchema, migrateDatabaseSchema, oidcRevokeSchema, portalChangePasswordSchema, portalUpdateProfileSchema, recoverySchema, recoveryRequestSchema, sendTestEmailSchema, testDatabaseConnectionSchema, mfaLoginSchema, verifyTotpEnrollmentSchema, resetUserPasswordSchema, revokeTokenSchema, tokenSchema, setUserAttributeGroupAssignmentSchema, setPolicyAssignmentSchema, removePolicyAssignmentSchema, setupInitializeSchema, testEventHookSchema, updateInstanceSettingsSchema, updateAppSchema, updateAuthenticationFlowSchema, updateClientSchema, updateEventHookSchema, updateFederationProviderSchema, updatePolicySchema, updateTenantSchema, updateUserAttributeSchema, updateUserSchema } from "./schemas.js";
+import { hasAdminPermission, toAdminAction, toAdminResource } from "./admin-authorization.js";
+import { registerScimRoutes } from "./scim-routes.js";
+import { assignGroupRoleSchema, assignRoleSchema, assignUserGroupSchema, backChannelLogoutSchema, authorizeSchema, createAppSchema, createClientSchema, createScopeSchema, createAuthenticationFlowSchema, deviceAuthorizationSchema, deviceVerificationSchema, dynamicClientRegistrationSchema, frontChannelLogoutSchema, createFederationProviderSchema, createGroupSchema, createUserAttributeSchema, createPolicySchema, createEventHookSchema, createTenantSchema, createRoleSchema, updateGroupSchema, updateRoleSchema, createUserSchema, introspectSchema, loginSchema, migrateDatabaseSchema, oidcRevokeSchema, portalChangePasswordSchema, portalUpdateProfileSchema, recoverySchema, recoveryRequestSchema, sendTestEmailSchema, testDatabaseConnectionSchema, mfaLoginSchema, verifyTotpEnrollmentSchema, resetUserPasswordSchema, revokeTokenSchema, tokenSchema, setUserAttributeGroupAssignmentSchema, setPolicyAssignmentSchema, evaluatePolicyDecisionSchema, authorizationCheckSchema, removePolicyAssignmentSchema, setupInitializeSchema, testEventHookSchema, createScimTokenSchema, createProvisioningMappingSchema, createAccessRequestSchema, decideAccessRequestSchema, processExpiredAccessRequestsSchema, updateInstanceSettingsSchema, listAccessRequestsQuerySchema, reconcileProvisioningJobSchema, updateAppSchema, updateAuthenticationFlowSchema, updateClientSchema, updateEventHookSchema, updateFederationProviderSchema, updatePolicySchema, updateTenantSchema, updateUserAttributeSchema, updateUserSchema } from "./schemas.js";
 export const registerRoutes = async (app, deps) => {
     const sendFrontendIndex = async (reply, frontend) => {
         const html = await readFrontendAsset(frontend, "index.html");
@@ -22,7 +24,14 @@ export const registerRoutes = async (app, deps) => {
         const sid = request.cookies?.sid;
         if (!sid)
             return null;
-        const session = await deps.authService.sessionRepository.findById(sid);
+        let session;
+        try {
+            session = await deps.authService.sessionRepository.findById(sid);
+        }
+        catch (error) {
+            request.log?.error({ err: error, sid }, "session lookup failed");
+            return null;
+        }
         if (!session || session.expiresAt.getTime() < Date.now() || session.revokedAt)
             return null;
         return session;
@@ -75,49 +84,6 @@ export const registerRoutes = async (app, deps) => {
                     retryAfterSeconds: result.retryAfterSeconds
                 });
             }
-        }
-    }
-    function toResource(path) {
-        const relative = path.replace(/^\/api\/admin\/?/, "");
-        const top = relative.split("/")[0];
-        const map = {
-            users: "users",
-            clients: "clients",
-            roles: "roles",
-            groups: "groups",
-            tenants: "tenants",
-            devices: "sessions",
-            sessions: "sessions",
-            audit: "audit_log",
-            consents: "consents",
-            federation: "federation_providers",
-            authentication: "authentication_flows",
-            "user-attributes": "user_attributes",
-            policies: "policies",
-            events: "events",
-            scopes: "scopes",
-            settings: "administration",
-            administration: "administration",
-            apps: "apps",
-            "role-assignments": "roles",
-            "group-role-assignments": "groups",
-            "user-groups": "groups"
-        };
-        return map[top];
-    }
-    function toAction(method) {
-        switch (method.toUpperCase()) {
-            case "GET":
-                return "view";
-            case "POST":
-                return "add";
-            case "PUT":
-            case "PATCH":
-                return "change";
-            case "DELETE":
-                return "delete";
-            default:
-                return undefined;
         }
     }
     async function requireSessionUser(request, reply) {
@@ -228,14 +194,12 @@ export const registerRoutes = async (app, deps) => {
         if (endpointLimitResult) {
             return endpointLimitResult;
         }
-        if (!csrfProtectedMethods.has(request.method))
-            return;
-        if (csrfExemptPaths.has(request.url.split("?")[0]))
-            return;
-        // Only enforce CSRF on admin and auth endpoints
         const path = request.url.split("?")[0];
-        if (path.startsWith("/api/admin") || path.startsWith("/api/account") || path === "/auth/logout") {
-            verifyCsrf(request, reply);
+        const requiresCsrf = csrfProtectedMethods.has(request.method) && !csrfExemptPaths.has(path);
+        if (requiresCsrf && (path.startsWith("/api/admin") || path.startsWith("/api/account") || path === "/auth/logout")) {
+            if (!verifyCsrf(request, reply)) {
+                return;
+            }
         }
         if (path.startsWith("/api/admin")) {
             const session = await getSession(request);
@@ -249,14 +213,30 @@ export const registerRoutes = async (app, deps) => {
             if (path === "/api/admin/me") {
                 return;
             }
-            const resource = toResource(path);
-            const action = toAction(request.method);
+            const resource = toAdminResource(path);
+            const action = toAdminAction(request.method);
             const permissions = await deps.roleService.resolvePermissionsForUser(user.id);
-            const hasGlobal = permissions.includes("*:*");
-            const hasResourceWildcard = resource ? permissions.includes(`${resource}:*`) : false;
-            const hasAction = resource && action ? permissions.includes(`${resource}:${action}`) : false;
-            if (!hasGlobal && !hasResourceWildcard && !hasAction) {
+            if (!hasAdminPermission({ permissions, resource, action })) {
                 return reply.status(403).send({ error: "forbidden" });
+            }
+            if (resource && action) {
+                const authzResult = await deps.authorizationService.evaluate({
+                    user,
+                    resource: `admin:${resource}`,
+                    action,
+                    clientId: session.clientId,
+                    ip: request.ip,
+                    context: {
+                        path,
+                        method: request.method
+                    }
+                });
+                if (!authzResult.allow) {
+                    return reply.status(403).send({
+                        error: "forbidden",
+                        deniedBy: authzResult.deniedBy
+                    });
+                }
             }
         }
     });
@@ -285,6 +265,13 @@ export const registerRoutes = async (app, deps) => {
         status: "ok",
         timestamp: new Date().toISOString()
     }));
+    await registerScimRoutes(app, {
+        scimService: deps.scimService,
+        scimTokenService: deps.scimTokenService,
+        auditRepository: deps.auditRepository,
+        eventHookService: deps.eventHookService,
+        deprovisioningService: deps.deprovisioningService
+    });
     app.get("/.well-known/openid-configuration", async () => deps.oidcService.discoveryDocument());
     app.get("/.well-known/jwks.json", async () => deps.oidcService.jwks());
     app.post("/connect/register", async (request, reply) => {
@@ -772,6 +759,111 @@ export const registerRoutes = async (app, deps) => {
         return reply.status(204).send();
     });
     app.get("/api/admin/settings", async () => deps.instanceSettingsService.getSettings());
+    app.get("/api/admin/provisioning/tokens", async () => deps.scimTokenService.listTokens());
+    app.post("/api/admin/provisioning/tokens", async (request, reply) => {
+        const input = createScimTokenSchema.parse(request.body);
+        const created = await deps.scimTokenService.createToken({
+            label: input.label,
+            expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined
+        });
+        return reply.status(201).send(created);
+    });
+    app.delete("/api/admin/provisioning/tokens/:id", async (request, reply) => {
+        const { id } = request.params;
+        await deps.scimTokenService.revokeToken(id);
+        return reply.status(204).send();
+    });
+    app.get("/api/admin/provisioning/mappings", async () => deps.provisioningService.listMappings());
+    app.post("/api/admin/provisioning/mappings", async (request, reply) => {
+        const input = createProvisioningMappingSchema.parse(request.body);
+        const created = await deps.provisioningService.createMapping(input);
+        return reply.status(201).send(created);
+    });
+    app.delete("/api/admin/provisioning/mappings/:id", async (request, reply) => {
+        const { id } = request.params;
+        await deps.provisioningService.deleteMapping(id);
+        return reply.status(204).send();
+    });
+    app.get("/api/admin/provisioning/jobs", async (request) => {
+        const limit = Number(request.query?.limit ?? "20");
+        return deps.provisioningService.listJobs(Number.isFinite(limit) ? limit : 20);
+    });
+    app.get("/api/admin/access-requests", async (request) => {
+        const query = listAccessRequestsQuerySchema.parse(request.query ?? {});
+        return deps.accessGovernanceService.listAccessRequests({
+            status: query.status,
+            limit: query.limit
+        });
+    });
+    app.post("/api/admin/access-requests", async (request, reply) => {
+        const auth = await requireSessionUser(request, reply);
+        if (!auth) {
+            return;
+        }
+        const input = createAccessRequestSchema.parse(request.body);
+        const created = await deps.accessGovernanceService.createAccessRequest({
+            requesterId: auth.user.id,
+            subjectUserId: input.subjectUserId,
+            entitlementType: input.entitlementType,
+            entitlementValue: input.entitlementValue,
+            justification: input.justification,
+            expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined
+        });
+        return reply.status(201).send(created);
+    });
+    app.post("/api/admin/access-requests/:id/approve", async (request, reply) => {
+        const auth = await requireSessionUser(request, reply);
+        if (!auth) {
+            return;
+        }
+        const { id } = request.params;
+        const input = decideAccessRequestSchema.parse(request.body ?? {});
+        return deps.accessGovernanceService.approveAccessRequest({
+            accessRequestId: id,
+            approverId: auth.user.id,
+            rationale: input.rationale
+        });
+    });
+    app.post("/api/admin/access-requests/:id/reject", async (request, reply) => {
+        const auth = await requireSessionUser(request, reply);
+        if (!auth) {
+            return;
+        }
+        const { id } = request.params;
+        const input = decideAccessRequestSchema.parse(request.body ?? {});
+        return deps.accessGovernanceService.rejectAccessRequest({
+            accessRequestId: id,
+            approverId: auth.user.id,
+            rationale: input.rationale
+        });
+    });
+    app.post("/api/admin/access-requests/process-expirations", async (request, reply) => {
+        const auth = await requireSessionUser(request, reply);
+        if (!auth) {
+            return;
+        }
+        const input = processExpiredAccessRequestsSchema.parse(request.body ?? {});
+        return deps.accessGovernanceService.processExpiredAccessRequests({
+            dryRun: input.dryRun,
+            now: input.now ? new Date(input.now) : undefined
+        });
+    });
+    app.get("/api/admin/provisioning/deprovisioning-queue", async (request) => {
+        const limit = Number(request.query?.limit ?? "100");
+        return deps.deprovisioningService.listQueue(Number.isFinite(limit) ? limit : 100);
+    });
+    app.post("/api/admin/provisioning/jobs/reconcile", async (request, reply) => {
+        const input = reconcileProvisioningJobSchema.parse(request.body ?? {});
+        const auth = await requireSessionUser(request, reply);
+        if (!auth) {
+            return;
+        }
+        const job = await deps.provisioningService.runReconcile({
+            initiatedByUserId: auth.user.id,
+            dryRun: input.dryRun
+        });
+        return reply.status(202).send(job);
+    });
     app.put("/api/admin/settings", async (request) => {
         const input = updateInstanceSettingsSchema.parse(request.body);
         return deps.instanceSettingsService.updateSettings(input);
@@ -792,8 +884,9 @@ export const registerRoutes = async (app, deps) => {
     });
     app.post("/api/admin/settings/database/migrate", async (request, reply) => {
         const input = migrateDatabaseSchema.parse(request.body);
+        const instanceSettings = await deps.instanceSettingsService.getSettings();
         const result = await deps.databaseMigrationService.migrateFromSqlite({
-            sqlitePath: input.sqlitePath ?? deps.instanceSettingsService.getSettings().databasePath,
+            sqlitePath: input.sqlitePath ?? instanceSettings.databasePath,
             provider: input.provider,
             externalDatabaseUrl: input.externalDatabaseUrl
         });
@@ -852,6 +945,10 @@ export const registerRoutes = async (app, deps) => {
             key: input.key,
             name: input.name,
             description: input.description,
+            category: input.category,
+            effect: input.effect,
+            resourcePattern: input.resourcePattern,
+            actionPattern: input.actionPattern,
             stageBindings: input.stageBindings,
             javascriptCode: input.javascriptCode,
             enabled: input.enabled
@@ -866,6 +963,10 @@ export const registerRoutes = async (app, deps) => {
             key: input.key,
             name: input.name,
             description: input.description,
+            category: input.category,
+            effect: input.effect,
+            resourcePattern: input.resourcePattern,
+            actionPattern: input.actionPattern,
             stageBindings: input.stageBindings,
             javascriptCode: input.javascriptCode,
             enabled: input.enabled
@@ -884,6 +985,8 @@ export const registerRoutes = async (app, deps) => {
             scopeType: input.scopeType,
             scopeId: input.scopeId,
             enabled: input.enabled,
+            priority: input.priority,
+            decisionStrategy: input.decisionStrategy,
             config: input.config
         });
     });
@@ -896,6 +999,100 @@ export const registerRoutes = async (app, deps) => {
             scopeId: input.scopeId
         });
         return reply.status(204).send();
+    });
+    app.post("/api/admin/policies/evaluate", async (request, reply) => {
+        const input = evaluatePolicyDecisionSchema.parse(request.body);
+        const user = await deps.userService.findUserById(input.userId);
+        if (!user) {
+            return reply.status(404).send({ error: "not_found", message: "User not found" });
+        }
+        const result = await deps.policyService.evaluateAuthorizationPolicies({
+            user,
+            decisionStrategy: input.decisionStrategy,
+            tenantId: input.tenantId,
+            clientId: input.clientId,
+            ip: input.ip ?? request.ip,
+            resource: input.resource,
+            action: input.action,
+            context: input.context
+        });
+        await deps.auditRepository.log({
+            type: "policy_decision_evaluated",
+            actorType: "user",
+            actorId: user.id,
+            clientId: input.clientId,
+            ip: input.ip ?? request.ip,
+            metadata: {
+                source: "policies_evaluate",
+                resource: input.resource,
+                action: input.action,
+                allow: result.allow,
+                deniedBy: result.deniedBy,
+                context: input.context
+            }
+        });
+        await deps.policyDecisionLogRepository.create({
+            userId: user.id,
+            clientId: input.clientId,
+            tenantId: input.tenantId,
+            ip: input.ip ?? request.ip,
+            resource: input.resource,
+            action: input.action,
+            allow: result.allow,
+            deniedBy: result.deniedBy,
+            context: input.context,
+            source: "policies_evaluate"
+        });
+        return result;
+    });
+    app.post("/api/admin/authorization/check", async (request, reply) => {
+        const input = authorizationCheckSchema.parse(request.body);
+        const user = await deps.userService.findUserById(input.userId);
+        if (!user) {
+            return reply.status(404).send({ error: "not_found", message: "User not found" });
+        }
+        const result = await deps.policyService.evaluateAuthorizationPolicies({
+            user,
+            decisionStrategy: input.decisionStrategy,
+            tenantId: input.tenantId,
+            clientId: input.clientId,
+            ip: input.ip ?? request.ip,
+            resource: input.resource,
+            action: input.action,
+            context: input.context
+        });
+        await deps.auditRepository.log({
+            type: "policy_decision_evaluated",
+            actorType: "user",
+            actorId: user.id,
+            clientId: input.clientId,
+            ip: input.ip ?? request.ip,
+            metadata: {
+                source: "authorization_check",
+                resource: input.resource,
+                action: input.action,
+                allow: result.allow,
+                deniedBy: result.deniedBy,
+                context: input.context
+            }
+        });
+        await deps.policyDecisionLogRepository.create({
+            userId: user.id,
+            clientId: input.clientId,
+            tenantId: input.tenantId,
+            ip: input.ip ?? request.ip,
+            resource: input.resource,
+            action: input.action,
+            allow: result.allow,
+            deniedBy: result.deniedBy,
+            context: input.context,
+            source: "authorization_check"
+        });
+        return result;
+    });
+    app.get("/api/admin/policies/decisions", async (request) => {
+        const { limit } = request.query;
+        return deps.policyDecisionLogRepository.list(limit ? Number(limit) : 100);
     });
     app.get("/api/admin/events/hooks", async () => deps.eventHookService.listHooks());
     app.get("/api/admin/events/types", async () => deps.eventHookService.listSystemEventTypes());
@@ -975,7 +1172,7 @@ export const registerRoutes = async (app, deps) => {
             clientId: "sso-admin-ui",
             ip: request.ip
         });
-        const session = deps.authService.sessionRepository.create({
+        const session = await deps.authService.sessionRepository.create({
             userId: completed.user.id,
             clientId: "sso-admin-ui",
             createdAt: new Date(),
@@ -1248,9 +1445,9 @@ export const registerRoutes = async (app, deps) => {
     });
     app.patch("/api/admin/users/:id", async (request, reply) => {
         const { id } = request.params;
-        const { appId, isServiceUser, email, username, givenName, familyName, active, groupIds, customAttributes } = updateUserSchema.parse(request.body);
-        if (appId !== undefined || isServiceUser !== undefined || email !== undefined || username !== undefined || givenName !== undefined || familyName !== undefined) {
-            await deps.userService.updateUserProfile(id, { appId, isServiceUser, email, username, givenName, familyName });
+        const { appId, externalSource, externalId, isServiceUser, email, username, givenName, familyName, active, groupIds, customAttributes } = updateUserSchema.parse(request.body);
+        if (appId !== undefined || externalSource !== undefined || externalId !== undefined || isServiceUser !== undefined || email !== undefined || username !== undefined || givenName !== undefined || familyName !== undefined) {
+            await deps.userService.updateUserProfile(id, { appId, externalSource, externalId, isServiceUser, email, username, givenName, familyName });
         }
         if (active !== undefined)
             await deps.userService.setUserActive(id, active);
@@ -1272,6 +1469,8 @@ export const registerRoutes = async (app, deps) => {
         await deps.eventHookService.emit("user.updated", {
             userId: id,
             appId,
+            externalSource,
+            externalId,
             isServiceUser,
             active,
             email,
@@ -1281,7 +1480,7 @@ export const registerRoutes = async (app, deps) => {
             updatedGroupIds: groupIds,
             updatedCustomAttributes: customAttributes ? Object.keys(customAttributes) : undefined
         });
-        return { id, appId, isServiceUser, active, email, username, givenName, familyName };
+        return { id, appId, externalSource, externalId, isServiceUser, active, email, username, givenName, familyName };
     });
     app.post("/api/admin/users/:id/reset-password", async (request, reply) => {
         const { id } = request.params;

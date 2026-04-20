@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import type {
   AccessTokenRecord,
   AccessRequest,
+  AccessRequestApproval,
   App,
   InstanceSettings,
   AuthenticationFlow,
@@ -41,6 +42,7 @@ import type {
 } from "../domain/models.js";
 import type {
   AccessTokenRepository,
+  AccessRequestApprovalRepository,
   AccessRequestRepository,
   AppRepository,
   InstanceSettingsRepository,
@@ -498,6 +500,17 @@ export class SqliteDatabase {
         FOREIGN KEY (subject_user_id) REFERENCES users(id)
       );
 
+      CREATE TABLE IF NOT EXISTS access_request_approvals (
+        id TEXT PRIMARY KEY,
+        access_request_id TEXT NOT NULL,
+        approver_id TEXT NOT NULL,
+        decision TEXT NOT NULL,
+        rationale TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (access_request_id) REFERENCES access_requests(id),
+        FOREIGN KEY (approver_id) REFERENCES users(id)
+      );
+
       CREATE TABLE IF NOT EXISTS event_hooks (
         id TEXT PRIMARY KEY,
         event_type TEXT NOT NULL,
@@ -669,6 +682,22 @@ export class SqliteDatabase {
           updated_at TEXT NOT NULL,
           FOREIGN KEY (requester_id) REFERENCES users(id),
           FOREIGN KEY (subject_user_id) REFERENCES users(id)
+        );
+      `);
+    }
+
+    const accessRequestApprovalColumns = this.connection.prepare("PRAGMA table_info(access_request_approvals)").all() as Array<{ name: string }>;
+    if (accessRequestApprovalColumns.length === 0) {
+      this.connection.exec(`
+        CREATE TABLE IF NOT EXISTS access_request_approvals (
+          id TEXT PRIMARY KEY,
+          access_request_id TEXT NOT NULL,
+          approver_id TEXT NOT NULL,
+          decision TEXT NOT NULL,
+          rationale TEXT,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (access_request_id) REFERENCES access_requests(id),
+          FOREIGN KEY (approver_id) REFERENCES users(id)
         );
       `);
     }
@@ -988,6 +1017,15 @@ const mapAccessRequest = (row: DbRow): AccessRequest => ({
   expiresAt: maybeDate(row.expires_at),
   createdAt: asDate(row.created_at),
   updatedAt: asDate(row.updated_at)
+});
+
+const mapAccessRequestApproval = (row: DbRow): AccessRequestApproval => ({
+  id: String(row.id),
+  accessRequestId: String(row.access_request_id),
+  approverId: String(row.approver_id),
+  decision: String(row.decision) as AccessRequestApproval["decision"],
+  rationale: row.rationale ? String(row.rationale) : undefined,
+  createdAt: asDate(row.created_at)
 });
 
 const mapEventHook = (row: DbRow): EventHook => ({
@@ -1711,6 +1749,13 @@ export class SqliteUserRoleAssignmentRepository {
   listByUser(userId: string): UserRoleAssignment[] {
     const rows = this.db.prepare("SELECT * FROM user_role_assignments WHERE user_id = ?").all(userId) as DbRow[];
     return rows.map(mapAssignment);
+  }
+
+  remove(input: { userId: string; roleId: string; tenantId?: string }): void {
+    this.db.prepare(`
+      DELETE FROM user_role_assignments
+      WHERE user_id = ? AND role_id = ? AND ifnull(tenant_id, '') = ifnull(?, '')
+    `).run(input.userId, input.roleId, input.tenantId ?? null);
   }
 }
 
@@ -2717,6 +2762,11 @@ export class SqliteAccessRequestRepository implements AccessRequestRepository {
     return rows.map(mapAccessRequest);
   }
 
+  async findById(id: string): Promise<AccessRequest | undefined> {
+    const row = this.db.prepare("SELECT * FROM access_requests WHERE id = ?").get(id) as DbRow | undefined;
+    return row ? mapAccessRequest(row) : undefined;
+  }
+
   async create(input: Omit<AccessRequest, "id" | "createdAt" | "updatedAt">): Promise<AccessRequest> {
     const now = new Date();
     const request: AccessRequest = {
@@ -2775,6 +2825,39 @@ export class SqliteAccessRequestRepository implements AccessRequestRepository {
     );
 
     return updated;
+  }
+}
+
+export class SqliteAccessRequestApprovalRepository implements AccessRequestApprovalRepository {
+  constructor(private readonly db: Database.Database) {}
+
+  async listByAccessRequestId(accessRequestId: string): Promise<AccessRequestApproval[]> {
+    const rows = this.db.prepare(
+      "SELECT * FROM access_request_approvals WHERE access_request_id = ? ORDER BY created_at ASC"
+    ).all(accessRequestId) as DbRow[];
+    return rows.map(mapAccessRequestApproval);
+  }
+
+  async create(input: Omit<AccessRequestApproval, "id" | "createdAt">): Promise<AccessRequestApproval> {
+    const approval: AccessRequestApproval = {
+      ...input,
+      id: nanoid(),
+      createdAt: new Date()
+    };
+
+    this.db.prepare(`
+      INSERT INTO access_request_approvals (id, access_request_id, approver_id, decision, rationale, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      approval.id,
+      approval.accessRequestId,
+      approval.approverId,
+      approval.decision,
+      approval.rationale ?? null,
+      approval.createdAt.toISOString()
+    );
+
+    return approval;
   }
 }
 

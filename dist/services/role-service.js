@@ -27,6 +27,9 @@ export class RoleService {
         }
         return this.assignmentRepository.assign(input);
     }
+    async removeRole(input) {
+        await this.assignmentRepository.remove(input);
+    }
     async resolveNamesForUser(userId, tenantId) {
         const assignments = await this.assignmentRepository.listByUser(userId);
         const matchingRoleIds = assignments

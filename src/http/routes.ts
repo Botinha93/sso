@@ -58,6 +58,8 @@ import {
   createScimTokenSchema,
   createProvisioningMappingSchema,
   createAccessRequestSchema,
+  decideAccessRequestSchema,
+  processExpiredAccessRequestsSchema,
   updateInstanceSettingsSchema,
   listAccessRequestsQuerySchema,
   reconcileProvisioningJobSchema,
@@ -1047,6 +1049,46 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     });
 
     return reply.status(201).send(created);
+  });
+  app.post("/api/admin/access-requests/:id/approve", async (request, reply) => {
+    const auth = await requireSessionUser(request, reply);
+    if (!auth) {
+      return;
+    }
+
+    const { id } = request.params as { id: string };
+    const input = decideAccessRequestSchema.parse(request.body ?? {});
+    return deps.accessGovernanceService.approveAccessRequest({
+      accessRequestId: id,
+      approverId: auth.user.id,
+      rationale: input.rationale
+    });
+  });
+  app.post("/api/admin/access-requests/:id/reject", async (request, reply) => {
+    const auth = await requireSessionUser(request, reply);
+    if (!auth) {
+      return;
+    }
+
+    const { id } = request.params as { id: string };
+    const input = decideAccessRequestSchema.parse(request.body ?? {});
+    return deps.accessGovernanceService.rejectAccessRequest({
+      accessRequestId: id,
+      approverId: auth.user.id,
+      rationale: input.rationale
+    });
+  });
+  app.post("/api/admin/access-requests/process-expirations", async (request, reply) => {
+    const auth = await requireSessionUser(request, reply);
+    if (!auth) {
+      return;
+    }
+
+    const input = processExpiredAccessRequestsSchema.parse(request.body ?? {});
+    return deps.accessGovernanceService.processExpiredAccessRequests({
+      dryRun: input.dryRun,
+      now: input.now ? new Date(input.now) : undefined
+    });
   });
   app.get("/api/admin/provisioning/deprovisioning-queue", async (request) => {
     const limit = Number((request.query as { limit?: string } | undefined)?.limit ?? "100");

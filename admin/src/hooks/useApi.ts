@@ -982,6 +982,45 @@ export function useCreateAccessRequest() {
   })
 }
 
+export function useApproveAccessRequest() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, rationale }: { id: string; rationale?: string }) =>
+      jsonFetch(`${API_BASE}/access-requests/${id}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rationale ? { rationale } : {})
+      }) as Promise<AccessRequestDto>,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['access-requests'] })
+  })
+}
+
+export function useRejectAccessRequest() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, rationale }: { id: string; rationale?: string }) =>
+      jsonFetch(`${API_BASE}/access-requests/${id}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rationale ? { rationale } : {})
+      }) as Promise<AccessRequestDto>,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['access-requests'] })
+  })
+}
+
+export function useProcessExpiredAccessRequests() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { dryRun?: boolean; now?: string }) =>
+      jsonFetch(`${API_BASE}/access-requests/process-expirations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }) as Promise<{ dryRun: boolean; evaluatedApprovedRequests: number; expiredRequests: number; revokedAssignments: number }>,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['access-requests'] })
+  })
+}
+
 // --- Administration / Instance Settings ---
 export function useInstanceSettings() {
   return useQuery({

@@ -59,7 +59,7 @@ export class AuthService {
             throw new AuthenticationError("User no longer exists");
         }
         const client = await this.requireClient(input.clientId);
-        await await this.assertClientSupportsActiveFlow(client);
+        await this.assertClientSupportsActiveFlow(client);
         const allowedScope = input.scope.filter((scope) => client.allowedScopes.includes(scope));
         const tenant = input.tenantSlug ? await this.tenantRepository.findBySlug(input.tenantSlug) : undefined;
         const session = await this.sessionRepository.create({
@@ -75,7 +75,7 @@ export class AuthService {
             scope: allowedScope,
             tenantId: tenant?.id
         });
-        await await this.auditRepository.log({
+        await this.auditRepository.log({
             type: "login",
             actorId: user.id,
             actorType: "user",
@@ -250,7 +250,7 @@ export class AuthService {
         await this.authenticationFlowService.assertGrantSupported("password");
         await this.authenticationFlowService.assertStageEnabled("password");
         const client = await this.requireClient(input.clientId);
-        await await this.assertClientSupportsActiveFlow(client);
+        await this.assertClientSupportsActiveFlow(client);
         if (client.secret !== input.clientSecret) {
             throw new AuthenticationError("Invalid client credentials");
         }
@@ -282,7 +282,7 @@ export class AuthService {
             sessionId: session.id,
             scope: allowedScope
         });
-        await await this.auditRepository.log({
+        await this.auditRepository.log({
             type: "token_issued",
             actorId: user.id,
             actorType: "user",
@@ -469,7 +469,7 @@ export class AuthService {
             user,
             client,
             scope: allowedScope,
-            roles: this.roleService.resolveNamesForUser(user.id, input.tenantId),
+            roles: await this.roleService.resolveNamesForUser(user.id, input.tenantId),
             accessTokenId,
             tenantId: input.tenantId
         });
@@ -508,10 +508,10 @@ export class AuthService {
         }
     }
     async revokeAccessToken(tokenId) {
-        await await this.accessTokenRepository.revokeByTokenId(tokenId, new Date());
+        await this.accessTokenRepository.revokeByTokenId(tokenId, new Date());
     }
     async revokeRefreshToken(tokenId) {
-        await await this.refreshTokenRepository.revokeByTokenId(tokenId, new Date());
+        await this.refreshTokenRepository.revokeByTokenId(tokenId, new Date());
     }
     async getUserInfoFromAccessToken(accessToken) {
         const payload = await this.jwtService.verifyAccessToken(accessToken);
@@ -538,7 +538,7 @@ export class AuthService {
             claims.preferred_username = user.username;
             claims.given_name = user.givenName;
             claims.family_name = user.familyName;
-            claims.roles = this.roleService.resolveNamesForUser(user.id, tenantId);
+            claims.roles = await this.roleService.resolveNamesForUser(user.id, tenantId);
         }
         if (scopes.includes("email")) {
             claims.email = user.email;
@@ -546,7 +546,7 @@ export class AuthService {
         }
         // Always include roles if explicitly in scope
         if (scopes.includes("roles") && !claims.roles) {
-            claims.roles = this.roleService.resolveNamesForUser(user.id, tenantId);
+            claims.roles = await this.roleService.resolveNamesForUser(user.id, tenantId);
         }
         return claims;
     }
@@ -557,7 +557,7 @@ export class AuthService {
             user: input.user,
             client: input.client,
             scope: input.scope,
-            roles: this.roleService.resolveNamesForUser(input.user.id, input.tenantId),
+            roles: await this.roleService.resolveNamesForUser(input.user.id, input.tenantId),
             accessTokenId,
             refreshTokenId,
             tenantId: input.tenantId

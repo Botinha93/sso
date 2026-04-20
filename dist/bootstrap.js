@@ -3,6 +3,7 @@ import { JwtService } from "./security/jwt.js";
 import { createRepositoryBundle } from "./repositories/factory.js";
 import { AuthService } from "./services/auth-service.js";
 import { AppService } from "./services/app-service.js";
+import { AuthorizationService } from "./services/authorization-service.js";
 import { AuthenticationFlowService } from "./services/authentication-flow-service.js";
 import { ClientService } from "./services/client-service.js";
 import { DatabaseMigrationService } from "./services/database-migration-service.js";
@@ -10,6 +11,9 @@ import { FederationService } from "./services/federation-service.js";
 import { GroupService } from "./services/group-service.js";
 import { OidcService } from "./services/oidc-service.js";
 import { PolicyService } from "./services/policy-service.js";
+import { ProvisioningService } from "./services/provisioning-service.js";
+import { DeprovisioningService } from "./services/deprovisioning-service.js";
+import { AccessGovernanceService } from "./services/access-governance-service.js";
 import { EventHookService } from "./services/event-hook-service.js";
 import { EmailService } from "./services/email-service.js";
 import { InstanceSettingsService } from "./services/instance-settings-service.js";
@@ -17,6 +21,8 @@ import { RecoveryService } from "./services/recovery-service.js";
 import { RoleService } from "./services/role-service.js";
 import { SecurityService } from "./services/security-service.js";
 import { ScopeService } from "./services/scope-service.js";
+import { ScimService } from "./services/scim-service.js";
+import { ScimTokenService } from "./services/scim-token-service.js";
 import { SetupService } from "./services/setup-service.js";
 import { TenantService } from "./services/tenant-service.js";
 import { TotpService } from "./services/totp-service.js";
@@ -24,13 +30,14 @@ import { UserAttributeService } from "./services/user-attribute-service.js";
 import { UserService } from "./services/user-service.js";
 export const bootstrap = async (config) => {
     const repositories = await createRepositoryBundle(config);
-    const { roleRepository, tenantRepository, appRepository, groupRepository, userGroupAssignmentRepository, groupRoleAssignmentRepository, assignmentRepository, userRepository, clientRepository, scopeRepository, sessionRepository, totpCredentialRepository, authorizationCodeRepository, consentRepository, refreshTokenRepository, accessTokenRepository, auditRepository, authenticationFlowRepository, federationProviderRepository, federatedIdentityRepository, federationTransactionRepository, userAttributeRepository, groupUserAttributeAssignmentRepository, policyDefinitionRepository, policyAssignmentRepository, eventHookRepository, eventNotificationRepository, instanceSettingsRepository } = repositories;
+    const { roleRepository, tenantRepository, appRepository, groupRepository, userGroupAssignmentRepository, groupRoleAssignmentRepository, assignmentRepository, userRepository, clientRepository, scopeRepository, sessionRepository, totpCredentialRepository, authorizationCodeRepository, consentRepository, refreshTokenRepository, accessTokenRepository, auditRepository, authenticationFlowRepository, federationProviderRepository, federatedIdentityRepository, federationTransactionRepository, userAttributeRepository, groupUserAttributeAssignmentRepository, policyDefinitionRepository, policyAssignmentRepository, policyDecisionLogRepository, scimTokenRepository, provisioningMappingRepository, provisioningJobRepository, deprovisioningQueueRepository, accessRequestRepository, accessRequestApprovalRepository, eventHookRepository, eventNotificationRepository, instanceSettingsRepository } = repositories;
     const roleService = new RoleService(roleRepository, assignmentRepository, tenantRepository, userGroupAssignmentRepository, groupRoleAssignmentRepository);
     const authenticationFlowService = new AuthenticationFlowService(authenticationFlowRepository);
     const groupService = new GroupService(groupRepository, groupRoleAssignmentRepository, userGroupAssignmentRepository, roleRepository, userRepository);
     const userService = new UserService(userRepository, roleService, groupService);
     const userAttributeService = new UserAttributeService(userAttributeRepository, groupUserAttributeAssignmentRepository, groupRepository);
     const policyService = new PolicyService(policyDefinitionRepository, policyAssignmentRepository, userGroupAssignmentRepository);
+    const authorizationService = new AuthorizationService(policyService);
     await policyService.ensureBuiltIns();
     const instanceSettingsService = new InstanceSettingsService(instanceSettingsRepository);
     await instanceSettingsService.ensureDefaults();
@@ -44,6 +51,11 @@ export const bootstrap = async (config) => {
     const clientService = new ClientService(clientRepository, instanceSettingsService);
     const scopeService = new ScopeService(scopeRepository);
     const appService = new AppService(appRepository);
+    const scimService = new ScimService(userService, groupService);
+    const scimTokenService = new ScimTokenService(scimTokenRepository);
+    const provisioningService = new ProvisioningService(provisioningMappingRepository, provisioningJobRepository, userRepository, groupRepository);
+    const deprovisioningService = new DeprovisioningService(deprovisioningQueueRepository);
+    const accessGovernanceService = new AccessGovernanceService(accessRequestRepository, accessRequestApprovalRepository, userRepository, roleRepository, groupRepository, roleService, groupService);
     const setupService = new SetupService(userService, roleService, groupService, policyService, scopeService, appService, instanceSettingsService);
     const totpService = new TotpService(config, totpCredentialRepository);
     // Keep sane defaults in place across upgrades and restarts.
@@ -219,6 +231,7 @@ export const bootstrap = async (config) => {
         federationService,
         userAttributeService,
         policyService,
+        authorizationService,
         eventHookService,
         securityService,
         emailService,
@@ -227,6 +240,11 @@ export const bootstrap = async (config) => {
         instanceSettingsService,
         tenantService,
         userService,
+        scimService,
+        scimTokenService,
+        provisioningService,
+        deprovisioningService,
+        accessGovernanceService,
         clientService,
         scopeService,
         appService,
@@ -235,6 +253,7 @@ export const bootstrap = async (config) => {
         authService,
         oidcService,
         auditRepository,
+        policyDecisionLogRepository,
         dispose: repositories.dispose ?? (async () => undefined)
     };
 };

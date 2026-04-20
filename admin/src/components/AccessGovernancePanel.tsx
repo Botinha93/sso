@@ -1,5 +1,14 @@
 import { useMemo, useState } from 'react'
-import { useAccessRequests, useCreateAccessRequest, useUsers } from '../hooks/useApi'
+import {
+  useAccessRequests,
+  useApproveAccessRequest,
+  useCreateAccessRequest,
+  useGroups,
+  useProcessExpiredAccessRequests,
+  useRejectAccessRequest,
+  useRoles,
+  useUsers
+} from '../hooks/useApi'
 
 const sectionCls = 'rounded-xl border border-slate-200 bg-white p-5 shadow-sm'
 
@@ -12,10 +21,18 @@ export default function AccessGovernancePanel() {
   const [entitlementValue, setEntitlementValue] = useState('')
   const [justification, setJustification] = useState('')
   const [expiresAt, setExpiresAt] = useState('')
+  const [sweepMessage, setSweepMessage] = useState<string | null>(null)
 
   const { data: users = [] } = useUsers() as { data: Array<{ id: string; username: string; email: string }> }
+  const { data: roles = [] } = useRoles() as { data: Array<{ id: string; name: string }> }
+  const { data: groups = [] } = useGroups() as { data: Array<{ id: string; name: string }> }
   const { data: requests = [] } = useAccessRequests(statusFilter === 'all' ? undefined : statusFilter, 50)
   const createAccessRequest = useCreateAccessRequest()
+  const approveAccessRequest = useApproveAccessRequest()
+  const rejectAccessRequest = useRejectAccessRequest()
+  const processExpiredAccessRequests = useProcessExpiredAccessRequests()
+
+  const entitlementOptions = entitlementType === 'group' ? groups : roles
 
   const usersById = useMemo(() => {
     const map = new Map<string, { username: string; email: string }>()
@@ -26,6 +43,7 @@ export default function AccessGovernancePanel() {
   }, [users])
 
   const submitRequest = async () => {
+    setSweepMessage(null)
     await createAccessRequest.mutateAsync({
       subjectUserId,
       entitlementType,
@@ -37,6 +55,23 @@ export default function AccessGovernancePanel() {
     setEntitlementValue('')
     setJustification('')
     setExpiresAt('')
+  }
+
+  const approveRequest = async (id: string) => {
+    const rationale = window.prompt('Approval rationale (optional):') ?? undefined
+    await approveAccessRequest.mutateAsync({ id, rationale: rationale?.trim() || undefined })
+  }
+
+  const rejectRequest = async (id: string) => {
+    const rationale = window.prompt('Rejection rationale (optional):') ?? undefined
+    await rejectAccessRequest.mutateAsync({ id, rationale: rationale?.trim() || undefined })
+  }
+
+  const sweepExpiredRequests = async (dryRun: boolean) => {
+    const result = await processExpiredAccessRequests.mutateAsync({ dryRun })
+    setSweepMessage(
+      `${dryRun ? 'Dry-run' : 'Sweep'} complete: ${result.expiredRequests} expired request(s), ${result.revokedAssignments} assignment(s) processed.`
+    )
   }
 
   return (
@@ -58,18 +93,27 @@ export default function AccessGovernancePanel() {
           </select>
 
           <div className="grid gap-2 sm:grid-cols-2">
-            <input
+            <select
               value={entitlementType}
-              onChange={(event) => setEntitlementType(event.target.value)}
-              placeholder="role"
+              onChange={(event) => {
+                setEntitlementType(event.target.value)
+                setEntitlementValue('')
+              }}
               className="h-9 rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
-            />
-            <input
+            >
+              <option value="role">Role</option>
+              <option value="group">Group</option>
+            </select>
+            <select
               value={entitlementValue}
               onChange={(event) => setEntitlementValue(event.target.value)}
-              placeholder="finance_approver"
               className="h-9 rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
-            />
+            >
+              <option value="">Select {entitlementType}</option>
+              {entitlementOptions.map((option) => (
+                <option key={option.id} value={option.id}>{option.name}</option>
+              ))}
+            </select>
           </div>
 
           <textarea
@@ -120,6 +164,23 @@ export default function AccessGovernancePanel() {
         </div>
 
         <div className="mt-4 space-y-2">
+          <div className="mb-3 flex flex-wrap gap-2">
+            <button
+              onClick={() => sweepExpiredRequests(true)}
+              disabled={processExpiredAccessRequests.isPending}
+              className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Dry-Run Expiration Sweep
+            </button>
+            <button
+              onClick={() => sweepExpiredRequests(false)}
+              disabled={processExpiredAccessRequests.isPending}
+              className="inline-flex h-8 items-center rounded-lg bg-slate-900 px-3 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              Run Expiration Sweep
+            </button>
+          </div>
+          {sweepMessage ? <p className="text-xs text-slate-600">{sweepMessage}</p> : null}
           {requests.length === 0 ? <p className="text-sm text-slate-500">No access requests found for this filter.</p> : null}
           {requests.map((request) => {
             const subject = usersById.get(request.subjectUserId)
@@ -133,6 +194,24 @@ export default function AccessGovernancePanel() {
                 <p className="mt-1 text-xs text-slate-600">Justification: {request.justification}</p>
                 <p className="mt-1 text-xs text-slate-500">Created: {new Date(request.createdAt).toLocaleString()}</p>
                 {request.expiresAt ? <p className="mt-1 text-xs text-slate-500">Expires: {new Date(request.expiresAt).toLocaleString()}</p> : null}
+                {request.status === 'pending' ? (
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={() => approveRequest(request.id)}
+                      disabled={approveAccessRequest.isPending}
+                      className="rounded border border-emerald-200 bg-white px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => rejectRequest(request.id)}
+                      disabled={rejectAccessRequest.isPending}
+                      className="rounded border border-rose-200 bg-white px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                ) : null}
               </div>
             )
           })}

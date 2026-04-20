@@ -2,6 +2,7 @@ import { nanoid } from "nanoid";
 import type {
   AccessTokenRecord,
   AccessRequest,
+  AccessRequestApproval,
   App,
   AuditEvent,
   AuthenticationFlow,
@@ -83,6 +84,7 @@ type PrismaClientLike = {
   provisioningJob: any;
   deprovisioningQueue: any;
   accessRequest: any;
+  accessRequestApproval: any;
   eventHook: any;
   eventNotification: any;
   $queryRaw<T = PrismaRow[]>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>;
@@ -519,6 +521,15 @@ const mapAccessRequest = (row: PrismaRow): AccessRequest => ({
   expiresAt: maybeDate(readField(row, "expiresAt", "expires_at")),
   createdAt: asDate(readField(row, "createdAt", "created_at")),
   updatedAt: asDate(readField(row, "updatedAt", "updated_at"))
+});
+
+const mapAccessRequestApproval = (row: PrismaRow): AccessRequestApproval => ({
+  id: String(readField(row, "id")),
+  accessRequestId: String(readField(row, "accessRequestId", "access_request_id")),
+  approverId: String(readField(row, "approverId", "approver_id")),
+  decision: String(readField(row, "decision")) as AccessRequestApproval["decision"],
+  rationale: readField(row, "rationale") ? String(readField(row, "rationale")) : undefined,
+  createdAt: asDate(readField(row, "createdAt", "created_at"))
 });
 
 const mapEventHook = (row: PrismaRow): EventHook => ({
@@ -1141,6 +1152,16 @@ class PrismaUserRoleAssignmentRepository {
   async listByUser(userId: string): Promise<UserRoleAssignment[]> {
     const rows = await this.prisma.userRoleAssignment.findMany({ where: { userId } });
     return rows.map((row: PrismaRow) => mapAssignment(row));
+  }
+
+  async remove(input: { userId: string; roleId: string; tenantId?: string }): Promise<void> {
+    await this.prisma.userRoleAssignment.deleteMany({
+      where: {
+        userId: input.userId,
+        roleId: input.roleId,
+        tenantId: input.tenantId ?? null
+      }
+    });
   }
 }
 
@@ -1785,6 +1806,11 @@ class PrismaAccessRequestRepository {
     return rows.map((row: PrismaRow) => mapAccessRequest(row));
   }
 
+  async findById(id: string): Promise<AccessRequest | undefined> {
+    const row = await this.prisma.accessRequest.findUnique({ where: { id } });
+    return row ? mapAccessRequest(row as PrismaRow) : undefined;
+  }
+
   async create(input: Omit<AccessRequest, "id" | "createdAt" | "updatedAt">): Promise<AccessRequest> {
     const now = new Date();
     const request: AccessRequest = {
@@ -1840,6 +1866,40 @@ class PrismaAccessRequestRepository {
     });
 
     return updated;
+  }
+}
+
+class PrismaAccessRequestApprovalRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+
+  async listByAccessRequestId(accessRequestId: string): Promise<AccessRequestApproval[]> {
+    const rows = await this.prisma.accessRequestApproval.findMany({
+      where: { accessRequestId },
+      orderBy: { createdAt: "asc" }
+    });
+
+    return rows.map((row: PrismaRow) => mapAccessRequestApproval(row));
+  }
+
+  async create(input: Omit<AccessRequestApproval, "id" | "createdAt">): Promise<AccessRequestApproval> {
+    const approval: AccessRequestApproval = {
+      ...input,
+      id: nanoid(),
+      createdAt: new Date()
+    };
+
+    await this.prisma.accessRequestApproval.create({
+      data: {
+        id: approval.id,
+        accessRequestId: approval.accessRequestId,
+        approverId: approval.approverId,
+        decision: approval.decision,
+        rationale: approval.rationale ?? null,
+        createdAt: approval.createdAt.toISOString()
+      }
+    });
+
+    return approval;
   }
 }
 
@@ -1930,6 +1990,7 @@ export const createPrismaRepositories = (prisma: PrismaClientLike): RepositoryBu
   provisioningJobRepository: new PrismaProvisioningJobRepository(prisma),
   deprovisioningQueueRepository: new PrismaDeprovisioningQueueRepository(prisma),
   accessRequestRepository: new PrismaAccessRequestRepository(prisma),
+  accessRequestApprovalRepository: new PrismaAccessRequestApprovalRepository(prisma),
   eventHookRepository: new PrismaEventHookRepository(prisma),
   eventNotificationRepository: new PrismaEventNotificationRepository(prisma),
   instanceSettingsRepository: new PrismaInstanceSettingsRepository(prisma)

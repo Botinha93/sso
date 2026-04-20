@@ -117,6 +117,9 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'POST', path: '/api/admin/provisioning/jobs/reconcile', auth: 'session+csrf', description: 'Starts a provisioning reconciliation run and reports drift/updated counters (dry-run supported).' },
   { method: 'GET', path: '/api/admin/access-requests', auth: 'session', description: 'Lists access governance requests with optional status filtering.' },
   { method: 'POST', path: '/api/admin/access-requests', auth: 'session+csrf', description: 'Creates an access governance request for a target entitlement.' },
+  { method: 'POST', path: '/api/admin/access-requests/:id/approve', auth: 'session+csrf', description: 'Approves a pending access governance request and records approval evidence.' },
+  { method: 'POST', path: '/api/admin/access-requests/:id/reject', auth: 'session+csrf', description: 'Rejects a pending access governance request and records rejection rationale.' },
+  { method: 'POST', path: '/api/admin/access-requests/process-expirations', auth: 'session+csrf', description: 'Expires approved requests past expiresAt and revokes previously granted entitlements (supports dryRun).' },
 
   { method: 'GET', path: '/api/admin/users', auth: 'session', description: 'Lists users.' },
   { method: 'POST', path: '/api/admin/users', auth: 'session+csrf', description: 'Creates user and emits user.created event.' },
@@ -2148,6 +2151,44 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
           updatedAt: '2026-04-20T12:00:00.000Z'
         }
       ])
+    }
+  }
+
+  if (route.path === '/api/admin/access-requests/:id/approve' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({ rationale: 'Business owner approval attached to ticket FIN-2194.' }),
+      expectedResponse: prettyJson({
+        id: 'ar_xxx',
+        status: 'approved',
+        updatedAt: '2026-04-20T12:15:00.000Z'
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/access-requests/:id/reject' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({ rationale: 'Missing required data-classification justification.' }),
+      expectedResponse: prettyJson({
+        id: 'ar_xxx',
+        status: 'rejected',
+        updatedAt: '2026-04-20T12:20:00.000Z'
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/access-requests/process-expirations' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({ dryRun: false }),
+      expectedResponse: prettyJson({
+        now: '2026-04-20T13:00:00.000Z',
+        dryRun: false,
+        examinedApprovedRequests: 12,
+        expiredRequests: 2,
+        revokedAssignments: 2
+      })
     }
   }
 
