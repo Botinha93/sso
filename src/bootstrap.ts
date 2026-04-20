@@ -70,6 +70,7 @@ export const bootstrap = async (config: AppConfig) => {
     accessReviewCampaignRepository,
     accessReviewItemRepository,
     elevationRequestRepository,
+    elevationSessionRepository,
     eventHookRepository,
     eventNotificationRepository,
     instanceSettingsRepository
@@ -153,6 +154,7 @@ export const bootstrap = async (config: AppConfig) => {
   );
   const elevationService = new ElevationService(
     elevationRequestRepository,
+    elevationSessionRepository,
     userRepository,
     auditRepository
   );

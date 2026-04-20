@@ -484,9 +484,13 @@ export type AuditEventType =
   | "elevation_request_approved"
   | "elevation_request_activated"
   | "elevation_request_revoked"
-  | "elevation_request_expired";
+  | "elevation_request_expired"
+  | "elevation_session_started"
+  | "elevation_session_revoked"
+  | "elevation_session_expired";
 
 export type ElevationStatus = "pending" | "approved" | "active" | "revoked" | "expired";
+export type ElevationSessionStatus = "active" | "revoked" | "expired";
 
 export interface ElevationRequest {
   id: string;
@@ -501,6 +505,20 @@ export interface ElevationRequest {
   expiresAt?: Date;
   revokedAt?: Date;
   revokedByUserId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ElevationSession {
+  id: string;
+  elevationRequestId: string;
+  requesterId: string;
+  resource: string;
+  action: string;
+  status: ElevationSessionStatus;
+  startedAt: Date;
+  expiresAt: Date;
+  endedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }

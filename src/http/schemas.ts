@@ -596,3 +596,13 @@ export const listElevationRequestsQuerySchema = z.object({
 export const approveElevationRequestSchema = z.object({
   rationale: z.string().optional()
 });
+
+export const listElevationSessionsQuerySchema = z.object({
+  status: z.enum(["active", "revoked", "expired"]).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional()
+});
+
+export const checkElevationAccessSchema = z.object({
+  resource: z.string().min(1),
+  action: z.string().min(1)
+});

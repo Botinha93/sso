@@ -521,3 +521,17 @@ model elevation_requests {
   created_at          String
   updated_at          String
 }
+
+model elevation_sessions {
+  id                  String @id
+  elevation_request_id String
+  requester_id        String
+  resource            String
+  action              String
+  status              String
+  started_at          String
+  expires_at          String
+  ended_at            String?
+  created_at          String
+  updated_at          String
+}

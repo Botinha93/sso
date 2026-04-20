@@ -1183,6 +1183,20 @@ export interface ElevationRequestDto {
   updatedAt: string
 }
 
+export interface ElevationSessionDto {
+  id: string
+  elevationRequestId: string
+  requesterId: string
+  resource: string
+  action: string
+  status: 'active' | 'revoked' | 'expired'
+  startedAt: string
+  expiresAt: string
+  endedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export function useElevationRequests(status?: ElevationRequestDto['status']) {
   return useQuery({
     queryKey: ['elevation-requests', status],
@@ -1228,7 +1242,10 @@ export function useActivateElevationRequest() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
       }) as Promise<ElevationRequestDto>,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['elevation-requests'] })
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['elevation-requests'] })
+      queryClient.invalidateQueries({ queryKey: ['elevation-sessions'] })
+    }
   })
 }
 
@@ -1241,6 +1258,19 @@ export function useRevokeElevationRequest() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})
       }) as Promise<ElevationRequestDto>,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['elevation-requests'] })
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['elevation-requests'] })
+      queryClient.invalidateQueries({ queryKey: ['elevation-sessions'] })
+    }
+  })
+}
+
+export function useElevationSessions(status?: ElevationSessionDto['status']) {
+  return useQuery({
+    queryKey: ['elevation-sessions', status],
+    queryFn: () => {
+      const params = status ? `?status=${status}` : ''
+      return jsonFetch(`${API_BASE}/elevations/sessions${params}`) as Promise<ElevationSessionDto[]>
+    }
   })
 }

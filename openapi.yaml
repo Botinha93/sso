@@ -584,6 +584,24 @@ paths:
       responses:
         '200':
           description: Elevation request details
+  /api/admin/elevations/sessions:
+    get:
+      summary: List elevation sessions with hard expiry state
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, revoked, expired]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+      responses:
+        '200':
+          description: Elevation session list
   /api/admin/elevations/{id}/approve:
     post:
       summary: Approve a pending elevation request
@@ -644,6 +662,24 @@ paths:
       responses:
         '200':
           description: Expiration processing summary
+  /api/admin/elevations/check:
+    post:
+      summary: Check if current user has an active elevation session for a resource/action
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resource, action]
+              properties:
+                resource:
+                  type: string
+                action:
+                  type: string
+      responses:
+        '200':
+          description: Elevation access decision
   /api/admin/authentication/flows:
     get:
       summary: List authentication flows

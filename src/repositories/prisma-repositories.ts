@@ -11,6 +11,7 @@ import type {
   AuthorizationCode,
   Consent,
   DeprovisioningQueueItem,
+  ElevationSession,
   ElevationRequest,
   EventHook,
   EventNotification,
@@ -91,6 +92,7 @@ type PrismaClientLike = {
   accessReviewCampaign: any;
   accessReviewItem: any;
   elevationRequest: any;
+  elevationSession: any;
   eventHook: any;
   eventNotification: any;
   $queryRaw<T = PrismaRow[]>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>;
@@ -2168,6 +2170,20 @@ const mapElevationRequest = (row: PrismaRow): ElevationRequest => ({
   updatedAt: asDate(readField(row, "updatedAt", "updated_at"))
 });
 
+const mapElevationSession = (row: PrismaRow): ElevationSession => ({
+  id: String(readField(row, "id")),
+  elevationRequestId: String(readField(row, "elevationRequestId", "elevation_request_id")),
+  requesterId: String(readField(row, "requesterId", "requester_id")),
+  resource: String(readField(row, "resource")),
+  action: String(readField(row, "action")),
+  status: String(readField(row, "status")) as ElevationSession["status"],
+  startedAt: asDate(readField(row, "startedAt", "started_at")),
+  expiresAt: asDate(readField(row, "expiresAt", "expires_at")),
+  endedAt: maybeDate(readField(row, "endedAt", "ended_at")),
+  createdAt: asDate(readField(row, "createdAt", "created_at")),
+  updatedAt: asDate(readField(row, "updatedAt", "updated_at"))
+});
+
 class PrismaElevationRequestRepository {
   constructor(private readonly prisma: PrismaClientLike) {}
 
@@ -2197,6 +2213,55 @@ class PrismaElevationRequestRepository {
     const updated: ElevationRequest = { ...existing, ...input, updatedAt: new Date() };
     await this.prisma.elevationRequest.update({ where: { id }, data: { status: updated.status, approvedByUserId: updated.approvedByUserId ?? null, approvedAt: updated.approvedAt?.toISOString() ?? null, activatedAt: updated.activatedAt?.toISOString() ?? null, expiresAt: updated.expiresAt?.toISOString() ?? null, revokedAt: updated.revokedAt?.toISOString() ?? null, revokedByUserId: updated.revokedByUserId ?? null, updatedAt: updated.updatedAt.toISOString() } });
     return updated;
+  }
+}
+
+class PrismaElevationSessionRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+
+  async list(input?: { limit?: number; status?: ElevationSession["status"]; requesterId?: string }): Promise<ElevationSession[]> {
+    const where: Record<string, unknown> = {};
+    if (input?.status) where["status"] = input.status;
+    if (input?.requesterId) where["requesterId"] = input.requesterId;
+    const rows = await this.prisma.elevationSession.findMany({ where, orderBy: { createdAt: "desc" }, take: input?.limit ?? 100 });
+    return rows.map((row: PrismaRow) => mapElevationSession(row));
+  }
+
+  async create(input: Omit<ElevationSession, "id" | "createdAt" | "updatedAt">): Promise<ElevationSession> {
+    const now = new Date();
+    const session: ElevationSession = { id: nanoid(), ...input, createdAt: now, updatedAt: now };
+    await this.prisma.elevationSession.create({ data: { id: session.id, elevationRequestId: session.elevationRequestId, requesterId: session.requesterId, resource: session.resource, action: session.action, status: session.status, startedAt: session.startedAt.toISOString(), expiresAt: session.expiresAt.toISOString(), endedAt: session.endedAt?.toISOString() ?? null, createdAt: session.createdAt.toISOString(), updatedAt: session.updatedAt.toISOString() } });
+    return session;
+  }
+
+  async findActive(input: { requesterId: string; resource: string; action: string; now?: Date }): Promise<ElevationSession | undefined> {
+    const row = await this.prisma.elevationSession.findFirst({
+      where: {
+        requesterId: input.requesterId,
+        resource: input.resource,
+        action: input.action,
+        status: "active",
+        expiresAt: { gt: (input.now ?? new Date()).toISOString() }
+      },
+      orderBy: { createdAt: "desc" }
+    });
+    return row ? mapElevationSession(row as PrismaRow) : undefined;
+  }
+
+  async closeByElevationRequestId(input: { elevationRequestId: string; status: "revoked" | "expired"; closedAt: Date }): Promise<number> {
+    const result = await this.prisma.elevationSession.updateMany({
+      where: { elevationRequestId: input.elevationRequestId, status: "active" },
+      data: { status: input.status, endedAt: input.closedAt.toISOString(), updatedAt: input.closedAt.toISOString() }
+    });
+    return Number(result?.count ?? 0);
+  }
+
+  async closeExpired(now: Date): Promise<number> {
+    const result = await this.prisma.elevationSession.updateMany({
+      where: { status: "active", expiresAt: { lte: now.toISOString() } },
+      data: { status: "expired", endedAt: now.toISOString(), updatedAt: now.toISOString() }
+    });
+    return Number(result?.count ?? 0);
   }
 }
 
@@ -2236,6 +2301,7 @@ export const createPrismaRepositories = (prisma: PrismaClientLike): RepositoryBu
   accessReviewCampaignRepository: new PrismaAccessReviewCampaignRepository(prisma),
   accessReviewItemRepository: new PrismaAccessReviewItemRepository(prisma),
   elevationRequestRepository: new PrismaElevationRequestRepository(prisma),
+  elevationSessionRepository: new PrismaElevationSessionRepository(prisma),
   eventHookRepository: new PrismaEventHookRepository(prisma),
   eventNotificationRepository: new PrismaEventNotificationRepository(prisma),
   instanceSettingsRepository: new PrismaInstanceSettingsRepository(prisma)

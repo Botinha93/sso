@@ -12,6 +12,7 @@ import type {
   ClientRepository,
   ConsentRepository,
   DeprovisioningQueueRepository,
+  ElevationSessionRepository,
   ElevationRequestRepository,
   EventHookRepository,
   EventNotificationRepository,
@@ -63,6 +64,7 @@ import {
   SqliteGroupRoleAssignmentRepository,
   SqliteGroupUserAttributeAssignmentRepository,
   SqliteInstanceSettingsRepository,
+  SqliteElevationSessionRepository,
   SqliteElevationRequestRepository,
   SqlitePolicyAssignmentRepository,
   SqlitePolicyDecisionLogRepository,
@@ -118,6 +120,7 @@ export interface RepositoryBundle {
   accessReviewCampaignRepository: AccessReviewCampaignRepository;
   accessReviewItemRepository: AccessReviewItemRepository;
   elevationRequestRepository: ElevationRequestRepository;
+  elevationSessionRepository: ElevationSessionRepository;
   eventHookRepository: EventHookRepository;
   eventNotificationRepository: EventNotificationRepository;
   instanceSettingsRepository: InstanceSettingsRepository;
@@ -169,6 +172,7 @@ export const createRepositoryBundle = async (config: AppConfig): Promise<Reposit
       accessReviewCampaignRepository: new SqliteAccessReviewCampaignRepository(sqlite.connection),
       accessReviewItemRepository: new SqliteAccessReviewItemRepository(sqlite.connection),
       elevationRequestRepository: new SqliteElevationRequestRepository(sqlite.connection),
+      elevationSessionRepository: new SqliteElevationSessionRepository(sqlite.connection),
       eventHookRepository: new SqliteEventHookRepository(sqlite.connection),
       eventNotificationRepository: new SqliteEventNotificationRepository(sqlite.connection),
       instanceSettingsRepository: new SqliteInstanceSettingsRepository(sqlite.connection),

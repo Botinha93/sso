@@ -15,6 +15,7 @@ import type {
   AuthorizationCode,
   Consent,
   DeprovisioningQueueItem,
+  ElevationSession,
   ElevationRequest,
   FederationProvider,
   FederatedIdentity,
@@ -58,6 +59,7 @@ import type {
   ScopeRepository,
   ConsentRepository,
   DeprovisioningQueueRepository,
+  ElevationSessionRepository,
   ElevationRequestRepository,
   FederationProviderRepository,
   FederatedIdentityRepository,
@@ -565,6 +567,22 @@ export class SqliteDatabase {
         FOREIGN KEY (requester_id) REFERENCES users(id)
       );
 
+      CREATE TABLE IF NOT EXISTS elevation_sessions (
+        id TEXT PRIMARY KEY,
+        elevation_request_id TEXT NOT NULL,
+        requester_id TEXT NOT NULL,
+        resource TEXT NOT NULL,
+        action TEXT NOT NULL,
+        status TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        ended_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (elevation_request_id) REFERENCES elevation_requests(id),
+        FOREIGN KEY (requester_id) REFERENCES users(id)
+      );
+
       CREATE TABLE IF NOT EXISTS event_hooks (
         id TEXT PRIMARY KEY,
         event_type TEXT NOT NULL,
@@ -814,6 +832,27 @@ export class SqliteDatabase {
           revoked_by_user_id TEXT,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL,
+          FOREIGN KEY (requester_id) REFERENCES users(id)
+        );
+      `);
+    }
+
+    const elevationSessionColumns = this.connection.prepare("PRAGMA table_info(elevation_sessions)").all() as Array<{ name: string }>;
+    if (elevationSessionColumns.length === 0) {
+      this.connection.exec(`
+        CREATE TABLE IF NOT EXISTS elevation_sessions (
+          id TEXT PRIMARY KEY,
+          elevation_request_id TEXT NOT NULL,
+          requester_id TEXT NOT NULL,
+          resource TEXT NOT NULL,
+          action TEXT NOT NULL,
+          status TEXT NOT NULL,
+          started_at TEXT NOT NULL,
+          expires_at TEXT NOT NULL,
+          ended_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (elevation_request_id) REFERENCES elevation_requests(id),
           FOREIGN KEY (requester_id) REFERENCES users(id)
         );
       `);
@@ -3293,6 +3332,20 @@ const mapElevationRequest = (row: DbRow): ElevationRequest => ({
   updatedAt: asDate(row.updated_at)
 });
 
+const mapElevationSession = (row: DbRow): ElevationSession => ({
+  id: String(row.id),
+  elevationRequestId: String(row.elevation_request_id),
+  requesterId: String(row.requester_id),
+  resource: String(row.resource),
+  action: String(row.action),
+  status: row.status as ElevationSession["status"],
+  startedAt: asDate(row.started_at),
+  expiresAt: asDate(row.expires_at),
+  endedAt: maybeDate(row.ended_at),
+  createdAt: asDate(row.created_at),
+  updatedAt: asDate(row.updated_at)
+});
+
 export class SqliteElevationRequestRepository implements ElevationRequestRepository {
   constructor(private readonly db: Database.Database) {}
 
@@ -3380,5 +3433,92 @@ export class SqliteElevationRequestRepository implements ElevationRequestReposit
       id
     );
     return updated;
+  }
+}
+
+export class SqliteElevationSessionRepository implements ElevationSessionRepository {
+  constructor(private readonly db: Database.Database) {}
+
+  list(input?: { limit?: number; status?: ElevationSession["status"]; requesterId?: string }): ElevationSession[] {
+    const limit = input?.limit ?? 100;
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (input?.status) {
+      conditions.push("status = ?");
+      params.push(input.status);
+    }
+
+    if (input?.requesterId) {
+      conditions.push("requester_id = ?");
+      params.push(input.requesterId);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+    params.push(limit);
+    const rows = this.db.prepare(`SELECT * FROM elevation_sessions ${where} ORDER BY created_at DESC LIMIT ?`).all(...params) as DbRow[];
+    return rows.map(mapElevationSession);
+  }
+
+  create(input: Omit<ElevationSession, "id" | "createdAt" | "updatedAt">): ElevationSession {
+    const now = new Date();
+    const session: ElevationSession = {
+      id: nanoid(),
+      ...input,
+      createdAt: now,
+      updatedAt: now
+    };
+    this.db.prepare(`
+      INSERT INTO elevation_sessions
+        (id, elevation_request_id, requester_id, resource, action, status, started_at, expires_at, ended_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      session.id,
+      session.elevationRequestId,
+      session.requesterId,
+      session.resource,
+      session.action,
+      session.status,
+      session.startedAt.toISOString(),
+      session.expiresAt.toISOString(),
+      session.endedAt?.toISOString() ?? null,
+      session.createdAt.toISOString(),
+      session.updatedAt.toISOString()
+    );
+    return session;
+  }
+
+  findActive(input: { requesterId: string; resource: string; action: string; now?: Date }): ElevationSession | undefined {
+    const now = (input.now ?? new Date()).toISOString();
+    const row = this.db.prepare(`
+      SELECT * FROM elevation_sessions
+      WHERE requester_id = ? AND resource = ? AND action = ? AND status = 'active' AND expires_at > ?
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).get(input.requesterId, input.resource, input.action, now) as DbRow | undefined;
+    return row ? mapElevationSession(row) : undefined;
+  }
+
+  closeByElevationRequestId(input: { elevationRequestId: string; status: "revoked" | "expired"; closedAt: Date }): number {
+    const result = this.db.prepare(`
+      UPDATE elevation_sessions
+      SET status = ?, ended_at = ?, updated_at = ?
+      WHERE elevation_request_id = ? AND status = 'active'
+    `).run(
+      input.status,
+      input.closedAt.toISOString(),
+      input.closedAt.toISOString(),
+      input.elevationRequestId
+    );
+    return result.changes;
+  }
+
+  closeExpired(now: Date): number {
+    const result = this.db.prepare(`
+      UPDATE elevation_sessions
+      SET status = 'expired', ended_at = ?, updated_at = ?
+      WHERE status = 'active' AND expires_at <= ?
+    `).run(now.toISOString(), now.toISOString(), now.toISOString());
+    return result.changes;
   }
 }

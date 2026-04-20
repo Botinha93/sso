@@ -8,6 +8,7 @@ import {
   useRevokeElevationRequest,
   type ElevationRequestDto
 } from '../hooks/useApi'
+import ElevationSessionList from './ElevationSessionList'
 
 const statusColors: Record<ElevationRequestDto['status'], string> = {
   pending: 'bg-amber-100 text-amber-800',
@@ -220,6 +221,8 @@ export default function ElevationPanel() {
             </div>
           )}
         </section>
+
+        <ElevationSessionList />
       </div>
     </div>
   )

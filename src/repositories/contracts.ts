@@ -9,6 +9,7 @@ import type {
   AuthorizationCode,
   Consent,
   ElevationRequest,
+  ElevationSession,
   EventHook,
   EventNotification,
   DeprovisioningQueueItem,
@@ -312,4 +313,12 @@ export interface ElevationRequestRepository {
   findById(id: string): Awaitable<ElevationRequest | undefined>;
   create(input: Omit<ElevationRequest, "id" | "createdAt" | "updatedAt">): Awaitable<ElevationRequest>;
   update(id: string, input: Partial<Omit<ElevationRequest, "id" | "createdAt">>): Awaitable<ElevationRequest | undefined>;
+}
+
+export interface ElevationSessionRepository {
+  list(input?: { limit?: number; status?: ElevationSession["status"]; requesterId?: string }): Awaitable<ElevationSession[]>;
+  create(input: Omit<ElevationSession, "id" | "createdAt" | "updatedAt">): Awaitable<ElevationSession>;
+  findActive(input: { requesterId: string; resource: string; action: string; now?: Date }): Awaitable<ElevationSession | undefined>;
+  closeByElevationRequestId(input: { elevationRequestId: string; status: "revoked" | "expired"; closedAt: Date }): Awaitable<number>;
+  closeExpired(now: Date): Awaitable<number>;
 }

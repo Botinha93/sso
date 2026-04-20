@@ -2,8 +2,10 @@ import type { FastifyInstance } from "fastify";
 import type { ElevationService } from "../../services/elevation-service.js";
 import {
   approveElevationRequestSchema,
+  checkElevationAccessSchema,
   createElevationRequestSchema,
-  listElevationRequestsQuerySchema
+  listElevationRequestsQuerySchema,
+  listElevationSessionsQuerySchema
 } from "../schemas.js";
 
 export interface ElevationRouteDeps {
@@ -15,6 +17,11 @@ export const registerElevationRoutes = async (app: FastifyInstance, deps: Elevat
   app.get("/api/admin/elevations", async (request) => {
     const query = listElevationRequestsQuerySchema.parse(request.query ?? {});
     return deps.elevationService.listRequests({ status: query.status, limit: query.limit });
+  });
+
+  app.get("/api/admin/elevations/sessions", async (request) => {
+    const query = listElevationSessionsQuerySchema.parse(request.query ?? {});
+    return deps.elevationService.listSessions({ status: query.status, limit: query.limit });
   });
 
   app.get("/api/admin/elevations/:id", async (request) => {
@@ -75,5 +82,17 @@ export const registerElevationRoutes = async (app: FastifyInstance, deps: Elevat
   app.post("/api/admin/elevations/process-expirations", async (_request, reply) => {
     const result = await deps.elevationService.processExpiredRequests();
     return reply.status(200).send(result);
+  });
+
+  app.post("/api/admin/elevations/check", async (request, reply) => {
+    const auth = await deps.requireSessionUser(request, reply);
+    if (!auth) return;
+
+    const input = checkElevationAccessSchema.parse(request.body ?? {});
+    return deps.elevationService.checkAccess({
+      requesterId: auth.user.id,
+      resource: input.resource,
+      action: input.action
+    });
   });
 };

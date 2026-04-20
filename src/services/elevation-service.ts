@@ -1,8 +1,9 @@
 import { nanoid } from "nanoid";
 import { ValidationError } from "../core/errors.js";
-import type { ElevationRequest } from "../domain/models.js";
+import type { ElevationRequest, ElevationSession } from "../domain/models.js";
 import type {
   AuditRepository,
+  ElevationSessionRepository,
   ElevationRequestRepository,
   UserRepository
 } from "../repositories/contracts.js";
@@ -10,6 +11,7 @@ import type {
 export class ElevationService {
   constructor(
     private readonly elevationRepository: ElevationRequestRepository,
+    private readonly elevationSessionRepository: ElevationSessionRepository,
     private readonly userRepository: UserRepository,
     private readonly auditRepository: AuditRepository
   ) {}
@@ -110,9 +112,34 @@ export class ElevationService {
       throw new ValidationError("Elevation request has expired");
     }
 
+    const activatedAt = new Date();
+    const expiresAt = request.expiresAt ?? new Date(activatedAt.getTime() + 60 * 60_000);
+
+    const existingSession = await this.elevationSessionRepository.findActive({
+      requesterId: request.requesterId,
+      resource: request.resource,
+      action: request.action,
+      now: activatedAt
+    });
+
+    if (existingSession) {
+      throw new ValidationError("An active elevation session already exists for this resource/action");
+    }
+
     const updated = await this.elevationRepository.update(request.id, {
       status: "active",
-      activatedAt: new Date()
+      activatedAt,
+      expiresAt
+    });
+
+    await this.elevationSessionRepository.create({
+      elevationRequestId: request.id,
+      requesterId: request.requesterId,
+      resource: request.resource,
+      action: request.action,
+      status: "active",
+      startedAt: activatedAt,
+      expiresAt
     });
 
     await this.auditRepository.log({
@@ -120,6 +147,13 @@ export class ElevationService {
       actorId: input.actorId,
       actorType: "user",
       metadata: { elevationRequestId: request.id }
+    });
+
+    await this.auditRepository.log({
+      type: "elevation_session_started",
+      actorId: input.actorId,
+      actorType: "user",
+      metadata: { elevationRequestId: request.id, requesterId: request.requesterId, resource: request.resource, action: request.action }
     });
 
     return updated!;
@@ -138,10 +172,17 @@ export class ElevationService {
       throw new ValidationError(`Cannot revoke a request in status: ${request.status}`);
     }
 
+    const revokedAt = new Date();
     const updated = await this.elevationRepository.update(request.id, {
       status: "revoked",
-      revokedAt: new Date(),
+      revokedAt,
       revokedByUserId: input.revokedByUserId
+    });
+
+    const closedSessions = await this.elevationSessionRepository.closeByElevationRequestId({
+      elevationRequestId: request.id,
+      status: "revoked",
+      closedAt: revokedAt
     });
 
     await this.auditRepository.log({
@@ -150,6 +191,15 @@ export class ElevationService {
       actorType: "user",
       metadata: { elevationRequestId: request.id }
     });
+
+    if (closedSessions > 0) {
+      await this.auditRepository.log({
+        type: "elevation_session_revoked",
+        actorId: input.revokedByUserId,
+        actorType: "user",
+        metadata: { elevationRequestId: request.id, closedSessions }
+      });
+    }
 
     return updated!;
   }
@@ -180,6 +230,11 @@ export class ElevationService {
     for (const request of candidates) {
       if (request.expiresAt && request.expiresAt.getTime() < now) {
         await this.elevationRepository.update(request.id, { status: "expired" });
+        await this.elevationSessionRepository.closeByElevationRequestId({
+          elevationRequestId: request.id,
+          status: "expired",
+          closedAt: new Date()
+        });
         await this.auditRepository.log({
           type: "elevation_request_expired",
           actorId: "system",
@@ -190,6 +245,42 @@ export class ElevationService {
       }
     }
 
+    const closedExpiredSessions = await this.elevationSessionRepository.closeExpired(new Date());
+    if (closedExpiredSessions > 0) {
+      await this.auditRepository.log({
+        type: "elevation_session_expired",
+        actorId: "system",
+        actorType: "system",
+        metadata: { closedSessions: closedExpiredSessions }
+      });
+    }
+
     return { expired };
+  }
+
+  async listSessions(input?: {
+    limit?: number;
+    status?: ElevationSession["status"];
+    requesterId?: string;
+  }): Promise<ElevationSession[]> {
+    return this.elevationSessionRepository.list(input);
+  }
+
+  async checkAccess(input: {
+    requesterId: string;
+    resource: string;
+    action: string;
+  }): Promise<{ allowed: boolean; sessionId?: string }> {
+    const session = await this.elevationSessionRepository.findActive({
+      requesterId: input.requesterId,
+      resource: input.resource,
+      action: input.action,
+      now: new Date()
+    });
+
+    return {
+      allowed: Boolean(session),
+      sessionId: session?.id
+    };
   }
 }

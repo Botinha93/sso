@@ -508,3 +508,19 @@ model ElevationRequest {
 
   @@map("elevation_requests")
 }
+
+model ElevationSession {
+  id                String  @id
+  elevationRequestId String @map("elevation_request_id")
+  requesterId       String  @map("requester_id")
+  resource          String
+  action            String
+  status            String
+  startedAt         String  @map("started_at")
+  expiresAt         String  @map("expires_at")
+  endedAt           String? @map("ended_at")
+  createdAt         String  @map("created_at")
+  updatedAt         String  @map("updated_at")
+
+  @@map("elevation_sessions")
+}
