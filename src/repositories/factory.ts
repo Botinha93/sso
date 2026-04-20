@@ -1,6 +1,8 @@
 import type { AppConfig } from "../core/config.js";
 import type {
   AccessRequestApprovalRepository,
+  AccessReviewCampaignRepository,
+  AccessReviewItemRepository,
   AccessRequestRepository,
   AccessTokenRepository,
   AppRepository,
@@ -10,6 +12,7 @@ import type {
   ClientRepository,
   ConsentRepository,
   DeprovisioningQueueRepository,
+  ElevationRequestRepository,
   EventHookRepository,
   EventNotificationRepository,
   FederatedIdentityRepository,
@@ -41,6 +44,8 @@ import {
   SqliteAccessTokenRepository,
   SqliteAccessRequestRepository,
   SqliteAccessRequestApprovalRepository,
+  SqliteAccessReviewCampaignRepository,
+  SqliteAccessReviewItemRepository,
   SqliteAppRepository,
   SqliteAuditRepository,
   SqliteAuthenticationFlowRepository,
@@ -58,6 +63,7 @@ import {
   SqliteGroupRoleAssignmentRepository,
   SqliteGroupUserAttributeAssignmentRepository,
   SqliteInstanceSettingsRepository,
+  SqliteElevationRequestRepository,
   SqlitePolicyAssignmentRepository,
   SqlitePolicyDecisionLogRepository,
   SqlitePolicyDefinitionRepository,
@@ -109,6 +115,9 @@ export interface RepositoryBundle {
   deprovisioningQueueRepository: DeprovisioningQueueRepository;
   accessRequestRepository: AccessRequestRepository;
   accessRequestApprovalRepository: AccessRequestApprovalRepository;
+  accessReviewCampaignRepository: AccessReviewCampaignRepository;
+  accessReviewItemRepository: AccessReviewItemRepository;
+  elevationRequestRepository: ElevationRequestRepository;
   eventHookRepository: EventHookRepository;
   eventNotificationRepository: EventNotificationRepository;
   instanceSettingsRepository: InstanceSettingsRepository;
@@ -157,6 +166,9 @@ export const createRepositoryBundle = async (config: AppConfig): Promise<Reposit
       deprovisioningQueueRepository: new SqliteDeprovisioningQueueRepository(sqlite.connection),
       accessRequestRepository: new SqliteAccessRequestRepository(sqlite.connection),
       accessRequestApprovalRepository: new SqliteAccessRequestApprovalRepository(sqlite.connection),
+      accessReviewCampaignRepository: new SqliteAccessReviewCampaignRepository(sqlite.connection),
+      accessReviewItemRepository: new SqliteAccessReviewItemRepository(sqlite.connection),
+      elevationRequestRepository: new SqliteElevationRequestRepository(sqlite.connection),
       eventHookRepository: new SqliteEventHookRepository(sqlite.connection),
       eventNotificationRepository: new SqliteEventNotificationRepository(sqlite.connection),
       instanceSettingsRepository: new SqliteInstanceSettingsRepository(sqlite.connection),

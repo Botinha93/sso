@@ -9,6 +9,8 @@ import {
 } from '../hooks/useApi'
 import ProvisioningAdminPanel from '../components/ProvisioningAdminPanel'
 import AccessGovernancePanel from '../components/AccessGovernancePanel'
+import AccessReviewCampaignPanel from '../components/AccessReviewCampaignPanel'
+import ElevationPanel from '../components/ElevationPanel'
 
 interface SettingsForm {
   databaseProvider: 'sqlite' | 'postgresql' | 'mysql'
@@ -228,6 +230,8 @@ export default function Administration() {
 
       <ProvisioningAdminPanel />
       <AccessGovernancePanel />
+      <AccessReviewCampaignPanel />
+      <ElevationPanel />
 
       <div className="grid gap-6 xl:grid-cols-2">
         <section className={sectionCls}>

@@ -15,6 +15,8 @@ import { PolicyService } from "./services/policy-service.js";
 import { ProvisioningService } from "./services/provisioning-service.js";
 import { DeprovisioningService } from "./services/deprovisioning-service.js";
 import { AccessGovernanceService } from "./services/access-governance-service.js";
+import { AccessReviewService } from "./services/access-review-service.js";
+import { ElevationService } from "./services/elevation-service.js";
 import { EventHookService } from "./services/event-hook-service.js";
 import { EmailService } from "./services/email-service.js";
 import { InstanceSettingsService } from "./services/instance-settings-service.js";
@@ -64,7 +66,10 @@ export const bootstrap = async (config: AppConfig) => {
     provisioningJobRepository,
     deprovisioningQueueRepository,
     accessRequestRepository,
-      accessRequestApprovalRepository,
+    accessRequestApprovalRepository,
+    accessReviewCampaignRepository,
+    accessReviewItemRepository,
+    elevationRequestRepository,
     eventHookRepository,
     eventNotificationRepository,
     instanceSettingsRepository
@@ -134,6 +139,22 @@ export const bootstrap = async (config: AppConfig) => {
     groupRepository,
     roleService,
     groupService
+  );
+  const accessReviewService = new AccessReviewService(
+    accessReviewCampaignRepository,
+    accessReviewItemRepository,
+    userRepository,
+    assignmentRepository,
+    userGroupAssignmentRepository,
+    roleRepository,
+    groupRepository,
+    roleService,
+    groupService
+  );
+  const elevationService = new ElevationService(
+    elevationRequestRepository,
+    userRepository,
+    auditRepository
   );
   const setupService = new SetupService(
     userService,
@@ -363,6 +384,8 @@ export const bootstrap = async (config: AppConfig) => {
     provisioningService,
     deprovisioningService,
     accessGovernanceService,
+    accessReviewService,
+    elevationService,
     clientService,
     scopeService,
     appService,

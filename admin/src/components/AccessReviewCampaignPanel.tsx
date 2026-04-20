@@ -1,0 +1,167 @@
+import { useMemo, useState } from 'react'
+import {
+  useAccessReviewCampaign,
+  useCreateAccessReviewCampaign,
+  useDecideAccessReviewItem,
+  useGroups,
+  useRoles,
+  useUsers
+} from '../hooks/useApi'
+
+const sectionCls = 'rounded-xl border border-slate-200 bg-white p-5 shadow-sm'
+
+export default function AccessReviewCampaignPanel() {
+  const [name, setName] = useState('Quarterly Access Recertification')
+  const [description, setDescription] = useState('Review direct roles and group memberships for active users.')
+  const [dueAt, setDueAt] = useState('')
+  const [campaignId, setCampaignId] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+
+  const { data: users = [] } = useUsers() as { data: Array<{ id: string; username: string; email: string }> }
+  const { data: roles = [] } = useRoles() as { data: Array<{ id: string; name: string }> }
+  const { data: groups = [] } = useGroups() as { data: Array<{ id: string; name: string }> }
+
+  const createCampaign = useCreateAccessReviewCampaign()
+  const reviewCampaign = useAccessReviewCampaign(campaignId ?? undefined)
+  const decideItem = useDecideAccessReviewItem()
+
+  const userLabelById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const user of users) {
+      map.set(user.id, `${user.username} (${user.email})`)
+    }
+    return map
+  }, [users])
+
+  const roleLabelById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const role of roles) {
+      map.set(role.id, role.name)
+    }
+    return map
+  }, [roles])
+
+  const groupLabelById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const group of groups) {
+      map.set(group.id, group.name)
+    }
+    return map
+  }, [groups])
+
+  const runCreateCampaign = async () => {
+    setMessage(null)
+    const created = await createCampaign.mutateAsync({
+      name,
+      description: description.trim() || undefined,
+      dueAt: dueAt ? new Date(dueAt).toISOString() : undefined
+    })
+
+    setCampaignId(created.campaign.id)
+    setMessage(`Campaign created with ${created.generatedItems} generated review item(s).`)
+  }
+
+  const runDecision = async (itemId: string, decision: 'certified' | 'revoked') => {
+    const rationale = window.prompt(`${decision === 'revoked' ? 'Revocation' : 'Certification'} rationale (optional):`) ?? undefined
+    await decideItem.mutateAsync({
+      id: itemId,
+      decision,
+      rationale: rationale?.trim() || undefined
+    })
+  }
+
+  const payload = reviewCampaign.data
+
+  return (
+    <div className="grid gap-6 xl:grid-cols-2">
+      <section className={sectionCls}>
+        <h2 className="text-base font-semibold text-slate-900">Access Review Campaign</h2>
+        <p className="mt-1 text-sm text-slate-600">Generate recertification items from current role and group assignments.</p>
+
+        <div className="mt-4 space-y-2">
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+            placeholder="Campaign name"
+          />
+          <textarea
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            rows={3}
+            className="w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+            placeholder="Campaign scope and reviewer guidance"
+          />
+          <input
+            type="datetime-local"
+            value={dueAt}
+            onChange={(event) => setDueAt(event.target.value)}
+            className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+          />
+          <button
+            onClick={runCreateCampaign}
+            disabled={createCampaign.isPending || name.trim().length < 3}
+            className="inline-flex h-9 items-center rounded-lg bg-slate-900 px-3 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          >
+            {createCampaign.isPending ? 'Generating…' : 'Create Campaign'}
+          </button>
+          {message ? <p className="text-xs text-slate-600">{message}</p> : null}
+        </div>
+      </section>
+
+      <section className={sectionCls}>
+        <h2 className="text-base font-semibold text-slate-900">Campaign Items</h2>
+        <p className="mt-1 text-sm text-slate-600">Certify or revoke each generated entitlement entry.</p>
+
+        {!campaignId ? <p className="mt-4 text-sm text-slate-500">Create a campaign to load review items.</p> : null}
+        {reviewCampaign.isLoading ? <p className="mt-4 text-sm text-slate-500">Loading campaign…</p> : null}
+        {payload?.campaign ? (
+          <div className="mt-4 space-y-2">
+            <p className="text-xs text-slate-500">
+              {payload.campaign.name} • {payload.campaign.status} • {payload.items.length} item(s)
+            </p>
+            {payload.items.length === 0 ? <p className="text-sm text-slate-500">No assignments are currently in scope.</p> : null}
+            {payload.items.map((item) => {
+              const subjectLabel = userLabelById.get(item.subjectUserId) ?? item.subjectUserId
+              const entitlementLabel = item.entitlementType === 'role'
+                ? (roleLabelById.get(item.entitlementValue) ?? item.entitlementValue)
+                : (groupLabelById.get(item.entitlementValue) ?? item.entitlementValue)
+
+              return (
+                <div key={item.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium text-slate-900">{item.entitlementType}: {entitlementLabel}</p>
+                    <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700">
+                      {item.decision ?? 'pending'}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-600">Subject: {subjectLabel}</p>
+                  {item.decision ? (
+                    <p className="mt-1 text-xs text-slate-500">Decision recorded at {new Date(item.updatedAt).toLocaleString()}</p>
+                  ) : (
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        onClick={() => runDecision(item.id, 'certified')}
+                        disabled={decideItem.isPending}
+                        className="rounded border border-emerald-200 bg-white px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                      >
+                        Certify
+                      </button>
+                      <button
+                        onClick={() => runDecision(item.id, 'revoked')}
+                        disabled={decideItem.isPending}
+                        className="rounded border border-rose-200 bg-white px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                      >
+                        Revoke
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        ) : null}
+      </section>
+    </div>
+  )
+}

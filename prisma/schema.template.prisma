@@ -434,6 +434,36 @@ model AccessRequestApproval {
   @@map("access_request_approvals")
 }
 
+model AccessReviewCampaign {
+  id              String  @id
+  name            String
+  description     String?
+  status          String
+  createdByUserId String  @map("created_by_user_id")
+  dueAt           String? @map("due_at")
+  createdAt       String  @map("created_at")
+  updatedAt       String  @map("updated_at")
+
+  @@map("access_review_campaigns")
+}
+
+model AccessReviewItem {
+  id                String  @id
+  campaignId        String  @map("campaign_id")
+  subjectUserId     String  @map("subject_user_id")
+  entitlementType   String  @map("entitlement_type")
+  entitlementValue  String  @map("entitlement_value")
+  currentState      String  @map("current_state")
+  decision          String?
+  decidedByUserId   String? @map("decided_by_user_id")
+  decisionRationale String? @map("decision_rationale")
+  decidedAt         String? @map("decided_at")
+  createdAt         String  @map("created_at")
+  updatedAt         String  @map("updated_at")
+
+  @@map("access_review_items")
+}
+
 model EventHook {
   id         String @id
   eventType  String @map("event_type")
@@ -459,4 +489,22 @@ model EventNotification {
   createdAt      String  @map("created_at")
 
   @@map("event_notifications")
+}
+model ElevationRequest {
+  id               String  @id
+  requesterId      String  @map("requester_id")
+  justification    String
+  resource         String
+  action           String
+  status           String
+  approvedByUserId String? @map("approved_by_user_id")
+  approvedAt       String? @map("approved_at")
+  activatedAt      String? @map("activated_at")
+  expiresAt        String? @map("expires_at")
+  revokedAt        String? @map("revoked_at")
+  revokedByUserId  String? @map("revoked_by_user_id")
+  createdAt        String  @map("created_at")
+  updatedAt        String  @map("updated_at")
+
+  @@map("elevation_requests")
 }

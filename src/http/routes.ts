@@ -6,6 +6,9 @@ import { verifyPassword } from "../security/password.js";
 import { getAssetContentType, readFrontendAsset } from "./view-assets.js";
 import { hasAdminPermission, toAdminAction, toAdminResource } from "./admin-authorization.js";
 import { registerScimRoutes } from "./scim-routes.js";
+import { registerAccessGovernanceRoutes } from "./routes/access-governance.js";
+import { registerProvisioningRoutes } from "./routes/provisioning.js";
+import { registerElevationRoutes } from "./routes/elevations.js";
 import {
   assignGroupRoleSchema,
   assignRoleSchema,
@@ -55,14 +58,7 @@ import {
   removePolicyAssignmentSchema,
   setupInitializeSchema,
   testEventHookSchema,
-  createScimTokenSchema,
-  createProvisioningMappingSchema,
-  createAccessRequestSchema,
-  decideAccessRequestSchema,
-  processExpiredAccessRequestsSchema,
   updateInstanceSettingsSchema,
-  listAccessRequestsQuerySchema,
-  reconcileProvisioningJobSchema,
   updateAppSchema,
   updateAuthenticationFlowSchema,
   updateClientSchema,
@@ -87,6 +83,8 @@ import { ScimTokenService } from "../services/scim-token-service.js";
 import { ProvisioningService } from "../services/provisioning-service.js";
 import { DeprovisioningService } from "../services/deprovisioning-service.js";
 import { AccessGovernanceService } from "../services/access-governance-service.js";
+import { AccessReviewService } from "../services/access-review-service.js";
+import { ElevationService } from "../services/elevation-service.js";
 import { SetupService } from "../services/setup-service.js";
 import { TenantService } from "../services/tenant-service.js";
 import { TotpService } from "../services/totp-service.js";
@@ -119,6 +117,8 @@ interface RouteDeps {
   provisioningService: ProvisioningService;
   deprovisioningService: DeprovisioningService;
   accessGovernanceService: AccessGovernanceService;
+  accessReviewService: AccessReviewService;
+  elevationService: ElevationService;
   totpService: TotpService;
   userService: UserService;
   userAttributeService: UserAttributeService;
@@ -996,116 +996,24 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
 
   app.get("/api/admin/settings", async () => deps.instanceSettingsService.getSettings());
-  app.get("/api/admin/provisioning/tokens", async () => deps.scimTokenService.listTokens());
-  app.post("/api/admin/provisioning/tokens", async (request, reply) => {
-    const input = createScimTokenSchema.parse(request.body);
-    const created = await deps.scimTokenService.createToken({
-      label: input.label,
-      expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined
-    });
-    return reply.status(201).send(created);
-  });
-  app.delete("/api/admin/provisioning/tokens/:id", async (request, reply) => {
-    const { id } = request.params as { id: string };
-    await deps.scimTokenService.revokeToken(id);
-    return reply.status(204).send();
-  });
-  app.get("/api/admin/provisioning/mappings", async () => deps.provisioningService.listMappings());
-  app.post("/api/admin/provisioning/mappings", async (request, reply) => {
-    const input = createProvisioningMappingSchema.parse(request.body);
-    const created = await deps.provisioningService.createMapping(input);
-    return reply.status(201).send(created);
-  });
-  app.delete("/api/admin/provisioning/mappings/:id", async (request, reply) => {
-    const { id } = request.params as { id: string };
-    await deps.provisioningService.deleteMapping(id);
-    return reply.status(204).send();
-  });
-  app.get("/api/admin/provisioning/jobs", async (request) => {
-    const limit = Number((request.query as { limit?: string } | undefined)?.limit ?? "20");
-    return deps.provisioningService.listJobs(Number.isFinite(limit) ? limit : 20);
-  });
-  app.get("/api/admin/access-requests", async (request) => {
-    const query = listAccessRequestsQuerySchema.parse(request.query ?? {});
-    return deps.accessGovernanceService.listAccessRequests({
-      status: query.status,
-      limit: query.limit
-    });
-  });
-  app.post("/api/admin/access-requests", async (request, reply) => {
-    const auth = await requireSessionUser(request, reply);
-    if (!auth) {
-      return;
-    }
 
-    const input = createAccessRequestSchema.parse(request.body);
-    const created = await deps.accessGovernanceService.createAccessRequest({
-      requesterId: auth.user.id,
-      subjectUserId: input.subjectUserId,
-      entitlementType: input.entitlementType,
-      entitlementValue: input.entitlementValue,
-      justification: input.justification,
-      expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined
-    });
+  // Delegation: provisioning, access governance, elevations
+  await registerProvisioningRoutes(app, {
+    scimTokenService: deps.scimTokenService,
+    provisioningService: deps.provisioningService,
+    deprovisioningService: deps.deprovisioningService,
+    requireSessionUser
+  });
+  await registerAccessGovernanceRoutes(app, {
+    accessGovernanceService: deps.accessGovernanceService,
+    accessReviewService: deps.accessReviewService,
+    requireSessionUser
+  });
+  await registerElevationRoutes(app, {
+    elevationService: deps.elevationService,
+    requireSessionUser
+  });
 
-    return reply.status(201).send(created);
-  });
-  app.post("/api/admin/access-requests/:id/approve", async (request, reply) => {
-    const auth = await requireSessionUser(request, reply);
-    if (!auth) {
-      return;
-    }
-
-    const { id } = request.params as { id: string };
-    const input = decideAccessRequestSchema.parse(request.body ?? {});
-    return deps.accessGovernanceService.approveAccessRequest({
-      accessRequestId: id,
-      approverId: auth.user.id,
-      rationale: input.rationale
-    });
-  });
-  app.post("/api/admin/access-requests/:id/reject", async (request, reply) => {
-    const auth = await requireSessionUser(request, reply);
-    if (!auth) {
-      return;
-    }
-
-    const { id } = request.params as { id: string };
-    const input = decideAccessRequestSchema.parse(request.body ?? {});
-    return deps.accessGovernanceService.rejectAccessRequest({
-      accessRequestId: id,
-      approverId: auth.user.id,
-      rationale: input.rationale
-    });
-  });
-  app.post("/api/admin/access-requests/process-expirations", async (request, reply) => {
-    const auth = await requireSessionUser(request, reply);
-    if (!auth) {
-      return;
-    }
-
-    const input = processExpiredAccessRequestsSchema.parse(request.body ?? {});
-    return deps.accessGovernanceService.processExpiredAccessRequests({
-      dryRun: input.dryRun,
-      now: input.now ? new Date(input.now) : undefined
-    });
-  });
-  app.get("/api/admin/provisioning/deprovisioning-queue", async (request) => {
-    const limit = Number((request.query as { limit?: string } | undefined)?.limit ?? "100");
-    return deps.deprovisioningService.listQueue(Number.isFinite(limit) ? limit : 100);
-  });
-  app.post("/api/admin/provisioning/jobs/reconcile", async (request, reply) => {
-    const input = reconcileProvisioningJobSchema.parse(request.body ?? {});
-    const auth = await requireSessionUser(request, reply);
-    if (!auth) {
-      return;
-    }
-    const job = await deps.provisioningService.runReconcile({
-      initiatedByUserId: auth.user.id,
-      dryRun: input.dryRun
-    });
-    return reply.status(202).send(job);
-  });
   app.put("/api/admin/settings", async (request) => {
     const input = updateInstanceSettingsSchema.parse(request.body);
     return deps.instanceSettingsService.updateSettings(input);

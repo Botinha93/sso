@@ -864,6 +864,32 @@ export interface AccessRequestDto {
   updatedAt: string
 }
 
+export interface AccessReviewCampaignDto {
+  id: string
+  name: string
+  description?: string
+  status: 'active' | 'closed'
+  createdByUserId: string
+  dueAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AccessReviewItemDto {
+  id: string
+  campaignId: string
+  subjectUserId: string
+  entitlementType: 'role' | 'group'
+  entitlementValue: string
+  currentState: 'granted'
+  decision?: 'certified' | 'revoked'
+  decidedByUserId?: string
+  decisionRationale?: string
+  decidedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export function useProvisioningTokens() {
   return useQuery({
     queryKey: ['provisioning-tokens'],
@@ -1021,6 +1047,48 @@ export function useProcessExpiredAccessRequests() {
   })
 }
 
+export function useCreateAccessReviewCampaign() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { name: string; description?: string; dueAt?: string }) =>
+      jsonFetch(`${API_BASE}/access-reviews/campaigns`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }) as Promise<{ campaign: AccessReviewCampaignDto; generatedItems: number }>,
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['access-review-campaign', result.campaign.id] })
+    }
+  })
+}
+
+export function useAccessReviewCampaign(campaignId?: string) {
+  return useQuery({
+    queryKey: ['access-review-campaign', campaignId ?? 'none'],
+    queryFn: () => jsonFetch(`${API_BASE}/access-reviews/campaigns/${campaignId}`) as Promise<{
+      campaign: AccessReviewCampaignDto
+      items: AccessReviewItemDto[]
+    }>,
+    enabled: Boolean(campaignId)
+  })
+}
+
+export function useDecideAccessReviewItem() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, decision, rationale }: { id: string; decision: 'certified' | 'revoked'; rationale?: string }) =>
+      jsonFetch(`${API_BASE}/access-reviews/items/${id}/decision`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rationale ? { decision, rationale } : { decision })
+      }) as Promise<AccessReviewItemDto>,
+    onSuccess: (item) => {
+      queryClient.invalidateQueries({ queryKey: ['access-review-campaign', item.campaignId] })
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+    }
+  })
+}
+
 // --- Administration / Instance Settings ---
 export function useInstanceSettings() {
   return useQuery({
@@ -1093,5 +1161,86 @@ export function useMigrateDatabaseFromSqlite() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
+  })
+}
+
+// ── Elevation Requests (PAM-lite) ──────────────────────────────────────────
+
+export interface ElevationRequestDto {
+  id: string
+  requesterId: string
+  justification: string
+  resource: string
+  action: string
+  status: 'pending' | 'approved' | 'active' | 'revoked' | 'expired'
+  approvedByUserId?: string
+  approvedAt?: string
+  activatedAt?: string
+  expiresAt?: string
+  revokedAt?: string
+  revokedByUserId?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export function useElevationRequests(status?: ElevationRequestDto['status']) {
+  return useQuery({
+    queryKey: ['elevation-requests', status],
+    queryFn: () => {
+      const params = status ? `?status=${status}` : ''
+      return jsonFetch(`${API_BASE}/elevations${params}`) as Promise<ElevationRequestDto[]>
+    }
+  })
+}
+
+export function useCreateElevationRequest() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { justification: string; resource: string; action: string; durationMinutes?: number }) =>
+      jsonFetch(`${API_BASE}/elevations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }) as Promise<ElevationRequestDto>,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['elevation-requests'] })
+  })
+}
+
+export function useApproveElevationRequest() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      jsonFetch(`${API_BASE}/elevations/${id}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      }) as Promise<ElevationRequestDto>,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['elevation-requests'] })
+  })
+}
+
+export function useActivateElevationRequest() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      jsonFetch(`${API_BASE}/elevations/${id}/activate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      }) as Promise<ElevationRequestDto>,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['elevation-requests'] })
+  })
+}
+
+export function useRevokeElevationRequest() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      jsonFetch(`${API_BASE}/elevations/${id}/revoke`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      }) as Promise<ElevationRequestDto>,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['elevation-requests'] })
   })
 }

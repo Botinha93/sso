@@ -505,6 +505,17 @@ export const processExpiredAccessRequestsSchema = z.object({
   now: z.string().datetime().optional()
 });
 
+export const createAccessReviewCampaignSchema = z.object({
+  name: z.string().min(3),
+  description: z.string().max(2000).optional(),
+  dueAt: z.string().datetime().optional()
+});
+
+export const decideAccessReviewItemSchema = z.object({
+  decision: z.enum(["certified", "revoked"]),
+  rationale: z.string().min(1).max(2000).optional()
+});
+
 export const updateInstanceSettingsSchema = z.object({
   databaseProvider: z.enum(["sqlite", "postgresql", "mysql"]).optional(),
   databasePath: z.string().min(1).optional(),
@@ -568,4 +579,20 @@ export const backChannelLogoutSchema = z.object({
   sub: z.string().min(2).optional()
 }).refine((data) => Boolean(data.sid || data.sub), {
   message: "Either sid or sub is required"
+});
+
+export const createElevationRequestSchema = z.object({
+  justification: z.string().min(1),
+  resource: z.string().min(1),
+  action: z.string().min(1),
+  durationMinutes: z.number().int().min(1).max(480).optional()
+});
+
+export const listElevationRequestsQuerySchema = z.object({
+  status: z.enum(["pending", "approved", "active", "revoked", "expired"]).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional()
+});
+
+export const approveElevationRequestSchema = z.object({
+  rationale: z.string().optional()
 });

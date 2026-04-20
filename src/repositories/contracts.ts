@@ -1,11 +1,14 @@
 import type {
   AccessTokenRecord,
+  AccessReviewCampaign,
+  AccessReviewItem,
   AccessRequest,
   AccessRequestApproval,
   AuthenticationFlow,
   AuditEvent,
   AuthorizationCode,
   Consent,
+  ElevationRequest,
   EventHook,
   EventNotification,
   DeprovisioningQueueItem,
@@ -276,6 +279,20 @@ export interface AccessRequestApprovalRepository {
   create(input: Omit<AccessRequestApproval, "id" | "createdAt">): Awaitable<AccessRequestApproval>;
 }
 
+export interface AccessReviewCampaignRepository {
+  list(input?: { limit?: number; status?: AccessReviewCampaign["status"] }): Awaitable<AccessReviewCampaign[]>;
+  findById(id: string): Awaitable<AccessReviewCampaign | undefined>;
+  create(input: Omit<AccessReviewCampaign, "id" | "createdAt" | "updatedAt">): Awaitable<AccessReviewCampaign>;
+  update(id: string, input: Partial<Omit<AccessReviewCampaign, "id" | "createdAt">>): Awaitable<AccessReviewCampaign | undefined>;
+}
+
+export interface AccessReviewItemRepository {
+  listByCampaignId(campaignId: string): Awaitable<AccessReviewItem[]>;
+  findById(id: string): Awaitable<AccessReviewItem | undefined>;
+  create(input: Omit<AccessReviewItem, "id" | "createdAt" | "updatedAt">): Awaitable<AccessReviewItem>;
+  update(id: string, input: Partial<Omit<AccessReviewItem, "id" | "createdAt">>): Awaitable<AccessReviewItem | undefined>;
+}
+
 export interface EventHookRepository {
   list(): Awaitable<EventHook[]>;
   listByEventType(eventType: string): Awaitable<EventHook[]>;
@@ -288,4 +305,11 @@ export interface EventHookRepository {
 export interface EventNotificationRepository {
   list(limit?: number): Awaitable<EventNotification[]>;
   create(input: Omit<EventNotification, "id" | "createdAt">): Awaitable<EventNotification>;
+}
+
+export interface ElevationRequestRepository {
+  list(input?: { limit?: number; status?: ElevationRequest["status"]; requesterId?: string }): Awaitable<ElevationRequest[]>;
+  findById(id: string): Awaitable<ElevationRequest | undefined>;
+  create(input: Omit<ElevationRequest, "id" | "createdAt" | "updatedAt">): Awaitable<ElevationRequest>;
+  update(id: string, input: Partial<Omit<ElevationRequest, "id" | "createdAt">>): Awaitable<ElevationRequest | undefined>;
 }

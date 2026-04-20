@@ -353,6 +353,32 @@ export interface AccessRequestApproval {
   createdAt: Date;
 }
 
+export interface AccessReviewCampaign {
+  id: string;
+  name: string;
+  description?: string;
+  status: "active" | "closed";
+  createdByUserId: string;
+  dueAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface AccessReviewItem {
+  id: string;
+  campaignId: string;
+  subjectUserId: string;
+  entitlementType: "role" | "group";
+  entitlementValue: string;
+  currentState: "granted";
+  decision?: "certified" | "revoked";
+  decidedByUserId?: string;
+  decisionRationale?: string;
+  decidedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface EventHook {
   id: string;
   eventType: string;
@@ -453,7 +479,31 @@ export type AuditEventType =
   | "scim_group_deleted"
   | "policy_decision_evaluated"
   | "security_sqli_blocked"
-  | "security_rate_limit_blocked";
+  | "security_rate_limit_blocked"
+  | "elevation_request_created"
+  | "elevation_request_approved"
+  | "elevation_request_activated"
+  | "elevation_request_revoked"
+  | "elevation_request_expired";
+
+export type ElevationStatus = "pending" | "approved" | "active" | "revoked" | "expired";
+
+export interface ElevationRequest {
+  id: string;
+  requesterId: string;
+  justification: string;
+  resource: string;
+  action: string;
+  status: ElevationStatus;
+  approvedByUserId?: string;
+  approvedAt?: Date;
+  activatedAt?: Date;
+  expiresAt?: Date;
+  revokedAt?: Date;
+  revokedByUserId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export interface AuditEvent {
   id: string;

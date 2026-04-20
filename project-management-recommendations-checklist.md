@@ -183,15 +183,15 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 - [x] `GET /api/admin/access-requests`
 - [x] `POST /api/admin/access-requests/:id/approve`
 - [x] `POST /api/admin/access-requests/:id/reject`
-- [ ] `POST /api/admin/access-reviews/campaigns`
-- [ ] `GET /api/admin/access-reviews/campaigns/:id`
-- [ ] `POST /api/admin/access-reviews/items/:id/decision`
+- [x] `POST /api/admin/access-reviews/campaigns`
+- [x] `GET /api/admin/access-reviews/campaigns/:id`
+- [x] `POST /api/admin/access-reviews/items/:id/decision`
 
 ### Schema and model backlog
 
 - [x] Add `access_requests` table (requester, subject, entitlement, status, justification, expires_at).
 - [x] Add `access_request_approvals` table (approver, decision, rationale, timestamp).
-- [ ] Add `review_campaigns` and `review_items` tables.
+- [x] Add `review_campaigns` and `review_items` tables.
 - [ ] Add attestation metadata to audit events for evidence export.
 
 ### Code implementation backlog
@@ -199,14 +199,14 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 - [x] Create `src/services/access-governance-service.ts`.
 - [ ] Add SLA/escalation logic for stalled approvals.
 - [x] Auto-create assignments on approval, auto-revoke on expiry.
-- [ ] Add campaign UI pages in admin app.
+- [x] Add campaign UI pages in admin app.
 
 ### Test plan
 
 - [x] Unit: approval workflow transitions and invalid transitions.
 - [x] Integration: create request -> approval -> entitlement assignment.
 - [x] Integration: expiration revokes assignment.
-- [ ] Integration: campaign generation includes in-scope assignments.
+- [x] Integration: campaign generation includes in-scope assignments.
 - [ ] E2E: reviewer certifies/revokes access and audit evidence is generated.
 
 ---

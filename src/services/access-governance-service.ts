@@ -229,4 +229,23 @@ export class AccessGovernanceService {
     const groups = await this.groupRepository.list();
     return groups.find((group) => group.id === entitlementValue || group.name === entitlementValue);
   }
+
+  async listStalledRequests(input?: { stalledAfterMinutes?: number }): Promise<{
+    stalledRequests: Array<{ id: string; requesterId: string; entitlementType: string; entitlementValue: string; stalledMinutes: number; createdAt: Date }>;
+  }> {
+    const thresholdMs = (input?.stalledAfterMinutes ?? 60) * 60_000;
+    const now = Date.now();
+    const pending = await this.accessRequestRepository.list({ limit: 500, status: "pending" });
+    const stalled = pending
+      .filter((r) => now - r.createdAt.getTime() > thresholdMs)
+      .map((r) => ({
+        id: r.id,
+        requesterId: r.requesterId,
+        entitlementType: r.entitlementType,
+        entitlementValue: r.entitlementValue,
+        stalledMinutes: Math.floor((now - r.createdAt.getTime()) / 60_000),
+        createdAt: r.createdAt
+      }));
+    return { stalledRequests: stalled };
+  }
 }

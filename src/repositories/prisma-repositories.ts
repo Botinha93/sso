@@ -1,6 +1,8 @@
 import { nanoid } from "nanoid";
 import type {
   AccessTokenRecord,
+  AccessReviewCampaign,
+  AccessReviewItem,
   AccessRequest,
   AccessRequestApproval,
   App,
@@ -9,6 +11,7 @@ import type {
   AuthorizationCode,
   Consent,
   DeprovisioningQueueItem,
+  ElevationRequest,
   EventHook,
   EventNotification,
   FederatedIdentity,
@@ -85,6 +88,9 @@ type PrismaClientLike = {
   deprovisioningQueue: any;
   accessRequest: any;
   accessRequestApproval: any;
+  accessReviewCampaign: any;
+  accessReviewItem: any;
+  elevationRequest: any;
   eventHook: any;
   eventNotification: any;
   $queryRaw<T = PrismaRow[]>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>;
@@ -532,6 +538,36 @@ const mapAccessRequestApproval = (row: PrismaRow): AccessRequestApproval => ({
   createdAt: asDate(readField(row, "createdAt", "created_at"))
 });
 
+const mapAccessReviewCampaign = (row: PrismaRow): AccessReviewCampaign => ({
+  id: String(readField(row, "id")),
+  name: String(readField(row, "name")),
+  description: readField(row, "description") ? String(readField(row, "description")) : undefined,
+  status: String(readField(row, "status")) as AccessReviewCampaign["status"],
+  createdByUserId: String(readField(row, "createdByUserId", "created_by_user_id")),
+  dueAt: maybeDate(readField(row, "dueAt", "due_at")),
+  createdAt: asDate(readField(row, "createdAt", "created_at")),
+  updatedAt: asDate(readField(row, "updatedAt", "updated_at"))
+});
+
+const mapAccessReviewItem = (row: PrismaRow): AccessReviewItem => ({
+  id: String(readField(row, "id")),
+  campaignId: String(readField(row, "campaignId", "campaign_id")),
+  subjectUserId: String(readField(row, "subjectUserId", "subject_user_id")),
+  entitlementType: String(readField(row, "entitlementType", "entitlement_type")) as AccessReviewItem["entitlementType"],
+  entitlementValue: String(readField(row, "entitlementValue", "entitlement_value")),
+  currentState: String(readField(row, "currentState", "current_state")) as AccessReviewItem["currentState"],
+  decision: readField(row, "decision") ? String(readField(row, "decision")) as AccessReviewItem["decision"] : undefined,
+  decidedByUserId: readField(row, "decidedByUserId", "decided_by_user_id")
+    ? String(readField(row, "decidedByUserId", "decided_by_user_id"))
+    : undefined,
+  decisionRationale: readField(row, "decisionRationale", "decision_rationale")
+    ? String(readField(row, "decisionRationale", "decision_rationale"))
+    : undefined,
+  decidedAt: maybeDate(readField(row, "decidedAt", "decided_at")),
+  createdAt: asDate(readField(row, "createdAt", "created_at")),
+  updatedAt: asDate(readField(row, "updatedAt", "updated_at"))
+});
+
 const mapEventHook = (row: PrismaRow): EventHook => ({
   id: String(row.id),
   eventType: String(row.eventType),
@@ -838,8 +874,12 @@ class PrismaSessionRepository {
   }
 
   async findById(id: string): Promise<Session | undefined> {
-    const row = await this.prisma.session.findUnique({ where: { id } });
-    return row ? mapSession(row as PrismaRow) : undefined;
+    try {
+      const row = await this.prisma.session.findUnique({ where: { id } });
+      return row ? mapSession(row as PrismaRow) : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   async list(): Promise<Session[]> {
@@ -1903,6 +1943,159 @@ class PrismaAccessRequestApprovalRepository {
   }
 }
 
+class PrismaAccessReviewCampaignRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+
+  async list(input?: { limit?: number; status?: AccessReviewCampaign["status"] }): Promise<AccessReviewCampaign[]> {
+    const limit = Math.max(1, Math.min(200, input?.limit ?? 100));
+    const where = input?.status ? { status: input.status } : undefined;
+    const rows = await this.prisma.accessReviewCampaign.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: limit
+    });
+
+    return rows.map((row: PrismaRow) => mapAccessReviewCampaign(row));
+  }
+
+  async findById(id: string): Promise<AccessReviewCampaign | undefined> {
+    const row = await this.prisma.accessReviewCampaign.findUnique({ where: { id } });
+    return row ? mapAccessReviewCampaign(row as PrismaRow) : undefined;
+  }
+
+  async create(input: Omit<AccessReviewCampaign, "id" | "createdAt" | "updatedAt">): Promise<AccessReviewCampaign> {
+    const now = new Date();
+    const campaign: AccessReviewCampaign = {
+      ...input,
+      id: nanoid(),
+      createdAt: now,
+      updatedAt: now
+    };
+
+    await this.prisma.accessReviewCampaign.create({
+      data: {
+        id: campaign.id,
+        name: campaign.name,
+        description: campaign.description ?? null,
+        status: campaign.status,
+        createdByUserId: campaign.createdByUserId,
+        dueAt: campaign.dueAt ? campaign.dueAt.toISOString() : null,
+        createdAt: campaign.createdAt.toISOString(),
+        updatedAt: campaign.updatedAt.toISOString()
+      }
+    });
+
+    return campaign;
+  }
+
+  async update(id: string, input: Partial<Omit<AccessReviewCampaign, "id" | "createdAt">>): Promise<AccessReviewCampaign | undefined> {
+    const existing = await this.prisma.accessReviewCampaign.findUnique({ where: { id } });
+    if (!existing) {
+      return undefined;
+    }
+
+    const current = mapAccessReviewCampaign(existing as PrismaRow);
+    const updated: AccessReviewCampaign = {
+      ...current,
+      ...input,
+      updatedAt: new Date()
+    };
+
+    await this.prisma.accessReviewCampaign.update({
+      where: { id },
+      data: {
+        name: updated.name,
+        description: updated.description ?? null,
+        status: updated.status,
+        createdByUserId: updated.createdByUserId,
+        dueAt: updated.dueAt ? updated.dueAt.toISOString() : null,
+        updatedAt: updated.updatedAt.toISOString()
+      }
+    });
+
+    return updated;
+  }
+}
+
+class PrismaAccessReviewItemRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+
+  async listByCampaignId(campaignId: string): Promise<AccessReviewItem[]> {
+    const rows = await this.prisma.accessReviewItem.findMany({
+      where: { campaignId },
+      orderBy: { createdAt: "asc" }
+    });
+
+    return rows.map((row: PrismaRow) => mapAccessReviewItem(row));
+  }
+
+  async findById(id: string): Promise<AccessReviewItem | undefined> {
+    const row = await this.prisma.accessReviewItem.findUnique({ where: { id } });
+    return row ? mapAccessReviewItem(row as PrismaRow) : undefined;
+  }
+
+  async create(input: Omit<AccessReviewItem, "id" | "createdAt" | "updatedAt">): Promise<AccessReviewItem> {
+    const now = new Date();
+    const item: AccessReviewItem = {
+      ...input,
+      id: nanoid(),
+      createdAt: now,
+      updatedAt: now
+    };
+
+    await this.prisma.accessReviewItem.create({
+      data: {
+        id: item.id,
+        campaignId: item.campaignId,
+        subjectUserId: item.subjectUserId,
+        entitlementType: item.entitlementType,
+        entitlementValue: item.entitlementValue,
+        currentState: item.currentState,
+        decision: item.decision ?? null,
+        decidedByUserId: item.decidedByUserId ?? null,
+        decisionRationale: item.decisionRationale ?? null,
+        decidedAt: item.decidedAt ? item.decidedAt.toISOString() : null,
+        createdAt: item.createdAt.toISOString(),
+        updatedAt: item.updatedAt.toISOString()
+      }
+    });
+
+    return item;
+  }
+
+  async update(id: string, input: Partial<Omit<AccessReviewItem, "id" | "createdAt">>): Promise<AccessReviewItem | undefined> {
+    const existing = await this.prisma.accessReviewItem.findUnique({ where: { id } });
+    if (!existing) {
+      return undefined;
+    }
+
+    const current = mapAccessReviewItem(existing as PrismaRow);
+    const updated: AccessReviewItem = {
+      ...current,
+      ...input,
+      updatedAt: new Date()
+    };
+
+    await this.prisma.accessReviewItem.update({
+      where: { id },
+      data: {
+        campaignId: updated.campaignId,
+        subjectUserId: updated.subjectUserId,
+        entitlementType: updated.entitlementType,
+        entitlementValue: updated.entitlementValue,
+        currentState: updated.currentState,
+        decision: updated.decision ?? null,
+        decidedByUserId: updated.decidedByUserId ?? null,
+        decisionRationale: updated.decisionRationale ?? null,
+        decidedAt: updated.decidedAt ? updated.decidedAt.toISOString() : null,
+        updatedAt: updated.updatedAt.toISOString()
+      }
+    });
+
+    return updated;
+  }
+}
+
 class PrismaEventHookRepository {
   constructor(private readonly prisma: PrismaClientLike) {}
 
@@ -1958,6 +2151,55 @@ class PrismaEventNotificationRepository {
   }
 }
 
+const mapElevationRequest = (row: PrismaRow): ElevationRequest => ({
+  id: String(readField(row, "id")),
+  requesterId: String(readField(row, "requesterId", "requester_id")),
+  justification: String(readField(row, "justification")),
+  resource: String(readField(row, "resource")),
+  action: String(readField(row, "action")),
+  status: String(readField(row, "status")) as ElevationRequest["status"],
+  approvedByUserId: readField(row, "approvedByUserId", "approved_by_user_id") ? String(readField(row, "approvedByUserId", "approved_by_user_id")) : undefined,
+  approvedAt: maybeDate(readField(row, "approvedAt", "approved_at")),
+  activatedAt: maybeDate(readField(row, "activatedAt", "activated_at")),
+  expiresAt: maybeDate(readField(row, "expiresAt", "expires_at")),
+  revokedAt: maybeDate(readField(row, "revokedAt", "revoked_at")),
+  revokedByUserId: readField(row, "revokedByUserId", "revoked_by_user_id") ? String(readField(row, "revokedByUserId", "revoked_by_user_id")) : undefined,
+  createdAt: asDate(readField(row, "createdAt", "created_at")),
+  updatedAt: asDate(readField(row, "updatedAt", "updated_at"))
+});
+
+class PrismaElevationRequestRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+
+  async list(input?: { limit?: number; status?: ElevationRequest["status"]; requesterId?: string }): Promise<ElevationRequest[]> {
+    const where: Record<string, unknown> = {};
+    if (input?.status) where["status"] = input.status;
+    if (input?.requesterId) where["requesterId"] = input.requesterId;
+    const rows = await this.prisma.elevationRequest.findMany({ where, orderBy: { createdAt: "desc" }, take: input?.limit ?? 100 });
+    return rows.map((row: PrismaRow) => mapElevationRequest(row));
+  }
+
+  async findById(id: string): Promise<ElevationRequest | undefined> {
+    const row = await this.prisma.elevationRequest.findUnique({ where: { id } }).catch(() => undefined);
+    return row ? mapElevationRequest(row as PrismaRow) : undefined;
+  }
+
+  async create(input: Omit<ElevationRequest, "id" | "createdAt" | "updatedAt">): Promise<ElevationRequest> {
+    const now = new Date();
+    const request: ElevationRequest = { id: nanoid(), ...input, createdAt: now, updatedAt: now };
+    await this.prisma.elevationRequest.create({ data: { id: request.id, requesterId: request.requesterId, justification: request.justification, resource: request.resource, action: request.action, status: request.status, approvedByUserId: request.approvedByUserId ?? null, approvedAt: request.approvedAt?.toISOString() ?? null, activatedAt: request.activatedAt?.toISOString() ?? null, expiresAt: request.expiresAt?.toISOString() ?? null, revokedAt: request.revokedAt?.toISOString() ?? null, revokedByUserId: request.revokedByUserId ?? null, createdAt: request.createdAt.toISOString(), updatedAt: request.updatedAt.toISOString() } });
+    return request;
+  }
+
+  async update(id: string, input: Partial<Omit<ElevationRequest, "id" | "createdAt">>): Promise<ElevationRequest | undefined> {
+    const existing = await this.findById(id);
+    if (!existing) return undefined;
+    const updated: ElevationRequest = { ...existing, ...input, updatedAt: new Date() };
+    await this.prisma.elevationRequest.update({ where: { id }, data: { status: updated.status, approvedByUserId: updated.approvedByUserId ?? null, approvedAt: updated.approvedAt?.toISOString() ?? null, activatedAt: updated.activatedAt?.toISOString() ?? null, expiresAt: updated.expiresAt?.toISOString() ?? null, revokedAt: updated.revokedAt?.toISOString() ?? null, revokedByUserId: updated.revokedByUserId ?? null, updatedAt: updated.updatedAt.toISOString() } });
+    return updated;
+  }
+}
+
 export const createPrismaRepositories = (prisma: PrismaClientLike): RepositoryBundle => ({
   roleRepository: new PrismaRoleRepository(prisma),
   tenantRepository: new PrismaTenantRepository(prisma),
@@ -1991,6 +2233,9 @@ export const createPrismaRepositories = (prisma: PrismaClientLike): RepositoryBu
   deprovisioningQueueRepository: new PrismaDeprovisioningQueueRepository(prisma),
   accessRequestRepository: new PrismaAccessRequestRepository(prisma),
   accessRequestApprovalRepository: new PrismaAccessRequestApprovalRepository(prisma),
+  accessReviewCampaignRepository: new PrismaAccessReviewCampaignRepository(prisma),
+  accessReviewItemRepository: new PrismaAccessReviewItemRepository(prisma),
+  elevationRequestRepository: new PrismaElevationRequestRepository(prisma),
   eventHookRepository: new PrismaEventHookRepository(prisma),
   eventNotificationRepository: new PrismaEventNotificationRepository(prisma),
   instanceSettingsRepository: new PrismaInstanceSettingsRepository(prisma)

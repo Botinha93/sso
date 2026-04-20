@@ -4,6 +4,8 @@ import Database from "better-sqlite3";
 import { nanoid } from "nanoid";
 import type {
   AccessTokenRecord,
+  AccessReviewCampaign,
+  AccessReviewItem,
   AccessRequest,
   AccessRequestApproval,
   App,
@@ -13,6 +15,7 @@ import type {
   AuthorizationCode,
   Consent,
   DeprovisioningQueueItem,
+  ElevationRequest,
   FederationProvider,
   FederatedIdentity,
   FederationTransaction,
@@ -42,6 +45,8 @@ import type {
 } from "../domain/models.js";
 import type {
   AccessTokenRepository,
+  AccessReviewCampaignRepository,
+  AccessReviewItemRepository,
   AccessRequestApprovalRepository,
   AccessRequestRepository,
   AppRepository,
@@ -53,6 +58,7 @@ import type {
   ScopeRepository,
   ConsentRepository,
   DeprovisioningQueueRepository,
+  ElevationRequestRepository,
   FederationProviderRepository,
   FederatedIdentityRepository,
   FederationTransactionRepository,
@@ -511,6 +517,54 @@ export class SqliteDatabase {
         FOREIGN KEY (approver_id) REFERENCES users(id)
       );
 
+      CREATE TABLE IF NOT EXISTS access_review_campaigns (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL,
+        created_by_user_id TEXT NOT NULL,
+        due_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (created_by_user_id) REFERENCES users(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS access_review_items (
+        id TEXT PRIMARY KEY,
+        campaign_id TEXT NOT NULL,
+        subject_user_id TEXT NOT NULL,
+        entitlement_type TEXT NOT NULL,
+        entitlement_value TEXT NOT NULL,
+        current_state TEXT NOT NULL,
+        decision TEXT,
+        decided_by_user_id TEXT,
+        decision_rationale TEXT,
+        decided_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (campaign_id) REFERENCES access_review_campaigns(id),
+        FOREIGN KEY (subject_user_id) REFERENCES users(id),
+        FOREIGN KEY (decided_by_user_id) REFERENCES users(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS elevation_requests (
+        id TEXT PRIMARY KEY,
+        requester_id TEXT NOT NULL,
+        justification TEXT NOT NULL,
+        resource TEXT NOT NULL,
+        action TEXT NOT NULL,
+        status TEXT NOT NULL,
+        approved_by_user_id TEXT,
+        approved_at TEXT,
+        activated_at TEXT,
+        expires_at TEXT,
+        revoked_at TEXT,
+        revoked_by_user_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (requester_id) REFERENCES users(id)
+      );
+
       CREATE TABLE IF NOT EXISTS event_hooks (
         id TEXT PRIMARY KEY,
         event_type TEXT NOT NULL,
@@ -698,6 +752,69 @@ export class SqliteDatabase {
           created_at TEXT NOT NULL,
           FOREIGN KEY (access_request_id) REFERENCES access_requests(id),
           FOREIGN KEY (approver_id) REFERENCES users(id)
+        );
+      `);
+    }
+
+    const accessReviewCampaignColumns = this.connection.prepare("PRAGMA table_info(access_review_campaigns)").all() as Array<{ name: string }>;
+    if (accessReviewCampaignColumns.length === 0) {
+      this.connection.exec(`
+        CREATE TABLE IF NOT EXISTS access_review_campaigns (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          description TEXT,
+          status TEXT NOT NULL,
+          created_by_user_id TEXT NOT NULL,
+          due_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (created_by_user_id) REFERENCES users(id)
+        );
+      `);
+    }
+
+    const accessReviewItemColumns = this.connection.prepare("PRAGMA table_info(access_review_items)").all() as Array<{ name: string }>;
+    if (accessReviewItemColumns.length === 0) {
+      this.connection.exec(`
+        CREATE TABLE IF NOT EXISTS access_review_items (
+          id TEXT PRIMARY KEY,
+          campaign_id TEXT NOT NULL,
+          subject_user_id TEXT NOT NULL,
+          entitlement_type TEXT NOT NULL,
+          entitlement_value TEXT NOT NULL,
+          current_state TEXT NOT NULL,
+          decision TEXT,
+          decided_by_user_id TEXT,
+          decision_rationale TEXT,
+          decided_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (campaign_id) REFERENCES access_review_campaigns(id),
+          FOREIGN KEY (subject_user_id) REFERENCES users(id),
+          FOREIGN KEY (decided_by_user_id) REFERENCES users(id)
+        );
+      `);
+    }
+
+    const elevationColumns = this.connection.prepare("PRAGMA table_info(elevation_requests)").all() as Array<{ name: string }>;
+    if (elevationColumns.length === 0) {
+      this.connection.exec(`
+        CREATE TABLE IF NOT EXISTS elevation_requests (
+          id TEXT PRIMARY KEY,
+          requester_id TEXT NOT NULL,
+          justification TEXT NOT NULL,
+          resource TEXT NOT NULL,
+          action TEXT NOT NULL,
+          status TEXT NOT NULL,
+          approved_by_user_id TEXT,
+          approved_at TEXT,
+          activated_at TEXT,
+          expires_at TEXT,
+          revoked_at TEXT,
+          revoked_by_user_id TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (requester_id) REFERENCES users(id)
         );
       `);
     }
@@ -1026,6 +1143,32 @@ const mapAccessRequestApproval = (row: DbRow): AccessRequestApproval => ({
   decision: String(row.decision) as AccessRequestApproval["decision"],
   rationale: row.rationale ? String(row.rationale) : undefined,
   createdAt: asDate(row.created_at)
+});
+
+const mapAccessReviewCampaign = (row: DbRow): AccessReviewCampaign => ({
+  id: String(row.id),
+  name: String(row.name),
+  description: row.description ? String(row.description) : undefined,
+  status: String(row.status) as AccessReviewCampaign["status"],
+  createdByUserId: String(row.created_by_user_id),
+  dueAt: maybeDate(row.due_at),
+  createdAt: asDate(row.created_at),
+  updatedAt: asDate(row.updated_at)
+});
+
+const mapAccessReviewItem = (row: DbRow): AccessReviewItem => ({
+  id: String(row.id),
+  campaignId: String(row.campaign_id),
+  subjectUserId: String(row.subject_user_id),
+  entitlementType: String(row.entitlement_type) as AccessReviewItem["entitlementType"],
+  entitlementValue: String(row.entitlement_value),
+  currentState: String(row.current_state) as AccessReviewItem["currentState"],
+  decision: row.decision ? String(row.decision) as AccessReviewItem["decision"] : undefined,
+  decidedByUserId: row.decided_by_user_id ? String(row.decided_by_user_id) : undefined,
+  decisionRationale: row.decision_rationale ? String(row.decision_rationale) : undefined,
+  decidedAt: maybeDate(row.decided_at),
+  createdAt: asDate(row.created_at),
+  updatedAt: asDate(row.updated_at)
 });
 
 const mapEventHook = (row: DbRow): EventHook => ({
@@ -2861,6 +3004,177 @@ export class SqliteAccessRequestApprovalRepository implements AccessRequestAppro
   }
 }
 
+export class SqliteAccessReviewCampaignRepository implements AccessReviewCampaignRepository {
+  constructor(private readonly db: Database.Database) {}
+
+  async list(input?: { limit?: number; status?: AccessReviewCampaign["status"] }): Promise<AccessReviewCampaign[]> {
+    const limit = Math.max(1, Math.min(200, input?.limit ?? 100));
+    if (input?.status) {
+      const rows = this.db.prepare(
+        "SELECT * FROM access_review_campaigns WHERE status = ? ORDER BY created_at DESC LIMIT ?"
+      ).all(input.status, limit) as DbRow[];
+      return rows.map(mapAccessReviewCampaign);
+    }
+
+    const rows = this.db.prepare("SELECT * FROM access_review_campaigns ORDER BY created_at DESC LIMIT ?").all(limit) as DbRow[];
+    return rows.map(mapAccessReviewCampaign);
+  }
+
+  async findById(id: string): Promise<AccessReviewCampaign | undefined> {
+    const row = this.db.prepare("SELECT * FROM access_review_campaigns WHERE id = ?").get(id) as DbRow | undefined;
+    return row ? mapAccessReviewCampaign(row) : undefined;
+  }
+
+  async create(input: Omit<AccessReviewCampaign, "id" | "createdAt" | "updatedAt">): Promise<AccessReviewCampaign> {
+    const now = new Date();
+    const campaign: AccessReviewCampaign = {
+      ...input,
+      id: nanoid(),
+      createdAt: now,
+      updatedAt: now
+    };
+
+    this.db.prepare(`
+      INSERT INTO access_review_campaigns (id, name, description, status, created_by_user_id, due_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      campaign.id,
+      campaign.name,
+      campaign.description ?? null,
+      campaign.status,
+      campaign.createdByUserId,
+      campaign.dueAt ? campaign.dueAt.toISOString() : null,
+      campaign.createdAt.toISOString(),
+      campaign.updatedAt.toISOString()
+    );
+
+    return campaign;
+  }
+
+  async update(id: string, input: Partial<Omit<AccessReviewCampaign, "id" | "createdAt">>): Promise<AccessReviewCampaign | undefined> {
+    const existing = this.db.prepare("SELECT * FROM access_review_campaigns WHERE id = ?").get(id) as DbRow | undefined;
+    if (!existing) {
+      return undefined;
+    }
+
+    const current = mapAccessReviewCampaign(existing);
+    const updated: AccessReviewCampaign = {
+      ...current,
+      ...input,
+      updatedAt: new Date()
+    };
+
+    this.db.prepare(`
+      UPDATE access_review_campaigns
+      SET name = ?, description = ?, status = ?, created_by_user_id = ?, due_at = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      updated.name,
+      updated.description ?? null,
+      updated.status,
+      updated.createdByUserId,
+      updated.dueAt ? updated.dueAt.toISOString() : null,
+      updated.updatedAt.toISOString(),
+      id
+    );
+
+    return updated;
+  }
+}
+
+export class SqliteAccessReviewItemRepository implements AccessReviewItemRepository {
+  constructor(private readonly db: Database.Database) {}
+
+  async listByCampaignId(campaignId: string): Promise<AccessReviewItem[]> {
+    const rows = this.db.prepare(
+      "SELECT * FROM access_review_items WHERE campaign_id = ? ORDER BY created_at ASC"
+    ).all(campaignId) as DbRow[];
+    return rows.map(mapAccessReviewItem);
+  }
+
+  async findById(id: string): Promise<AccessReviewItem | undefined> {
+    const row = this.db.prepare("SELECT * FROM access_review_items WHERE id = ?").get(id) as DbRow | undefined;
+    return row ? mapAccessReviewItem(row) : undefined;
+  }
+
+  async create(input: Omit<AccessReviewItem, "id" | "createdAt" | "updatedAt">): Promise<AccessReviewItem> {
+    const now = new Date();
+    const item: AccessReviewItem = {
+      ...input,
+      id: nanoid(),
+      createdAt: now,
+      updatedAt: now
+    };
+
+    this.db.prepare(`
+      INSERT INTO access_review_items (
+        id,
+        campaign_id,
+        subject_user_id,
+        entitlement_type,
+        entitlement_value,
+        current_state,
+        decision,
+        decided_by_user_id,
+        decision_rationale,
+        decided_at,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      item.id,
+      item.campaignId,
+      item.subjectUserId,
+      item.entitlementType,
+      item.entitlementValue,
+      item.currentState,
+      item.decision ?? null,
+      item.decidedByUserId ?? null,
+      item.decisionRationale ?? null,
+      item.decidedAt ? item.decidedAt.toISOString() : null,
+      item.createdAt.toISOString(),
+      item.updatedAt.toISOString()
+    );
+
+    return item;
+  }
+
+  async update(id: string, input: Partial<Omit<AccessReviewItem, "id" | "createdAt">>): Promise<AccessReviewItem | undefined> {
+    const existing = this.db.prepare("SELECT * FROM access_review_items WHERE id = ?").get(id) as DbRow | undefined;
+    if (!existing) {
+      return undefined;
+    }
+
+    const current = mapAccessReviewItem(existing);
+    const updated: AccessReviewItem = {
+      ...current,
+      ...input,
+      updatedAt: new Date()
+    };
+
+    this.db.prepare(`
+      UPDATE access_review_items
+      SET campaign_id = ?, subject_user_id = ?, entitlement_type = ?, entitlement_value = ?, current_state = ?, decision = ?, decided_by_user_id = ?, decision_rationale = ?, decided_at = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      updated.campaignId,
+      updated.subjectUserId,
+      updated.entitlementType,
+      updated.entitlementValue,
+      updated.currentState,
+      updated.decision ?? null,
+      updated.decidedByUserId ?? null,
+      updated.decisionRationale ?? null,
+      updated.decidedAt ? updated.decidedAt.toISOString() : null,
+      updated.updatedAt.toISOString(),
+      id
+    );
+
+    return updated;
+  }
+}
+
 export class SqliteEventHookRepository {
   constructor(private readonly db: Database.Database) {}
 
@@ -2959,5 +3273,112 @@ export class SqliteEventNotificationRepository {
     );
 
     return notification;
+  }
+}
+
+const mapElevationRequest = (row: DbRow): ElevationRequest => ({
+  id: String(row.id),
+  requesterId: String(row.requester_id),
+  justification: String(row.justification),
+  resource: String(row.resource),
+  action: String(row.action),
+  status: row.status as ElevationRequest["status"],
+  approvedByUserId: row.approved_by_user_id ? String(row.approved_by_user_id) : undefined,
+  approvedAt: maybeDate(row.approved_at),
+  activatedAt: maybeDate(row.activated_at),
+  expiresAt: maybeDate(row.expires_at),
+  revokedAt: maybeDate(row.revoked_at),
+  revokedByUserId: row.revoked_by_user_id ? String(row.revoked_by_user_id) : undefined,
+  createdAt: asDate(row.created_at),
+  updatedAt: asDate(row.updated_at)
+});
+
+export class SqliteElevationRequestRepository implements ElevationRequestRepository {
+  constructor(private readonly db: Database.Database) {}
+
+  list(input?: { limit?: number; status?: ElevationRequest["status"]; requesterId?: string }): ElevationRequest[] {
+    const limit = input?.limit ?? 100;
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (input?.status) {
+      conditions.push("status = ?");
+      params.push(input.status);
+    }
+
+    if (input?.requesterId) {
+      conditions.push("requester_id = ?");
+      params.push(input.requesterId);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+    params.push(limit);
+    const rows = this.db.prepare(`SELECT * FROM elevation_requests ${where} ORDER BY created_at DESC LIMIT ?`).all(...params) as DbRow[];
+    return rows.map(mapElevationRequest);
+  }
+
+  findById(id: string): ElevationRequest | undefined {
+    const row = this.db.prepare("SELECT * FROM elevation_requests WHERE id = ?").get(id) as DbRow | undefined;
+    return row ? mapElevationRequest(row) : undefined;
+  }
+
+  create(input: Omit<ElevationRequest, "id" | "createdAt" | "updatedAt">): ElevationRequest {
+    const now = new Date();
+    const request: ElevationRequest = {
+      id: nanoid(),
+      ...input,
+      createdAt: now,
+      updatedAt: now
+    };
+    this.db.prepare(`
+      INSERT INTO elevation_requests
+        (id, requester_id, justification, resource, action, status, approved_by_user_id, approved_at, activated_at, expires_at, revoked_at, revoked_by_user_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      request.id,
+      request.requesterId,
+      request.justification,
+      request.resource,
+      request.action,
+      request.status,
+      request.approvedByUserId ?? null,
+      request.approvedAt?.toISOString() ?? null,
+      request.activatedAt?.toISOString() ?? null,
+      request.expiresAt?.toISOString() ?? null,
+      request.revokedAt?.toISOString() ?? null,
+      request.revokedByUserId ?? null,
+      request.createdAt.toISOString(),
+      request.updatedAt.toISOString()
+    );
+    return request;
+  }
+
+  update(id: string, input: Partial<Omit<ElevationRequest, "id" | "createdAt">>): ElevationRequest | undefined {
+    const existing = this.findById(id);
+    if (!existing) return undefined;
+
+    const updated: ElevationRequest = { ...existing, ...input, updatedAt: new Date() };
+    this.db.prepare(`
+      UPDATE elevation_requests
+      SET requester_id = ?, justification = ?, resource = ?, action = ?, status = ?,
+          approved_by_user_id = ?, approved_at = ?, activated_at = ?, expires_at = ?,
+          revoked_at = ?, revoked_by_user_id = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      updated.requesterId,
+      updated.justification,
+      updated.resource,
+      updated.action,
+      updated.status,
+      updated.approvedByUserId ?? null,
+      updated.approvedAt?.toISOString() ?? null,
+      updated.activatedAt?.toISOString() ?? null,
+      updated.expiresAt?.toISOString() ?? null,
+      updated.revokedAt?.toISOString() ?? null,
+      updated.revokedByUserId ?? null,
+      updated.updatedAt.toISOString(),
+      id
+    );
+    return updated;
   }
 }

@@ -461,6 +461,189 @@ paths:
       responses:
         '200':
           description: Expiration processing summary
+  /api/admin/access-reviews/campaigns:
+    post:
+      summary: Create an access review campaign and generate review items from current assignments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                dueAt:
+                  type: string
+                  format: date-time
+      responses:
+        '201':
+          description: Access review campaign created
+  /api/admin/access-reviews/campaigns/{id}:
+    get:
+      summary: Get access review campaign with generated items
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Access review campaign details
+  /api/admin/access-reviews/items/{id}/decision:
+    post:
+      summary: Record a decision for an access review item
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision:
+                  type: string
+                  enum: [certified, revoked]
+                rationale:
+                  type: string
+      responses:
+        '200':
+          description: Access review item updated
+  /api/admin/access-requests/stalled:
+    get:
+      summary: List stalled pending access requests that have exceeded the SLA threshold
+      parameters:
+        - in: query
+          name: stalledAfterMinutes
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: List of stalled access requests
+  /api/admin/elevations:
+    get:
+      summary: List PAM-lite elevation requests
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, approved, active, revoked, expired]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+      responses:
+        '200':
+          description: Elevation request list
+    post:
+      summary: Create a PAM-lite elevation request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [justification, resource, action, durationMinutes]
+              properties:
+                justification:
+                  type: string
+                resource:
+                  type: string
+                action:
+                  type: string
+                durationMinutes:
+                  type: integer
+                  minimum: 1
+                  maximum: 480
+      responses:
+        '201':
+          description: Elevation request created
+  /api/admin/elevations/{id}:
+    get:
+      summary: Get elevation request details
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Elevation request details
+  /api/admin/elevations/{id}/approve:
+    post:
+      summary: Approve a pending elevation request
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rationale:
+                  type: string
+      responses:
+        '200':
+          description: Elevation request approved
+  /api/admin/elevations/{id}/activate:
+    post:
+      summary: Activate an approved elevation request
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Elevation request activated
+  /api/admin/elevations/{id}/revoke:
+    post:
+      summary: Revoke an active or approved elevation request
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Elevation request revoked
+  /api/admin/elevations/process-expirations:
+    post:
+      summary: Expire elevation requests that have passed their expiry time
+      responses:
+        '200':
+          description: Expiration processing summary
   /api/admin/authentication/flows:
     get:
       summary: List authentication flows

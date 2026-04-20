@@ -114,6 +114,32 @@ model access_request_approvals {
   created_at        String
 }
 
+model access_review_campaigns {
+  id                 String? @id
+  name               String
+  description        String?
+  status             String
+  created_by_user_id String
+  due_at             String?
+  created_at         String
+  updated_at         String
+}
+
+model access_review_items {
+  id                 String? @id
+  campaign_id        String
+  subject_user_id    String
+  entitlement_type   String
+  entitlement_value  String
+  current_state      String
+  decision           String?
+  decided_by_user_id String?
+  decision_rationale String?
+  decided_at         String?
+  created_at         String
+  updated_at         String
+}
+
 model authorization_codes {
   id                    String?       @id
   code                  String        @unique(map: "sqlite_autoindex_authorization_codes_2")
@@ -477,4 +503,21 @@ model users {
   totp_credentials       totp_credentials?        @ignore
   user_group_assignments user_group_assignments[]
   user_role_assignments  user_role_assignments[]  @ignore
+}
+
+model elevation_requests {
+  id                  String  @id
+  requester_id        String
+  justification       String
+  resource            String
+  action              String
+  status              String
+  approved_by_user_id String?
+  approved_at         String?
+  activated_at        String?
+  expires_at          String?
+  revoked_at          String?
+  revoked_by_user_id  String?
+  created_at          String
+  updated_at          String
 }

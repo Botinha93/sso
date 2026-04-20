@@ -120,6 +120,18 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'POST', path: '/api/admin/access-requests/:id/approve', auth: 'session+csrf', description: 'Approves a pending access governance request and records approval evidence.' },
   { method: 'POST', path: '/api/admin/access-requests/:id/reject', auth: 'session+csrf', description: 'Rejects a pending access governance request and records rejection rationale.' },
   { method: 'POST', path: '/api/admin/access-requests/process-expirations', auth: 'session+csrf', description: 'Expires approved requests past expiresAt and revokes previously granted entitlements (supports dryRun).' },
+  { method: 'POST', path: '/api/admin/access-reviews/campaigns', auth: 'session+csrf', description: 'Creates a recertification campaign and generates review items from current role/group assignments.' },
+  { method: 'GET', path: '/api/admin/access-reviews/campaigns/:id', auth: 'session', description: 'Returns campaign metadata and generated review items.' },
+  { method: 'POST', path: '/api/admin/access-reviews/items/:id/decision', auth: 'session+csrf', description: 'Records reviewer decision (certified/revoked) and applies revocation for revoked outcomes.' },
+  { method: 'GET', path: '/api/admin/access-requests/stalled', auth: 'session', description: 'Lists pending access requests that have exceeded the SLA threshold (default 60 min).' },
+
+  { method: 'GET', path: '/api/admin/elevations', auth: 'session', description: 'Lists PAM-lite elevation requests with optional status filtering.' },
+  { method: 'POST', path: '/api/admin/elevations', auth: 'session+csrf', description: 'Creates a PAM-lite elevation request for temporary privileged access to a resource.' },
+  { method: 'GET', path: '/api/admin/elevations/:id', auth: 'session', description: 'Returns details of a specific elevation request.' },
+  { method: 'POST', path: '/api/admin/elevations/:id/approve', auth: 'session+csrf', description: 'Approves a pending elevation request.' },
+  { method: 'POST', path: '/api/admin/elevations/:id/activate', auth: 'session+csrf', description: 'Activates an approved elevation request and starts the expiry timer.' },
+  { method: 'POST', path: '/api/admin/elevations/:id/revoke', auth: 'session+csrf', description: 'Revokes an active or approved elevation request.' },
+  { method: 'POST', path: '/api/admin/elevations/process-expirations', auth: 'session+csrf', description: 'Expires active elevation requests that have passed their scheduled expiry time.' },
 
   { method: 'GET', path: '/api/admin/users', auth: 'session', description: 'Lists users.' },
   { method: 'POST', path: '/api/admin/users', auth: 'session+csrf', description: 'Creates user and emits user.created event.' },
@@ -2188,6 +2200,72 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
         examinedApprovedRequests: 12,
         expiredRequests: 2,
         revokedAssignments: 2
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/access-reviews/campaigns' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        name: 'Quarterly Access Recertification',
+        description: 'Review direct roles and group memberships for active users.',
+        dueAt: '2026-05-20T12:00:00.000Z'
+      }),
+      expectedResponse: prettyJson({
+        campaign: {
+          id: 'arc_xxx',
+          name: 'Quarterly Access Recertification',
+          status: 'active',
+          createdByUserId: 'admin_xxx',
+          dueAt: '2026-05-20T12:00:00.000Z',
+          createdAt: '2026-04-20T12:30:00.000Z',
+          updatedAt: '2026-04-20T12:30:00.000Z'
+        },
+        generatedItems: 14
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/access-reviews/campaigns/:id' && route.method === 'GET') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({
+        campaign: {
+          id: 'arc_xxx',
+          name: 'Quarterly Access Recertification',
+          status: 'active',
+          createdByUserId: 'admin_xxx',
+          createdAt: '2026-04-20T12:30:00.000Z',
+          updatedAt: '2026-04-20T12:30:00.000Z'
+        },
+        items: [
+          {
+            id: 'ari_xxx',
+            campaignId: 'arc_xxx',
+            subjectUserId: 'user_xxx',
+            entitlementType: 'role',
+            entitlementValue: 'role_finance_approver',
+            currentState: 'granted',
+            createdAt: '2026-04-20T12:30:00.000Z',
+            updatedAt: '2026-04-20T12:30:00.000Z'
+          }
+        ]
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/access-reviews/items/:id/decision' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({ decision: 'revoked', rationale: 'No longer required for current responsibilities.' }),
+      expectedResponse: prettyJson({
+        id: 'ari_xxx',
+        campaignId: 'arc_xxx',
+        decision: 'revoked',
+        decidedByUserId: 'admin_xxx',
+        decidedAt: '2026-04-20T12:45:00.000Z',
+        updatedAt: '2026-04-20T12:45:00.000Z'
       })
     }
   }
