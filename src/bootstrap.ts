@@ -26,6 +26,7 @@ import { SecurityService } from "./services/security-service.js";
 import { ScopeService } from "./services/scope-service.js";
 import { ScimService } from "./services/scim-service.js";
 import { ScimTokenService } from "./services/scim-token-service.js";
+import { SamlService } from "./services/saml-service.js";
 import { SetupService } from "./services/setup-service.js";
 import { TenantService } from "./services/tenant-service.js";
 import { TotpService } from "./services/totp-service.js";
@@ -73,7 +74,10 @@ export const bootstrap = async (config: AppConfig) => {
     elevationSessionRepository,
     eventHookRepository,
     eventNotificationRepository,
-    instanceSettingsRepository
+    instanceSettingsRepository,
+    samlServiceProviderRepository,
+    samlNameIdMappingRepository,
+    samlAssertionAuditRepository
   } = repositories;
 
   const roleService = new RoleService(
@@ -125,6 +129,12 @@ export const bootstrap = async (config: AppConfig) => {
   const appService = new AppService(appRepository);
   const scimService = new ScimService(userService, groupService);
   const scimTokenService = new ScimTokenService(scimTokenRepository);
+  const samlService = new SamlService(
+    samlServiceProviderRepository,
+    samlNameIdMappingRepository,
+    samlAssertionAuditRepository,
+    auditRepository
+  );
   const provisioningService = new ProvisioningService(
     provisioningMappingRepository,
     provisioningJobRepository,
@@ -383,6 +393,7 @@ export const bootstrap = async (config: AppConfig) => {
     userService,
     scimService,
     scimTokenService,
+    samlService,
     provisioningService,
     deprovisioningService,
     accessGovernanceService,

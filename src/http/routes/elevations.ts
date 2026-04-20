@@ -4,6 +4,7 @@ import {
   approveElevationRequestSchema,
   checkElevationAccessSchema,
   createElevationRequestSchema,
+  createEmergencyBreakGlassSchema,
   listElevationRequestsQuerySchema,
   listElevationSessionsQuerySchema
 } from "../schemas.js";
@@ -94,5 +95,22 @@ export const registerElevationRoutes = async (app: FastifyInstance, deps: Elevat
       resource: input.resource,
       action: input.action
     });
+  });
+
+  app.post("/api/admin/elevations/break-glass", async (request, reply) => {
+    const auth = await deps.requireSessionUser(request, reply);
+    if (!auth) return;
+
+    const input = createEmergencyBreakGlassSchema.parse(request.body);
+    const result = await deps.elevationService.createEmergencyBreakGlass({
+      adminId: auth.user.id,
+      resource: input.resource,
+      action: input.action,
+      reason: input.reason,
+      requesterId: input.requesterId,
+      durationMinutes: input.durationMinutes
+    });
+
+    return reply.status(201).send(result);
   });
 };

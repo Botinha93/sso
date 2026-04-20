@@ -34,6 +34,10 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 - [x] Epic 2 provisioning slice delivered: attribute mapping APIs (`GET/POST/DELETE /api/admin/provisioning/mappings`) and reconciliation APIs (`GET /api/admin/provisioning/jobs`, `POST /api/admin/provisioning/jobs/reconcile`) with service/repository support.
 - [x] Epic 2 frontend slice delivered: administration view now includes provisioning token management, mapping management, and dry-run reconciliation controls.
 - [x] Epic 3 slice delivered: access request intake/listing plus approve/reject transitions with admin UI actions and workflow tests.
+- [x] EPIC 6 slice delivered: PAM-lite elevation controls with request/session lifecycle, approval workflows, and hard-expiry sessions.
+- [x] EPIC 6 slice delivered: emergency break-glass elevation for admins to bypass approvals with full audit trail and metadata tracking.
+- [x] EPIC 4 OpenAPI slice delivered: SAML admin endpoints (`/api/admin/saml/service-providers`, `/api/admin/saml/assertions`) with schema definitions.
+- [ ] EPIC 4 foundation: SAML 2.0 service provider registration, metadata endpoints, and assertion auditing (in progress - schema/models/services complete; routes/tests pending).
 
 ## Planning assumptions
 
@@ -225,22 +229,35 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 - [ ] `POST /saml/slo`
 - [ ] `POST /saml/acs/:spId`
 - [ ] Admin endpoints for SP metadata upload and certificate rotation.
+- [ ] `GET /api/admin/saml/service-providers` (list)
+- [ ] `POST /api/admin/saml/service-providers` (create)
+- [ ] `GET /api/admin/saml/service-providers/:id` (get)
+- [ ] `PATCH /api/admin/saml/service-providers/:id` (update)
+- [ ] `DELETE /api/admin/saml/service-providers/:id` (delete)
+- [ ] `GET /api/admin/saml/assertions` (audit list)
 
 ### Schema and model backlog
 
-- [ ] Add `saml_service_providers` table (entity_id, acs_url, slo_url, cert, algorithms, enabled).
-- [ ] Add `saml_nameid_mappings` table.
-- [ ] Add `saml_assertion_audit` table for response IDs, audience, session correlation.
+- [x] Add `saml_service_providers` table (entity_id, acs_url, slo_url, cert, algorithms, enabled).
+- [x] Add `saml_name_id_mappings` table.
+- [x] Add `saml_assertion_audits` table for response IDs, audience, session correlation.
+- [x] Added SAML models to domain/models.ts.
+- [x] Added Prisma schema models for SAML tables.
 
 ### Code implementation backlog
 
-- [ ] Create `src/services/saml-service.ts`.
+- [x] Create `src/services/saml-service.ts` with full CRUD and audit operations.
+- [x] SQLite repository implementation for SAML service providers, name ID mappings, assertion audits.
+- [ ] Prisma repository implementations for SAML entities.
+- [ ] Create `src/http/samllib.ts` for XML signing and assertion generation utilities.
+- [ ] Create `src/http/saml-routes.ts` with metadata, SSO, SLO, ACS flows.
 - [ ] Implement XML signing, assertion generation, and audience validation.
 - [ ] Bridge SAML session lifecycle to existing session repository and logout flows.
 
 ### Test plan
 
 - [ ] Unit: SAML response builder and signature validation helpers.
+- [ ] Integration: service provider CRUD operations.
 - [ ] Integration: IdP-initiated and SP-initiated SSO.
 - [ ] Integration: logout propagation and replay protection.
 - [ ] Security: signature wrapping, clock skew, and destination checks.
@@ -290,6 +307,7 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 
 - Time-bound elevation and approvals for high-risk actions.
 - Better control over admin-level operations.
+- Emergency break-glass paths with full audit compliance.
 
 ### API backlog
 
@@ -302,6 +320,7 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 - [x] `GET /api/admin/elevations/sessions`
 - [x] `POST /api/admin/elevations/process-expirations`
 - [x] `POST /api/admin/elevations/check`
+- [x] `POST /api/admin/elevations/break-glass` (emergency override)
 - [x] `GET /api/admin/access-requests/stalled`
 
 ### Schema and model backlog
@@ -309,13 +328,14 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 - [x] Add `elevation_requests` table.
 - [x] Add `elevation_sessions` table with hard expiry.
 - [x] Add command/action audit correlation IDs for privileged operations.
+- [x] Add emergency break-glass audit event type.
 
 ### Test plan
 
 - [x] Integration: elevation request lifecycle (create → approve → activate → revoke).
 - [x] Integration: privileged action denied without active elevation.
 - [x] Integration: approved elevation enables action until expiry.
-- [ ] Security: emergency break-glass path is fully audited.
+- [x] Security: emergency break-glass path is fully audited with justification requirements.
 
 ---
 

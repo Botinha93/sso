@@ -134,6 +134,7 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'POST', path: '/api/admin/elevations/:id/revoke', auth: 'session+csrf', description: 'Revokes an active or approved elevation request.' },
   { method: 'POST', path: '/api/admin/elevations/process-expirations', auth: 'session+csrf', description: 'Expires active elevation requests that have passed their scheduled expiry time.' },
   { method: 'POST', path: '/api/admin/elevations/check', auth: 'session+csrf', description: 'Checks whether the current user currently has an active elevation session for a resource/action pair.' },
+  { method: 'POST', path: '/api/admin/elevations/break-glass', auth: 'session+csrf', description: 'Activates emergency break-glass elevation for immediate privileged access (bypasses normal approval). Requires detailed emergency justification.' },
 
   { method: 'GET', path: '/api/admin/users', auth: 'session', description: 'Lists users.' },
   { method: 'POST', path: '/api/admin/users', auth: 'session+csrf', description: 'Creates user and emits user.created event.' },
@@ -2351,6 +2352,35 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
         parameters: params,
         requestJson: prettyJson({ resource: 'db:prod', action: 'write' }),
         expectedResponse: prettyJson({ allowed: true, sessionId: 'els_xxx' })
+      }
+    }
+
+    if (route.path === '/api/admin/elevations/break-glass' && route.method === 'POST') {
+      return {
+        parameters: params,
+        requestJson: prettyJson({ 
+          resource: 'backup:prod', 
+          action: 'restore',
+          reason: 'Production database corruption detected - immediate restore required for RTO',
+          durationMinutes: 15 
+        }),
+        expectedResponse: prettyJson({
+          breakGlassId: 'bg_emergency_20260420_prod_db',
+          request: {
+            id: 'elev_req_yyy',
+            status: 'active',
+            correlationId: 'corr_xyz',
+            resource: 'backup:prod',
+            action: 'restore',
+            expiresAt: '2026-04-20T10:15:00.000Z'
+          },
+          session: {
+            id: 'els_bg_yyy',
+            status: 'active',
+            startedAt: '2026-04-20T10:00:00.000Z',
+            expiresAt: '2026-04-20T10:15:00.000Z'
+          }
+        })
       }
     }
 

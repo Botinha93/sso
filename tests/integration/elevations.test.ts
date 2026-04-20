@@ -286,3 +286,88 @@ test("access governance: stalled requests endpoint returns pending requests past
   assert.ok("stalledRequests" in body);
   assert.ok(Array.isArray(body.stalledRequests));
 });
+
+test("PAM-lite elevation: break-glass emergency activation bypasses approval", async (t) => {
+  const { app, admin } = await createTestContext("integration-elevations-breakglass");
+
+  t.after(async () => {
+    await app.close();
+  });
+
+  const loginResponse = await app.inject({
+    method: "POST",
+    url: "/auth/login",
+    payload: {
+      email: admin.email,
+      password: admin.password,
+      clientId: "sso-admin-ui",
+      scope: ["openid", "profile", "email"],
+    },
+  });
+
+  assert.equal(loginResponse.statusCode, 200);
+  const sid = extractCookie(loginResponse.headers["set-cookie"], "sid");
+
+  const csrfResponse = await app.inject({
+    method: "GET",
+    url: "/api/csrf-token",
+    headers: { cookie: sid },
+  });
+
+  const csrfToken = String(csrfResponse.json().csrf_token);
+  const csrfCookie = extractCookie(csrfResponse.headers["set-cookie"], "csrf_token");
+  const authHeaders = {
+    cookie: `${sid}; ${csrfCookie}`,
+    "x-csrf-token": csrfToken,
+  };
+
+  // Trigger break-glass emergency elevation
+  const breakGlassResponse = await app.inject({
+    method: "POST",
+    url: "/api/admin/elevations/break-glass",
+    headers: authHeaders,
+    payload: {
+      resource: "backup:prod",
+      action: "restore",
+      reason: "Production database corruption detected - immediate restore required",
+      durationMinutes: 15,
+    },
+  });
+
+  assert.equal(breakGlassResponse.statusCode, 201);
+  const breakGlassResult = breakGlassResponse.json();
+  assert.ok(breakGlassResult.breakGlassId);
+  assert.ok(breakGlassResult.request);
+  assert.ok(breakGlassResult.session);
+
+  // Verify request is immediately active (bypasses normal approval)
+  assert.equal(breakGlassResult.request.status, "active");
+  assert.ok(breakGlassResult.request.correlationId);
+
+  // Verify session is immediately active
+  assert.equal(breakGlassResult.session.status, "active");
+  assert.ok(breakGlassResult.session.startedAt);
+  assert.ok(typeof breakGlassResult.session.requesterId === "string");
+
+  // Verify access check passes immediately
+  const checkResponse = await app.inject({
+    method: "POST",
+    url: "/api/admin/elevations/check",
+    headers: authHeaders,
+    payload: { resource: "backup:prod", action: "restore" },
+  });
+
+  assert.equal(checkResponse.statusCode, 200);
+  assert.equal(checkResponse.json().allowed, true);
+
+  // Verify break-glass session appears in listings
+  const sessionsResponse = await app.inject({
+    method: "GET",
+    url: "/api/admin/elevations/sessions",
+    headers: { cookie: `${sid}; ${csrfCookie}` },
+  });
+
+  assert.equal(sessionsResponse.statusCode, 200);
+  const sessions = sessionsResponse.json();
+  assert.ok(sessions.some((s: { id: string }) => s.id === breakGlassResult.session.id));
+});

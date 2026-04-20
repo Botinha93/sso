@@ -42,7 +42,10 @@ import type {
   User,
   UserAttributeDefinition,
   UserGroupAssignment,
-  UserRoleAssignment
+  UserRoleAssignment,
+  SamlServiceProvider,
+  SamlNameIdMapping,
+  SamlAssertionAudit
 } from "../domain/models.js";
 import type {
   AccessTokenRepository,
@@ -83,7 +86,10 @@ import type {
   UserAttributeRepository,
   UserGroupAssignmentRepository,
   UserRepository,
-  UserRoleAssignmentRepository
+  UserRoleAssignmentRepository,
+  SamlServiceProviderRepository,
+  SamlNameIdMappingRepository,
+  SamlAssertionAuditRepository
 } from "./contracts.js";
 
 type DbRow = Record<string, unknown>;
@@ -607,6 +613,46 @@ export class SqliteDatabase {
         error TEXT,
         created_at TEXT NOT NULL,
         FOREIGN KEY (hook_id) REFERENCES event_hooks(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS saml_service_providers (
+        id TEXT PRIMARY KEY,
+        app_id TEXT,
+        entity_id TEXT UNIQUE NOT NULL,
+        metadata TEXT,
+        acs_url TEXT NOT NULL,
+        slo_url TEXT,
+        signing_certificate TEXT,
+        encryption_certificate TEXT,
+        name_id_format TEXT NOT NULL,
+        enabled INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS saml_name_id_mappings (
+        id TEXT PRIMARY KEY,
+        sp_id TEXT NOT NULL,
+        format TEXT NOT NULL,
+        source_attribute TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (sp_id) REFERENCES saml_service_providers(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS saml_assertion_audits (
+        id TEXT PRIMARY KEY,
+        sp_id TEXT NOT NULL,
+        request_id TEXT NOT NULL,
+        response_id TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        audience TEXT NOT NULL,
+        assertion_id TEXT NOT NULL,
+        issue_instant TEXT NOT NULL,
+        not_on_or_after TEXT NOT NULL,
+        destination_url TEXT NOT NULL,
+        status_code TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (sp_id) REFERENCES saml_service_providers(id)
       );
     `);
 
@@ -3537,5 +3583,471 @@ export class SqliteElevationSessionRepository implements ElevationSessionReposit
       WHERE status = 'active' AND expires_at <= ?
     `).run(now.toISOString(), now.toISOString(), now.toISOString());
     return result.changes;
+  }
+
+  // SAML Service Provider Repository Implementation
+  samlServiceProviderList(): SamlServiceProvider[] {
+    const rows = this.db.prepare("SELECT * FROM saml_service_providers").all() as DbRow[];
+    return rows.map((row) => ({
+      id: String(row.id),
+      appId: row.app_id ? String(row.app_id) : undefined,
+      entityId: String(row.entity_id),
+      metadata: row.metadata ? String(row.metadata) : undefined,
+      acsUrl: String(row.acs_url),
+      sloUrl: row.slo_url ? String(row.slo_url) : undefined,
+      signingCertificate: row.signing_certificate ? String(row.signing_certificate) : undefined,
+      encryptionCertificate: row.encryption_certificate ? String(row.encryption_certificate) : undefined,
+      nameIdFormat: String(row.name_id_format) as "persistent" | "transient" | "emailAddress",
+      enabled: Boolean(row.enabled),
+      createdAt: new Date(String(row.created_at)),
+      updatedAt: new Date(String(row.updated_at))
+    }));
+  }
+
+  samlServiceProviderFindById(id: string): SamlServiceProvider | undefined {
+    const row = this.db.prepare("SELECT * FROM saml_service_providers WHERE id = ?").get(id) as DbRow | undefined;
+    if (!row) return undefined;
+    return {
+      id: String(row.id),
+      appId: row.app_id ? String(row.app_id) : undefined,
+      entityId: String(row.entity_id),
+      metadata: row.metadata ? String(row.metadata) : undefined,
+      acsUrl: String(row.acs_url),
+      sloUrl: row.slo_url ? String(row.slo_url) : undefined,
+      signingCertificate: row.signing_certificate ? String(row.signing_certificate) : undefined,
+      encryptionCertificate: row.encryption_certificate ? String(row.encryption_certificate) : undefined,
+      nameIdFormat: String(row.name_id_format) as "persistent" | "transient" | "emailAddress",
+      enabled: Boolean(row.enabled),
+      createdAt: new Date(String(row.created_at)),
+      updatedAt: new Date(String(row.updated_at))
+    };
+  }
+
+  samlServiceProviderFindByEntityId(entityId: string): SamlServiceProvider | undefined {
+    const row = this.db.prepare("SELECT * FROM saml_service_providers WHERE entity_id = ?").get(entityId) as DbRow | undefined;
+    if (!row) return undefined;
+    return {
+      id: String(row.id),
+      appId: row.app_id ? String(row.app_id) : undefined,
+      entityId: String(row.entity_id),
+      metadata: row.metadata ? String(row.metadata) : undefined,
+      acsUrl: String(row.acs_url),
+      sloUrl: row.slo_url ? String(row.slo_url) : undefined,
+      signingCertificate: row.signing_certificate ? String(row.signing_certificate) : undefined,
+      encryptionCertificate: row.encryption_certificate ? String(row.encryption_certificate) : undefined,
+      nameIdFormat: String(row.name_id_format) as "persistent" | "transient" | "emailAddress",
+      enabled: Boolean(row.enabled),
+      createdAt: new Date(String(row.created_at)),
+      updatedAt: new Date(String(row.updated_at))
+    };
+  }
+
+  samlServiceProviderCreate(input: Omit<SamlServiceProvider, "id" | "createdAt" | "updatedAt">): SamlServiceProvider {
+    const id = nanoid();
+    const now = new Date().toISOString();
+    this.db.prepare(`
+      INSERT INTO saml_service_providers (id, app_id, entity_id, metadata, acs_url, slo_url, signing_certificate, encryption_certificate, name_id_format, enabled, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      input.appId || null,
+      input.entityId,
+      input.metadata || null,
+      input.acsUrl,
+      input.sloUrl || null,
+      input.signingCertificate || null,
+      input.encryptionCertificate || null,
+      input.nameIdFormat,
+      input.enabled ? 1 : 0,
+      now,
+      now
+    );
+    return {
+      id,
+      ...input,
+      createdAt: new Date(now),
+      updatedAt: new Date(now)
+    };
+  }
+
+  samlServiceProviderUpdate(id: string, input: Partial<Omit<SamlServiceProvider, "id" | "createdAt">>): SamlServiceProvider | undefined {
+    const now = new Date().toISOString();
+    const existing = this.samlServiceProviderFindById(id);
+    if (!existing) return undefined;
+
+    const updated = {
+      ...existing,
+      ...input,
+      updatedAt: new Date(now)
+    };
+
+    this.db.prepare(`
+      UPDATE saml_service_providers
+      SET app_id = ?, entity_id = ?, metadata = ?, acs_url = ?, slo_url = ?, signing_certificate = ?, encryption_certificate = ?, name_id_format = ?, enabled = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      updated.appId || null,
+      updated.entityId,
+      updated.metadata || null,
+      updated.acsUrl,
+      updated.sloUrl || null,
+      updated.signingCertificate || null,
+      updated.encryptionCertificate || null,
+      updated.nameIdFormat,
+      updated.enabled ? 1 : 0,
+      now,
+      id
+    );
+    return updated;
+  }
+
+  samlServiceProviderDelete(id: string): void {
+    this.db.prepare("DELETE FROM saml_service_providers WHERE id = ?").run(id);
+  }
+
+  // SAML Name ID Mapping Repository Implementation
+  samlNameIdMappingFindBySpId(spId: string): SamlNameIdMapping[] {
+    const rows = this.db.prepare("SELECT * FROM saml_name_id_mappings WHERE sp_id = ?").all(spId) as DbRow[];
+    return rows.map((row) => ({
+      id: String(row.id),
+      spId: String(row.sp_id),
+      format: String(row.format) as "persistent" | "transient" | "emailAddress",
+      sourceAttribute: String(row.source_attribute),
+      createdAt: new Date(String(row.created_at))
+    }));
+  }
+
+  samlNameIdMappingCreate(input: Omit<SamlNameIdMapping, "id" | "createdAt">): SamlNameIdMapping {
+    const id = nanoid();
+    const now = new Date().toISOString();
+    this.db.prepare(`
+      INSERT INTO saml_name_id_mappings (id, sp_id, format, source_attribute, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(id, input.spId, input.format, input.sourceAttribute, now);
+    return {
+      id,
+      ...input,
+      createdAt: new Date(now)
+    };
+  }
+
+  samlNameIdMappingDeleteBySpId(spId: string): number {
+    const result = this.db.prepare("DELETE FROM saml_name_id_mappings WHERE sp_id = ?").run(spId);
+    return result.changes;
+  }
+
+  // SAML Assertion Audit Repository Implementation
+  samlAssertionAuditList(input?: { limit?: number; spId?: string }): SamlAssertionAudit[] {
+    let query = "SELECT * FROM saml_assertion_audits";
+    const params: unknown[] = [];
+
+    if (input?.spId) {
+      query += " WHERE sp_id = ?";
+      params.push(input.spId);
+    }
+
+    query += " ORDER BY created_at DESC";
+    if (input?.limit) {
+      query += ` LIMIT ${input.limit}`;
+    }
+
+    const rows = this.db.prepare(query).all(...params) as DbRow[];
+    return rows.map((row) => ({
+      id: String(row.id),
+      spId: String(row.sp_id),
+      requestId: String(row.request_id),
+      responseId: String(row.response_id),
+      subject: String(row.subject),
+      audience: String(row.audience),
+      assertionId: String(row.assertion_id),
+      issueInstant: new Date(String(row.issue_instant)),
+      notOnOrAfter: new Date(String(row.not_on_or_after)),
+      destinationUrl: String(row.destination_url),
+      statusCode: String(row.status_code),
+      createdAt: new Date(String(row.created_at))
+    }));
+  }
+
+  samlAssertionAuditFindById(id: string): SamlAssertionAudit | undefined {
+    const row = this.db.prepare("SELECT * FROM saml_assertion_audits WHERE id = ?").get(id) as DbRow | undefined;
+    if (!row) return undefined;
+    return {
+      id: String(row.id),
+      spId: String(row.sp_id),
+      requestId: String(row.request_id),
+      responseId: String(row.response_id),
+      subject: String(row.subject),
+      audience: String(row.audience),
+      assertionId: String(row.assertion_id),
+      issueInstant: new Date(String(row.issue_instant)),
+      notOnOrAfter: new Date(String(row.not_on_or_after)),
+      destinationUrl: String(row.destination_url),
+      statusCode: String(row.status_code),
+      createdAt: new Date(String(row.created_at))
+    };
+  }
+
+  samlAssertionAuditCreate(input: Omit<SamlAssertionAudit, "id" | "createdAt">): SamlAssertionAudit {
+    const id = nanoid();
+    const now = new Date().toISOString();
+    this.db.prepare(`
+      INSERT INTO saml_assertion_audits (id, sp_id, request_id, response_id, subject, audience, assertion_id, issue_instant, not_on_or_after, destination_url, status_code, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      input.spId,
+      input.requestId,
+      input.responseId,
+      input.subject,
+      input.audience,
+      input.assertionId,
+      input.issueInstant.toISOString(),
+      input.notOnOrAfter.toISOString(),
+      input.destinationUrl,
+      input.statusCode,
+      now
+    );
+    return {
+      id,
+      ...input,
+      createdAt: new Date(now)
+    };
+  }
+}
+
+export class SqliteSamlServiceProviderRepository implements SamlServiceProviderRepository {
+  constructor(private readonly db: Database.Database) {}
+
+  list(): SamlServiceProvider[] {
+    const rows = this.db.prepare("SELECT * FROM saml_service_providers ORDER BY created_at ASC").all() as DbRow[];
+    return rows.map((row) => ({
+      id: String(row.id),
+      appId: row.app_id ? String(row.app_id) : undefined,
+      entityId: String(row.entity_id),
+      metadata: row.metadata ? String(row.metadata) : undefined,
+      acsUrl: String(row.acs_url),
+      sloUrl: row.slo_url ? String(row.slo_url) : undefined,
+      signingCertificate: row.signing_certificate ? String(row.signing_certificate) : undefined,
+      encryptionCertificate: row.encryption_certificate ? String(row.encryption_certificate) : undefined,
+      nameIdFormat: String(row.name_id_format) as SamlServiceProvider["nameIdFormat"],
+      enabled: Boolean(row.enabled),
+      createdAt: new Date(String(row.created_at)),
+      updatedAt: new Date(String(row.updated_at))
+    }));
+  }
+
+  findById(id: string): SamlServiceProvider | undefined {
+    const row = this.db.prepare("SELECT * FROM saml_service_providers WHERE id = ?").get(id) as DbRow | undefined;
+    if (!row) return undefined;
+    return {
+      id: String(row.id),
+      appId: row.app_id ? String(row.app_id) : undefined,
+      entityId: String(row.entity_id),
+      metadata: row.metadata ? String(row.metadata) : undefined,
+      acsUrl: String(row.acs_url),
+      sloUrl: row.slo_url ? String(row.slo_url) : undefined,
+      signingCertificate: row.signing_certificate ? String(row.signing_certificate) : undefined,
+      encryptionCertificate: row.encryption_certificate ? String(row.encryption_certificate) : undefined,
+      nameIdFormat: String(row.name_id_format) as SamlServiceProvider["nameIdFormat"],
+      enabled: Boolean(row.enabled),
+      createdAt: new Date(String(row.created_at)),
+      updatedAt: new Date(String(row.updated_at))
+    };
+  }
+
+  findByEntityId(entityId: string): SamlServiceProvider | undefined {
+    const row = this.db.prepare("SELECT * FROM saml_service_providers WHERE entity_id = ?").get(entityId) as DbRow | undefined;
+    if (!row) return undefined;
+    return {
+      id: String(row.id),
+      appId: row.app_id ? String(row.app_id) : undefined,
+      entityId: String(row.entity_id),
+      metadata: row.metadata ? String(row.metadata) : undefined,
+      acsUrl: String(row.acs_url),
+      sloUrl: row.slo_url ? String(row.slo_url) : undefined,
+      signingCertificate: row.signing_certificate ? String(row.signing_certificate) : undefined,
+      encryptionCertificate: row.encryption_certificate ? String(row.encryption_certificate) : undefined,
+      nameIdFormat: String(row.name_id_format) as SamlServiceProvider["nameIdFormat"],
+      enabled: Boolean(row.enabled),
+      createdAt: new Date(String(row.created_at)),
+      updatedAt: new Date(String(row.updated_at))
+    };
+  }
+
+  create(input: Omit<SamlServiceProvider, "id" | "createdAt" | "updatedAt">): SamlServiceProvider {
+    const id = nanoid();
+    const now = new Date().toISOString();
+    this.db.prepare(`
+      INSERT INTO saml_service_providers (id, app_id, entity_id, metadata, acs_url, slo_url, signing_certificate, encryption_certificate, name_id_format, enabled, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      input.appId ?? null,
+      input.entityId,
+      input.metadata ?? null,
+      input.acsUrl,
+      input.sloUrl ?? null,
+      input.signingCertificate ?? null,
+      input.encryptionCertificate ?? null,
+      input.nameIdFormat,
+      input.enabled ? 1 : 0,
+      now,
+      now
+    );
+
+    return {
+      id,
+      ...input,
+      createdAt: new Date(now),
+      updatedAt: new Date(now)
+    };
+  }
+
+  update(id: string, input: Partial<Omit<SamlServiceProvider, "id" | "createdAt">>): SamlServiceProvider | undefined {
+    const existing = this.findById(id);
+    if (!existing) return undefined;
+
+    const updated: SamlServiceProvider = { ...existing, ...input, updatedAt: new Date() };
+    this.db.prepare(`
+      UPDATE saml_service_providers
+      SET app_id = ?, entity_id = ?, metadata = ?, acs_url = ?, slo_url = ?, signing_certificate = ?, encryption_certificate = ?, name_id_format = ?, enabled = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      updated.appId ?? null,
+      updated.entityId,
+      updated.metadata ?? null,
+      updated.acsUrl,
+      updated.sloUrl ?? null,
+      updated.signingCertificate ?? null,
+      updated.encryptionCertificate ?? null,
+      updated.nameIdFormat,
+      updated.enabled ? 1 : 0,
+      updated.updatedAt.toISOString(),
+      id
+    );
+
+    return updated;
+  }
+
+  delete(id: string): void {
+    this.db.prepare("DELETE FROM saml_service_providers WHERE id = ?").run(id);
+  }
+}
+
+export class SqliteSamlNameIdMappingRepository implements SamlNameIdMappingRepository {
+  constructor(private readonly db: Database.Database) {}
+
+  findBySpId(spId: string): SamlNameIdMapping[] {
+    const rows = this.db.prepare("SELECT * FROM saml_name_id_mappings WHERE sp_id = ? ORDER BY created_at ASC").all(spId) as DbRow[];
+    return rows.map((row) => ({
+      id: String(row.id),
+      spId: String(row.sp_id),
+      format: String(row.format) as SamlNameIdMapping["format"],
+      sourceAttribute: String(row.source_attribute),
+      createdAt: new Date(String(row.created_at))
+    }));
+  }
+
+  create(input: Omit<SamlNameIdMapping, "id" | "createdAt">): SamlNameIdMapping {
+    const id = nanoid();
+    const now = new Date().toISOString();
+    this.db.prepare(`
+      INSERT INTO saml_name_id_mappings (id, sp_id, format, source_attribute, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(id, input.spId, input.format, input.sourceAttribute, now);
+
+    return {
+      id,
+      ...input,
+      createdAt: new Date(now)
+    };
+  }
+
+  deleteBySpId(spId: string): number {
+    const result = this.db.prepare("DELETE FROM saml_name_id_mappings WHERE sp_id = ?").run(spId);
+    return result.changes;
+  }
+}
+
+export class SqliteSamlAssertionAuditRepository implements SamlAssertionAuditRepository {
+  constructor(private readonly db: Database.Database) {}
+
+  list(input?: { limit?: number; spId?: string }): SamlAssertionAudit[] {
+    let query = "SELECT * FROM saml_assertion_audits";
+    const params: unknown[] = [];
+
+    if (input?.spId) {
+      query += " WHERE sp_id = ?";
+      params.push(input.spId);
+    }
+
+    query += " ORDER BY created_at DESC";
+    if (input?.limit) {
+      query += ` LIMIT ${input.limit}`;
+    }
+
+    const rows = this.db.prepare(query).all(...params) as DbRow[];
+    return rows.map((row) => ({
+      id: String(row.id),
+      spId: String(row.sp_id),
+      requestId: String(row.request_id),
+      responseId: String(row.response_id),
+      subject: String(row.subject),
+      audience: String(row.audience),
+      assertionId: String(row.assertion_id),
+      issueInstant: new Date(String(row.issue_instant)),
+      notOnOrAfter: new Date(String(row.not_on_or_after)),
+      destinationUrl: String(row.destination_url),
+      statusCode: String(row.status_code),
+      createdAt: new Date(String(row.created_at))
+    }));
+  }
+
+  findById(id: string): SamlAssertionAudit | undefined {
+    const row = this.db.prepare("SELECT * FROM saml_assertion_audits WHERE id = ?").get(id) as DbRow | undefined;
+    if (!row) return undefined;
+
+    return {
+      id: String(row.id),
+      spId: String(row.sp_id),
+      requestId: String(row.request_id),
+      responseId: String(row.response_id),
+      subject: String(row.subject),
+      audience: String(row.audience),
+      assertionId: String(row.assertion_id),
+      issueInstant: new Date(String(row.issue_instant)),
+      notOnOrAfter: new Date(String(row.not_on_or_after)),
+      destinationUrl: String(row.destination_url),
+      statusCode: String(row.status_code),
+      createdAt: new Date(String(row.created_at))
+    };
+  }
+
+  create(input: Omit<SamlAssertionAudit, "id" | "createdAt">): SamlAssertionAudit {
+    const id = nanoid();
+    const now = new Date().toISOString();
+    this.db.prepare(`
+      INSERT INTO saml_assertion_audits (id, sp_id, request_id, response_id, subject, audience, assertion_id, issue_instant, not_on_or_after, destination_url, status_code, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      input.spId,
+      input.requestId,
+      input.responseId,
+      input.subject,
+      input.audience,
+      input.assertionId,
+      input.issueInstant.toISOString(),
+      input.notOnOrAfter.toISOString(),
+      input.destinationUrl,
+      input.statusCode,
+      now
+    );
+
+    return {
+      id,
+      ...input,
+      createdAt: new Date(now)
+    };
   }
 }

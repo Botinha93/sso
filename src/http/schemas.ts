@@ -606,3 +606,11 @@ export const checkElevationAccessSchema = z.object({
   resource: z.string().min(1),
   action: z.string().min(1)
 });
+
+export const createEmergencyBreakGlassSchema = z.object({
+  resource: z.string().min(1),
+  action: z.string().min(1),
+  reason: z.string().min(10),
+  requesterId: z.string().optional(),
+  durationMinutes: z.number().int().min(1).max(120).optional()
+});

@@ -6,6 +6,7 @@ import { verifyPassword } from "../security/password.js";
 import { getAssetContentType, readFrontendAsset } from "./view-assets.js";
 import { hasAdminPermission, toAdminAction, toAdminResource } from "./admin-authorization.js";
 import { registerScimRoutes } from "./scim-routes.js";
+import { registerSamlAdminRoutes } from "./saml-routes.js";
 import { registerAccessGovernanceRoutes } from "./routes/access-governance.js";
 import { registerProvisioningRoutes } from "./routes/provisioning.js";
 import { registerElevationRoutes } from "./routes/elevations.js";
@@ -98,6 +99,7 @@ import { InstanceSettingsService } from "../services/instance-settings-service.j
 import { RecoveryService } from "../services/recovery-service.js";
 import { SecurityService } from "../services/security-service.js";
 import { AuthorizationService } from "../services/authorization-service.js";
+import { SamlService } from "../services/saml-service.js";
 import type { AuditRepository, PolicyDecisionLogRepository } from "../repositories/contracts.js";
 
 interface RouteDeps {
@@ -129,6 +131,7 @@ interface RouteDeps {
   recoveryService: RecoveryService;
   securityService: SecurityService;
   authorizationService: AuthorizationService;
+  samlService: SamlService;
   instanceSettingsService: InstanceSettingsService;
   auditRepository: AuditRepository;
   policyDecisionLogRepository: PolicyDecisionLogRepository;
@@ -456,6 +459,14 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     auditRepository: deps.auditRepository,
     eventHookService: deps.eventHookService,
     deprovisioningService: deps.deprovisioningService
+  });
+
+  await registerSamlAdminRoutes(app, {
+    samlService: deps.samlService,
+    samlServiceProviderRepository: (deps as any).samlServiceProviderRepository,
+    samlNameIdMappingRepository: (deps as any).samlNameIdMappingRepository,
+    samlAssertionAuditRepository: (deps as any).samlAssertionAuditRepository,
+    auditRepository: deps.auditRepository
   });
 
   app.get("/.well-known/openid-configuration", async () => deps.oidcService.discoveryDocument());

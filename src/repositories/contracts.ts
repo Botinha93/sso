@@ -38,7 +38,10 @@ import type {
   UserAttributeDefinition,
   GroupUserAttributeAssignment,
   UserGroupAssignment,
-  UserRoleAssignment
+  UserRoleAssignment,
+  SamlServiceProvider,
+  SamlNameIdMapping,
+  SamlAssertionAudit
 } from "../domain/models.js";
 
 type Awaitable<T> = T | Promise<T>;
@@ -321,4 +324,25 @@ export interface ElevationSessionRepository {
   findActive(input: { requesterId: string; resource: string; action: string; now?: Date }): Awaitable<ElevationSession | undefined>;
   closeByElevationRequestId(input: { elevationRequestId: string; status: "revoked" | "expired"; closedAt: Date }): Awaitable<number>;
   closeExpired(now: Date): Awaitable<number>;
+}
+
+export interface SamlServiceProviderRepository {
+  list(): Awaitable<SamlServiceProvider[]>;
+  findById(id: string): Awaitable<SamlServiceProvider | undefined>;
+  findByEntityId(entityId: string): Awaitable<SamlServiceProvider | undefined>;
+  create(input: Omit<SamlServiceProvider, "id" | "createdAt" | "updatedAt">): Awaitable<SamlServiceProvider>;
+  update(id: string, input: Partial<Omit<SamlServiceProvider, "id" | "createdAt">>): Awaitable<SamlServiceProvider | undefined>;
+  delete(id: string): Awaitable<void>;
+}
+
+export interface SamlNameIdMappingRepository {
+  findBySpId(spId: string): Awaitable<SamlNameIdMapping[]>;
+  create(input: Omit<SamlNameIdMapping, "id" | "createdAt">): Awaitable<SamlNameIdMapping>;
+  deleteBySpId(spId: string): Awaitable<number>;
+}
+
+export interface SamlAssertionAuditRepository {
+  list(input?: { limit?: number; spId?: string }): Awaitable<SamlAssertionAudit[]>;
+  findById(id: string): Awaitable<SamlAssertionAudit | undefined>;
+  create(input: Omit<SamlAssertionAudit, "id" | "createdAt">): Awaitable<SamlAssertionAudit>;
 }

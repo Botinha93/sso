@@ -30,6 +30,9 @@ import type {
   PolicyScopeType,
   ProvisioningJob,
   ProvisioningMapping,
+  SamlServiceProvider,
+  SamlNameIdMapping,
+  SamlAssertionAudit,
   ScimToken,
   RefreshTokenRecord,
   Role,
@@ -95,6 +98,9 @@ type PrismaClientLike = {
   elevationSession: any;
   eventHook: any;
   eventNotification: any;
+  saml_service_providers: any;
+  saml_name_id_mappings: any;
+  saml_assertion_audits: any;
   $queryRaw<T = PrismaRow[]>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>;
 };
 
@@ -592,6 +598,175 @@ const mapEventNotification = (row: PrismaRow): EventNotification => ({
   error: row.error ? String(row.error) : undefined,
   createdAt: asDate(row.createdAt)
 });
+
+const mapSamlServiceProvider = (row: PrismaRow): SamlServiceProvider => ({
+  id: String(row.id),
+  appId: row.appId ? String(row.appId) : undefined,
+  entityId: String(row.entityId),
+  metadata: row.metadata ? String(row.metadata) : undefined,
+  acsUrl: String(row.acsUrl),
+  sloUrl: row.sloUrl ? String(row.sloUrl) : undefined,
+  signingCertificate: String(row.signingCertificate),
+  encryptionCertificate: row.encryptionCertificate ? String(row.encryptionCertificate) : undefined,
+  nameIdFormat: (row.nameIdFormat || "persistent") as SamlServiceProvider["nameIdFormat"],
+  enabled: asBoolean(row.enabled),
+  createdAt: asDate(row.createdAt),
+  updatedAt: asDate(row.updatedAt)
+});
+
+const mapSamlNameIdMapping = (row: PrismaRow): SamlNameIdMapping => ({
+  id: String(row.id),
+  spId: String(row.spId),
+  format: String(row.format) as SamlNameIdMapping["format"],
+  sourceAttribute: String(row.sourceAttribute),
+  createdAt: asDate(row.createdAt)
+});
+
+const mapSamlAssertionAudit = (row: PrismaRow): SamlAssertionAudit => ({
+  id: String(row.id),
+  spId: String(row.spId),
+  requestId: String(row.requestId),
+  responseId: String(row.responseId),
+  subject: String(row.subject),
+  audience: String(row.audience),
+  assertionId: String(row.assertionId),
+  issueInstant: asDate(row.issueInstant),
+  notOnOrAfter: asDate(row.notOnOrAfter),
+  destinationUrl: String(row.destinationUrl),
+  statusCode: String(row.statusCode),
+  createdAt: asDate(row.createdAt)
+});
+
+class PrismaSamlServiceProviderRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+
+  async list(): Promise<SamlServiceProvider[]> {
+    const rows = await this.prisma.saml_service_providers.findMany({ orderBy: { createdAt: "asc" } });
+    return rows.map((row: PrismaRow) => mapSamlServiceProvider(row));
+  }
+
+  async findById(id: string): Promise<SamlServiceProvider | undefined> {
+    const row = await this.prisma.saml_service_providers.findUnique({ where: { id } });
+    return row ? mapSamlServiceProvider(row as PrismaRow) : undefined;
+  }
+
+  async findByEntityId(entityId: string): Promise<SamlServiceProvider | undefined> {
+    const row = await this.prisma.saml_service_providers.findFirst({ where: { entityId } });
+    return row ? mapSamlServiceProvider(row as PrismaRow) : undefined;
+  }
+
+  async create(input: Omit<SamlServiceProvider, "id" | "createdAt" | "updatedAt">): Promise<SamlServiceProvider> {
+    const now = new Date();
+    const sp: SamlServiceProvider = { ...input, id: nanoid(), createdAt: now, updatedAt: now };
+    await this.prisma.saml_service_providers.create({
+      data: {
+        id: sp.id,
+        appId: sp.appId ?? null,
+        entityId: sp.entityId,
+        metadata: sp.metadata ?? null,
+        acsUrl: sp.acsUrl,
+        sloUrl: sp.sloUrl ?? null,
+        signingCertificate: sp.signingCertificate,
+        encryptionCertificate: sp.encryptionCertificate ?? null,
+        nameIdFormat: sp.nameIdFormat,
+        enabled: asBooleanInt(sp.enabled),
+        createdAt: sp.createdAt.toISOString(),
+        updatedAt: sp.updatedAt.toISOString()
+      }
+    });
+    return sp;
+  }
+
+  async update(id: string, input: Partial<Omit<SamlServiceProvider, "id" | "createdAt">>): Promise<SamlServiceProvider | undefined> {
+    const existing = await this.findById(id);
+    if (!existing) return undefined;
+    
+    const updated: SamlServiceProvider = { ...existing, ...input, updatedAt: new Date() };
+    await this.prisma.saml_service_providers.update({
+      where: { id },
+      data: {
+        appId: updated.appId ?? null,
+        entityId: updated.entityId,
+        metadata: updated.metadata ?? null,
+        acsUrl: updated.acsUrl,
+        sloUrl: updated.sloUrl ?? null,
+        signingCertificate: updated.signingCertificate,
+        encryptionCertificate: updated.encryptionCertificate ?? null,
+        nameIdFormat: updated.nameIdFormat,
+        enabled: asBooleanInt(updated.enabled),
+        updatedAt: updated.updatedAt.toISOString()
+      }
+    });
+    return updated;
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.saml_service_providers.delete({ where: { id } }).catch(() => undefined);
+  }
+}
+
+class PrismaSamlNameIdMappingRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+
+  async findBySpId(spId: string): Promise<SamlNameIdMapping[]> {
+    const rows = await this.prisma.saml_name_id_mappings.findMany({ where: { spId }, orderBy: { createdAt: "asc" } });
+    return rows.map((row: PrismaRow) => mapSamlNameIdMapping(row));
+  }
+
+  async create(input: Omit<SamlNameIdMapping, "id" | "createdAt">): Promise<SamlNameIdMapping> {
+    const mapping: SamlNameIdMapping = { ...input, id: nanoid(), createdAt: new Date() };
+    await this.prisma.saml_name_id_mappings.create({
+      data: {
+        id: mapping.id,
+        spId: mapping.spId,
+        format: mapping.format,
+        sourceAttribute: mapping.sourceAttribute,
+        createdAt: mapping.createdAt.toISOString()
+      }
+    });
+    return mapping;
+  }
+
+  async deleteBySpId(spId: string): Promise<number> {
+    const result = await this.prisma.saml_name_id_mappings.deleteMany({ where: { spId } });
+    return Number(result.count ?? 0);
+  }
+}
+
+class PrismaSamlAssertionAuditRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+
+  async list(): Promise<SamlAssertionAudit[]> {
+    const rows = await this.prisma.saml_assertion_audits.findMany({ orderBy: { createdAt: "desc" } });
+    return rows.map((row: PrismaRow) => mapSamlAssertionAudit(row));
+  }
+
+  async findById(id: string): Promise<SamlAssertionAudit | undefined> {
+    const row = await this.prisma.saml_assertion_audits.findUnique({ where: { id } });
+    return row ? mapSamlAssertionAudit(row as PrismaRow) : undefined;
+  }
+
+  async create(input: Omit<SamlAssertionAudit, "id" | "createdAt">): Promise<SamlAssertionAudit> {
+    const audit: SamlAssertionAudit = { ...input, id: nanoid(), createdAt: new Date() };
+    await this.prisma.saml_assertion_audits.create({
+      data: {
+        id: audit.id,
+        spId: audit.spId,
+        requestId: audit.requestId ?? null,
+        responseId: audit.responseId,
+        subject: audit.subject,
+        audience: audit.audience,
+        assertionId: audit.assertionId,
+        issueInstant: audit.issueInstant.toISOString(),
+        notOnOrAfter: audit.notOnOrAfter,
+        destinationUrl: audit.destinationUrl,
+        statusCode: audit.statusCode,
+        createdAt: audit.createdAt.toISOString()
+      }
+    });
+    return audit;
+  }
+}
 
 class PrismaRoleRepository {
   constructor(private readonly prisma: PrismaClientLike) {}
@@ -2306,5 +2481,8 @@ export const createPrismaRepositories = (prisma: PrismaClientLike): RepositoryBu
   elevationSessionRepository: new PrismaElevationSessionRepository(prisma),
   eventHookRepository: new PrismaEventHookRepository(prisma),
   eventNotificationRepository: new PrismaEventNotificationRepository(prisma),
-  instanceSettingsRepository: new PrismaInstanceSettingsRepository(prisma)
+  instanceSettingsRepository: new PrismaInstanceSettingsRepository(prisma),
+  samlServiceProviderRepository: new PrismaSamlServiceProviderRepository(prisma),
+  samlNameIdMappingRepository: new PrismaSamlNameIdMappingRepository(prisma),
+  samlAssertionAuditRepository: new PrismaSamlAssertionAuditRepository(prisma)
 });

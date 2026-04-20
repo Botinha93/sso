@@ -487,7 +487,17 @@ export type AuditEventType =
   | "elevation_request_expired"
   | "elevation_session_started"
   | "elevation_session_revoked"
-  | "elevation_session_expired";
+  | "elevation_session_expired"
+  | "elevation_break_glass_activated"
+  | "saml_service_provider_created"
+  | "saml_service_provider_updated"
+  | "saml_service_provider_deleted"
+  | "saml_sso_initiated"
+  | "saml_sso_succeeded"
+  | "saml_sso_failed"
+  | "saml_slo_initiated"
+  | "saml_assertion_validated"
+  | "saml_assertion_invalid";
 
 export type ElevationStatus = "pending" | "approved" | "active" | "revoked" | "expired";
 export type ElevationSessionStatus = "active" | "revoked" | "expired";
@@ -533,5 +543,43 @@ export interface AuditEvent {
   clientId?: string;
   ip?: string;
   metadata?: Record<string, unknown>;
+  createdAt: Date;
+}
+
+export interface SamlServiceProvider {
+  id: string;
+  appId?: string;
+  entityId: string;
+  metadata?: string;
+  acsUrl: string;
+  sloUrl?: string;
+  signingCertificate?: string;
+  encryptionCertificate?: string;
+  nameIdFormat: "persistent" | "transient" | "emailAddress";
+  enabled: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SamlNameIdMapping {
+  id: string;
+  spId: string;
+  format: "persistent" | "transient" | "emailAddress";
+  sourceAttribute: string;
+  createdAt: Date;
+}
+
+export interface SamlAssertionAudit {
+  id: string;
+  spId: string;
+  requestId: string;
+  responseId: string;
+  subject: string;
+  audience: string;
+  assertionId: string;
+  issueInstant: Date;
+  notOnOrAfter: Date;
+  destinationUrl: string;
+  statusCode: string;
   createdAt: Date;
 }

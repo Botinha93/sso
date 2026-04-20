@@ -526,3 +526,47 @@ model ElevationSession {
 
   @@map("elevation_sessions")
 }
+
+model SamlServiceProvider {
+  id                    String @id
+  appId                 String? @map("app_id")
+  entityId              String @unique @map("entity_id")
+  metadata              String?
+  acsUrl                String @map("acs_url")
+  sloUrl                String? @map("slo_url")
+  signingCertificate    String? @map("signing_certificate")
+  encryptionCertificate String? @map("encryption_certificate")
+  nameIdFormat          String @map("name_id_format")
+  enabled               Boolean
+  createdAt             String @map("created_at")
+  updatedAt             String @map("updated_at")
+
+  @@map("saml_service_providers")
+}
+
+model SamlNameIdMapping {
+  id               String @id
+  spId             String @map("sp_id")
+  format           String
+  sourceAttribute  String @map("source_attribute")
+  createdAt        String @map("created_at")
+
+  @@map("saml_name_id_mappings")
+}
+
+model SamlAssertionAudit {
+  id              String @id
+  spId            String @map("sp_id")
+  requestId       String @map("request_id")
+  responseId      String @map("response_id")
+  subject         String
+  audience        String
+  assertionId     String @map("assertion_id")
+  issueInstant    String @map("issue_instant")
+  notOnOrAfter    String @map("not_on_or_after")
+  destinationUrl  String @map("destination_url")
+  statusCode      String @map("status_code")
+  createdAt       String @map("created_at")
+
+  @@map("saml_assertion_audits")
+}

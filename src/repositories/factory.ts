@@ -23,6 +23,9 @@ import type {
   GroupRoleAssignmentRepository,
   GroupUserAttributeAssignmentRepository,
   InstanceSettingsRepository,
+  SamlAssertionAuditRepository,
+  SamlNameIdMappingRepository,
+  SamlServiceProviderRepository,
   PolicyAssignmentRepository,
   PolicyDecisionLogRepository,
   PolicyDefinitionRepository,
@@ -75,6 +78,9 @@ import {
   SqliteRoleRepository,
   SqliteScopeRepository,
   SqliteScimTokenRepository,
+  SqliteSamlAssertionAuditRepository,
+  SqliteSamlNameIdMappingRepository,
+  SqliteSamlServiceProviderRepository,
   SqliteSessionRepository,
   SqliteTenantRepository,
   SqliteTotpCredentialRepository,
@@ -124,6 +130,9 @@ export interface RepositoryBundle {
   eventHookRepository: EventHookRepository;
   eventNotificationRepository: EventNotificationRepository;
   instanceSettingsRepository: InstanceSettingsRepository;
+  samlServiceProviderRepository: SamlServiceProviderRepository;
+  samlNameIdMappingRepository: SamlNameIdMappingRepository;
+  samlAssertionAuditRepository: SamlAssertionAuditRepository;
   dispose?: () => Promise<void>;
 }
 
@@ -176,6 +185,9 @@ export const createRepositoryBundle = async (config: AppConfig): Promise<Reposit
       eventHookRepository: new SqliteEventHookRepository(sqlite.connection),
       eventNotificationRepository: new SqliteEventNotificationRepository(sqlite.connection),
       instanceSettingsRepository: new SqliteInstanceSettingsRepository(sqlite.connection),
+      samlServiceProviderRepository: new SqliteSamlServiceProviderRepository(sqlite.connection),
+      samlNameIdMappingRepository: new SqliteSamlNameIdMappingRepository(sqlite.connection),
+      samlAssertionAuditRepository: new SqliteSamlAssertionAuditRepository(sqlite.connection),
       dispose: async () => {
         sqlite.connection.close();
       }

@@ -286,4 +286,116 @@ export class ElevationService {
       sessionId: session?.id
     };
   }
+
+  async createEmergencyBreakGlass(input: {
+    adminId: string;
+    resource: string;
+    action: string;
+    reason: string;
+    requesterId?: string;
+    durationMinutes?: number;
+  }): Promise<{
+    request: ElevationRequest;
+    session: ElevationSession;
+    breakGlassId: string;
+  }> {
+    const admin = await this.userRepository.findById(input.adminId);
+    if (!admin) {
+      throw new ValidationError("Admin user not found");
+    }
+
+    const reason = input.reason?.trim();
+    if (!reason) {
+      throw new ValidationError("Emergency reason is required");
+    }
+
+    if (reason.length < 10) {
+      throw new ValidationError("Emergency reason must be at least 10 characters");
+    }
+
+    const resource = input.resource?.trim();
+    const action = input.action?.trim();
+    if (!resource || !action) {
+      throw new ValidationError("Resource and action are required");
+    }
+
+    const durationMinutes = input.durationMinutes ?? 30; // Shorter breakglass window
+    if (durationMinutes < 1 || durationMinutes > 120) {
+      throw new ValidationError("Emergency duration must be between 1 and 120 minutes");
+    }
+
+    // Break-glass is for the admin themselves by default
+    const requesterId = input.requesterId || input.adminId;
+
+    const expiresAt = new Date(Date.now() + durationMinutes * 60_000);
+    const breakGlassId = nanoid();
+    const correlationId = nanoid();
+
+    // Create request directly (skips normal approval)
+    const request = await this.elevationRepository.create({
+      correlationId,
+      requesterId,
+      justification: `[BREAK-GLASS] ${reason}`,
+      resource,
+      action,
+      status: "active",
+      activatedAt: new Date(),
+      approvedByUserId: input.adminId,
+      approvedAt: new Date(),
+      expiresAt
+    });
+
+    // Store break-glass metadata in audit
+    const breakGlassMetadata = {
+      breakGlassId,
+      elevationRequestId: request.id,
+      correlationId: request.correlationId,
+      initiatedBy: input.adminId,
+      targetUser: requesterId,
+      resource,
+      action,
+      reason,
+      durationMinutes
+    };
+
+    // Create session immediately
+    const session = await this.elevationSessionRepository.create({
+      correlationId,
+      elevationRequestId: request.id,
+      requesterId,
+      resource,
+      action,
+      status: "active",
+      startedAt: new Date(),
+      expiresAt
+    });
+
+    // Log break-glass activation with highest audit visibility
+    await this.auditRepository.log({
+      type: "elevation_break_glass_activated",
+      actorId: input.adminId,
+      actorType: "user",
+      metadata: breakGlassMetadata
+    });
+
+    await this.auditRepository.log({
+      type: "elevation_session_started",
+      actorId: input.adminId,
+      actorType: "user",
+      metadata: {
+        elevationRequestId: request.id,
+        correlationId: request.correlationId,
+        requesterId,
+        resource,
+        action,
+        breakGlass: true
+      }
+    });
+
+    return {
+      request,
+      session,
+      breakGlassId
+    };
+  }
 }

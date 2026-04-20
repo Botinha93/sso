@@ -687,6 +687,279 @@ paths:
       responses:
         '200':
           description: Elevation access decision
+  /api/admin/elevations/break-glass:
+    post:
+      summary: Activate emergency break-glass elevation for immediate privileged action
+      description: Allows admins to bypass approval workflow for emergency scenarios. Requires strong justification and creates special audit trail for break-glass usage.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resource, action, reason]
+              properties:
+                resource:
+                  type: string
+                  description: Resource requiring privileged access
+                action:
+                  type: string
+                  description: Action requiring elevation
+                reason:
+                  type: string
+                  minLength: 10
+                  description: Emergency justification for break-glass activation (minimum 10 characters)
+                requesterId:
+                  type: string
+                  description: User ID for elevation (defaults to admin if not specified)
+                durationMinutes:
+                  type: number
+                  minimum: 1
+                  maximum: 120
+                  description: Duration of emergency elevation (default 30 minutes, max 120)
+      responses:
+        '201':
+          description: Emergency elevation session created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  breakGlassId:
+                    type: string
+                    description: Unique break-glass event identifier
+                  request:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      status:
+                        type: string
+                        enum: [active]
+                      correlationId:
+                        type: string
+                      resource:
+                        type: string
+                      action:
+                        type: string
+                      expiresAt:
+                        type: string
+                        format: date-time
+                  session:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      status:
+                        type: string
+                        enum: [active]
+                      startedAt:
+                        type: string
+                        format: date-time
+                      expiresAt:
+                        type: string
+                        format: date-time
+  /api/admin/saml/service-providers:
+    get:
+      summary: List SAML service providers
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 50
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - in: query
+          name: enabled
+          schema:
+            type: string
+            enum: ["true", "false"]
+      responses:
+        '200':
+          description: List of SAML service providers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SamlServiceProvider'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+    post:
+      summary: Create SAML service provider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [entityId, acsUrl, signingCertificate]
+              properties:
+                entityId:
+                  type: string
+                  description: SAML service provider entity ID
+                acsUrl:
+                  type: string
+                  format: uri
+                  description: Assertion Consumer Service URL
+                sloUrl:
+                  type: string
+                  format: uri
+                  description: Single Logout Service URL (optional)
+                signingCertificate:
+                  type: string
+                  description: X.509 certificate for signature verification
+                encryptionCertificate:
+                  type: string
+                  description: X.509 certificate for response encryption (optional)
+                nameIdFormat:
+                  type: string
+                  enum: [persistent, transient, emailAddress]
+                  default: persistent
+                enabled:
+                  type: boolean
+                  default: true
+      responses:
+        '201':
+          description: SAML service provider created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SamlServiceProvider'
+  /api/admin/saml/service-providers/{id}:
+    get:
+      summary: Get SAML service provider by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: SAML service provider details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SamlServiceProvider'
+        '404':
+          description: Service provider not found
+    patch:
+      summary: Update SAML service provider
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                entityId:
+                  type: string
+                acsUrl:
+                  type: string
+                  format: uri
+                sloUrl:
+                  type: string
+                  format: uri
+                signingCertificate:
+                  type: string
+                encryptionCertificate:
+                  type: string
+                nameIdFormat:
+                  type: string
+                  enum: [persistent, transient, emailAddress]
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: SAML service provider updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SamlServiceProvider'
+    delete:
+      summary: Delete SAML service provider
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: SAML service provider deleted
+  /api/admin/saml/assertions:
+    get:
+      summary: List SAML assertion audits
+      parameters:
+        - in: query
+          name: spId
+          schema:
+            type: string
+          description: Filter by service provider ID
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 50
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date-time
+          description: Filter assertions from this date onwards
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date-time
+          description: Filter assertions up to this date
+      responses:
+        '200':
+          description: List of SAML assertion audits
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SamlAssertionAudit'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
   /api/admin/authentication/flows:
     get:
       summary: List authentication flows
@@ -1014,6 +1287,76 @@ components:
     AuthenticationFlowUpdate:
       allOf:
         - $ref: '#/components/schemas/AuthenticationFlowBase'
+    SamlServiceProvider:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Service provider ID
+        entityId:
+          type: string
+          description: SAML entity ID
+        acsUrl:
+          type: string
+          format: uri
+          description: Assertion Consumer Service URL
+        sloUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: Single Logout Service URL
+        signingCertificate:
+          type: string
+          description: X.509 certificate for signature verification
+        encryptionCertificate:
+          type: string
+          nullable: true
+          description: X.509 certificate for response encryption
+        nameIdFormat:
+          type: string
+          enum: [persistent, transient, emailAddress]
+          description: NameID format for assertions
+        enabled:
+          type: boolean
+          description: Whether the service provider is enabled
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    SamlAssertionAudit:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Audit record ID
+        spId:
+          type: string
+          description: Service provider ID that processed the assertion
+        userId:
+          type: string
+          nullable: true
+          description: User ID extracted from the assertion
+        sessionId:
+          type: string
+          nullable: true
+          description: Session ID created from the assertion
+        status:
+          type: string
+          enum: [success, failure, validation_error, signature_error]
+          description: Status of assertion processing
+        errorMessage:
+          type: string
+          nullable: true
+          description: Error message if processing failed
+        attributes:
+          type: object
+          additionalProperties: true
+          description: Extracted SAML attributes
+        createdAt:
+          type: string
+          format: date-time
   securitySchemes:
     bearerAuth:
       type: http

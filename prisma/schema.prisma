@@ -537,3 +537,41 @@ model elevation_sessions {
   created_at          String
   updated_at          String
 }
+
+model saml_service_providers {
+  id                     String @id
+  app_id                 String?
+  entity_id              String @unique
+  metadata               String?
+  acs_url                String
+  slo_url                String?
+  signing_certificate   String?
+  encryption_certificate String?
+  name_id_format         String // persistent | transient | emailAddress
+  enabled                Boolean
+  created_at             String
+  updated_at             String
+}
+
+model saml_name_id_mappings {
+  id                String @id
+  sp_id             String
+  format            String // persistent | transient | emailAddress
+  source_attribute  String
+  created_at        String
+}
+
+model saml_assertion_audits {
+  id               String @id
+  sp_id            String
+  request_id       String
+  response_id      String
+  subject          String
+  audience         String
+  assertion_id     String
+  issue_instant    String
+  not_on_or_after  String
+  destination_url  String
+  status_code      String
+  created_at       String
+}
