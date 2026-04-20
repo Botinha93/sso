@@ -494,6 +494,7 @@ export type ElevationSessionStatus = "active" | "revoked" | "expired";
 
 export interface ElevationRequest {
   id: string;
+  correlationId: string;
   requesterId: string;
   justification: string;
   resource: string;
@@ -511,6 +512,7 @@ export interface ElevationRequest {
 
 export interface ElevationSession {
   id: string;
+  correlationId: string;
   elevationRequestId: string;
   requesterId: string;
   resource: string;

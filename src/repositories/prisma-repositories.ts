@@ -2155,6 +2155,7 @@ class PrismaEventNotificationRepository {
 
 const mapElevationRequest = (row: PrismaRow): ElevationRequest => ({
   id: String(readField(row, "id")),
+  correlationId: String(readField(row, "correlationId", "correlation_id", "id")),
   requesterId: String(readField(row, "requesterId", "requester_id")),
   justification: String(readField(row, "justification")),
   resource: String(readField(row, "resource")),
@@ -2172,6 +2173,7 @@ const mapElevationRequest = (row: PrismaRow): ElevationRequest => ({
 
 const mapElevationSession = (row: PrismaRow): ElevationSession => ({
   id: String(readField(row, "id")),
+  correlationId: String(readField(row, "correlationId", "correlation_id", "elevationRequestId", "elevation_request_id")),
   elevationRequestId: String(readField(row, "elevationRequestId", "elevation_request_id")),
   requesterId: String(readField(row, "requesterId", "requester_id")),
   resource: String(readField(row, "resource")),
@@ -2203,7 +2205,7 @@ class PrismaElevationRequestRepository {
   async create(input: Omit<ElevationRequest, "id" | "createdAt" | "updatedAt">): Promise<ElevationRequest> {
     const now = new Date();
     const request: ElevationRequest = { id: nanoid(), ...input, createdAt: now, updatedAt: now };
-    await this.prisma.elevationRequest.create({ data: { id: request.id, requesterId: request.requesterId, justification: request.justification, resource: request.resource, action: request.action, status: request.status, approvedByUserId: request.approvedByUserId ?? null, approvedAt: request.approvedAt?.toISOString() ?? null, activatedAt: request.activatedAt?.toISOString() ?? null, expiresAt: request.expiresAt?.toISOString() ?? null, revokedAt: request.revokedAt?.toISOString() ?? null, revokedByUserId: request.revokedByUserId ?? null, createdAt: request.createdAt.toISOString(), updatedAt: request.updatedAt.toISOString() } });
+    await this.prisma.elevationRequest.create({ data: { id: request.id, correlationId: request.correlationId, requesterId: request.requesterId, justification: request.justification, resource: request.resource, action: request.action, status: request.status, approvedByUserId: request.approvedByUserId ?? null, approvedAt: request.approvedAt?.toISOString() ?? null, activatedAt: request.activatedAt?.toISOString() ?? null, expiresAt: request.expiresAt?.toISOString() ?? null, revokedAt: request.revokedAt?.toISOString() ?? null, revokedByUserId: request.revokedByUserId ?? null, createdAt: request.createdAt.toISOString(), updatedAt: request.updatedAt.toISOString() } });
     return request;
   }
 
@@ -2211,7 +2213,7 @@ class PrismaElevationRequestRepository {
     const existing = await this.findById(id);
     if (!existing) return undefined;
     const updated: ElevationRequest = { ...existing, ...input, updatedAt: new Date() };
-    await this.prisma.elevationRequest.update({ where: { id }, data: { status: updated.status, approvedByUserId: updated.approvedByUserId ?? null, approvedAt: updated.approvedAt?.toISOString() ?? null, activatedAt: updated.activatedAt?.toISOString() ?? null, expiresAt: updated.expiresAt?.toISOString() ?? null, revokedAt: updated.revokedAt?.toISOString() ?? null, revokedByUserId: updated.revokedByUserId ?? null, updatedAt: updated.updatedAt.toISOString() } });
+    await this.prisma.elevationRequest.update({ where: { id }, data: { correlationId: updated.correlationId, status: updated.status, approvedByUserId: updated.approvedByUserId ?? null, approvedAt: updated.approvedAt?.toISOString() ?? null, activatedAt: updated.activatedAt?.toISOString() ?? null, expiresAt: updated.expiresAt?.toISOString() ?? null, revokedAt: updated.revokedAt?.toISOString() ?? null, revokedByUserId: updated.revokedByUserId ?? null, updatedAt: updated.updatedAt.toISOString() } });
     return updated;
   }
 }
@@ -2230,7 +2232,7 @@ class PrismaElevationSessionRepository {
   async create(input: Omit<ElevationSession, "id" | "createdAt" | "updatedAt">): Promise<ElevationSession> {
     const now = new Date();
     const session: ElevationSession = { id: nanoid(), ...input, createdAt: now, updatedAt: now };
-    await this.prisma.elevationSession.create({ data: { id: session.id, elevationRequestId: session.elevationRequestId, requesterId: session.requesterId, resource: session.resource, action: session.action, status: session.status, startedAt: session.startedAt.toISOString(), expiresAt: session.expiresAt.toISOString(), endedAt: session.endedAt?.toISOString() ?? null, createdAt: session.createdAt.toISOString(), updatedAt: session.updatedAt.toISOString() } });
+    await this.prisma.elevationSession.create({ data: { id: session.id, correlationId: session.correlationId, elevationRequestId: session.elevationRequestId, requesterId: session.requesterId, resource: session.resource, action: session.action, status: session.status, startedAt: session.startedAt.toISOString(), expiresAt: session.expiresAt.toISOString(), endedAt: session.endedAt?.toISOString() ?? null, createdAt: session.createdAt.toISOString(), updatedAt: session.updatedAt.toISOString() } });
     return session;
   }
 

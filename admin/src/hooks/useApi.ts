@@ -1168,6 +1168,7 @@ export function useMigrateDatabaseFromSqlite() {
 
 export interface ElevationRequestDto {
   id: string
+  correlationId: string
   requesterId: string
   justification: string
   resource: string
@@ -1185,6 +1186,7 @@ export interface ElevationRequestDto {
 
 export interface ElevationSessionDto {
   id: string
+  correlationId: string
   elevationRequestId: string
   requesterId: string
   resource: string

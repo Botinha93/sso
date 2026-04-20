@@ -45,8 +45,10 @@ export class ElevationService {
     }
 
     const expiresAt = new Date(Date.now() + durationMinutes * 60_000);
+    const correlationId = nanoid();
 
     const request = await this.elevationRepository.create({
+      correlationId,
       requesterId: input.requesterId,
       justification,
       resource,
@@ -59,7 +61,7 @@ export class ElevationService {
       type: "elevation_request_created",
       actorId: input.requesterId,
       actorType: "user",
-      metadata: { elevationRequestId: request.id, resource, action }
+      metadata: { elevationRequestId: request.id, correlationId: request.correlationId, resource, action }
     });
 
     return request;
@@ -88,7 +90,7 @@ export class ElevationService {
       type: "elevation_request_approved",
       actorId: input.approverId,
       actorType: "user",
-      metadata: { elevationRequestId: request.id }
+      metadata: { elevationRequestId: request.id, correlationId: request.correlationId }
     });
 
     return updated!;
@@ -133,6 +135,7 @@ export class ElevationService {
     });
 
     await this.elevationSessionRepository.create({
+      correlationId: request.correlationId,
       elevationRequestId: request.id,
       requesterId: request.requesterId,
       resource: request.resource,
@@ -146,14 +149,14 @@ export class ElevationService {
       type: "elevation_request_activated",
       actorId: input.actorId,
       actorType: "user",
-      metadata: { elevationRequestId: request.id }
+      metadata: { elevationRequestId: request.id, correlationId: request.correlationId }
     });
 
     await this.auditRepository.log({
       type: "elevation_session_started",
       actorId: input.actorId,
       actorType: "user",
-      metadata: { elevationRequestId: request.id, requesterId: request.requesterId, resource: request.resource, action: request.action }
+      metadata: { elevationRequestId: request.id, correlationId: request.correlationId, requesterId: request.requesterId, resource: request.resource, action: request.action }
     });
 
     return updated!;
@@ -189,7 +192,7 @@ export class ElevationService {
       type: "elevation_request_revoked",
       actorId: input.revokedByUserId,
       actorType: "user",
-      metadata: { elevationRequestId: request.id }
+      metadata: { elevationRequestId: request.id, correlationId: request.correlationId }
     });
 
     if (closedSessions > 0) {
@@ -197,7 +200,7 @@ export class ElevationService {
         type: "elevation_session_revoked",
         actorId: input.revokedByUserId,
         actorType: "user",
-        metadata: { elevationRequestId: request.id, closedSessions }
+        metadata: { elevationRequestId: request.id, correlationId: request.correlationId, closedSessions }
       });
     }
 
@@ -239,7 +242,7 @@ export class ElevationService {
           type: "elevation_request_expired",
           actorId: "system",
           actorType: "system",
-          metadata: { elevationRequestId: request.id }
+          metadata: { elevationRequestId: request.id, correlationId: request.correlationId }
         });
         expired++;
       }

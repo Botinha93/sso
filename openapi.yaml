@@ -533,7 +533,7 @@ paths:
           description: List of stalled access requests
   /api/admin/elevations:
     get:
-      summary: List PAM-lite elevation requests
+      summary: List PAM-lite elevation requests (includes correlationId for privileged action audit stitching)
       parameters:
         - in: query
           name: status
@@ -550,7 +550,7 @@ paths:
         '200':
           description: Elevation request list
     post:
-      summary: Create a PAM-lite elevation request
+      summary: Create a PAM-lite elevation request (returns correlationId for downstream audit correlation)
       requestBody:
         required: true
         content:
@@ -586,7 +586,7 @@ paths:
           description: Elevation request details
   /api/admin/elevations/sessions:
     get:
-      summary: List elevation sessions with hard expiry state
+      summary: List elevation sessions with hard expiry state and correlationId
       parameters:
         - in: query
           name: status
@@ -662,6 +662,13 @@ paths:
       responses:
         '200':
           description: Expiration processing summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  expired:
+                    type: integer
   /api/admin/elevations/check:
     post:
       summary: Check if current user has an active elevation session for a resource/action

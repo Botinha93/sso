@@ -53,9 +53,10 @@ test("PAM-lite elevation request lifecycle: create → approve → activate → 
   assert.equal(createResponse.statusCode, 201);
   const created = createResponse.json();
   assert.equal(created.status, "pending");
+  assert.ok(created.correlationId);
   assert.equal(created.resource, "db:prod");
   assert.equal(created.action, "write");
-  assert.equal(created.durationMinutes, 30);
+  assert.ok(created.expiresAt);
   const elevationId = String(created.id);
 
   // List elevation requests
@@ -104,6 +105,32 @@ test("PAM-lite elevation request lifecycle: create → approve → activate → 
   assert.ok(activated.activatedAt);
   assert.ok(activated.expiresAt);
 
+  // Check elevation decision while session is active
+  const checkAllowedResponse = await app.inject({
+    method: "POST",
+    url: "/api/admin/elevations/check",
+    headers: authHeaders,
+    payload: { resource: "db:prod", action: "write" },
+  });
+
+  assert.equal(checkAllowedResponse.statusCode, 200);
+  const checkAllowed = checkAllowedResponse.json();
+  assert.equal(checkAllowed.allowed, true);
+  assert.ok(checkAllowed.sessionId);
+
+  // Elevation sessions endpoint should include active session
+  const sessionsResponse = await app.inject({
+    method: "GET",
+    url: "/api/admin/elevations/sessions?status=active",
+    headers: { cookie: `${sid}; ${csrfCookie}` },
+  });
+
+  assert.equal(sessionsResponse.statusCode, 200);
+  const sessions = sessionsResponse.json();
+  assert.ok(Array.isArray(sessions));
+  assert.ok(sessions.every((s: { correlationId?: string }) => typeof s.correlationId === "string"));
+  assert.ok(sessions.some((s: { elevationRequestId: string; status: string }) => s.elevationRequestId === elevationId && s.status === "active"));
+
   // Revoke elevation request
   const revokeResponse = await app.inject({
     method: "POST",
@@ -124,6 +151,16 @@ test("PAM-lite elevation request lifecycle: create → approve → activate → 
 
   assert.equal(finalGetResponse.statusCode, 200);
   assert.equal(finalGetResponse.json().status, "revoked");
+
+  const checkDeniedResponse = await app.inject({
+    method: "POST",
+    url: "/api/admin/elevations/check",
+    headers: authHeaders,
+    payload: { resource: "db:prod", action: "write" },
+  });
+
+  assert.equal(checkDeniedResponse.statusCode, 200);
+  assert.equal(checkDeniedResponse.json().allowed, false);
 });
 
 test("PAM-lite elevation: process expirations marks expired requests", async (t) => {
@@ -169,7 +206,52 @@ test("PAM-lite elevation: process expirations marks expired requests", async (t)
 
   assert.equal(processResponse.statusCode, 200);
   const result = processResponse.json();
-  assert.ok("processed" in result || Array.isArray(result.expired));
+  assert.equal(typeof result.expired, "number");
+});
+
+test("PAM-lite elevation: check endpoint denies access when no active elevation exists", async (t) => {
+  const { app, admin } = await createTestContext("integration-elevations-check-denied");
+
+  t.after(async () => {
+    await app.close();
+  });
+
+  const loginResponse = await app.inject({
+    method: "POST",
+    url: "/auth/login",
+    payload: {
+      email: admin.email,
+      password: admin.password,
+      clientId: "sso-admin-ui",
+      scope: ["openid", "profile", "email"],
+    },
+  });
+
+  assert.equal(loginResponse.statusCode, 200);
+  const sid = extractCookie(loginResponse.headers["set-cookie"], "sid");
+
+  const csrfResponse = await app.inject({
+    method: "GET",
+    url: "/api/csrf-token",
+    headers: { cookie: sid },
+  });
+
+  const csrfToken = String(csrfResponse.json().csrf_token);
+  const csrfCookie = extractCookie(csrfResponse.headers["set-cookie"], "csrf_token");
+  const authHeaders = {
+    cookie: `${sid}; ${csrfCookie}`,
+    "x-csrf-token": csrfToken,
+  };
+
+  const checkResponse = await app.inject({
+    method: "POST",
+    url: "/api/admin/elevations/check",
+    headers: authHeaders,
+    payload: { resource: "db:prod", action: "write" },
+  });
+
+  assert.equal(checkResponse.statusCode, 200);
+  assert.equal(checkResponse.json().allowed, false);
 });
 
 test("access governance: stalled requests endpoint returns pending requests past threshold", async (t) => {

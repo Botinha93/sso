@@ -492,6 +492,7 @@ model EventNotification {
 }
 model ElevationRequest {
   id               String  @id
+  correlationId    String  @map("correlation_id")
   requesterId      String  @map("requester_id")
   justification    String
   resource         String
@@ -511,6 +512,7 @@ model ElevationRequest {
 
 model ElevationSession {
   id                String  @id
+  correlationId     String  @map("correlation_id")
   elevationRequestId String @map("elevation_request_id")
   requesterId       String  @map("requester_id")
   resource          String

@@ -197,7 +197,6 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 ### Code implementation backlog
 
 - [x] Create `src/services/access-governance-service.ts`.
-- [ ] Add SLA/escalation logic for stalled approvals.
 - [x] Add SLA/escalation logic for stalled approvals.
 - [x] Auto-create assignments on approval, auto-revoke on expiry.
 - [x] Add campaign UI pages in admin app.
@@ -294,32 +293,28 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 
 ### API backlog
 
-- [ ] `POST /api/admin/elevations`
 - [x] `POST /api/admin/elevations`
-- [ ] `POST /api/admin/elevations/:id/approve`
 - [x] `POST /api/admin/elevations/:id/approve`
-- [ ] `POST /api/admin/elevations/:id/activate`
 - [x] `POST /api/admin/elevations/:id/activate`
-- [ ] `POST /api/admin/elevations/:id/revoke`
 - [x] `POST /api/admin/elevations/:id/revoke`
 - [x] `GET /api/admin/elevations`
 - [x] `GET /api/admin/elevations/:id`
+- [x] `GET /api/admin/elevations/sessions`
 - [x] `POST /api/admin/elevations/process-expirations`
+- [x] `POST /api/admin/elevations/check`
 - [x] `GET /api/admin/access-requests/stalled`
 
 ### Schema and model backlog
 
-- [ ] Add `elevation_requests` table.
 - [x] Add `elevation_requests` table.
-- [ ] Add `elevation_sessions` table with hard expiry.
-- [ ] Add command/action audit correlation IDs for privileged operations.
+- [x] Add `elevation_sessions` table with hard expiry.
+- [x] Add command/action audit correlation IDs for privileged operations.
 
 ### Test plan
 
-- [ ] Integration: privileged action denied without active elevation.
 - [x] Integration: elevation request lifecycle (create → approve → activate → revoke).
-- [ ] Integration: privileged action denied without active elevation.
-- [ ] Integration: approved elevation enables action until expiry.
+- [x] Integration: privileged action denied without active elevation.
+- [x] Integration: approved elevation enables action until expiry.
 - [ ] Security: emergency break-glass path is fully audited.
 
 ---

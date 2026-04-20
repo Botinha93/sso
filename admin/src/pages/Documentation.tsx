@@ -128,10 +128,12 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'GET', path: '/api/admin/elevations', auth: 'session', description: 'Lists PAM-lite elevation requests with optional status filtering.' },
   { method: 'POST', path: '/api/admin/elevations', auth: 'session+csrf', description: 'Creates a PAM-lite elevation request for temporary privileged access to a resource.' },
   { method: 'GET', path: '/api/admin/elevations/:id', auth: 'session', description: 'Returns details of a specific elevation request.' },
+  { method: 'GET', path: '/api/admin/elevations/sessions', auth: 'session', description: 'Lists elevation sessions with hard-expiry lifecycle states (active/revoked/expired).' },
   { method: 'POST', path: '/api/admin/elevations/:id/approve', auth: 'session+csrf', description: 'Approves a pending elevation request.' },
   { method: 'POST', path: '/api/admin/elevations/:id/activate', auth: 'session+csrf', description: 'Activates an approved elevation request and starts the expiry timer.' },
   { method: 'POST', path: '/api/admin/elevations/:id/revoke', auth: 'session+csrf', description: 'Revokes an active or approved elevation request.' },
   { method: 'POST', path: '/api/admin/elevations/process-expirations', auth: 'session+csrf', description: 'Expires active elevation requests that have passed their scheduled expiry time.' },
+  { method: 'POST', path: '/api/admin/elevations/check', auth: 'session+csrf', description: 'Checks whether the current user currently has an active elevation session for a resource/action pair.' },
 
   { method: 'GET', path: '/api/admin/users', auth: 'session', description: 'Lists users.' },
   { method: 'POST', path: '/api/admin/users', auth: 'session+csrf', description: 'Creates user and emits user.created event.' },
@@ -2285,7 +2287,7 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
       return {
         parameters: params,
         requestJson: prettyJson({ justification: 'Emergency database maintenance', resource: 'db:prod', action: 'write', durationMinutes: 60 }),
-        expectedResponse: prettyJson({ id: 'elv_xxx', requesterId: 'usr_yyy', resource: 'db:prod', action: 'write', status: 'pending', durationMinutes: 60, createdAt: '2026-04-20T12:00:00.000Z' })
+        expectedResponse: prettyJson({ id: 'elv_xxx', correlationId: 'corr_abc123', requesterId: 'usr_yyy', resource: 'db:prod', action: 'write', status: 'pending', expiresAt: '2026-04-20T13:00:00.000Z', createdAt: '2026-04-20T12:00:00.000Z' })
       }
     }
 
@@ -2293,7 +2295,23 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
       return {
         parameters: params,
         expectedResponse: prettyJson([
-          { id: 'elv_xxx', requesterId: 'usr_yyy', resource: 'db:prod', action: 'write', status: 'pending', durationMinutes: 60, createdAt: '2026-04-20T12:00:00.000Z' }
+          { id: 'elv_xxx', correlationId: 'corr_abc123', requesterId: 'usr_yyy', resource: 'db:prod', action: 'write', status: 'pending', expiresAt: '2026-04-20T13:00:00.000Z', createdAt: '2026-04-20T12:00:00.000Z' }
+        ])
+      }
+    }
+
+    if (route.path === '/api/admin/elevations/:id' && route.method === 'GET') {
+      return {
+        parameters: params,
+        expectedResponse: prettyJson({ id: 'elv_xxx', correlationId: 'corr_abc123', requesterId: 'usr_yyy', resource: 'db:prod', action: 'write', status: 'approved', approvedAt: '2026-04-20T12:05:00.000Z', expiresAt: '2026-04-20T13:00:00.000Z' })
+      }
+    }
+
+    if (route.path === '/api/admin/elevations/sessions' && route.method === 'GET') {
+      return {
+        parameters: params,
+        expectedResponse: prettyJson([
+          { id: 'els_xxx', correlationId: 'corr_abc123', elevationRequestId: 'elv_xxx', requesterId: 'usr_yyy', resource: 'db:prod', action: 'write', status: 'active', startedAt: '2026-04-20T12:10:00.000Z', expiresAt: '2026-04-20T13:10:00.000Z' }
         ])
       }
     }
@@ -2324,7 +2342,15 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
     if (route.path === '/api/admin/elevations/process-expirations' && route.method === 'POST') {
       return {
         parameters: params,
-        expectedResponse: prettyJson({ processed: 2, expired: ['elv_xxx', 'elv_yyy'] })
+        expectedResponse: prettyJson({ expired: 2 })
+      }
+    }
+
+    if (route.path === '/api/admin/elevations/check' && route.method === 'POST') {
+      return {
+        parameters: params,
+        requestJson: prettyJson({ resource: 'db:prod', action: 'write' }),
+        expectedResponse: prettyJson({ allowed: true, sessionId: 'els_xxx' })
       }
     }
 

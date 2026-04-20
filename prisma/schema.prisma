@@ -507,6 +507,7 @@ model users {
 
 model elevation_requests {
   id                  String  @id
+  correlation_id      String
   requester_id        String
   justification       String
   resource            String
@@ -524,6 +525,7 @@ model elevation_requests {
 
 model elevation_sessions {
   id                  String @id
+  correlation_id      String
   elevation_request_id String
   requester_id        String
   resource            String

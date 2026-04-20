@@ -551,6 +551,7 @@ export class SqliteDatabase {
 
       CREATE TABLE IF NOT EXISTS elevation_requests (
         id TEXT PRIMARY KEY,
+        correlation_id TEXT NOT NULL,
         requester_id TEXT NOT NULL,
         justification TEXT NOT NULL,
         resource TEXT NOT NULL,
@@ -569,6 +570,7 @@ export class SqliteDatabase {
 
       CREATE TABLE IF NOT EXISTS elevation_sessions (
         id TEXT PRIMARY KEY,
+        correlation_id TEXT NOT NULL,
         elevation_request_id TEXT NOT NULL,
         requester_id TEXT NOT NULL,
         resource TEXT NOT NULL,
@@ -819,6 +821,7 @@ export class SqliteDatabase {
       this.connection.exec(`
         CREATE TABLE IF NOT EXISTS elevation_requests (
           id TEXT PRIMARY KEY,
+          correlation_id TEXT NOT NULL,
           requester_id TEXT NOT NULL,
           justification TEXT NOT NULL,
           resource TEXT NOT NULL,
@@ -836,12 +839,17 @@ export class SqliteDatabase {
         );
       `);
     }
+    const hasElevationCorrelationId = elevationColumns.some((column) => column.name === "correlation_id");
+    if (!hasElevationCorrelationId) {
+      this.connection.exec("ALTER TABLE elevation_requests ADD COLUMN correlation_id TEXT NOT NULL DEFAULT '';\nUPDATE elevation_requests SET correlation_id = id WHERE correlation_id = '';\n");
+    }
 
     const elevationSessionColumns = this.connection.prepare("PRAGMA table_info(elevation_sessions)").all() as Array<{ name: string }>;
     if (elevationSessionColumns.length === 0) {
       this.connection.exec(`
         CREATE TABLE IF NOT EXISTS elevation_sessions (
           id TEXT PRIMARY KEY,
+          correlation_id TEXT NOT NULL,
           elevation_request_id TEXT NOT NULL,
           requester_id TEXT NOT NULL,
           resource TEXT NOT NULL,
@@ -856,6 +864,10 @@ export class SqliteDatabase {
           FOREIGN KEY (requester_id) REFERENCES users(id)
         );
       `);
+    }
+    const hasElevationSessionCorrelationId = elevationSessionColumns.some((column) => column.name === "correlation_id");
+    if (!hasElevationSessionCorrelationId) {
+      this.connection.exec("ALTER TABLE elevation_sessions ADD COLUMN correlation_id TEXT NOT NULL DEFAULT '';\nUPDATE elevation_sessions SET correlation_id = elevation_request_id WHERE correlation_id = '';\n");
     }
   }
 }
@@ -3317,6 +3329,7 @@ export class SqliteEventNotificationRepository {
 
 const mapElevationRequest = (row: DbRow): ElevationRequest => ({
   id: String(row.id),
+  correlationId: String(row.correlation_id ?? row.id),
   requesterId: String(row.requester_id),
   justification: String(row.justification),
   resource: String(row.resource),
@@ -3334,6 +3347,7 @@ const mapElevationRequest = (row: DbRow): ElevationRequest => ({
 
 const mapElevationSession = (row: DbRow): ElevationSession => ({
   id: String(row.id),
+  correlationId: String(row.correlation_id ?? row.elevation_request_id),
   elevationRequestId: String(row.elevation_request_id),
   requesterId: String(row.requester_id),
   resource: String(row.resource),
@@ -3385,10 +3399,11 @@ export class SqliteElevationRequestRepository implements ElevationRequestReposit
     };
     this.db.prepare(`
       INSERT INTO elevation_requests
-        (id, requester_id, justification, resource, action, status, approved_by_user_id, approved_at, activated_at, expires_at, revoked_at, revoked_by_user_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, correlation_id, requester_id, justification, resource, action, status, approved_by_user_id, approved_at, activated_at, expires_at, revoked_at, revoked_by_user_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       request.id,
+      request.correlationId,
       request.requesterId,
       request.justification,
       request.resource,
@@ -3413,11 +3428,12 @@ export class SqliteElevationRequestRepository implements ElevationRequestReposit
     const updated: ElevationRequest = { ...existing, ...input, updatedAt: new Date() };
     this.db.prepare(`
       UPDATE elevation_requests
-      SET requester_id = ?, justification = ?, resource = ?, action = ?, status = ?,
+      SET correlation_id = ?, requester_id = ?, justification = ?, resource = ?, action = ?, status = ?,
           approved_by_user_id = ?, approved_at = ?, activated_at = ?, expires_at = ?,
           revoked_at = ?, revoked_by_user_id = ?, updated_at = ?
       WHERE id = ?
     `).run(
+      updated.correlationId,
       updated.requesterId,
       updated.justification,
       updated.resource,
@@ -3470,10 +3486,11 @@ export class SqliteElevationSessionRepository implements ElevationSessionReposit
     };
     this.db.prepare(`
       INSERT INTO elevation_sessions
-        (id, elevation_request_id, requester_id, resource, action, status, started_at, expires_at, ended_at, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, correlation_id, elevation_request_id, requester_id, resource, action, status, started_at, expires_at, ended_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       session.id,
+      session.correlationId,
       session.elevationRequestId,
       session.requesterId,
       session.resource,
