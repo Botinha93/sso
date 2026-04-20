@@ -4,6 +4,7 @@ import { JwtService } from "./security/jwt.js";
 import { createRepositoryBundle } from "./repositories/factory.js";
 import { AuthService } from "./services/auth-service.js";
 import { AppService } from "./services/app-service.js";
+import { AuthorizationService } from "./services/authorization-service.js";
 import { AuthenticationFlowService } from "./services/authentication-flow-service.js";
 import { ClientService } from "./services/client-service.js";
 import { DatabaseMigrationService } from "./services/database-migration-service.js";
@@ -18,6 +19,8 @@ import { RecoveryService } from "./services/recovery-service.js";
 import { RoleService } from "./services/role-service.js";
 import { SecurityService } from "./services/security-service.js";
 import { ScopeService } from "./services/scope-service.js";
+import { ScimService } from "./services/scim-service.js";
+import { ScimTokenService } from "./services/scim-token-service.js";
 import { SetupService } from "./services/setup-service.js";
 import { TenantService } from "./services/tenant-service.js";
 import { TotpService } from "./services/totp-service.js";
@@ -52,6 +55,8 @@ export const bootstrap = async (config: AppConfig) => {
     groupUserAttributeAssignmentRepository,
     policyDefinitionRepository,
     policyAssignmentRepository,
+    policyDecisionLogRepository,
+    scimTokenRepository,
     eventHookRepository,
     eventNotificationRepository,
     instanceSettingsRepository
@@ -83,6 +88,7 @@ export const bootstrap = async (config: AppConfig) => {
     policyAssignmentRepository,
     userGroupAssignmentRepository
   );
+  const authorizationService = new AuthorizationService(policyService);
   await policyService.ensureBuiltIns();
   const instanceSettingsService = new InstanceSettingsService(instanceSettingsRepository);
   await instanceSettingsService.ensureDefaults();
@@ -103,6 +109,8 @@ export const bootstrap = async (config: AppConfig) => {
   const clientService = new ClientService(clientRepository, instanceSettingsService);
   const scopeService = new ScopeService(scopeRepository);
   const appService = new AppService(appRepository);
+  const scimService = new ScimService(userService, groupService);
+  const scimTokenService = new ScimTokenService(scimTokenRepository);
   const setupService = new SetupService(
     userService,
     roleService,
@@ -317,6 +325,7 @@ export const bootstrap = async (config: AppConfig) => {
     federationService,
     userAttributeService,
     policyService,
+    authorizationService,
     eventHookService,
     securityService,
     emailService,
@@ -325,6 +334,8 @@ export const bootstrap = async (config: AppConfig) => {
     instanceSettingsService,
     tenantService,
     userService,
+    scimService,
+    scimTokenService,
     clientService,
     scopeService,
     appService,
@@ -333,6 +344,7 @@ export const bootstrap = async (config: AppConfig) => {
     authService,
     oidcService,
     auditRepository,
+    policyDecisionLogRepository,
     dispose: repositories.dispose ?? (async () => undefined)
   };
 };

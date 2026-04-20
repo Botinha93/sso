@@ -79,6 +79,22 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'POST', path: '/oauth/backchannel-logout', auth: 'client', description: 'Back-channel logout endpoint for sid/sub scoped revocation.' },
   { method: 'POST', path: '/oauth/revoke', auth: 'session+csrf', description: 'Legacy local token revocation helper endpoint.' },
 
+  { method: 'GET', path: '/scim/v2/ServiceProviderConfig', auth: 'public', description: 'SCIM service provider capabilities document.' },
+  { method: 'GET', path: '/scim/v2/Schemas', auth: 'public', description: 'Lists supported SCIM schemas for User and Group resources.' },
+  { method: 'GET', path: '/scim/v2/ResourceTypes', auth: 'public', description: 'Lists supported SCIM resource types and endpoint bindings.' },
+  { method: 'GET', path: '/scim/v2/Users', auth: 'public', description: 'Lists SCIM users with optional filter and pagination.' },
+  { method: 'POST', path: '/scim/v2/Users', auth: 'public', description: 'Creates SCIM user.' },
+  { method: 'GET', path: '/scim/v2/Users/:id', auth: 'public', description: 'Gets SCIM user by id.' },
+  { method: 'PUT', path: '/scim/v2/Users/:id', auth: 'public', description: 'Replaces SCIM user profile.' },
+  { method: 'PATCH', path: '/scim/v2/Users/:id', auth: 'public', description: 'Applies SCIM patch operations to user profile.' },
+  { method: 'DELETE', path: '/scim/v2/Users/:id', auth: 'public', description: 'Deletes SCIM user.' },
+  { method: 'GET', path: '/scim/v2/Groups', auth: 'public', description: 'Lists SCIM groups with optional filter and pagination.' },
+  { method: 'POST', path: '/scim/v2/Groups', auth: 'public', description: 'Creates SCIM group.' },
+  { method: 'GET', path: '/scim/v2/Groups/:id', auth: 'public', description: 'Gets SCIM group by id.' },
+  { method: 'PUT', path: '/scim/v2/Groups/:id', auth: 'public', description: 'Replaces SCIM group display name and members.' },
+  { method: 'PATCH', path: '/scim/v2/Groups/:id', auth: 'public', description: 'Applies SCIM patch operations to group display name/members.' },
+  { method: 'DELETE', path: '/scim/v2/Groups/:id', auth: 'public', description: 'Deletes SCIM group.' },
+
   { method: 'POST', path: '/auth/login', auth: 'public', description: 'Login endpoint creating session cookie and issuing initial tokens.' },
   { method: 'POST', path: '/auth/logout', auth: 'session+csrf', description: 'Clears active session cookie and emits logout event.' },
   { method: 'GET', path: '/auth/federation/providers', auth: 'public', description: 'Lists enabled federation providers for sign-in screen.' },
@@ -1747,6 +1763,109 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
     }
   }
 
+  if (route.path === '/scim/v2/ServiceProviderConfig') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({
+        schemas: ['urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig'],
+        patch: { supported: true },
+        filter: { supported: true, maxResults: 200 },
+        authenticationSchemes: [{ type: 'oauthbearertoken', primary: true }]
+      })
+    }
+  }
+
+  if (route.path === '/scim/v2/Schemas') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({
+        schemas: ['urn:ietf:params:scim:api:messages:2.0:ListResponse'],
+        totalResults: 2,
+        Resources: [
+          { id: 'urn:ietf:params:scim:schemas:core:2.0:User', name: 'User' },
+          { id: 'urn:ietf:params:scim:schemas:core:2.0:Group', name: 'Group' }
+        ]
+      })
+    }
+  }
+
+  if (route.path === '/scim/v2/ResourceTypes') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({
+        schemas: ['urn:ietf:params:scim:api:messages:2.0:ListResponse'],
+        totalResults: 2,
+        Resources: [
+          { id: 'User', endpoint: '/Users', schema: 'urn:ietf:params:scim:schemas:core:2.0:User' },
+          { id: 'Group', endpoint: '/Groups', schema: 'urn:ietf:params:scim:schemas:core:2.0:Group' }
+        ]
+      })
+    }
+  }
+
+  if (route.path === '/scim/v2/Users' && route.method === 'GET') {
+    return {
+      parameters: [...params, 'Query: startIndex? count? filter?'],
+      expectedResponse: prettyJson({
+        schemas: ['urn:ietf:params:scim:api:messages:2.0:ListResponse'],
+        totalResults: 1,
+        startIndex: 1,
+        itemsPerPage: 1,
+        Resources: [{ id: 'user_xxx', userName: 'scim.user', active: true }]
+      })
+    }
+  }
+
+  if (route.path === '/scim/v2/Users' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        userName: 'scim.user',
+        name: { givenName: 'Scim', familyName: 'User' },
+        emails: [{ value: 'scim.user@example.com', primary: true }],
+        active: true
+      }),
+      expectedResponse: prettyJson({ id: 'user_xxx', userName: 'scim.user', active: true })
+    }
+  }
+
+  if (route.path === '/scim/v2/Users/:id' && route.method === 'PATCH') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        Operations: [
+          { op: 'replace', path: 'name.givenName', value: 'Updated' },
+          { op: 'replace', path: 'active', value: false }
+        ]
+      }),
+      expectedResponse: prettyJson({ id: 'user_xxx', userName: 'scim.user', active: false })
+    }
+  }
+
+  if (route.path === '/scim/v2/Groups' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        displayName: 'Finance Team',
+        members: [{ value: 'user_xxx' }]
+      }),
+      expectedResponse: prettyJson({ id: 'group_xxx', displayName: 'Finance Team' })
+    }
+  }
+
+  if (route.path === '/scim/v2/Groups/:id' && route.method === 'PATCH') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        Operations: [
+          { op: 'replace', path: 'displayName', value: 'Finance and Ops' },
+          { op: 'add', path: 'members', value: [{ value: 'user_abc' }] }
+        ]
+      }),
+      expectedResponse: prettyJson({ id: 'group_xxx', displayName: 'Finance and Ops' })
+    }
+  }
+
   if (route.path === '/auth/login') {
     return {
       parameters: params,
@@ -1784,6 +1903,55 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
       parameters: params,
       requestJson: prettyJson({ eventType: 'auth.login.succeeded', targetUrl: 'https://hooks.example.com/sso', method: 'POST', headers: { 'x-key': 'value' }, enabled: true }),
       expectedResponse: prettyJson({ id: 'hook_xxx', eventType: 'auth.login.succeeded', enabled: true })
+    }
+  }
+
+  if (route.path === '/api/admin/policies' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        key: 'abac_finance_write_guard',
+        name: 'Finance Write Guard',
+        description: 'Prevents write actions on finance resources unless explicitly allowed.',
+        category: 'authorization',
+        effect: 'deny',
+        resourcePattern: 'finance:*',
+        actionPattern: 'write',
+        stageBindings: [],
+        javascriptCode: 'return false',
+        enabled: true
+      }),
+      expectedResponse: prettyJson({ id: 'policy_xxx', key: 'abac_finance_write_guard', category: 'authorization', effect: 'deny' })
+    }
+  }
+
+  if (route.path === '/api/admin/policies/:id' && route.method === 'PUT') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        effect: 'allow',
+        resourcePattern: 'finance:invoice:*',
+        actionPattern: 'read',
+        javascriptCode: 'return true'
+      }),
+      expectedResponse: prettyJson({ id: 'policy_xxx', effect: 'allow', resourcePattern: 'finance:invoice:*', actionPattern: 'read' })
+    }
+  }
+
+  if (route.path === '/api/admin/policies/:id/assignments' && route.method === 'PUT') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        scopeType: 'global',
+        enabled: true,
+        priority: 200,
+        decisionStrategy: 'deny_overrides',
+        config: {
+          priority: 200,
+          effect: 'deny'
+        }
+      }),
+      expectedResponse: prettyJson({ id: 'policy_assignment_xxx', scopeType: 'global', priority: 200, decisionStrategy: 'deny_overrides' })
     }
   }
 

@@ -388,6 +388,10 @@ export const createPolicySchema = z.object({
   key: z.string().min(2),
   name: z.string().min(2),
   description: z.string().min(2),
+  category: z.enum(["authentication", "authorization"]).optional(),
+  effect: z.enum(["allow", "deny"]).optional(),
+  resourcePattern: z.string().min(1).optional(),
+  actionPattern: z.string().min(1).optional(),
   stageBindings: z.array(authenticationStageTypeSchema).default([]),
   javascriptCode: z.string().optional(),
   enabled: z.boolean().default(true)
@@ -397,6 +401,10 @@ export const updatePolicySchema = z.object({
   key: z.string().min(2).optional(),
   name: z.string().min(2).optional(),
   description: z.string().min(2).optional(),
+  category: z.enum(["authentication", "authorization"]).optional(),
+  effect: z.enum(["allow", "deny"]).optional(),
+  resourcePattern: z.string().min(1).optional().nullable(),
+  actionPattern: z.string().min(1).optional().nullable(),
   stageBindings: z.array(authenticationStageTypeSchema).optional(),
   javascriptCode: z.string().optional().nullable(),
   enabled: z.boolean().optional()
@@ -406,6 +414,8 @@ export const setPolicyAssignmentSchema = z.object({
   scopeType: z.enum(["global", "tenant", "group", "user"]),
   scopeId: z.string().min(1).optional(),
   enabled: z.boolean(),
+  priority: z.number().int().optional(),
+  decisionStrategy: z.enum(["deny_overrides", "allow_overrides", "first_applicable"]).optional(),
   config: z.record(z.string(), z.unknown()).default({})
 });
 
@@ -413,6 +423,19 @@ export const removePolicyAssignmentSchema = z.object({
   scopeType: z.enum(["global", "tenant", "group", "user"]),
   scopeId: z.string().min(1).optional()
 });
+
+export const evaluatePolicyDecisionSchema = z.object({
+  userId: z.string().min(2),
+  resource: z.string().min(1),
+  action: z.string().min(1),
+  decisionStrategy: z.enum(["deny_overrides", "allow_overrides", "first_applicable"]).optional(),
+  tenantId: z.string().min(1).optional(),
+  clientId: z.string().min(1).optional(),
+  ip: z.string().min(1).optional(),
+  context: z.record(z.string(), z.unknown()).default({})
+});
+
+export const authorizationCheckSchema = evaluatePolicyDecisionSchema;
 
 export const createEventHookSchema = z.object({
   eventType: z.string().min(1),
@@ -433,6 +456,11 @@ export const updateEventHookSchema = z.object({
 export const testEventHookSchema = z.object({
   eventType: z.string().min(1).optional(),
   payload: z.record(z.string(), z.unknown()).optional()
+});
+
+export const createScimTokenSchema = z.object({
+  label: z.string().min(2),
+  expiresAt: z.string().datetime().optional()
 });
 
 export const updateInstanceSettingsSchema = z.object({

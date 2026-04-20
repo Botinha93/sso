@@ -8,77 +8,15 @@ import {
   useSetPolicyAssignment,
   useUpdatePolicy,
 } from '../hooks/useApi'
-
-type ScopeType = 'global' | 'tenant' | 'group' | 'user'
-type AuthStageType =
-  | 'password'
-  | 'federation'
-  | 'consent'
-  | 'mfa_totp'
-  | 'risk_check'
-  | 'identification'
-  | 'email_verification'
-  | 'captcha'
-  | 'prompt'
-  | 'user_write'
-  | 'user_login'
-  | 'user_logout'
-
-const AUTH_STAGES: AuthStageType[] = [
-  'password',
-  'federation',
-  'consent',
-  'mfa_totp',
-  'risk_check',
-  'identification',
-  'email_verification',
-  'captcha',
-  'prompt',
-  'user_write',
-  'user_login',
-  'user_logout',
-]
-
-const exampleConfigs: Record<string, string> = {
-  password_requirements: '{"minLength":12,"requireUppercase":true,"requireLowercase":true,"requireNumber":true,"requireSymbol":true}',
-  password_expiration_days: '{"days":90}',
-  unique_email: '{"enabled":true}',
-  two_factor_required: '{"required":true}',
-  brute_force_lockout: '{"maxAttempts":5,"windowMinutes":15,"lockMinutes":30}',
-  new_device_verification: '{"requireStepUp":true,"trustedDeviceTtlDays":30}',
-  impossible_travel_risk: '{"maxKmPerHour":900,"action":"challenge"}',
-  restricted_login_hours: '{"timezone":"UTC","allowedHours":[8,20],"allowedWeekdays":[1,2,3,4,5]}',
-  ip_allowlist: '{"allowCidrs":["10.0.0.0/8","192.168.0.0/16"],"enforceForAdmins":true}',
-  session_concurrency_limit: '{"maxActiveSessions":3,"strategy":"revoke_oldest"}',
-  reauth_for_sensitive_actions: '{"reauthMinutes":15}',
-  tenant_isolation_guard: '{"strictTenantAudience":true,"denyCrossTenantScopes":true}',
-  service_user_constraints: '{"requireServiceUser":true,"denyInteractiveLogin":true,"allowedGrants":["client_credentials"]}',
-  token_hardening: '{"requireNarrowScopes":true,"maxAccessTokenMinutes":10}',
-  consent_freshness: '{"reconsentDays":180,"forceOnScopeIncrease":true}',
-  attribute_completeness: '{"requiredAttributes":["department","employee_id"]}'
-}
-
-const defaultJsTemplate = `// policy interfaces:
-// policy.key            -> string
-// policy.name           -> string
-// policy.stage          -> stage being evaluated
-// policy.assignment     -> { enabled, config }
-// policy.user           -> authenticated user profile + customAttributes
-// policy.request        -> { tenantId, clientId, ip }
-// now()                 -> helper returning current ISO timestamp
-//
-// return styles:
-// - true / undefined -> allow
-// - false -> deny with generic message
-// - "message" -> deny with custom message
-// - { allow: false, message: "reason" } -> deny with custom message
-
-if (policy.user.customAttributes.account_locked === 'true') {
-  return { allow: false, message: 'Account is currently locked by policy.' }
-}
-
-return true
-`
+import { PolicyDecisionSimulator } from '../components/policies/PolicyDecisionSimulator'
+import {
+  AUTH_STAGES,
+  defaultJsTemplate,
+  exampleConfigs,
+  type AuthStageType,
+  type PolicyCategory,
+  type ScopeType,
+} from '../components/policies/policy-config'
 
 function PolicyCodeEditor({
   value,
@@ -132,12 +70,13 @@ export default function Policies() {
     key: '',
     name: '',
     description: '',
+    category: 'authentication' as PolicyCategory,
     stageBindings: [] as AuthStageType[],
     javascriptCode: '',
     enabled: true
   })
   const [assignmentTarget, setAssignmentTarget] = useState<Record<string, { scopeType: ScopeType; scopeId: string; config: string }>>({})
-  const [policyEditState, setPolicyEditState] = useState<Record<string, { stageBindings: AuthStageType[]; javascriptCode: string }>>({})
+  const [policyEditState, setPolicyEditState] = useState<Record<string, { category: PolicyCategory; stageBindings: AuthStageType[]; javascriptCode: string }>>({})
 
   const sortedPolicies = useMemo(() => [...policies].sort((a: any, b: any) => a.key.localeCompare(b.key)), [policies])
 
@@ -162,27 +101,46 @@ export default function Policies() {
           <input className="rounded border px-3 py-2" placeholder="description" value={newPolicy.description} onChange={(e) => setNewPolicy((v) => ({ ...v, description: e.target.value }))} />
         </div>
 
-        <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Stage Bindings</p>
-          <div className="flex flex-wrap gap-2">
-            {AUTH_STAGES.map((stage) => {
-              const active = newPolicy.stageBindings.includes(stage)
-              return (
-                <button
-                  key={stage}
-                  type="button"
-                  onClick={() => setNewPolicy((v) => ({
-                    ...v,
-                    stageBindings: active ? v.stageBindings.filter((s) => s !== stage) : [...v.stageBindings, stage]
-                  }))}
-                  className={`rounded px-2 py-1 text-xs font-mono transition-colors ${active ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
-                >
-                  {stage}
-                </button>
-              )
-            })}
-          </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <select
+            className="rounded border px-3 py-2"
+            value={newPolicy.category}
+            onChange={(e) => setNewPolicy((v) => ({
+              ...v,
+              category: e.target.value as PolicyCategory,
+              stageBindings: e.target.value === 'authorization' ? [] : v.stageBindings
+            }))}
+          >
+            <option value="authentication">authentication</option>
+            <option value="authorization">authorization</option>
+          </select>
         </div>
+
+        {newPolicy.category === 'authentication' ? (
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Stage Bindings</p>
+            <div className="flex flex-wrap gap-2">
+              {AUTH_STAGES.map((stage) => {
+                const active = newPolicy.stageBindings.includes(stage)
+                return (
+                  <button
+                    key={stage}
+                    type="button"
+                    onClick={() => setNewPolicy((v) => ({
+                      ...v,
+                      stageBindings: active ? v.stageBindings.filter((s) => s !== stage) : [...v.stageBindings, stage]
+                    }))}
+                    className={`rounded px-2 py-1 text-xs font-mono transition-colors ${active ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                  >
+                    {stage}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-500">Authorization policies are evaluated by resource/action/context and do not use stage bindings.</p>
+        )}
 
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">JavaScript Validator (optional)</p>
@@ -199,9 +157,10 @@ export default function Policies() {
             onClick={async () => {
               await createPolicy.mutateAsync({
                 ...newPolicy,
+                stageBindings: newPolicy.category === 'authorization' ? [] : newPolicy.stageBindings,
                 javascriptCode: newPolicy.javascriptCode.trim() || undefined
               })
-              setNewPolicy({ key: '', name: '', description: '', stageBindings: [], javascriptCode: '', enabled: true })
+              setNewPolicy({ key: '', name: '', description: '', category: 'authentication', stageBindings: [], javascriptCode: '', enabled: true })
             }}
           >
             Add
@@ -229,6 +188,9 @@ policy.user.customAttributes
 policy.request.tenantId
 policy.request.clientId
 policy.request.ip
+policy.request.resource
+policy.request.action
+policy.request.context
 now() // returns current ISO timestamp
 
 // Return one of:
@@ -239,6 +201,8 @@ now() // returns current ISO timestamp
         </pre>
       </div>
 
+      <PolicyDecisionSimulator />
+
       <div className="space-y-4">
         {sortedPolicies.map((policy: any) => {
           const localState = assignmentTarget[policy.id] ?? {
@@ -248,6 +212,7 @@ now() // returns current ISO timestamp
           }
 
           const editState = policyEditState[policy.id] ?? {
+            category: (policy.category ?? 'authentication') as PolicyCategory,
             stageBindings: (policy.stageBindings ?? []) as AuthStageType[],
             javascriptCode: policy.javascriptCode ?? ''
           }
@@ -257,6 +222,7 @@ now() // returns current ISO timestamp
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="text-base font-semibold text-slate-900">{policy.name}</h3>
                 <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-700">{policy.key}</span>
+                <span className="rounded bg-indigo-100 px-2 py-0.5 font-mono text-xs text-indigo-700">{policy.category ?? 'authentication'}</span>
                 <button
                   className={`rounded px-2 py-1 text-xs ${policy.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}`}
                   onClick={() => updatePolicy.mutate({ id: policy.id, enabled: !policy.enabled })}
@@ -270,30 +236,49 @@ now() // returns current ISO timestamp
               <p className="mt-2 text-sm text-slate-600">{policy.description}</p>
 
               <div className="mt-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Category</p>
+                <select
+                  className="rounded border px-3 py-2 text-sm"
+                  value={editState.category}
+                  onChange={(e) => setPolicyEditState((prev) => ({
+                    ...prev,
+                    [policy.id]: { ...editState, category: e.target.value as PolicyCategory }
+                  }))}
+                >
+                  <option value="authentication">authentication</option>
+                  <option value="authorization">authorization</option>
+                </select>
+              </div>
+
+              <div className="mt-3">
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Stage Bindings</p>
-                <div className="flex flex-wrap gap-2">
-                  {AUTH_STAGES.map((stage) => {
-                    const active = editState.stageBindings.includes(stage)
-                    return (
-                      <button
-                        key={stage}
-                        type="button"
-                        onClick={() => setPolicyEditState((prev) => ({
-                          ...prev,
-                          [policy.id]: {
-                            ...editState,
-                            stageBindings: active
-                              ? editState.stageBindings.filter((s) => s !== stage)
-                              : [...editState.stageBindings, stage]
-                          }
-                        }))}
-                        className={`rounded px-2 py-1 text-xs font-mono transition-colors ${active ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
-                      >
-                        {stage}
-                      </button>
-                    )
-                  })}
-                </div>
+                {editState.category === 'authentication' ? (
+                  <div className="flex flex-wrap gap-2">
+                    {AUTH_STAGES.map((stage) => {
+                      const active = editState.stageBindings.includes(stage)
+                      return (
+                        <button
+                          key={stage}
+                          type="button"
+                          onClick={() => setPolicyEditState((prev) => ({
+                            ...prev,
+                            [policy.id]: {
+                              ...editState,
+                              stageBindings: active
+                                ? editState.stageBindings.filter((s) => s !== stage)
+                                : [...editState.stageBindings, stage]
+                            }
+                          }))}
+                          className={`rounded px-2 py-1 text-xs font-mono transition-colors ${active ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                        >
+                          {stage}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500">Authorization policies do not use stage bindings.</p>
+                )}
               </div>
 
               <div className="mt-4">
@@ -313,7 +298,8 @@ now() // returns current ISO timestamp
                     onClick={async () => {
                       await updatePolicy.mutateAsync({
                         id: policy.id,
-                        stageBindings: editState.stageBindings,
+                        category: editState.category,
+                        stageBindings: editState.category === 'authorization' ? [] : editState.stageBindings,
                         javascriptCode: editState.javascriptCode.trim() || null
                       })
                     }}

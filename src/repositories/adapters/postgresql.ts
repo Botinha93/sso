@@ -8,7 +8,7 @@ import { Pool } from "pg";
 import type { DatabaseAdapter, StatementResult } from "./database.js";
 
 export class PostgreSQLDatabaseAdapter implements DatabaseAdapter {
-  private pool: Pool;
+  private pool!: Pool;
 
   constructor(private readonly connectionString: string) {}
 

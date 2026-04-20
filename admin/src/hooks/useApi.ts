@@ -705,6 +705,54 @@ export function useRemovePolicyAssignment() {
   })
 }
 
+export function useEvaluatePolicyDecision() {
+  return useMutation({
+    mutationFn: (payload: {
+      userId: string
+      resource: string
+      action: string
+      decisionStrategy?: 'deny_overrides' | 'allow_overrides' | 'first_applicable'
+      tenantId?: string
+      clientId?: string
+      ip?: string
+      context?: Record<string, unknown>
+    }) =>
+      jsonFetch(`${API_BASE}/policies/evaluate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }),
+  })
+}
+
+export function useAuthorizationCheck() {
+  return useMutation({
+    mutationFn: (payload: {
+      userId: string
+      resource: string
+      action: string
+      decisionStrategy?: 'deny_overrides' | 'allow_overrides' | 'first_applicable'
+      tenantId?: string
+      clientId?: string
+      ip?: string
+      context?: Record<string, unknown>
+    }) =>
+      jsonFetch(`${API_BASE}/authorization/check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }),
+  })
+}
+
+export function usePolicyDecisions(limit = 50) {
+  return useQuery({
+    queryKey: ['policy-decisions', limit],
+    queryFn: () => jsonFetch(`${API_BASE}/policies/decisions?limit=${limit}`),
+    refetchInterval: 15000
+  })
+}
+
 // --- Event Hooks ---
 export function useEventHooks() {
   return useQuery({

@@ -17,7 +17,9 @@ import type {
   GroupUserAttributeAssignmentRepository,
   InstanceSettingsRepository,
   PolicyAssignmentRepository,
+  PolicyDecisionLogRepository,
   PolicyDefinitionRepository,
+  ScimTokenRepository,
   RefreshTokenRepository,
   RoleRepository,
   ScopeRepository,
@@ -57,6 +59,8 @@ export interface RepositoryBundle {
   groupUserAttributeAssignmentRepository: GroupUserAttributeAssignmentRepository;
   policyDefinitionRepository: PolicyDefinitionRepository;
   policyAssignmentRepository: PolicyAssignmentRepository;
+  policyDecisionLogRepository: PolicyDecisionLogRepository;
+  scimTokenRepository: ScimTokenRepository;
   eventHookRepository: EventHookRepository;
   eventNotificationRepository: EventNotificationRepository;
   instanceSettingsRepository: InstanceSettingsRepository;

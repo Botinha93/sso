@@ -23,6 +23,9 @@ export type FlowDesignation =
   | "unenrollment";
 export type UserAttributeType = "text" | "number" | "boolean" | "date" | "json";
 export type PolicyScopeType = "global" | "tenant" | "group" | "user";
+export type PolicyCategory = "authentication" | "authorization";
+export type PolicyEffect = "allow" | "deny";
+export type PolicyDecisionStrategy = "deny_overrides" | "allow_overrides" | "first_applicable";
 
 export interface Role {
   id: string;
@@ -242,6 +245,10 @@ export interface PolicyDefinition {
   key: string;
   name: string;
   description: string;
+  category: PolicyCategory;
+  effect?: PolicyEffect;
+  resourcePattern?: string;
+  actionPattern?: string;
   stageBindings: AuthenticationStageType[];
   javascriptCode?: string;
   enabled: boolean;
@@ -255,7 +262,34 @@ export interface PolicyAssignment {
   scopeType: PolicyScopeType;
   scopeId?: string;
   enabled: boolean;
+  priority?: number;
+  decisionStrategy?: PolicyDecisionStrategy;
   config: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PolicyDecisionLog {
+  id: string;
+  userId: string;
+  clientId?: string;
+  tenantId?: string;
+  ip?: string;
+  resource: string;
+  action: string;
+  allow: boolean;
+  deniedBy: string[];
+  context: Record<string, unknown>;
+  source: "policies_evaluate" | "authorization_check";
+  createdAt: Date;
+}
+
+export interface ScimToken {
+  id: string;
+  label: string;
+  tokenHash: string;
+  lastUsedAt?: Date;
+  expiresAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -352,6 +386,7 @@ export type AuditEventType =
   | "client_deleted"
   | "user_created"
   | "user_password_reset"
+  | "policy_decision_evaluated"
   | "security_sqli_blocked"
   | "security_rate_limit_blocked";
 

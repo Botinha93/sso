@@ -307,6 +307,10 @@ model PolicyDefinition {
   key               String  @unique
   name              String
   description       String
+  category          String  @default("authentication")
+  effect            String  @default("deny")
+  resourcePattern   String? @map("resource_pattern")
+  actionPattern     String? @map("action_pattern")
   stageBindingsJson String  @default("[]") @map("stage_bindings_json")
   javascriptCode    String? @map("javascript_code")
   enabled           Int
@@ -322,12 +326,43 @@ model PolicyAssignment {
   scopeType  String  @map("scope_type")
   scopeId    String? @map("scope_id")
   enabled    Int
+  priority   Int     @default(0)
+  decisionStrategy String? @map("decision_strategy")
   configJson String  @map("config_json")
   createdAt  String  @map("created_at")
   updatedAt  String  @map("updated_at")
 
   @@unique([policyId, scopeType, scopeId])
   @@map("policy_assignments")
+}
+
+model PolicyDecisionLog {
+  id          String @id
+  userId      String @map("user_id")
+  clientId    String? @map("client_id")
+  tenantId    String? @map("tenant_id")
+  ip          String?
+  resource    String
+  action      String
+  allow       Int
+  deniedByJson String @map("denied_by_json")
+  contextJson  String @map("context_json")
+  source      String
+  createdAt   String @map("created_at")
+
+  @@map("policy_decision_logs")
+}
+
+model ScimToken {
+  id        String @id
+  label     String
+  tokenHash String @unique @map("token_hash")
+  lastUsedAt String? @map("last_used_at")
+  expiresAt String? @map("expires_at")
+  createdAt String @map("created_at")
+  updatedAt String @map("updated_at")
+
+  @@map("scim_tokens")
 }
 
 model EventHook {

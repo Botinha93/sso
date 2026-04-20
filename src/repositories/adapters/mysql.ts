@@ -8,7 +8,7 @@ import { createPool, type Pool } from "mysql2/promise";
 import type { DatabaseAdapter, StatementResult } from "./database.js";
 
 export class MySQLDatabaseAdapter implements DatabaseAdapter {
-  private pool: Pool;
+  private pool!: Pool;
 
   constructor(private readonly connectionString: string) {}
 

@@ -9,7 +9,7 @@ import Database from "better-sqlite3";
 import type { DatabaseAdapter, StatementResult } from "./database.js";
 
 export class SqliteDatabaseAdapter implements DatabaseAdapter {
-  private db: Database.Database;
+  private db!: Database.Database;
 
   constructor(private readonly path: string) {}
 

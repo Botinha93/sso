@@ -97,7 +97,7 @@ export class AuthService {
     }
 
     const client = await this.requireClient(input.clientId);
-    await await this.assertClientSupportsActiveFlow(client);
+    await this.assertClientSupportsActiveFlow(client);
     const allowedScope = input.scope.filter((scope) => client.allowedScopes.includes(scope));
     const tenant = input.tenantSlug ? await this.tenantRepository.findBySlug(input.tenantSlug) : undefined;
 
@@ -116,7 +116,7 @@ export class AuthService {
       tenantId: tenant?.id
     });
 
-    await await this.auditRepository.log({
+    await this.auditRepository.log({
       type: "login",
       actorId: user.id,
       actorType: "user",
@@ -367,7 +367,7 @@ export class AuthService {
     await this.authenticationFlowService.assertGrantSupported("password");
     await this.authenticationFlowService.assertStageEnabled("password");
     const client = await this.requireClient(input.clientId);
-    await await this.assertClientSupportsActiveFlow(client);
+    await this.assertClientSupportsActiveFlow(client);
 
     if (client.secret !== input.clientSecret) {
       throw new AuthenticationError("Invalid client credentials");
@@ -407,7 +407,7 @@ export class AuthService {
       scope: allowedScope
     });
 
-    await await this.auditRepository.log({
+    await this.auditRepository.log({
       type: "token_issued",
       actorId: user.id,
       actorType: "user",
@@ -657,7 +657,7 @@ export class AuthService {
       user,
       client,
       scope: allowedScope,
-      roles: this.roleService.resolveNamesForUser(user.id, input.tenantId),
+      roles: await this.roleService.resolveNamesForUser(user.id, input.tenantId),
       accessTokenId,
       tenantId: input.tenantId
     });
@@ -700,11 +700,11 @@ export class AuthService {
   }
 
   async revokeAccessToken(tokenId: string) {
-    await await this.accessTokenRepository.revokeByTokenId(tokenId, new Date());
+    await this.accessTokenRepository.revokeByTokenId(tokenId, new Date());
   }
 
   async revokeRefreshToken(tokenId: string) {
-    await await this.refreshTokenRepository.revokeByTokenId(tokenId, new Date());
+    await this.refreshTokenRepository.revokeByTokenId(tokenId, new Date());
   }
 
   async getUserInfoFromAccessToken(accessToken: string) {
@@ -740,7 +740,7 @@ export class AuthService {
       claims.preferred_username = user.username;
       claims.given_name = user.givenName;
       claims.family_name = user.familyName;
-      claims.roles = this.roleService.resolveNamesForUser(user.id, tenantId);
+      claims.roles = await this.roleService.resolveNamesForUser(user.id, tenantId);
     }
 
     if (scopes.includes("email")) {
@@ -750,15 +750,15 @@ export class AuthService {
 
     // Always include roles if explicitly in scope
     if (scopes.includes("roles") && !claims.roles) {
-      claims.roles = this.roleService.resolveNamesForUser(user.id, tenantId);
+      claims.roles = await this.roleService.resolveNamesForUser(user.id, tenantId);
     }
 
     return claims;
   }
 
   private async issuePersistedTokens(input: {
-    user: NonNullable<ReturnType<UserService["findUserById"]>>;
-    client: ReturnType<AuthService["requireClient"]>;
+    user: NonNullable<Awaited<ReturnType<UserService["findUserById"]>>>;
+    client: Awaited<ReturnType<AuthService["requireClient"]>>;
     sessionId: string;
     scope: string[];
     tenantId?: string;
@@ -771,7 +771,7 @@ export class AuthService {
       user: input.user,
       client: input.client,
       scope: input.scope,
-      roles: this.roleService.resolveNamesForUser(input.user.id, input.tenantId),
+      roles: await this.roleService.resolveNamesForUser(input.user.id, input.tenantId),
       accessTokenId,
       refreshTokenId,
       tenantId: input.tenantId

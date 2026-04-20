@@ -6,7 +6,22 @@ import type {
   PolicyDefinitionRepository,
   UserGroupAssignmentRepository
 } from "../repositories/contracts.js";
-import type { AuthenticationStageType, PolicyDefinition, PolicyScopeType, User } from "../domain/models.js";
+import type {
+  AuthenticationStageType,
+  PolicyCategory,
+  PolicyDecisionStrategy,
+  PolicyDefinition,
+  PolicyEffect,
+  PolicyScopeType,
+  User
+} from "../domain/models.js";
+import {
+  matchesAuthorizationRequest,
+  resolvePolicyDecisionStrategy,
+  resolvePolicyEffect,
+  resolvePolicyPriority,
+  summarizeAuthorizationDecision
+} from "./policy-authorization-evaluator.js";
 
 const BUILT_IN_POLICIES = [
   {
@@ -336,8 +351,31 @@ return true`
 
 type EffectivePolicy = {
   definition: PolicyDefinition;
-  assignment: { enabled: boolean; config: Record<string, unknown> };
+  assignment: {
+    enabled: boolean;
+    priority?: number;
+    decisionStrategy?: PolicyDecisionStrategy;
+    config: Record<string, unknown>;
+  };
 };
+
+export interface PolicySimulationDecision {
+  policyId: string;
+  key: string;
+  name: string;
+  effect: PolicyEffect;
+  priority: number;
+  applied: boolean;
+  allow: boolean;
+  message?: string;
+}
+
+export interface PolicySimulationResult {
+  decisionStrategy: PolicyDecisionStrategy;
+  allow: boolean;
+  deniedBy: string[];
+  decisions: PolicySimulationDecision[];
+}
 
 export class PolicyService {
   constructor(
@@ -354,6 +392,7 @@ export class PolicyService {
           key: policy.key,
           name: policy.name,
           description: policy.description,
+          category: "authentication",
           stageBindings: this.resolveDefaultStageBindings(policy.key),
           javascriptCode: undefined,
           enabled: true
@@ -375,6 +414,10 @@ export class PolicyService {
     key: string;
     name: string;
     description: string;
+    category?: PolicyCategory;
+    effect?: PolicyEffect;
+    resourcePattern?: string;
+    actionPattern?: string;
     stageBindings?: AuthenticationStageType[];
     javascriptCode?: string;
     enabled: boolean;
@@ -386,12 +429,18 @@ export class PolicyService {
 
     const stageBindings = this.normalizeStageBindings(input.stageBindings ?? this.resolveDefaultStageBindings(key));
     const javascriptCode = this.normalizeJavascriptCode(input.javascriptCode);
+    const category = this.resolvePolicyCategory(input.category, stageBindings);
+    this.assertCategoryConsistency(category, stageBindings);
 
     return this.policyDefinitionRepository.create({
       id: nanoid(),
       key,
       name: input.name.trim(),
       description: input.description.trim(),
+      category,
+      effect: input.effect,
+      resourcePattern: this.normalizeOptionalString(input.resourcePattern),
+      actionPattern: this.normalizeOptionalString(input.actionPattern),
       stageBindings,
       javascriptCode,
       enabled: input.enabled
@@ -404,6 +453,10 @@ export class PolicyService {
       key?: string;
       name?: string;
       description?: string;
+      category?: PolicyCategory;
+      effect?: PolicyEffect;
+      resourcePattern?: string | null;
+      actionPattern?: string | null;
       stageBindings?: AuthenticationStageType[];
       javascriptCode?: string | null;
       enabled?: boolean;
@@ -422,11 +475,19 @@ export class PolicyService {
       }
     }
 
+    const stageBindings = input.stageBindings ? this.normalizeStageBindings(input.stageBindings) : existing.stageBindings;
+    const category = this.resolvePolicyCategory(input.category ?? existing.category, stageBindings);
+    this.assertCategoryConsistency(category, stageBindings);
+
     const updated = await this.policyDefinitionRepository.update(id, {
       key: normalizedKey,
       name: input.name?.trim(),
       description: input.description?.trim(),
-      stageBindings: input.stageBindings ? this.normalizeStageBindings(input.stageBindings) : undefined,
+      category,
+      effect: input.effect,
+      resourcePattern: input.resourcePattern === null ? undefined : this.normalizeOptionalString(input.resourcePattern),
+      actionPattern: input.actionPattern === null ? undefined : this.normalizeOptionalString(input.actionPattern),
+      stageBindings,
       javascriptCode: input.javascriptCode === null ? undefined : this.normalizeJavascriptCode(input.javascriptCode),
       enabled: input.enabled
     });
@@ -447,6 +508,8 @@ export class PolicyService {
     scopeType: PolicyScopeType;
     scopeId?: string;
     enabled: boolean;
+    priority?: number;
+    decisionStrategy?: PolicyDecisionStrategy;
     config: Record<string, unknown>;
   }) {
     const policy = await this.policyDefinitionRepository.findById(input.policyId);
@@ -464,6 +527,8 @@ export class PolicyService {
       scopeType: input.scopeType,
       scopeId,
       enabled: input.enabled,
+      priority: input.priority,
+      decisionStrategy: input.decisionStrategy,
       config: input.config
     });
   }
@@ -524,6 +589,9 @@ export class PolicyService {
 
     for (const effective of effectiveByPolicyId.values()) {
       const definition = this.withResolvedDefinition(effective.definition);
+      if (definition.category !== "authentication") {
+        continue;
+      }
       if (!definition.stageBindings.includes(input.stage)) {
         continue;
       }
@@ -553,6 +621,245 @@ export class PolicyService {
         user: input.user
       });
     }
+  }
+
+  async evaluateAuthorizationPolicies(input: {
+    user: User;
+    decisionStrategy?: PolicyDecisionStrategy;
+    tenantId?: string;
+    clientId?: string;
+    ip?: string;
+    resource: string;
+    action: string;
+    context?: Record<string, unknown>;
+  }): Promise<PolicySimulationResult> {
+    const effectiveByPolicyId = await this.resolveEffectivePolicies(input.user.id, input.tenantId);
+    const prioritized = Array.from(effectiveByPolicyId.values())
+      .map((effective) => ({
+        effective,
+        priority: resolvePolicyPriority(
+          effective.assignment.config,
+          effective.assignment.priority
+        ),
+        effect: resolvePolicyEffect(
+          effective.assignment.config,
+          effective.definition.effect
+        )
+      }))
+      .sort((left, right) => {
+        if (left.priority !== right.priority) {
+          return right.priority - left.priority;
+        }
+        return left.effective.definition.key.localeCompare(right.effective.definition.key);
+      });
+    const strategy = resolvePolicyDecisionStrategy(
+      input.decisionStrategy,
+      prioritized.find((entry) => entry.effective.assignment.decisionStrategy)?.effective.assignment.decisionStrategy
+    );
+
+    const decisions: PolicySimulationDecision[] = [];
+
+    for (const entry of prioritized) {
+      const definition = this.withResolvedDefinition(entry.effective.definition);
+
+      if (definition.category !== "authorization" || !entry.effective.assignment.enabled) {
+        continue;
+      }
+
+      const requestMatch = matchesAuthorizationRequest(
+        entry.effective.assignment.config,
+        input.resource,
+        input.action,
+        {
+          resourcePattern: definition.resourcePattern,
+          actionPattern: definition.actionPattern
+        }
+      );
+      if (!requestMatch.matches) {
+        decisions.push({
+          policyId: definition.id,
+          key: definition.key,
+          name: definition.name,
+          effect: entry.effect,
+          priority: entry.priority,
+          applied: false,
+          allow: true,
+          message: requestMatch.reason
+        });
+        continue;
+      }
+
+      const javascriptCode = definition.javascriptCode?.trim();
+      if (!javascriptCode && entry.effect === "deny") {
+        decisions.push({
+          policyId: definition.id,
+          key: definition.key,
+          name: definition.name,
+          effect: entry.effect,
+          priority: entry.priority,
+          applied: false,
+          allow: true
+        });
+        continue;
+      }
+
+      const evaluation = javascriptCode
+        ? this.evaluateCustomJavascriptPolicy({
+          definition,
+          assignment: entry.effective.assignment,
+          user: input.user,
+          tenantId: input.tenantId,
+          clientId: input.clientId,
+          ip: input.ip,
+          resource: input.resource,
+          action: input.action,
+          context: input.context
+        })
+        : { allow: true };
+
+      if (entry.effect === "allow") {
+        if (evaluation.runtimeError) {
+          decisions.push({
+            policyId: definition.id,
+            key: definition.key,
+            name: definition.name,
+            effect: entry.effect,
+            priority: entry.priority,
+            applied: true,
+            allow: false,
+            message: evaluation.message ?? "Policy script execution failed"
+          });
+          continue;
+        }
+
+        decisions.push({
+          policyId: definition.id,
+          key: definition.key,
+          name: definition.name,
+          effect: entry.effect,
+          priority: entry.priority,
+          applied: evaluation.allow,
+          allow: true
+        });
+        continue;
+      }
+
+      if (!evaluation.allow) {
+        decisions.push({
+          policyId: definition.id,
+          key: definition.key,
+          name: definition.name,
+          effect: entry.effect,
+          priority: entry.priority,
+          applied: true,
+          allow: false,
+          message: evaluation.message ?? "Policy denied request"
+        });
+        continue;
+      }
+
+      decisions.push({
+        policyId: definition.id,
+        key: definition.key,
+        name: definition.name,
+        effect: entry.effect,
+        priority: entry.priority,
+        applied: false,
+        allow: true
+      });
+    }
+
+    const { allow, deniedBy } = summarizeAuthorizationDecision(strategy, decisions);
+
+    return {
+      decisionStrategy: strategy,
+      allow,
+      deniedBy,
+      decisions
+    };
+  }
+
+  private evaluateCustomJavascriptPolicy(input: {
+    definition: PolicyDefinition;
+    assignment: { enabled: boolean; config: Record<string, unknown> };
+    stage?: AuthenticationStageType;
+    user: User;
+    tenantId?: string;
+    clientId?: string;
+    ip?: string;
+    resource?: string;
+    action?: string;
+    context?: Record<string, unknown>;
+  }): { allow: boolean; message?: string; runtimeError?: boolean } {
+    const sandbox: {
+      policy: Record<string, unknown>;
+      result: unknown;
+      now: () => string;
+    } = {
+      policy: {
+        key: input.definition.key,
+        name: input.definition.name,
+        stage: input.stage,
+        assignment: {
+          enabled: input.assignment.enabled,
+          config: input.assignment.config
+        },
+        user: {
+          id: input.user.id,
+          email: input.user.email,
+          username: input.user.username,
+          givenName: input.user.givenName,
+          familyName: input.user.familyName,
+          active: input.user.active,
+          isServiceUser: input.user.isServiceUser,
+          customAttributes: input.user.customAttributes
+        },
+        request: {
+          tenantId: input.tenantId,
+          clientId: input.clientId,
+          ip: input.ip,
+          resource: input.resource,
+          action: input.action,
+          context: input.context ?? {}
+        }
+      },
+      result: true,
+      now: () => new Date().toISOString()
+    };
+
+    const wrappedScript = `
+      "use strict";
+      result = (function(policy, now) {
+${input.definition.javascriptCode ?? ""}
+      })(policy, now);
+    `;
+
+    try {
+      runInNewContext(wrappedScript, sandbox, { timeout: 75 });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Policy script execution failed";
+      return {
+        allow: false,
+        message: `Policy ${input.definition.key} rejected request: ${message}`,
+        runtimeError: true
+      };
+    }
+
+    if (sandbox.result === false) {
+      return { allow: false, message: `Policy ${input.definition.key} rejected request` };
+    }
+    if (typeof sandbox.result === "string") {
+      return { allow: false, message: sandbox.result };
+    }
+    if (typeof sandbox.result === "object" && sandbox.result !== null && "allow" in sandbox.result) {
+      const allow = Boolean((sandbox.result as { allow?: unknown }).allow);
+      const message = typeof (sandbox.result as { message?: unknown }).message === "string"
+        ? String((sandbox.result as { message?: unknown }).message)
+        : allow ? undefined : `Policy ${input.definition.key} rejected request`;
+      return { allow, message };
+    }
+
+    return { allow: true };
   }
 
   private executeBuiltInPolicy(input: {
@@ -585,73 +892,18 @@ export class PolicyService {
   private executeCustomJavascriptPolicy(input: {
     definition: PolicyDefinition;
     assignment: { enabled: boolean; config: Record<string, unknown> };
-    stage: AuthenticationStageType;
+    stage?: AuthenticationStageType;
     user: User;
     tenantId?: string;
     clientId?: string;
     ip?: string;
+    resource?: string;
+    action?: string;
+    context?: Record<string, unknown>;
   }) {
-    const sandbox: {
-      policy: Record<string, unknown>;
-      result: unknown;
-      now: () => string;
-    } = {
-      policy: {
-        key: input.definition.key,
-        name: input.definition.name,
-        stage: input.stage,
-        assignment: {
-          enabled: input.assignment.enabled,
-          config: input.assignment.config
-        },
-        user: {
-          id: input.user.id,
-          email: input.user.email,
-          username: input.user.username,
-          givenName: input.user.givenName,
-          familyName: input.user.familyName,
-          active: input.user.active,
-          isServiceUser: input.user.isServiceUser,
-          customAttributes: input.user.customAttributes
-        },
-        request: {
-          tenantId: input.tenantId,
-          clientId: input.clientId,
-          ip: input.ip
-        }
-      },
-      result: true,
-      now: () => new Date().toISOString()
-    };
-
-    const wrappedScript = `
-      "use strict";
-      result = (function(policy, now) {
-${input.definition.javascriptCode ?? ""}
-      })(policy, now);
-    `;
-
-    try {
-      runInNewContext(wrappedScript, sandbox, { timeout: 75 });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Policy script execution failed";
-      throw new AuthenticationError(`Policy ${input.definition.key} rejected login: ${message}`);
-    }
-
-    if (sandbox.result === false) {
-      throw new AuthenticationError(`Policy ${input.definition.key} rejected login`);
-    }
-    if (typeof sandbox.result === "string") {
-      throw new AuthenticationError(sandbox.result);
-    }
-    if (typeof sandbox.result === "object" && sandbox.result !== null && "allow" in sandbox.result) {
-      const allow = Boolean((sandbox.result as { allow?: unknown }).allow);
-      const message = typeof (sandbox.result as { message?: unknown }).message === "string"
-        ? String((sandbox.result as { message?: unknown }).message)
-        : `Policy ${input.definition.key} rejected login`;
-      if (!allow) {
-        throw new AuthenticationError(message);
-      }
+    const evaluation = this.evaluateCustomJavascriptPolicy(input);
+    if (!evaluation.allow) {
+      throw new AuthenticationError(evaluation.message ?? `Policy ${input.definition.key} rejected login`);
     }
   }
 
@@ -694,7 +946,12 @@ ${input.definition.javascriptCode ?? ""}
       if (effective) {
         result.set(definition.id, {
           definition,
-          assignment: { enabled: effective.enabled, config: effective.config }
+          assignment: {
+            enabled: effective.enabled,
+            priority: effective.priority,
+            decisionStrategy: effective.decisionStrategy,
+            config: effective.config
+          }
         });
       }
     }
@@ -703,12 +960,30 @@ ${input.definition.javascriptCode ?? ""}
   }
 
   private withResolvedDefinition(definition: PolicyDefinition): PolicyDefinition {
+    const stageBindings = definition.stageBindings.length > 0
+      ? definition.stageBindings
+      : this.resolveDefaultStageBindings(definition.key);
     return {
       ...definition,
-      stageBindings: definition.stageBindings.length > 0
-        ? definition.stageBindings
-        : this.resolveDefaultStageBindings(definition.key)
+      category: this.resolvePolicyCategory(definition.category, stageBindings),
+      effect: definition.effect,
+      resourcePattern: this.normalizeOptionalString(definition.resourcePattern),
+      actionPattern: this.normalizeOptionalString(definition.actionPattern),
+      stageBindings
     };
+  }
+
+  private resolvePolicyCategory(category: PolicyCategory | undefined, stageBindings: AuthenticationStageType[]): PolicyCategory {
+    if (category === "authentication" || category === "authorization") {
+      return category;
+    }
+    return stageBindings.length > 0 ? "authentication" : "authorization";
+  }
+
+  private assertCategoryConsistency(category: PolicyCategory, stageBindings: AuthenticationStageType[]) {
+    if (category === "authorization" && stageBindings.length > 0) {
+      throw new ValidationError("Authorization policies cannot include stage bindings");
+    }
   }
 
   private resolveDefaultStageBindings(policyKey: string): AuthenticationStageType[] {
@@ -722,6 +997,11 @@ ${input.definition.javascriptCode ?? ""}
   private normalizeJavascriptCode(javascriptCode: string | undefined) {
     const code = javascriptCode?.trim();
     return code && code.length > 0 ? code : undefined;
+  }
+
+  private normalizeOptionalString(value: string | undefined) {
+    const normalized = value?.trim();
+    return normalized && normalized.length > 0 ? normalized : undefined;
   }
 
   private resolveDefaultJavascriptCode(policyKey: string) {

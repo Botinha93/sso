@@ -18,8 +18,10 @@ import type {
   OAuthClient,
   OAuthScope,
   PolicyAssignment,
+  PolicyDecisionLog,
   PolicyDefinition,
   PolicyScopeType,
+  ScimToken,
   RefreshTokenRecord,
   Role,
   Session,
@@ -71,6 +73,8 @@ type PrismaClientLike = {
   groupUserAttributeAssignment: any;
   policyDefinition: any;
   policyAssignment: any;
+  policyDecisionLog: any;
+  scimToken: any;
   eventHook: any;
   eventNotification: any;
   $queryRaw<T = PrismaRow[]>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>;
@@ -410,6 +414,10 @@ const mapPolicyDefinition = (row: PrismaRow): PolicyDefinition => ({
   key: String(row.key),
   name: String(row.name),
   description: String(row.description),
+  category: row.category === "authorization" ? "authorization" : "authentication",
+  effect: row.effect === "allow" ? "allow" : "deny",
+  resourcePattern: row.resourcePattern ? String(row.resourcePattern) : undefined,
+  actionPattern: row.actionPattern ? String(row.actionPattern) : undefined,
   stageBindings: parseStringArray(row.stageBindingsJson) as PolicyDefinition["stageBindings"],
   javascriptCode: row.javascriptCode ? String(row.javascriptCode) : undefined,
   enabled: asBoolean(row.enabled),
@@ -423,7 +431,34 @@ const mapPolicyAssignment = (row: PrismaRow): PolicyAssignment => ({
   scopeType: String(row.scopeType) as PolicyScopeType,
   scopeId: row.scopeId ? String(row.scopeId) : undefined,
   enabled: asBoolean(row.enabled),
+  priority: typeof row.priority === "number" ? row.priority : 0,
+  decisionStrategy: row.decisionStrategy ? String(row.decisionStrategy) as PolicyAssignment["decisionStrategy"] : undefined,
   config: parseObjectRecord(row.configJson),
+  createdAt: asDate(row.createdAt),
+  updatedAt: asDate(row.updatedAt)
+});
+
+const mapPolicyDecisionLog = (row: PrismaRow): PolicyDecisionLog => ({
+  id: String(row.id),
+  userId: String(row.userId),
+  clientId: readField(row, "clientId") ? String(readField(row, "clientId")) : undefined,
+  tenantId: readField(row, "tenantId") ? String(readField(row, "tenantId")) : undefined,
+  ip: readField(row, "ip") ? String(readField(row, "ip")) : undefined,
+  resource: String(row.resource),
+  action: String(row.action),
+  allow: asBoolean(row.allow),
+  deniedBy: parseStringArray(readField(row, "deniedByJson")),
+  context: parseObjectRecord(readField(row, "contextJson")),
+  source: String(row.source) as PolicyDecisionLog["source"],
+  createdAt: asDate(row.createdAt)
+});
+
+const mapScimToken = (row: PrismaRow): ScimToken => ({
+  id: String(row.id),
+  label: String(row.label),
+  tokenHash: String(row.tokenHash),
+  lastUsedAt: readField(row, "lastUsedAt") ? asDate(readField(row, "lastUsedAt")) : undefined,
+  expiresAt: readField(row, "expiresAt") ? asDate(readField(row, "expiresAt")) : undefined,
   createdAt: asDate(row.createdAt),
   updatedAt: asDate(row.updatedAt)
 });
@@ -1332,7 +1367,7 @@ class PrismaPolicyDefinitionRepository {
   async create(input: Omit<PolicyDefinition, "createdAt" | "updatedAt">): Promise<PolicyDefinition> {
     const now = new Date();
     const policy: PolicyDefinition = { ...input, createdAt: now, updatedAt: now };
-    await this.prisma.policyDefinition.create({ data: { id: policy.id, key: policy.key, name: policy.name, description: policy.description, stageBindingsJson: JSON.stringify(policy.stageBindings), javascriptCode: policy.javascriptCode ?? null, enabled: asBooleanInt(policy.enabled), createdAt: policy.createdAt.toISOString(), updatedAt: policy.updatedAt.toISOString() } });
+    await this.prisma.policyDefinition.create({ data: { id: policy.id, key: policy.key, name: policy.name, description: policy.description, category: policy.category, effect: policy.effect ?? "deny", resourcePattern: policy.resourcePattern ?? null, actionPattern: policy.actionPattern ?? null, stageBindingsJson: JSON.stringify(policy.stageBindings), javascriptCode: policy.javascriptCode ?? null, enabled: asBooleanInt(policy.enabled), createdAt: policy.createdAt.toISOString(), updatedAt: policy.updatedAt.toISOString() } });
     return policy;
   }
 
@@ -1342,7 +1377,7 @@ class PrismaPolicyDefinitionRepository {
       return undefined;
     }
     const updated: PolicyDefinition = { ...existing, ...input, updatedAt: new Date() };
-    await this.prisma.policyDefinition.update({ where: { id }, data: { key: updated.key, name: updated.name, description: updated.description, stageBindingsJson: JSON.stringify(updated.stageBindings), javascriptCode: updated.javascriptCode ?? null, enabled: asBooleanInt(updated.enabled), updatedAt: updated.updatedAt.toISOString() } });
+    await this.prisma.policyDefinition.update({ where: { id }, data: { key: updated.key, name: updated.name, description: updated.description, category: updated.category, effect: updated.effect ?? "deny", resourcePattern: updated.resourcePattern ?? null, actionPattern: updated.actionPattern ?? null, stageBindingsJson: JSON.stringify(updated.stageBindings), javascriptCode: updated.javascriptCode ?? null, enabled: asBooleanInt(updated.enabled), updatedAt: updated.updatedAt.toISOString() } });
     return updated;
   }
 
@@ -1368,19 +1403,103 @@ class PrismaPolicyAssignmentRepository {
     const existing = await this.prisma.policyAssignment.findFirst({ where: { policyId: input.policyId, scopeType: input.scopeType, scopeId: input.scopeId ?? null } });
     if (existing) {
       const current = mapPolicyAssignment(existing as PrismaRow);
-      const updated: PolicyAssignment = { ...current, enabled: input.enabled, config: input.config, updatedAt: new Date() };
-      await this.prisma.policyAssignment.update({ where: { id: updated.id }, data: { enabled: asBooleanInt(updated.enabled), configJson: JSON.stringify(updated.config), updatedAt: updated.updatedAt.toISOString() } });
+      const updated: PolicyAssignment = { ...current, enabled: input.enabled, priority: input.priority, decisionStrategy: input.decisionStrategy, config: input.config, updatedAt: new Date() };
+      await this.prisma.policyAssignment.update({ where: { id: updated.id }, data: { enabled: asBooleanInt(updated.enabled), priority: updated.priority ?? 0, decisionStrategy: updated.decisionStrategy ?? null, configJson: JSON.stringify(updated.config), updatedAt: updated.updatedAt.toISOString() } });
       return updated;
     }
 
     const now = new Date();
-    const assignment: PolicyAssignment = { id: nanoid(), policyId: input.policyId, scopeType: input.scopeType, scopeId: input.scopeId, enabled: input.enabled, config: input.config, createdAt: now, updatedAt: now };
-    await this.prisma.policyAssignment.create({ data: { id: assignment.id, policyId: assignment.policyId, scopeType: assignment.scopeType, scopeId: assignment.scopeId ?? null, enabled: asBooleanInt(assignment.enabled), configJson: JSON.stringify(assignment.config), createdAt: assignment.createdAt.toISOString(), updatedAt: assignment.updatedAt.toISOString() } });
+    const assignment: PolicyAssignment = { id: nanoid(), policyId: input.policyId, scopeType: input.scopeType, scopeId: input.scopeId, enabled: input.enabled, priority: input.priority, decisionStrategy: input.decisionStrategy, config: input.config, createdAt: now, updatedAt: now };
+    await this.prisma.policyAssignment.create({ data: { id: assignment.id, policyId: assignment.policyId, scopeType: assignment.scopeType, scopeId: assignment.scopeId ?? null, enabled: asBooleanInt(assignment.enabled), priority: assignment.priority ?? 0, decisionStrategy: assignment.decisionStrategy ?? null, configJson: JSON.stringify(assignment.config), createdAt: assignment.createdAt.toISOString(), updatedAt: assignment.updatedAt.toISOString() } });
     return assignment;
   }
 
   async delete(policyId: string, scopeType: PolicyScopeType, scopeId: string): Promise<void> {
     await this.prisma.policyAssignment.deleteMany({ where: { policyId, scopeType, scopeId } });
+  }
+}
+
+class PrismaPolicyDecisionLogRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+
+  async list(limit = 100): Promise<PolicyDecisionLog[]> {
+    const rows = await this.prisma.policyDecisionLog.findMany({ orderBy: { createdAt: "desc" }, take: limit });
+    return rows.map((row: PrismaRow) => mapPolicyDecisionLog(row));
+  }
+
+  async create(input: Omit<PolicyDecisionLog, "id" | "createdAt">): Promise<PolicyDecisionLog> {
+    const log: PolicyDecisionLog = {
+      ...input,
+      id: nanoid(),
+      createdAt: new Date()
+    };
+    await this.prisma.policyDecisionLog.create({
+      data: {
+        id: log.id,
+        userId: log.userId,
+        clientId: log.clientId ?? null,
+        tenantId: log.tenantId ?? null,
+        ip: log.ip ?? null,
+        resource: log.resource,
+        action: log.action,
+        allow: asBooleanInt(log.allow),
+        deniedByJson: JSON.stringify(log.deniedBy),
+        contextJson: JSON.stringify(log.context),
+        source: log.source,
+        createdAt: log.createdAt.toISOString()
+      }
+    });
+    return log;
+  }
+}
+
+class PrismaScimTokenRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+
+  async list(): Promise<ScimToken[]> {
+    const rows = await this.prisma.scimToken.findMany({ orderBy: { createdAt: "asc" } });
+    return rows.map((row: PrismaRow) => mapScimToken(row));
+  }
+
+  async findByTokenHash(tokenHash: string): Promise<ScimToken | undefined> {
+    const row = await this.prisma.scimToken.findUnique({ where: { tokenHash } });
+    return row ? mapScimToken(row as PrismaRow) : undefined;
+  }
+
+  async create(input: Omit<ScimToken, "id" | "createdAt" | "updatedAt" | "lastUsedAt">): Promise<ScimToken> {
+    const now = new Date();
+    const token: ScimToken = {
+      ...input,
+      id: nanoid(),
+      createdAt: now,
+      updatedAt: now
+    };
+    await this.prisma.scimToken.create({
+      data: {
+        id: token.id,
+        label: token.label,
+        tokenHash: token.tokenHash,
+        lastUsedAt: null,
+        expiresAt: token.expiresAt ? token.expiresAt.toISOString() : null,
+        createdAt: token.createdAt.toISOString(),
+        updatedAt: token.updatedAt.toISOString()
+      }
+    });
+    return token;
+  }
+
+  async touchLastUsed(id: string, usedAt: Date): Promise<void> {
+    await this.prisma.scimToken.update({
+      where: { id },
+      data: {
+        lastUsedAt: usedAt.toISOString(),
+        updatedAt: usedAt.toISOString()
+      }
+    }).catch(() => undefined);
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.scimToken.delete({ where: { id } }).catch(() => undefined);
   }
 }
 
@@ -1465,6 +1584,8 @@ export const createPrismaRepositories = (prisma: PrismaClientLike): RepositoryBu
   groupUserAttributeAssignmentRepository: new PrismaGroupUserAttributeAssignmentRepository(prisma),
   policyDefinitionRepository: new PrismaPolicyDefinitionRepository(prisma),
   policyAssignmentRepository: new PrismaPolicyAssignmentRepository(prisma),
+  policyDecisionLogRepository: new PrismaPolicyDecisionLogRepository(prisma),
+  scimTokenRepository: new PrismaScimTokenRepository(prisma),
   eventHookRepository: new PrismaEventHookRepository(prisma),
   eventNotificationRepository: new PrismaEventNotificationRepository(prisma),
   instanceSettingsRepository: new PrismaInstanceSettingsRepository(prisma)

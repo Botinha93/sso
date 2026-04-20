@@ -6,6 +6,152 @@ info:
 servers:
   - url: http://127.0.0.1:4000
 paths:
+  /scim/v2/ServiceProviderConfig:
+    get:
+      summary: SCIM service provider capabilities
+      responses:
+        '200':
+          description: Service provider configuration
+  /scim/v2/Schemas:
+    get:
+      summary: List SCIM schemas
+      responses:
+        '200':
+          description: SCIM schema list
+  /scim/v2/ResourceTypes:
+    get:
+      summary: List SCIM resource types
+      responses:
+        '200':
+          description: SCIM resource type list
+  /scim/v2/Users:
+    get:
+      summary: List SCIM users
+      parameters:
+        - in: query
+          name: startIndex
+          schema: { type: integer, minimum: 1 }
+        - in: query
+          name: count
+          schema: { type: integer, minimum: 1, maximum: 200 }
+        - in: query
+          name: filter
+          schema: { type: string }
+      responses:
+        '200':
+          description: SCIM user list
+    post:
+      summary: Create SCIM user
+      responses:
+        '201':
+          description: SCIM user created
+  /scim/v2/Users/{id}:
+    get:
+      summary: Get SCIM user by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: SCIM user
+        '404':
+          description: User not found
+    put:
+      summary: Replace SCIM user
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: SCIM user replaced
+    patch:
+      summary: Patch SCIM user
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: SCIM user patched
+    delete:
+      summary: Delete SCIM user
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '204':
+          description: SCIM user deleted
+  /scim/v2/Groups:
+    get:
+      summary: List SCIM groups
+      parameters:
+        - in: query
+          name: startIndex
+          schema: { type: integer, minimum: 1 }
+        - in: query
+          name: count
+          schema: { type: integer, minimum: 1, maximum: 200 }
+        - in: query
+          name: filter
+          schema: { type: string }
+      responses:
+        '200':
+          description: SCIM group list
+    post:
+      summary: Create SCIM group
+      responses:
+        '201':
+          description: SCIM group created
+  /scim/v2/Groups/{id}:
+    get:
+      summary: Get SCIM group by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: SCIM group
+        '404':
+          description: Group not found
+    put:
+      summary: Replace SCIM group
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: SCIM group replaced
+    patch:
+      summary: Patch SCIM group
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: SCIM group patched
+    delete:
+      summary: Delete SCIM group
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '204':
+          description: SCIM group deleted
   /.well-known/openid-configuration:
     get:
       summary: OIDC discovery document
@@ -189,6 +335,29 @@ paths:
       responses:
         '200':
           description: Users list
+  /api/admin/provisioning/tokens:
+    get:
+      summary: List SCIM provisioning tokens
+      responses:
+        '200':
+          description: SCIM token list
+    post:
+      summary: Create SCIM provisioning token
+      responses:
+        '201':
+          description: SCIM token created
+  /api/admin/provisioning/tokens/{id}:
+    delete:
+      summary: Revoke SCIM provisioning token
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: SCIM token revoked
   /api/admin/authentication/flows:
     get:
       summary: List authentication flows
@@ -249,6 +418,186 @@ paths:
       responses:
         '204':
           description: Authentication flow deleted
+  /api/admin/policies/evaluate:
+    post:
+      summary: Simulate policy decision for authorization-style checks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, resource, action]
+              properties:
+                userId:
+                  type: string
+                resource:
+                  type: string
+                action:
+                  type: string
+                decisionStrategy:
+                  type: string
+                  enum: [deny_overrides, allow_overrides, first_applicable]
+                tenantId:
+                  type: string
+                clientId:
+                  type: string
+                ip:
+                  type: string
+                context:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Decision result and per-policy outcomes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  decisionStrategy:
+                    type: string
+                    enum: [deny_overrides, allow_overrides, first_applicable]
+                  allow:
+                    type: boolean
+                  deniedBy:
+                    type: array
+                    items:
+                      type: string
+                  decisions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        policyId:
+                          type: string
+                        key:
+                          type: string
+                        name:
+                          type: string
+                        effect:
+                          type: string
+                          enum: [allow, deny]
+                        priority:
+                          type: integer
+                        applied:
+                          type: boolean
+                        allow:
+                          type: boolean
+                        message:
+                          type: string
+  /api/admin/policies/decisions:
+    get:
+      summary: List recent policy decision evaluations
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+      responses:
+        '200':
+          description: Recent policy decision evaluations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    createdAt:
+                      type: string
+                      format: date-time
+                    actorId:
+                      type: string
+                    clientId:
+                      type: string
+                    ip:
+                      type: string
+                    resource:
+                      type: string
+                    action:
+                      type: string
+                    allow:
+                      type: boolean
+                    deniedBy:
+                      type: array
+                      items:
+                        type: string
+                    context:
+                      type: object
+                      additionalProperties: true
+  /api/admin/authorization/check:
+    post:
+      summary: Evaluate authorization decision for a user/resource/action request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, resource, action]
+              properties:
+                userId:
+                  type: string
+                resource:
+                  type: string
+                action:
+                  type: string
+                decisionStrategy:
+                  type: string
+                  enum: [deny_overrides, allow_overrides, first_applicable]
+                tenantId:
+                  type: string
+                clientId:
+                  type: string
+                ip:
+                  type: string
+                context:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Authorization decision result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  decisionStrategy:
+                    type: string
+                    enum: [deny_overrides, allow_overrides, first_applicable]
+                  allow:
+                    type: boolean
+                  deniedBy:
+                    type: array
+                    items:
+                      type: string
+                  decisions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        policyId:
+                          type: string
+                        key:
+                          type: string
+                        name:
+                          type: string
+                        effect:
+                          type: string
+                          enum: [allow, deny]
+                        priority:
+                          type: integer
+                        applied:
+                          type: boolean
+                        allow:
+                          type: boolean
+                        message:
+                          type: string
   /api/portal/me:
     get:
       summary: Current portal user profile

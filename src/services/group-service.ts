@@ -62,6 +62,10 @@ export class GroupService {
     return updated;
   }
 
+  async findGroupById(id: string) {
+    return this.groupRepository.findById(id);
+  }
+
   async deleteGroup(id: string) {
     await this.groupRepository.delete(id);
   }

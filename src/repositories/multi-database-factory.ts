@@ -10,6 +10,7 @@
 
 import type { AppConfig } from "../core/config.js";
 import type { DatabaseAdapter } from "./adapters/database.js";
+import type { SqliteDatabaseAdapter } from "./adapters/sqlite.js";
 import { createDatabaseAdapter } from "./adapters/index.js";
 
 // Import all repository contracts
@@ -39,6 +40,7 @@ import type {
   GroupUserAttributeAssignmentRepository,
   PolicyDefinitionRepository,
   PolicyAssignmentRepository,
+  PolicyDecisionLogRepository,
   EventHookRepository,
   EventNotificationRepository,
   InstanceSettingsRepository
@@ -74,6 +76,7 @@ export interface RepositoryBundle {
   groupUserAttributeAssignmentRepository: GroupUserAttributeAssignmentRepository;
   policyDefinitionRepository: PolicyDefinitionRepository;
   policyAssignmentRepository: PolicyAssignmentRepository;
+  policyDecisionLogRepository: PolicyDecisionLogRepository;
   eventHookRepository: EventHookRepository;
   eventNotificationRepository: EventNotificationRepository;
   instanceSettingsRepository: InstanceSettingsRepository;
@@ -133,7 +136,8 @@ function createRepositoriesFromAdapter(adapter: DatabaseAdapter, provider: "sqli
   if (provider === "sqlite") {
     // Use native SQLite implementation (fastest path)
     const { SqliteDatabase } = require("./sqlite.js");
-    const sqlite = new SqliteDatabase(adapter.getConnection ? adapter.getConnection() : null);
+    const sqliteAdapter = adapter as SqliteDatabaseAdapter;
+    const sqlite = new SqliteDatabase(sqliteAdapter.getConnection());
     
     // Import and instantiate all SQLite repositories
     const {
@@ -162,6 +166,7 @@ function createRepositoriesFromAdapter(adapter: DatabaseAdapter, provider: "sqli
       SqliteGroupUserAttributeAssignmentRepository,
       SqlitePolicyDefinitionRepository,
       SqlitePolicyAssignmentRepository,
+      SqlitePolicyDecisionLogRepository,
       SqliteEventHookRepository,
       SqliteEventNotificationRepository,
       SqliteInstanceSettingsRepository
@@ -193,6 +198,7 @@ function createRepositoriesFromAdapter(adapter: DatabaseAdapter, provider: "sqli
       groupUserAttributeAssignmentRepository: new SqliteGroupUserAttributeAssignmentRepository(sqlite.connection),
       policyDefinitionRepository: new SqlitePolicyDefinitionRepository(sqlite.connection),
       policyAssignmentRepository: new SqlitePolicyAssignmentRepository(sqlite.connection),
+      policyDecisionLogRepository: new SqlitePolicyDecisionLogRepository(sqlite.connection),
       eventHookRepository: new SqliteEventHookRepository(sqlite.connection),
       eventNotificationRepository: new SqliteEventNotificationRepository(sqlite.connection),
       instanceSettingsRepository: new SqliteInstanceSettingsRepository(sqlite.connection)

@@ -240,6 +240,8 @@ model policy_assignments {
   scope_type         String
   scope_id           String
   enabled            Int
+  priority           Int                @default(0)
+  decision_strategy  String?
   config_json        String
   created_at         String
   updated_at         String
@@ -248,17 +250,46 @@ model policy_assignments {
   @@unique([policy_id, scope_type, scope_id], map: "sqlite_autoindex_policy_assignments_2")
 }
 
+model policy_decision_logs {
+  id            String? @id
+  user_id       String
+  client_id     String?
+  tenant_id     String?
+  ip            String?
+  resource      String
+  action        String
+  allow         Int
+  denied_by_json String
+  context_json   String
+  source        String
+  created_at    String
+}
+
 model policy_definitions {
   id                  String?              @id
   key                 String               @unique(map: "sqlite_autoindex_policy_definitions_2")
   name                String
   description         String
+  category            String               @default("authentication")
+  effect              String               @default("deny")
+  resource_pattern    String?
+  action_pattern      String?
   enabled             Int
   created_at          String
   updated_at          String
   stage_bindings_json String               @default("[]")
   javascript_code     String?
   policy_assignments  policy_assignments[]
+}
+
+model scim_tokens {
+  id           String? @id
+  label        String
+  token_hash   String  @unique(map: "sqlite_autoindex_scim_tokens_2")
+  last_used_at String?
+  expires_at   String?
+  created_at   String
+  updated_at   String
 }
 
 model refresh_tokens {

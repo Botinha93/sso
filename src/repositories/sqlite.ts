@@ -21,8 +21,10 @@ import type {
   EventHook,
   EventNotification,
   PolicyAssignment,
+  PolicyDecisionLog,
   PolicyDefinition,
   PolicyScopeType,
+  ScimToken,
   RefreshTokenRecord,
   Role,
   Session,
@@ -50,7 +52,9 @@ import type {
   GroupRepository,
   GroupRoleAssignmentRepository,
   PolicyDefinitionRepository,
+  ScimTokenRepository,
   PolicyAssignmentRepository,
+  PolicyDecisionLogRepository,
   EventHookRepository,
   EventNotificationRepository,
   RefreshTokenRepository,
@@ -383,6 +387,10 @@ export class SqliteDatabase {
         key TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL,
         description TEXT NOT NULL,
+        category TEXT NOT NULL DEFAULT 'authentication',
+        effect TEXT NOT NULL DEFAULT 'deny',
+        resource_pattern TEXT,
+        action_pattern TEXT,
         stage_bindings_json TEXT NOT NULL DEFAULT '[]',
         javascript_code TEXT,
         enabled INTEGER NOT NULL,
@@ -396,11 +404,38 @@ export class SqliteDatabase {
         scope_type TEXT NOT NULL,
         scope_id TEXT NOT NULL,
         enabled INTEGER NOT NULL,
+        priority INTEGER NOT NULL DEFAULT 0,
+        decision_strategy TEXT,
         config_json TEXT NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         UNIQUE (policy_id, scope_type, scope_id),
         FOREIGN KEY (policy_id) REFERENCES policy_definitions(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS policy_decision_logs (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        client_id TEXT,
+        tenant_id TEXT,
+        ip TEXT,
+        resource TEXT NOT NULL,
+        action TEXT NOT NULL,
+        allow INTEGER NOT NULL,
+        denied_by_json TEXT NOT NULL,
+        context_json TEXT NOT NULL,
+        source TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS scim_tokens (
+        id TEXT PRIMARY KEY,
+        label TEXT NOT NULL,
+        token_hash TEXT NOT NULL UNIQUE,
+        last_used_at TEXT,
+        expires_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS event_hooks (
@@ -496,6 +531,33 @@ export class SqliteDatabase {
     const hasJavascriptCodeColumn = policyDefinitionColumns.some((column) => column.name === "javascript_code");
     if (!hasJavascriptCodeColumn) {
       this.connection.exec("ALTER TABLE policy_definitions ADD COLUMN javascript_code TEXT;");
+    }
+    const hasCategoryColumn = policyDefinitionColumns.some((column) => column.name === "category");
+    if (!hasCategoryColumn) {
+      this.connection.exec("ALTER TABLE policy_definitions ADD COLUMN category TEXT NOT NULL DEFAULT 'authentication';");
+      this.connection.exec("UPDATE policy_definitions SET category = 'authorization' WHERE stage_bindings_json = '[]';");
+    }
+    const hasEffectColumn = policyDefinitionColumns.some((column) => column.name === "effect");
+    if (!hasEffectColumn) {
+      this.connection.exec("ALTER TABLE policy_definitions ADD COLUMN effect TEXT NOT NULL DEFAULT 'deny';");
+    }
+    const hasResourcePatternColumn = policyDefinitionColumns.some((column) => column.name === "resource_pattern");
+    if (!hasResourcePatternColumn) {
+      this.connection.exec("ALTER TABLE policy_definitions ADD COLUMN resource_pattern TEXT;");
+    }
+    const hasActionPatternColumn = policyDefinitionColumns.some((column) => column.name === "action_pattern");
+    if (!hasActionPatternColumn) {
+      this.connection.exec("ALTER TABLE policy_definitions ADD COLUMN action_pattern TEXT;");
+    }
+
+    const policyAssignmentColumns = this.connection.prepare("PRAGMA table_info(policy_assignments)").all() as Array<{ name: string }>;
+    const hasPriorityColumn = policyAssignmentColumns.some((column) => column.name === "priority");
+    if (!hasPriorityColumn) {
+      this.connection.exec("ALTER TABLE policy_assignments ADD COLUMN priority INTEGER NOT NULL DEFAULT 0;");
+    }
+    const hasDecisionStrategyColumn = policyAssignmentColumns.some((column) => column.name === "decision_strategy");
+    if (!hasDecisionStrategyColumn) {
+      this.connection.exec("ALTER TABLE policy_assignments ADD COLUMN decision_strategy TEXT;");
     }
   }
 }
@@ -716,6 +778,10 @@ const mapPolicyDefinition = (row: DbRow): PolicyDefinition => ({
   key: String(row.key),
   name: String(row.name),
   description: String(row.description),
+  category: row.category === "authorization" ? "authorization" : "authentication",
+  effect: row.effect === "allow" ? "allow" : "deny",
+  resourcePattern: row.resource_pattern ? String(row.resource_pattern) : undefined,
+  actionPattern: row.action_pattern ? String(row.action_pattern) : undefined,
   stageBindings: parseStringArray(row.stage_bindings_json) as PolicyDefinition["stageBindings"],
   javascriptCode: row.javascript_code ? String(row.javascript_code) : undefined,
   enabled: Boolean(row.enabled),
@@ -729,7 +795,34 @@ const mapPolicyAssignment = (row: DbRow): PolicyAssignment => ({
   scopeType: String(row.scope_type) as PolicyScopeType,
   scopeId: String(row.scope_id),
   enabled: Boolean(row.enabled),
+  priority: typeof row.priority === "number" ? row.priority : 0,
+  decisionStrategy: row.decision_strategy ? String(row.decision_strategy) as PolicyAssignment["decisionStrategy"] : undefined,
   config: JSON.parse(String(row.config_json)) as Record<string, unknown>,
+  createdAt: asDate(row.created_at),
+  updatedAt: asDate(row.updated_at)
+});
+
+const mapPolicyDecisionLog = (row: DbRow): PolicyDecisionLog => ({
+  id: String(row.id),
+  userId: String(row.user_id),
+  clientId: row.client_id ? String(row.client_id) : undefined,
+  tenantId: row.tenant_id ? String(row.tenant_id) : undefined,
+  ip: row.ip ? String(row.ip) : undefined,
+  resource: String(row.resource),
+  action: String(row.action),
+  allow: Boolean(row.allow),
+  deniedBy: parseStringArray(row.denied_by_json),
+  context: JSON.parse(String(row.context_json)) as Record<string, unknown>,
+  source: String(row.source) as PolicyDecisionLog["source"],
+  createdAt: asDate(row.created_at)
+});
+
+const mapScimToken = (row: DbRow): ScimToken => ({
+  id: String(row.id),
+  label: String(row.label),
+  tokenHash: String(row.token_hash),
+  lastUsedAt: maybeDate(row.last_used_at),
+  expiresAt: maybeDate(row.expires_at),
   createdAt: asDate(row.created_at),
   updatedAt: asDate(row.updated_at)
 });
@@ -2018,13 +2111,17 @@ export class SqlitePolicyDefinitionRepository {
     const now = new Date();
     const policy: PolicyDefinition = { ...input, createdAt: now, updatedAt: now };
     this.db.prepare(`
-      INSERT INTO policy_definitions (id, key, name, description, stage_bindings_json, javascript_code, enabled, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO policy_definitions (id, key, name, description, category, effect, resource_pattern, action_pattern, stage_bindings_json, javascript_code, enabled, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       policy.id,
       policy.key,
       policy.name,
       policy.description,
+      policy.category,
+      policy.effect ?? "deny",
+      policy.resourcePattern ?? null,
+      policy.actionPattern ?? null,
       JSON.stringify(policy.stageBindings),
       policy.javascriptCode ?? null,
       policy.enabled ? 1 : 0,
@@ -2049,12 +2146,16 @@ export class SqlitePolicyDefinitionRepository {
 
     this.db.prepare(`
       UPDATE policy_definitions
-      SET key = ?, name = ?, description = ?, stage_bindings_json = ?, javascript_code = ?, enabled = ?, updated_at = ?
+      SET key = ?, name = ?, description = ?, category = ?, effect = ?, resource_pattern = ?, action_pattern = ?, stage_bindings_json = ?, javascript_code = ?, enabled = ?, updated_at = ?
       WHERE id = ?
     `).run(
       updated.key,
       updated.name,
       updated.description,
+      updated.category,
+      updated.effect ?? "deny",
+      updated.resourcePattern ?? null,
+      updated.actionPattern ?? null,
       JSON.stringify(updated.stageBindings),
       updated.javascriptCode ?? null,
       updated.enabled ? 1 : 0,
@@ -2093,16 +2194,20 @@ export class SqlitePolicyAssignmentRepository {
       const updated: PolicyAssignment = {
         ...current,
         enabled: input.enabled,
+        priority: input.priority,
+        decisionStrategy: input.decisionStrategy,
         config: input.config,
         updatedAt: new Date()
       };
 
       this.db.prepare(`
         UPDATE policy_assignments
-        SET enabled = ?, config_json = ?, updated_at = ?
+        SET enabled = ?, priority = ?, decision_strategy = ?, config_json = ?, updated_at = ?
         WHERE id = ?
       `).run(
         updated.enabled ? 1 : 0,
+        updated.priority ?? 0,
+        updated.decisionStrategy ?? null,
         JSON.stringify(updated.config),
         updated.updatedAt.toISOString(),
         updated.id
@@ -2118,20 +2223,24 @@ export class SqlitePolicyAssignmentRepository {
       scopeType: input.scopeType,
       scopeId: input.scopeId,
       enabled: input.enabled,
+      priority: input.priority,
+      decisionStrategy: input.decisionStrategy,
       config: input.config,
       createdAt: now,
       updatedAt: now
     };
 
     this.db.prepare(`
-      INSERT INTO policy_assignments (id, policy_id, scope_type, scope_id, enabled, config_json, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO policy_assignments (id, policy_id, scope_type, scope_id, enabled, priority, decision_strategy, config_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       assignment.id,
       assignment.policyId,
       assignment.scopeType,
       assignment.scopeId,
       assignment.enabled ? 1 : 0,
+      assignment.priority ?? 0,
+      assignment.decisionStrategy ?? null,
       JSON.stringify(assignment.config),
       assignment.createdAt.toISOString(),
       assignment.updatedAt.toISOString()
@@ -2142,6 +2251,91 @@ export class SqlitePolicyAssignmentRepository {
 
   delete(policyId: string, scopeType: PolicyScopeType, scopeId: string): void {
     this.db.prepare("DELETE FROM policy_assignments WHERE policy_id = ? AND scope_type = ? AND scope_id = ?").run(policyId, scopeType, scopeId);
+  }
+}
+
+export class SqlitePolicyDecisionLogRepository implements PolicyDecisionLogRepository {
+  constructor(private readonly db: Database.Database) {}
+
+  async list(limit = 100): Promise<PolicyDecisionLog[]> {
+    const rows = this.db.prepare("SELECT * FROM policy_decision_logs ORDER BY created_at DESC LIMIT ?").all(limit) as DbRow[];
+    return rows.map(mapPolicyDecisionLog);
+  }
+
+  async create(input: Omit<PolicyDecisionLog, "id" | "createdAt">): Promise<PolicyDecisionLog> {
+    const log: PolicyDecisionLog = {
+      ...input,
+      id: nanoid(),
+      createdAt: new Date()
+    };
+
+    this.db.prepare(`
+      INSERT INTO policy_decision_logs (id, user_id, client_id, tenant_id, ip, resource, action, allow, denied_by_json, context_json, source, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      log.id,
+      log.userId,
+      log.clientId ?? null,
+      log.tenantId ?? null,
+      log.ip ?? null,
+      log.resource,
+      log.action,
+      log.allow ? 1 : 0,
+      JSON.stringify(log.deniedBy),
+      JSON.stringify(log.context),
+      log.source,
+      log.createdAt.toISOString()
+    );
+
+    return log;
+  }
+}
+
+export class SqliteScimTokenRepository implements ScimTokenRepository {
+  constructor(private readonly db: Database.Database) {}
+
+  async list(): Promise<ScimToken[]> {
+    const rows = this.db.prepare("SELECT * FROM scim_tokens ORDER BY created_at ASC").all() as DbRow[];
+    return rows.map(mapScimToken);
+  }
+
+  async findByTokenHash(tokenHash: string): Promise<ScimToken | undefined> {
+    const row = this.db.prepare("SELECT * FROM scim_tokens WHERE token_hash = ?").get(tokenHash) as DbRow | undefined;
+    return row ? mapScimToken(row) : undefined;
+  }
+
+  async create(input: Omit<ScimToken, "id" | "createdAt" | "updatedAt" | "lastUsedAt">): Promise<ScimToken> {
+    const now = new Date();
+    const token: ScimToken = {
+      ...input,
+      id: nanoid(),
+      createdAt: now,
+      updatedAt: now
+    };
+
+    this.db.prepare(`
+      INSERT INTO scim_tokens (id, label, token_hash, last_used_at, expires_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      token.id,
+      token.label,
+      token.tokenHash,
+      null,
+      token.expiresAt ? token.expiresAt.toISOString() : null,
+      token.createdAt.toISOString(),
+      token.updatedAt.toISOString()
+    );
+
+    return token;
+  }
+
+  async touchLastUsed(id: string, usedAt: Date): Promise<void> {
+    this.db.prepare("UPDATE scim_tokens SET last_used_at = ?, updated_at = ? WHERE id = ?")
+      .run(usedAt.toISOString(), usedAt.toISOString(), id);
+  }
+
+  async delete(id: string): Promise<void> {
+    this.db.prepare("DELETE FROM scim_tokens WHERE id = ?").run(id);
   }
 }
 

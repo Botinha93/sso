@@ -16,8 +16,10 @@ import type {
   OAuthClient,
   OAuthScope,
   PolicyAssignment,
+  PolicyDecisionLog,
   PolicyDefinition,
   PolicyScopeType,
+  ScimToken,
   RefreshTokenRecord,
   Role,
   Session,
@@ -215,6 +217,19 @@ export interface PolicyAssignmentRepository {
   listByPolicy(policyId: string): Promise<PolicyAssignment[]>;
   upsert(input: Omit<PolicyAssignment, "id" | "createdAt" | "updatedAt">): Promise<PolicyAssignment>;
   delete(policyId: string, scopeType: PolicyScopeType, scopeId: string): Promise<void>;
+}
+
+export interface PolicyDecisionLogRepository {
+  list(limit?: number): Promise<PolicyDecisionLog[]>;
+  create(input: Omit<PolicyDecisionLog, "id" | "createdAt">): Promise<PolicyDecisionLog>;
+}
+
+export interface ScimTokenRepository {
+  list(): Promise<ScimToken[]>;
+  findByTokenHash(tokenHash: string): Promise<ScimToken | undefined>;
+  create(input: Omit<ScimToken, "id" | "createdAt" | "updatedAt" | "lastUsedAt">): Promise<ScimToken>;
+  touchLastUsed(id: string, usedAt: Date): Promise<void>;
+  delete(id: string): Promise<void>;
 }
 
 export interface EventHookRepository {
