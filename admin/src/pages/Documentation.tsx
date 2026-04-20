@@ -83,17 +83,17 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'GET', path: '/scim/v2/Schemas', auth: 'bearer', description: 'Lists supported SCIM schemas for User and Group resources.' },
   { method: 'GET', path: '/scim/v2/ResourceTypes', auth: 'bearer', description: 'Lists supported SCIM resource types and endpoint bindings.' },
   { method: 'GET', path: '/scim/v2/Users', auth: 'bearer', description: 'Lists SCIM users with optional filter and pagination.' },
-  { method: 'POST', path: '/scim/v2/Users', auth: 'bearer', description: 'Creates SCIM user.' },
+  { method: 'POST', path: '/scim/v2/Users', auth: 'bearer', description: 'Creates SCIM user (supports externalId linkage) and emits scim.user.created plus audit event.' },
   { method: 'GET', path: '/scim/v2/Users/:id', auth: 'bearer', description: 'Gets SCIM user by id.' },
-  { method: 'PUT', path: '/scim/v2/Users/:id', auth: 'bearer', description: 'Replaces SCIM user profile.' },
-  { method: 'PATCH', path: '/scim/v2/Users/:id', auth: 'bearer', description: 'Applies SCIM patch operations to user profile.' },
-  { method: 'DELETE', path: '/scim/v2/Users/:id', auth: 'bearer', description: 'Deletes SCIM user.' },
+  { method: 'PUT', path: '/scim/v2/Users/:id', auth: 'bearer', description: 'Replaces SCIM user profile/external linkage and emits scim.user.updated plus audit event.' },
+  { method: 'PATCH', path: '/scim/v2/Users/:id', auth: 'bearer', description: 'Applies SCIM patch operations (including externalId) and emits scim.user.updated plus audit event.' },
+  { method: 'DELETE', path: '/scim/v2/Users/:id', auth: 'bearer', description: 'Deletes SCIM user and emits scim.user.deleted plus audit event.' },
   { method: 'GET', path: '/scim/v2/Groups', auth: 'bearer', description: 'Lists SCIM groups with optional filter and pagination.' },
-  { method: 'POST', path: '/scim/v2/Groups', auth: 'bearer', description: 'Creates SCIM group.' },
+  { method: 'POST', path: '/scim/v2/Groups', auth: 'bearer', description: 'Creates SCIM group (supports externalId linkage) and emits scim.group.created plus audit event.' },
   { method: 'GET', path: '/scim/v2/Groups/:id', auth: 'bearer', description: 'Gets SCIM group by id.' },
-  { method: 'PUT', path: '/scim/v2/Groups/:id', auth: 'bearer', description: 'Replaces SCIM group display name and members.' },
-  { method: 'PATCH', path: '/scim/v2/Groups/:id', auth: 'bearer', description: 'Applies SCIM patch operations to group display name/members.' },
-  { method: 'DELETE', path: '/scim/v2/Groups/:id', auth: 'bearer', description: 'Deletes SCIM group.' },
+  { method: 'PUT', path: '/scim/v2/Groups/:id', auth: 'bearer', description: 'Replaces SCIM group display name/members/external linkage, emitting scim.group.updated plus audit event.' },
+  { method: 'PATCH', path: '/scim/v2/Groups/:id', auth: 'bearer', description: 'Applies SCIM patch operations to group display name/members/externalId, emitting scim.group.updated plus audit event.' },
+  { method: 'DELETE', path: '/scim/v2/Groups/:id', auth: 'bearer', description: 'Deletes SCIM group and emits scim.group.deleted plus audit event.' },
 
   { method: 'POST', path: '/auth/login', auth: 'public', description: 'Login endpoint creating session cookie and issuing initial tokens.' },
   { method: 'POST', path: '/auth/logout', auth: 'session+csrf', description: 'Clears active session cookie and emits logout event.' },
@@ -110,10 +110,11 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'POST', path: '/api/admin/provisioning/tokens', auth: 'session+csrf', description: 'Creates a SCIM provisioning token. Raw token is returned only once.' },
   { method: 'DELETE', path: '/api/admin/provisioning/tokens/:id', auth: 'session+csrf', description: 'Revokes a SCIM provisioning token by id.' },
   { method: 'GET', path: '/api/admin/provisioning/mappings', auth: 'session', description: 'Lists configured provisioning attribute mappings.' },
-  { method: 'POST', path: '/api/admin/provisioning/mappings', auth: 'session+csrf', description: 'Creates a provisioning attribute mapping rule.' },
+  { method: 'POST', path: '/api/admin/provisioning/mappings', auth: 'session+csrf', description: 'Creates a provisioning attribute mapping rule (supports lowercase/uppercase/trim transform expressions).' },
   { method: 'DELETE', path: '/api/admin/provisioning/mappings/:id', auth: 'session+csrf', description: 'Deletes a provisioning attribute mapping rule.' },
   { method: 'GET', path: '/api/admin/provisioning/jobs', auth: 'session', description: 'Lists recent provisioning reconciliation jobs.' },
-  { method: 'POST', path: '/api/admin/provisioning/jobs/reconcile', auth: 'session+csrf', description: 'Starts a provisioning reconciliation run (dry-run supported).' },
+  { method: 'GET', path: '/api/admin/provisioning/deprovisioning-queue', auth: 'session', description: 'Lists queued downstream deprovisioning/offboarding tasks.' },
+  { method: 'POST', path: '/api/admin/provisioning/jobs/reconcile', auth: 'session+csrf', description: 'Starts a provisioning reconciliation run and reports drift/updated counters (dry-run supported).' },
 
   { method: 'GET', path: '/api/admin/users', auth: 'session', description: 'Lists users.' },
   { method: 'POST', path: '/api/admin/users', auth: 'session+csrf', description: 'Creates user and emits user.created event.' },
@@ -1828,12 +1829,13 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
     return {
       parameters: params,
       requestJson: prettyJson({
+        externalId: 'okta:user:1001',
         userName: 'scim.user',
         name: { givenName: 'Scim', familyName: 'User' },
         emails: [{ value: 'scim.user@example.com', primary: true }],
         active: true
       }),
-      expectedResponse: prettyJson({ id: 'user_xxx', userName: 'scim.user', active: true })
+      expectedResponse: prettyJson({ id: 'user_xxx', externalId: 'okta:user:1001', userName: 'scim.user', active: true })
     }
   }
 
@@ -1843,10 +1845,11 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
       requestJson: prettyJson({
         Operations: [
           { op: 'replace', path: 'name.givenName', value: 'Updated' },
+          { op: 'replace', path: 'externalId', value: 'okta:user:1001-updated' },
           { op: 'replace', path: 'active', value: false }
         ]
       }),
-      expectedResponse: prettyJson({ id: 'user_xxx', userName: 'scim.user', active: false })
+      expectedResponse: prettyJson({ id: 'user_xxx', externalId: 'okta:user:1001-updated', userName: 'scim.user', active: false })
     }
   }
 
@@ -1854,10 +1857,11 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
     return {
       parameters: params,
       requestJson: prettyJson({
+        externalId: 'okta:group:5001',
         displayName: 'Finance Team',
         members: [{ value: 'user_xxx' }]
       }),
-      expectedResponse: prettyJson({ id: 'group_xxx', displayName: 'Finance Team' })
+      expectedResponse: prettyJson({ id: 'group_xxx', externalId: 'okta:group:5001', displayName: 'Finance Team' })
     }
   }
 
@@ -1867,10 +1871,11 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
       requestJson: prettyJson({
         Operations: [
           { op: 'replace', path: 'displayName', value: 'Finance and Ops' },
+          { op: 'replace', path: 'externalId', value: 'okta:group:5001' },
           { op: 'add', path: 'members', value: [{ value: 'user_abc' }] }
         ]
       }),
-      expectedResponse: prettyJson({ id: 'group_xxx', displayName: 'Finance and Ops' })
+      expectedResponse: prettyJson({ id: 'group_xxx', externalId: 'okta:group:5001', displayName: 'Finance and Ops' })
     }
   }
 
@@ -2047,13 +2052,31 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
           usersEvaluated: 42,
           groupsEvaluated: 8,
           mappingsApplied: 3,
-          driftDetected: 0,
+          driftDetected: 5,
           updatedUsers: 0,
           updatedGroups: 0
         },
         createdAt: '2026-04-20T12:00:00.000Z',
         completedAt: '2026-04-20T12:00:01.000Z'
       })
+    }
+  }
+
+  if (route.path === '/api/admin/provisioning/deprovisioning-queue' && route.method === 'GET') {
+    return {
+      parameters: [...params, 'Query: limit?'],
+      expectedResponse: prettyJson([
+        {
+          id: 'dq_xxx',
+          subjectType: 'user',
+          subjectId: 'user_xxx',
+          actionType: 'user_offboard',
+          status: 'pending',
+          payload: { source: 'scim', requestedAt: '2026-04-20T12:15:00.000Z' },
+          createdAt: '2026-04-20T12:15:00.000Z',
+          processedAt: null
+        }
+      ])
     }
   }
 

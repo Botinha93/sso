@@ -4,6 +4,7 @@ import type {
   ProvisioningMappingRepository,
   UserRepository
 } from "../repositories/contracts.js";
+import { evaluateProvisioningMappings } from "./provisioning-mapping-engine.js";
 
 export class ProvisioningService {
   constructor(
@@ -35,14 +36,36 @@ export class ProvisioningService {
     const users = await this.userRepository.list();
     const groups = await this.groupRepository.list();
     const mappings = await this.provisioningMappingRepository.list();
+    const enabledMappings = mappings.filter((mapping) => mapping.enabled);
+
+    let driftDetected = 0;
+    let updatedUsers = 0;
+
+    for (const user of users) {
+      const evaluation = evaluateProvisioningMappings({
+        customAttributes: user.customAttributes,
+        mappings
+      });
+
+      if (evaluation.drift.length === 0) {
+        continue;
+      }
+
+      driftDetected += evaluation.drift.length;
+
+      if (!input.dryRun) {
+        await this.userRepository.setCustomAttributes(user.id, evaluation.nextCustomAttributes);
+        updatedUsers += 1;
+      }
+    }
 
     const summary = {
       dryRun: input.dryRun,
       usersEvaluated: users.length,
       groupsEvaluated: groups.length,
-      mappingsApplied: mappings.filter((mapping) => mapping.enabled).length,
-      driftDetected: 0,
-      updatedUsers: 0,
+      mappingsApplied: enabledMappings.length,
+      driftDetected,
+      updatedUsers,
       updatedGroups: 0
     };
 

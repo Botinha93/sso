@@ -81,6 +81,7 @@ import { ScopeService } from "../services/scope-service.js";
 import { ScimService } from "../services/scim-service.js";
 import { ScimTokenService } from "../services/scim-token-service.js";
 import { ProvisioningService } from "../services/provisioning-service.js";
+import { DeprovisioningService } from "../services/deprovisioning-service.js";
 import { SetupService } from "../services/setup-service.js";
 import { TenantService } from "../services/tenant-service.js";
 import { TotpService } from "../services/totp-service.js";
@@ -111,6 +112,7 @@ interface RouteDeps {
   scimService: ScimService;
   scimTokenService: ScimTokenService;
   provisioningService: ProvisioningService;
+  deprovisioningService: DeprovisioningService;
   totpService: TotpService;
   userService: UserService;
   userAttributeService: UserAttributeService;
@@ -148,7 +150,13 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   async function getSession(request: any) {
     const sid = request.cookies?.sid;
     if (!sid) return null;
-    const session = await deps.authService.sessionRepository.findById(sid);
+    let session;
+    try {
+      session = await deps.authService.sessionRepository.findById(sid);
+    } catch (error) {
+      request.log?.error({ err: error, sid }, "session lookup failed");
+      return null;
+    }
     if (!session || session.expiresAt.getTime() < Date.now() || session.revokedAt) return null;
     return session;
   }
@@ -438,7 +446,10 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
   await registerScimRoutes(app, {
     scimService: deps.scimService,
-    scimTokenService: deps.scimTokenService
+    scimTokenService: deps.scimTokenService,
+    auditRepository: deps.auditRepository,
+    eventHookService: deps.eventHookService,
+    deprovisioningService: deps.deprovisioningService
   });
 
   app.get("/.well-known/openid-configuration", async () => deps.oidcService.discoveryDocument());
@@ -1007,6 +1018,10 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.get("/api/admin/provisioning/jobs", async (request) => {
     const limit = Number((request.query as { limit?: string } | undefined)?.limit ?? "20");
     return deps.provisioningService.listJobs(Number.isFinite(limit) ? limit : 20);
+  });
+  app.get("/api/admin/provisioning/deprovisioning-queue", async (request) => {
+    const limit = Number((request.query as { limit?: string } | undefined)?.limit ?? "100");
+    return deps.deprovisioningService.listQueue(Number.isFinite(limit) ? limit : 100);
   });
   app.post("/api/admin/provisioning/jobs/reconcile", async (request, reply) => {
     const input = reconcileProvisioningJobSchema.parse(request.body ?? {});
@@ -1659,9 +1674,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
   app.patch("/api/admin/users/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { appId, isServiceUser, email, username, givenName, familyName, active, groupIds, customAttributes } = updateUserSchema.parse(request.body);
-    if (appId !== undefined || isServiceUser !== undefined || email !== undefined || username !== undefined || givenName !== undefined || familyName !== undefined) {
-      await deps.userService.updateUserProfile(id, { appId, isServiceUser, email, username, givenName, familyName });
+    const { appId, externalSource, externalId, isServiceUser, email, username, givenName, familyName, active, groupIds, customAttributes } = updateUserSchema.parse(request.body);
+    if (appId !== undefined || externalSource !== undefined || externalId !== undefined || isServiceUser !== undefined || email !== undefined || username !== undefined || givenName !== undefined || familyName !== undefined) {
+      await deps.userService.updateUserProfile(id, { appId, externalSource, externalId, isServiceUser, email, username, givenName, familyName });
     }
     if (active !== undefined) await deps.userService.setUserActive(id, active);
     if (customAttributes) await deps.userService.setCustomAttributes(id, customAttributes);
@@ -1681,6 +1696,8 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     await deps.eventHookService.emit("user.updated", {
       userId: id,
       appId,
+      externalSource,
+      externalId,
       isServiceUser,
       active,
       email,
@@ -1690,7 +1707,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       updatedGroupIds: groupIds,
       updatedCustomAttributes: customAttributes ? Object.keys(customAttributes) : undefined
     });
-    return { id, appId, isServiceUser, active, email, username, givenName, familyName };
+    return { id, appId, externalSource, externalId, isServiceUser, active, email, username, givenName, familyName };
   });
   app.post("/api/admin/users/:id/reset-password", async (request, reply) => {
     const { id } = request.params as { id: string };

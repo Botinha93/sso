@@ -42,6 +42,8 @@ model Role {
 model User {
   id                   String  @id
   appId                String? @map("app_id")
+  externalSource       String? @map("external_source")
+  externalId           String? @map("external_id")
   isServiceUser        Int     @default(0) @map("is_service_user")
   email                String  @unique
   username             String  @unique
@@ -130,6 +132,8 @@ model Tenant {
 model Group {
   id          String  @id
   appId       String? @map("app_id")
+  externalSource String? @map("external_source")
+  externalId  String? @map("external_id")
   name        String  @unique
   description String
   createdAt   String  @map("created_at")
@@ -388,6 +392,20 @@ model ProvisioningJob {
   completedAt       String? @map("completed_at")
 
   @@map("provisioning_jobs")
+}
+
+model DeprovisioningQueue {
+  id          String  @id
+  subjectType String  @map("subject_type")
+  subjectId   String  @map("subject_id")
+  actionType  String  @map("action_type")
+  status      String
+  payloadJson String  @map("payload_json")
+  error       String?
+  createdAt   String  @map("created_at")
+  processedAt String? @map("processed_at")
+
+  @@map("deprovisioning_queue")
 }
 
 model EventHook {

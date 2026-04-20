@@ -18,6 +18,7 @@ export const scimUserEmailSchema = z.object({
 
 export const scimCreateUserSchema = z.object({
   schemas: z.array(z.string()).optional(),
+  externalId: z.string().min(1).optional(),
   userName: z.string().min(1),
   name: scimUserNameSchema,
   emails: z.array(scimUserEmailSchema).optional(),
@@ -27,6 +28,7 @@ export const scimCreateUserSchema = z.object({
 
 export const scimReplaceUserSchema = z.object({
   schemas: z.array(z.string()).optional(),
+  externalId: z.string().min(1).optional(),
   userName: z.string().min(1),
   name: scimUserNameSchema,
   emails: z.array(scimUserEmailSchema).optional(),
@@ -51,12 +53,14 @@ export const scimGroupMemberSchema = z.object({
 
 export const scimCreateGroupSchema = z.object({
   schemas: z.array(z.string()).optional(),
+  externalId: z.string().min(1).optional(),
   displayName: z.string().min(1),
   members: z.array(scimGroupMemberSchema).optional()
 });
 
 export const scimReplaceGroupSchema = z.object({
   schemas: z.array(z.string()).optional(),
+  externalId: z.string().min(1).optional(),
   displayName: z.string().min(1),
   members: z.array(scimGroupMemberSchema).optional()
 });

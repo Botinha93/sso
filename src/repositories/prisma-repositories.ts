@@ -6,6 +6,7 @@ import type {
   AuthenticationFlow,
   AuthorizationCode,
   Consent,
+  DeprovisioningQueueItem,
   EventHook,
   EventNotification,
   FederatedIdentity,
@@ -79,6 +80,7 @@ type PrismaClientLike = {
   scimToken: any;
   provisioningMapping: any;
   provisioningJob: any;
+  deprovisioningQueue: any;
   eventHook: any;
   eventNotification: any;
   $queryRaw<T = PrismaRow[]>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>;
@@ -161,6 +163,8 @@ const mapRole = (row: PrismaRow): Role => ({
 const mapUser = (row: PrismaRow): User => ({
   id: String(readField(row, "id")),
   appId: readField(row, "appId", "app_id") ? String(readField(row, "appId", "app_id")) : undefined,
+  externalSource: readField(row, "externalSource", "external_source") ? String(readField(row, "externalSource", "external_source")) : undefined,
+  externalId: readField(row, "externalId", "external_id") ? String(readField(row, "externalId", "external_id")) : undefined,
   isServiceUser: asBoolean(readField(row, "isServiceUser", "is_service_user")),
   email: String(readField(row, "email")),
   username: String(readField(row, "username")),
@@ -235,6 +239,8 @@ const mapTenant = (row: PrismaRow): Tenant => ({
 const mapGroup = (row: PrismaRow): Group => ({
   id: String(row.id),
   appId: row.appId ? String(row.appId) : undefined,
+  externalSource: row.externalSource ? String(row.externalSource) : undefined,
+  externalId: row.externalId ? String(row.externalId) : undefined,
   name: String(row.name),
   description: String(row.description),
   createdAt: asDate(row.createdAt)
@@ -488,6 +494,18 @@ const mapProvisioningJob = (row: PrismaRow): ProvisioningJob => ({
   completedAt: maybeDate(readField(row, "completedAt"))
 });
 
+const mapDeprovisioningQueueItem = (row: PrismaRow): DeprovisioningQueueItem => ({
+  id: String(row.id),
+  subjectType: String(readField(row, "subjectType", "subject_type")) as DeprovisioningQueueItem["subjectType"],
+  subjectId: String(readField(row, "subjectId", "subject_id")),
+  actionType: String(readField(row, "actionType", "action_type")) as DeprovisioningQueueItem["actionType"],
+  status: String(row.status) as DeprovisioningQueueItem["status"],
+  payload: parseObjectRecord(readField(row, "payloadJson", "payload_json")),
+  error: readField(row, "error") ? String(readField(row, "error")) : undefined,
+  createdAt: asDate(readField(row, "createdAt", "created_at")),
+  processedAt: maybeDate(readField(row, "processedAt", "processed_at"))
+});
+
 const mapEventHook = (row: PrismaRow): EventHook => ({
   id: String(row.id),
   eventType: String(row.eventType),
@@ -585,6 +603,8 @@ class PrismaUserRepository {
       data: {
         id: user.id,
         appId: user.appId ?? null,
+        externalSource: user.externalSource ?? null,
+        externalId: user.externalId ?? null,
         isServiceUser: asBooleanInt(user.isServiceUser),
         email: user.email,
         username: user.username,
@@ -624,7 +644,7 @@ class PrismaUserRepository {
     return row ? mapUser(row as PrismaRow) : undefined;
   }
 
-  async updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId" | "isServiceUser">>): Promise<User | undefined> {
+  async updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId" | "externalSource" | "externalId" | "isServiceUser">>): Promise<User | undefined> {
     const existing = await this.findById(id);
     if (!existing) {
       return undefined;
@@ -633,6 +653,8 @@ class PrismaUserRepository {
     const updated: User = {
       ...existing,
       appId: input.appId !== undefined ? input.appId : existing.appId,
+      externalSource: input.externalSource !== undefined ? input.externalSource : existing.externalSource,
+      externalId: input.externalId !== undefined ? input.externalId : existing.externalId,
       isServiceUser: input.isServiceUser ?? existing.isServiceUser,
       email: input.email ?? existing.email,
       username: input.username ?? existing.username,
@@ -645,6 +667,8 @@ class PrismaUserRepository {
       where: { id },
       data: {
         appId: updated.appId ?? null,
+        externalSource: updated.externalSource ?? null,
+        externalId: updated.externalId ?? null,
         isServiceUser: asBooleanInt(updated.isServiceUser),
         email: updated.email,
         username: updated.username,
@@ -974,7 +998,17 @@ class PrismaGroupRepository {
 
   async create(input: Omit<Group, "id" | "createdAt">): Promise<Group> {
     const group: Group = { ...input, id: nanoid(), createdAt: new Date() };
-    await this.prisma.group.create({ data: { id: group.id, appId: group.appId ?? null, name: group.name, description: group.description, createdAt: group.createdAt.toISOString() } });
+    await this.prisma.group.create({
+      data: {
+        id: group.id,
+        appId: group.appId ?? null,
+        externalSource: group.externalSource ?? null,
+        externalId: group.externalId ?? null,
+        name: group.name,
+        description: group.description,
+        createdAt: group.createdAt.toISOString()
+      }
+    });
     return group;
   }
 
@@ -993,8 +1027,24 @@ class PrismaGroupRepository {
     if (!existing) {
       return undefined;
     }
-    const updated: Group = { ...existing, appId: input.appId ?? existing.appId, name: input.name ?? existing.name, description: input.description ?? existing.description };
-    await this.prisma.group.update({ where: { id }, data: { appId: updated.appId ?? null, name: updated.name, description: updated.description } });
+    const updated: Group = {
+      ...existing,
+      appId: input.appId ?? existing.appId,
+      externalSource: input.externalSource !== undefined ? input.externalSource : existing.externalSource,
+      externalId: input.externalId !== undefined ? input.externalId : existing.externalId,
+      name: input.name ?? existing.name,
+      description: input.description ?? existing.description
+    };
+    await this.prisma.group.update({
+      where: { id },
+      data: {
+        appId: updated.appId ?? null,
+        externalSource: updated.externalSource ?? null,
+        externalId: updated.externalId ?? null,
+        name: updated.name,
+        description: updated.description
+      }
+    });
     return updated;
   }
 
@@ -1649,6 +1699,62 @@ class PrismaProvisioningJobRepository {
   }
 }
 
+class PrismaDeprovisioningQueueRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+
+  async list(limit = 100): Promise<DeprovisioningQueueItem[]> {
+    const rows = await this.prisma.deprovisioningQueue.findMany({ orderBy: { createdAt: "desc" }, take: limit });
+    return rows.map((row: PrismaRow) => mapDeprovisioningQueueItem(row));
+  }
+
+  async enqueue(input: Omit<DeprovisioningQueueItem, "id" | "createdAt">): Promise<DeprovisioningQueueItem> {
+    const item: DeprovisioningQueueItem = {
+      ...input,
+      id: nanoid(),
+      createdAt: new Date()
+    };
+
+    await this.prisma.deprovisioningQueue.create({
+      data: {
+        id: item.id,
+        subjectType: item.subjectType,
+        subjectId: item.subjectId,
+        actionType: item.actionType,
+        status: item.status,
+        payloadJson: JSON.stringify(item.payload),
+        error: item.error ?? null,
+        createdAt: item.createdAt.toISOString(),
+        processedAt: item.processedAt ? item.processedAt.toISOString() : null
+      }
+    });
+
+    return item;
+  }
+
+  async updateStatus(id: string, input: { status: DeprovisioningQueueItem["status"]; error?: string; processedAt?: Date }): Promise<DeprovisioningQueueItem | undefined> {
+    const existing = await this.prisma.deprovisioningQueue.findUnique({ where: { id } });
+    if (!existing) {
+      return undefined;
+    }
+
+    await this.prisma.deprovisioningQueue.update({
+      where: { id },
+      data: {
+        status: input.status,
+        error: input.error ?? null,
+        processedAt: input.processedAt ? input.processedAt.toISOString() : null
+      }
+    });
+
+    return mapDeprovisioningQueueItem({
+      ...(existing as PrismaRow),
+      status: input.status,
+      error: input.error,
+      processedAt: input.processedAt ? input.processedAt.toISOString() : null
+    });
+  }
+}
+
 class PrismaEventHookRepository {
   constructor(private readonly prisma: PrismaClientLike) {}
 
@@ -1734,6 +1840,7 @@ export const createPrismaRepositories = (prisma: PrismaClientLike): RepositoryBu
   scimTokenRepository: new PrismaScimTokenRepository(prisma),
   provisioningMappingRepository: new PrismaProvisioningMappingRepository(prisma),
   provisioningJobRepository: new PrismaProvisioningJobRepository(prisma),
+  deprovisioningQueueRepository: new PrismaDeprovisioningQueueRepository(prisma),
   eventHookRepository: new PrismaEventHookRepository(prisma),
   eventNotificationRepository: new PrismaEventNotificationRepository(prisma),
   instanceSettingsRepository: new PrismaInstanceSettingsRepository(prisma)

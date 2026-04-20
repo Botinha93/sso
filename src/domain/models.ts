@@ -40,6 +40,8 @@ export interface Role {
 export interface User {
   id: string;
   appId?: string;
+  externalSource?: string;
+  externalId?: string;
   isServiceUser: boolean;
   email: string;
   username: string;
@@ -114,6 +116,8 @@ export interface Tenant {
 export interface Group {
   id: string;
   appId?: string;
+  externalSource?: string;
+  externalId?: string;
   name: string;
   description: string;
   createdAt: Date;
@@ -315,6 +319,18 @@ export interface ProvisioningJob {
   completedAt?: Date;
 }
 
+export interface DeprovisioningQueueItem {
+  id: string;
+  subjectType: "user" | "group";
+  subjectId: string;
+  actionType: "user_offboard" | "group_cleanup";
+  status: "pending" | "completed" | "failed";
+  payload: Record<string, unknown>;
+  error?: string;
+  createdAt: Date;
+  processedAt?: Date;
+}
+
 export interface EventHook {
   id: string;
   eventType: string;
@@ -407,6 +423,12 @@ export type AuditEventType =
   | "client_deleted"
   | "user_created"
   | "user_password_reset"
+  | "scim_user_created"
+  | "scim_user_updated"
+  | "scim_user_deleted"
+  | "scim_group_created"
+  | "scim_group_updated"
+  | "scim_group_deleted"
   | "policy_decision_evaluated"
   | "security_sqli_blocked"
   | "security_rate_limit_blocked";

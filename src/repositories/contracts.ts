@@ -6,6 +6,7 @@ import type {
   Consent,
   EventHook,
   EventNotification,
+  DeprovisioningQueueItem,
   InstanceSettings,
   FederatedIdentity,
   FederationProvider,
@@ -48,7 +49,7 @@ export interface UserRepository {
   findByEmail(email: string): Promise<User | undefined>;
   findByUsername(username: string): Promise<User | undefined>;
   findById(id: string): Promise<User | undefined>;
-  updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId" | "isServiceUser">>): Promise<User | undefined>;
+  updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId" | "externalSource" | "externalId" | "isServiceUser">>): Promise<User | undefined>;
   setPasswordHash(id: string, passwordHash: string): Promise<void>;
   setActive(id: string, active: boolean): Promise<void>;
   setCustomAttributes(id: string, customAttributes: Record<string, string>): Promise<void>;
@@ -245,6 +246,16 @@ export interface ProvisioningJobRepository {
   list(limit?: number): Promise<ProvisioningJob[]>;
   create(input: Omit<ProvisioningJob, "id" | "createdAt">): Promise<ProvisioningJob>;
   update(id: string, input: Partial<Omit<ProvisioningJob, "id" | "createdAt">>): Promise<ProvisioningJob | undefined>;
+}
+
+export interface DeprovisioningQueueRepository {
+  list(limit?: number): Promise<DeprovisioningQueueItem[]>;
+  enqueue(input: Omit<DeprovisioningQueueItem, "id" | "createdAt">): Promise<DeprovisioningQueueItem>;
+  updateStatus(id: string, input: {
+    status: DeprovisioningQueueItem["status"];
+    error?: string;
+    processedAt?: Date;
+  }): Promise<DeprovisioningQueueItem | undefined>;
 }
 
 export interface EventHookRepository {

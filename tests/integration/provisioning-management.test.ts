@@ -56,6 +56,30 @@ test("admin provisioning mappings and reconcile jobs lifecycle", async (t) => {
   assert.equal(createdMapping.name, "workday_manager");
   assert.equal(createdMapping.enabled, true);
 
+  const createUserResponse = await app.inject({
+    method: "POST",
+    url: "/api/admin/users",
+    headers: {
+      cookie: authCookies,
+      "x-csrf-token": csrfToken
+    },
+    payload: {
+      email: "mapping-target@example.com",
+      username: "mapping_target",
+      password: "Change-Me-Now1!",
+      givenName: "Mapping",
+      familyName: "Target",
+      customAttributes: {
+        "enterprise.manager": "MANAGER-123",
+        managerId: "stale"
+      },
+      roleIds: [],
+      groupIds: []
+    }
+  });
+  assert.equal(createUserResponse.statusCode, 201);
+  const createdUser = createUserResponse.json() as { id: string };
+
   const listMappingsResponse = await app.inject({
     method: "GET",
     url: "/api/admin/provisioning/mappings",
@@ -84,6 +108,37 @@ test("admin provisioning mappings and reconcile jobs lifecycle", async (t) => {
   const job = reconcileResponse.json() as { id: string; status: string; summary: Record<string, unknown> };
   assert.equal(job.status, "completed");
   assert.equal(job.summary.dryRun, true);
+  assert.equal(job.summary.driftDetected, 1);
+  assert.equal(job.summary.updatedUsers, 0);
+
+  const applyReconcileResponse = await app.inject({
+    method: "POST",
+    url: "/api/admin/provisioning/jobs/reconcile",
+    headers: {
+      cookie: authCookies,
+      "x-csrf-token": csrfToken
+    },
+    payload: {
+      dryRun: false
+    }
+  });
+  assert.equal(applyReconcileResponse.statusCode, 202);
+  const applyJob = applyReconcileResponse.json() as { summary: Record<string, unknown> };
+  assert.equal(applyJob.summary.dryRun, false);
+  assert.equal(applyJob.summary.driftDetected, 1);
+  assert.equal(applyJob.summary.updatedUsers, 1);
+
+  const usersResponse = await app.inject({
+    method: "GET",
+    url: "/api/admin/users",
+    headers: {
+      cookie: sid
+    }
+  });
+  assert.equal(usersResponse.statusCode, 200);
+  const users = usersResponse.json() as Array<{ id: string; customAttributes: Record<string, string> }>;
+  const reconciledUser = users.find((user) => user.id === createdUser.id);
+  assert.equal(reconciledUser?.customAttributes.managerId, "manager-123");
 
   const listJobsResponse = await app.inject({
     method: "GET",

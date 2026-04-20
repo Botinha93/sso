@@ -18,6 +18,8 @@ export const updateRoleSchema = z.object({
 
 export const createUserSchema = z.object({
   appId: z.string().min(2).optional(),
+  externalSource: z.string().min(1).optional(),
+  externalId: z.string().min(1).optional(),
   isServiceUser: z.boolean().default(false),
   email: z.string().email(),
   username: z.string().min(3),
@@ -31,6 +33,8 @@ export const createUserSchema = z.object({
 
 export const updateUserSchema = z.object({
   appId: z.string().min(2).optional(),
+  externalSource: z.string().min(1).optional(),
+  externalId: z.string().min(1).optional(),
   isServiceUser: z.boolean().optional(),
   email: z.string().email().optional(),
   username: z.string().min(3).optional(),
@@ -60,6 +64,8 @@ export const portalChangePasswordSchema = z.object({
 
 export const createGroupSchema = z.object({
   appId: z.string().min(2).optional(),
+  externalSource: z.string().min(1).optional(),
+  externalId: z.string().min(1).optional(),
   name: z.string().min(2),
   description: z.string().min(2),
   roleIds: z.array(z.string()).default([])
@@ -67,6 +73,8 @@ export const createGroupSchema = z.object({
 
 export const updateGroupSchema = z.object({
   appId: z.string().min(2).optional(),
+  externalSource: z.string().min(1).optional(),
+  externalId: z.string().min(1).optional(),
   name: z.string().min(2).optional(),
   description: z.string().min(2).optional()
 });

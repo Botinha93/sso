@@ -7,6 +7,7 @@ import type {
   AuthorizationCodeRepository,
   ClientRepository,
   ConsentRepository,
+  DeprovisioningQueueRepository,
   EventHookRepository,
   EventNotificationRepository,
   FederatedIdentityRepository,
@@ -42,6 +43,7 @@ import {
   SqliteAuthorizationCodeRepository,
   SqliteClientRepository,
   SqliteConsentRepository,
+  SqliteDeprovisioningQueueRepository,
   SqliteDatabase,
   SqliteEventHookRepository,
   SqliteEventNotificationRepository,
@@ -100,6 +102,7 @@ export interface RepositoryBundle {
   scimTokenRepository: ScimTokenRepository;
   provisioningMappingRepository: ProvisioningMappingRepository;
   provisioningJobRepository: ProvisioningJobRepository;
+  deprovisioningQueueRepository: DeprovisioningQueueRepository;
   eventHookRepository: EventHookRepository;
   eventNotificationRepository: EventNotificationRepository;
   instanceSettingsRepository: InstanceSettingsRepository;
@@ -145,6 +148,7 @@ export const createRepositoryBundle = async (config: AppConfig): Promise<Reposit
       scimTokenRepository: new SqliteScimTokenRepository(sqlite.connection),
       provisioningMappingRepository: new SqliteProvisioningMappingRepository(sqlite.connection),
       provisioningJobRepository: new SqliteProvisioningJobRepository(sqlite.connection),
+      deprovisioningQueueRepository: new SqliteDeprovisioningQueueRepository(sqlite.connection),
       eventHookRepository: new SqliteEventHookRepository(sqlite.connection),
       eventNotificationRepository: new SqliteEventNotificationRepository(sqlite.connection),
       instanceSettingsRepository: new SqliteInstanceSettingsRepository(sqlite.connection),

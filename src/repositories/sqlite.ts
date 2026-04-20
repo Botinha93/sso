@@ -10,6 +10,7 @@ import type {
   AuditEvent,
   AuthorizationCode,
   Consent,
+  DeprovisioningQueueItem,
   FederationProvider,
   FederatedIdentity,
   FederationTransaction,
@@ -47,6 +48,7 @@ import type {
   ClientRepository,
   ScopeRepository,
   ConsentRepository,
+  DeprovisioningQueueRepository,
   FederationProviderRepository,
   FederatedIdentityRepository,
   FederationTransactionRepository,
@@ -145,6 +147,8 @@ export class SqliteDatabase {
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
         app_id TEXT,
+        external_source TEXT,
+        external_id TEXT,
         is_service_user INTEGER NOT NULL DEFAULT 0,
         email TEXT NOT NULL UNIQUE,
         username TEXT NOT NULL UNIQUE,
@@ -224,6 +228,8 @@ export class SqliteDatabase {
       CREATE TABLE IF NOT EXISTS groups (
         id TEXT PRIMARY KEY,
         app_id TEXT,
+        external_source TEXT,
+        external_id TEXT,
         name TEXT NOT NULL UNIQUE,
         description TEXT NOT NULL,
         created_at TEXT NOT NULL
@@ -463,6 +469,18 @@ export class SqliteDatabase {
         completed_at TEXT
       );
 
+      CREATE TABLE IF NOT EXISTS deprovisioning_queue (
+        id TEXT PRIMARY KEY,
+        subject_type TEXT NOT NULL,
+        subject_id TEXT NOT NULL,
+        action_type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        error TEXT,
+        created_at TEXT NOT NULL,
+        processed_at TEXT
+      );
+
       CREATE TABLE IF NOT EXISTS event_hooks (
         id TEXT PRIMARY KEY,
         event_type TEXT NOT NULL,
@@ -501,6 +519,14 @@ export class SqliteDatabase {
     if (!hasIsServiceUserColumn) {
       this.connection.exec("ALTER TABLE users ADD COLUMN is_service_user INTEGER NOT NULL DEFAULT 0;");
     }
+    const hasUserExternalSourceColumn = userColumns.some((column) => column.name === "external_source");
+    if (!hasUserExternalSourceColumn) {
+      this.connection.exec("ALTER TABLE users ADD COLUMN external_source TEXT;");
+    }
+    const hasUserExternalIdColumn = userColumns.some((column) => column.name === "external_id");
+    if (!hasUserExternalIdColumn) {
+      this.connection.exec("ALTER TABLE users ADD COLUMN external_id TEXT;");
+    }
 
     const clientColumns = this.connection.prepare("PRAGMA table_info(oauth_clients)").all() as Array<{ name: string }>;
     const hasResourcesColumn = clientColumns.some((column) => column.name === "resources_json");
@@ -526,6 +552,14 @@ export class SqliteDatabase {
     const hasGroupAppIdColumn = groupColumns.some((column) => column.name === "app_id");
     if (!hasGroupAppIdColumn) {
       this.connection.exec("ALTER TABLE groups ADD COLUMN app_id TEXT;");
+    }
+    const hasGroupExternalSourceColumn = groupColumns.some((column) => column.name === "external_source");
+    if (!hasGroupExternalSourceColumn) {
+      this.connection.exec("ALTER TABLE groups ADD COLUMN external_source TEXT;");
+    }
+    const hasGroupExternalIdColumn = groupColumns.some((column) => column.name === "external_id");
+    if (!hasGroupExternalIdColumn) {
+      this.connection.exec("ALTER TABLE groups ADD COLUMN external_id TEXT;");
     }
 
     const appColumns = this.connection.prepare("PRAGMA table_info(apps)").all() as Array<{ name: string }>;
@@ -584,6 +618,23 @@ export class SqliteDatabase {
     if (!hasDecisionStrategyColumn) {
       this.connection.exec("ALTER TABLE policy_assignments ADD COLUMN decision_strategy TEXT;");
     }
+
+    const deprovisioningColumns = this.connection.prepare("PRAGMA table_info(deprovisioning_queue)").all() as Array<{ name: string }>;
+    if (deprovisioningColumns.length === 0) {
+      this.connection.exec(`
+        CREATE TABLE IF NOT EXISTS deprovisioning_queue (
+          id TEXT PRIMARY KEY,
+          subject_type TEXT NOT NULL,
+          subject_id TEXT NOT NULL,
+          action_type TEXT NOT NULL,
+          status TEXT NOT NULL,
+          payload_json TEXT NOT NULL,
+          error TEXT,
+          created_at TEXT NOT NULL,
+          processed_at TEXT
+        );
+      `);
+    }
   }
 }
 
@@ -600,6 +651,8 @@ const mapRole = (row: DbRow): Role => ({
 const mapUser = (row: DbRow): User => ({
   id: String(row.id),
   appId: row.app_id ? String(row.app_id) : undefined,
+  externalSource: row.external_source ? String(row.external_source) : undefined,
+  externalId: row.external_id ? String(row.external_id) : undefined,
   isServiceUser: Boolean(row.is_service_user),
   email: String(row.email),
   username: String(row.username),
@@ -674,6 +727,8 @@ const mapTenant = (row: DbRow): Tenant => ({
 const mapGroup = (row: DbRow): Group => ({
   id: String(row.id),
   appId: row.app_id ? String(row.app_id) : undefined,
+  externalSource: row.external_source ? String(row.external_source) : undefined,
+  externalId: row.external_id ? String(row.external_id) : undefined,
   name: String(row.name),
   description: String(row.description),
   createdAt: asDate(row.created_at)
@@ -873,6 +928,18 @@ const mapProvisioningJob = (row: DbRow): ProvisioningJob => ({
   completedAt: maybeDate(row.completed_at)
 });
 
+const mapDeprovisioningQueueItem = (row: DbRow): DeprovisioningQueueItem => ({
+  id: String(row.id),
+  subjectType: String(row.subject_type) as DeprovisioningQueueItem["subjectType"],
+  subjectId: String(row.subject_id),
+  actionType: String(row.action_type) as DeprovisioningQueueItem["actionType"],
+  status: String(row.status) as DeprovisioningQueueItem["status"],
+  payload: JSON.parse(String(row.payload_json)) as Record<string, unknown>,
+  error: row.error ? String(row.error) : undefined,
+  createdAt: asDate(row.created_at),
+  processedAt: maybeDate(row.processed_at)
+});
+
 const mapEventHook = (row: DbRow): EventHook => ({
   id: String(row.id),
   eventType: String(row.event_type),
@@ -994,11 +1061,13 @@ export class SqliteUserRepository {
     const now = new Date();
     const user: User = { ...input, id: nanoid(), createdAt: now, updatedAt: now };
     this.db.prepare(`
-      INSERT INTO users (id, app_id, is_service_user, email, username, password_hash, given_name, family_name, custom_attributes_json, active, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO users (id, app_id, external_source, external_id, is_service_user, email, username, password_hash, given_name, family_name, custom_attributes_json, active, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       user.id,
       user.appId ?? null,
+      user.externalSource ?? null,
+      user.externalId ?? null,
       user.isServiceUser ? 1 : 0,
       user.email,
       user.username,
@@ -1033,13 +1102,15 @@ export class SqliteUserRepository {
     return row ? mapUser(row as DbRow) : undefined;
   }
 
-  updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId" | "isServiceUser">>): User | undefined {
+  updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId" | "externalSource" | "externalId" | "isServiceUser">>): User | undefined {
     const current = this.findById(id);
     if (!current) return undefined;
 
     const updated = {
       ...current,
       appId: input.appId !== undefined ? input.appId : current.appId,
+      externalSource: input.externalSource !== undefined ? input.externalSource : current.externalSource,
+      externalId: input.externalId !== undefined ? input.externalId : current.externalId,
       isServiceUser: input.isServiceUser ?? current.isServiceUser,
       email: input.email ?? current.email,
       username: input.username ?? current.username,
@@ -1050,10 +1121,12 @@ export class SqliteUserRepository {
 
     this.db.prepare(`
       UPDATE users
-      SET app_id = ?, is_service_user = ?, email = ?, username = ?, given_name = ?, family_name = ?, updated_at = ?
+      SET app_id = ?, external_source = ?, external_id = ?, is_service_user = ?, email = ?, username = ?, given_name = ?, family_name = ?, updated_at = ?
       WHERE id = ?
     `).run(
       updated.appId ?? null,
+      updated.externalSource ?? null,
+      updated.externalId ?? null,
       updated.isServiceUser ? 1 : 0,
       updated.email,
       updated.username,
@@ -1443,9 +1516,9 @@ export class SqliteGroupRepository {
   create(input: Omit<Group, "id" | "createdAt">): Group {
     const group: Group = { ...input, id: nanoid(), createdAt: new Date() };
     this.db.prepare(`
-      INSERT INTO groups (id, app_id, name, description, created_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(group.id, group.appId ?? null, group.name, group.description, group.createdAt.toISOString());
+      INSERT INTO groups (id, app_id, external_source, external_id, name, description, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(group.id, group.appId ?? null, group.externalSource ?? null, group.externalId ?? null, group.name, group.description, group.createdAt.toISOString());
     return group;
   }
 
@@ -1466,13 +1539,15 @@ export class SqliteGroupRepository {
     const updated: Group = {
       ...existing,
       appId: input.appId ?? existing.appId,
+      externalSource: input.externalSource !== undefined ? input.externalSource : existing.externalSource,
+      externalId: input.externalId !== undefined ? input.externalId : existing.externalId,
       name: input.name ?? existing.name,
       description: input.description ?? existing.description
     };
 
     this.db.prepare(`
-      UPDATE groups SET app_id = ?, name = ?, description = ? WHERE id = ?
-    `).run(updated.appId ?? null, updated.name, updated.description, id);
+      UPDATE groups SET app_id = ?, external_source = ?, external_id = ?, name = ?, description = ? WHERE id = ?
+    `).run(updated.appId ?? null, updated.externalSource ?? null, updated.externalId ?? null, updated.name, updated.description, id);
 
     return updated;
   }
@@ -2507,6 +2582,68 @@ export class SqliteProvisioningJobRepository implements ProvisioningJobRepositor
       JSON.stringify(updated.summary),
       updated.initiatedByUserId ?? null,
       updated.completedAt ? updated.completedAt.toISOString() : null,
+      id
+    );
+
+    return updated;
+  }
+}
+
+export class SqliteDeprovisioningQueueRepository implements DeprovisioningQueueRepository {
+  constructor(private readonly db: Database.Database) {}
+
+  async list(limit = 100): Promise<DeprovisioningQueueItem[]> {
+    const rows = this.db.prepare("SELECT * FROM deprovisioning_queue ORDER BY created_at DESC LIMIT ?").all(limit) as DbRow[];
+    return rows.map(mapDeprovisioningQueueItem);
+  }
+
+  async enqueue(input: Omit<DeprovisioningQueueItem, "id" | "createdAt">): Promise<DeprovisioningQueueItem> {
+    const item: DeprovisioningQueueItem = {
+      ...input,
+      id: nanoid(),
+      createdAt: new Date()
+    };
+
+    this.db.prepare(`
+      INSERT INTO deprovisioning_queue (id, subject_type, subject_id, action_type, status, payload_json, error, created_at, processed_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      item.id,
+      item.subjectType,
+      item.subjectId,
+      item.actionType,
+      item.status,
+      JSON.stringify(item.payload),
+      item.error ?? null,
+      item.createdAt.toISOString(),
+      item.processedAt ? item.processedAt.toISOString() : null
+    );
+
+    return item;
+  }
+
+  async updateStatus(id: string, input: { status: DeprovisioningQueueItem["status"]; error?: string; processedAt?: Date }): Promise<DeprovisioningQueueItem | undefined> {
+    const existing = this.db.prepare("SELECT * FROM deprovisioning_queue WHERE id = ?").get(id) as DbRow | undefined;
+    if (!existing) {
+      return undefined;
+    }
+
+    const current = mapDeprovisioningQueueItem(existing);
+    const updated: DeprovisioningQueueItem = {
+      ...current,
+      status: input.status,
+      error: input.error,
+      processedAt: input.processedAt
+    };
+
+    this.db.prepare(`
+      UPDATE deprovisioning_queue
+      SET status = ?, error = ?, processed_at = ?
+      WHERE id = ?
+    `).run(
+      updated.status,
+      updated.error ?? null,
+      updated.processedAt ? updated.processedAt.toISOString() : null,
       id
     );
 

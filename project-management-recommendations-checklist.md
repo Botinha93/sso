@@ -130,11 +130,11 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 
 ### Schema and model backlog
 
-- [ ] Add `external_source` and `external_id` to users/groups linkage model.
+- [x] Add `external_source` and `external_id` to users/groups linkage model.
 - [x] Add `scim_tokens` table for bearer token auth and rotation.
 - [x] Add `provisioning_mappings` table for source-to-attribute mapping rules.
 - [x] Add `provisioning_jobs` table for reconciliation and status tracking.
-- [ ] Add `deprovisioning_queue` table for downstream revoke/offboarding tasks.
+- [x] Add `deprovisioning_queue` table for downstream revoke/offboarding tasks.
 
 ### Code implementation backlog
 
@@ -142,17 +142,17 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 - [x] Create `src/services/scim-service.ts` for protocol handling and patch ops.
 - [x] Map SCIM resources to existing user/group services.
 - [x] Add SCIM token service and enforce bearer auth on SCIM routes.
-- [ ] Emit audit and event hooks for SCIM mutations.
+- [x] Emit audit and event hooks for SCIM mutations.
 - [x] Add admin pages for token management and provisioning mappings.
 
 ### Test plan
 
-- [ ] Unit: SCIM PATCH operation handling.
-- [ ] Unit: mapping engine (source attributes -> customAttributes).
+- [x] Unit: SCIM PATCH operation handling.
+- [x] Unit: mapping engine (source attributes -> customAttributes).
 - [x] Integration: create/update/deactivate/delete users via SCIM.
 - [x] Integration: group membership sync and idempotency.
 - [x] Integration: SCIM bearer token auth accepts valid tokens and rejects missing/invalid/revoked tokens.
-- [ ] Integration: reconciliation detects and reports drift.
+- [x] Integration: reconciliation detects and reports drift.
 - [x] Security: SCIM token auth and malformed payload behavior.
 
 ### Suggested files to touch

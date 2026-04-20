@@ -16,7 +16,14 @@ export class GroupService {
     private readonly userRepository: UserRepository
   ) {}
 
-  async createGroup(input: { appId?: string; name: string; description: string; roleIds: string[] }) {
+  async createGroup(input: {
+    appId?: string;
+    externalSource?: string;
+    externalId?: string;
+    name: string;
+    description: string;
+    roleIds: string[];
+  }) {
     const roleIds = Array.from(new Set(input.roleIds));
     const knownRoles = await this.roleRepository.findByIds(roleIds);
 
@@ -26,6 +33,8 @@ export class GroupService {
 
     const group = await this.groupRepository.create({
       appId: input.appId,
+      externalSource: input.externalSource,
+      externalId: input.externalId,
       name: input.name,
       description: input.description
     });
@@ -54,7 +63,13 @@ export class GroupService {
     }));
   }
 
-  async updateGroup(id: string, input: { appId?: string; name?: string; description?: string }) {
+  async updateGroup(id: string, input: {
+    appId?: string;
+    externalSource?: string;
+    externalId?: string;
+    name?: string;
+    description?: string;
+  }) {
     const updated = await this.groupRepository.update(id, input);
     if (!updated) {
       throw new ValidationError("Group not found");

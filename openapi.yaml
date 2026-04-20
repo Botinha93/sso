@@ -41,7 +41,7 @@ paths:
         '200':
           description: SCIM user list
     post:
-      summary: Create SCIM user
+      summary: Create SCIM user (supports externalId linkage)
       responses:
         '201':
           description: SCIM user created
@@ -59,7 +59,7 @@ paths:
         '404':
           description: User not found
     put:
-      summary: Replace SCIM user
+      summary: Replace SCIM user (supports externalId linkage)
       parameters:
         - in: path
           name: id
@@ -69,7 +69,7 @@ paths:
         '200':
           description: SCIM user replaced
     patch:
-      summary: Patch SCIM user
+      summary: Patch SCIM user (supports externalId linkage)
       parameters:
         - in: path
           name: id
@@ -105,7 +105,7 @@ paths:
         '200':
           description: SCIM group list
     post:
-      summary: Create SCIM group
+      summary: Create SCIM group (supports externalId linkage)
       responses:
         '201':
           description: SCIM group created
@@ -123,7 +123,7 @@ paths:
         '404':
           description: Group not found
     put:
-      summary: Replace SCIM group
+      summary: Replace SCIM group (supports externalId linkage)
       parameters:
         - in: path
           name: id
@@ -133,7 +133,7 @@ paths:
         '200':
           description: SCIM group replaced
     patch:
-      summary: Patch SCIM group
+      summary: Patch SCIM group (supports externalId linkage)
       parameters:
         - in: path
           name: id
@@ -365,7 +365,7 @@ paths:
         '200':
           description: Provisioning mapping list
     post:
-      summary: Create provisioning attribute mapping
+      summary: Create provisioning attribute mapping (optional transform expression)
       responses:
         '201':
           description: Provisioning mapping created
@@ -387,9 +387,15 @@ paths:
       responses:
         '200':
           description: Provisioning job list
+  /api/admin/provisioning/deprovisioning-queue:
+    get:
+      summary: List deprovisioning queue tasks
+      responses:
+        '200':
+          description: Deprovisioning queue list
   /api/admin/provisioning/jobs/reconcile:
     post:
-      summary: Run provisioning reconciliation job
+      summary: Run provisioning reconciliation job with drift reporting
       responses:
         '202':
           description: Reconciliation job accepted

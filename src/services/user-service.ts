@@ -13,6 +13,8 @@ export class UserService {
 
   async createUser(input: {
     appId?: string;
+    externalSource?: string;
+    externalId?: string;
     isServiceUser?: boolean;
     email: string;
     username: string;
@@ -30,6 +32,8 @@ export class UserService {
 
     const user = await this.userRepository.create({
       appId: input.appId,
+      externalSource: input.externalSource,
+      externalId: input.externalId,
       isServiceUser: input.isServiceUser ?? false,
       email: input.email,
       username: input.username,
@@ -75,7 +79,16 @@ export class UserService {
     return this.userRepository.findById(id);
   }
 
-  async updateUserProfile(id: string, input: { appId?: string; isServiceUser?: boolean; email?: string; username?: string; givenName?: string; familyName?: string }) {
+  async updateUserProfile(id: string, input: {
+    appId?: string;
+    externalSource?: string;
+    externalId?: string;
+    isServiceUser?: boolean;
+    email?: string;
+    username?: string;
+    givenName?: string;
+    familyName?: string;
+  }) {
     const existing = await this.userRepository.findById(id);
     if (!existing) {
       throw new ValidationError("User not found");

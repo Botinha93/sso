@@ -124,6 +124,7 @@ export class ScimService {
   }
 
   async createUser(input: {
+    externalId?: string;
     userName: string;
     name?: { givenName?: string; familyName?: string };
     emails?: Array<{ value: string; primary?: boolean }>;
@@ -133,6 +134,8 @@ export class ScimService {
     const primaryEmail = input.emails?.find((email) => email.primary)?.value ?? input.emails?.[0]?.value;
     const email = primaryEmail ?? this.syntheticEmailFromUserName(input.userName);
     const created = await this.userService.createUser({
+      externalSource: "scim",
+      externalId: input.externalId,
       email,
       username: input.userName,
       password: input.password ?? randomBytes(16).toString("hex"),
@@ -154,6 +157,7 @@ export class ScimService {
   }
 
   async replaceUser(id: string, input: {
+    externalId?: string;
     userName: string;
     name?: { givenName?: string; familyName?: string };
     emails?: Array<{ value: string; primary?: boolean }>;
@@ -167,6 +171,8 @@ export class ScimService {
 
     const primaryEmail = input.emails?.find((email) => email.primary)?.value ?? input.emails?.[0]?.value;
     const updated = await this.userService.updateUserProfile(id, {
+      externalSource: "scim",
+      externalId: input.externalId,
       username: input.userName,
       email: primaryEmail ?? existing.email,
       givenName: input.name?.givenName ?? existing.givenName,
@@ -195,6 +201,8 @@ export class ScimService {
     }
 
     const profilePatch: {
+      externalSource?: string;
+      externalId?: string;
       username?: string;
       email?: string;
       givenName?: string;
@@ -221,6 +229,10 @@ export class ScimService {
       }
       if (path === "active" && typeof operation.value === "boolean") {
         activePatch = operation.value;
+      }
+      if (path === "externalid" && typeof operation.value === "string") {
+        profilePatch.externalSource = "scim";
+        profilePatch.externalId = operation.value;
       }
     }
 
@@ -266,8 +278,10 @@ export class ScimService {
     return this.toScimGroup({ ...group, roleIds: [], roles: [] });
   }
 
-  async createGroup(input: { displayName: string; members?: Array<{ value: string }> }) {
+  async createGroup(input: { externalId?: string; displayName: string; members?: Array<{ value: string }> }) {
     const created = await this.groupService.createGroup({
+      externalSource: "scim",
+      externalId: input.externalId,
       name: input.displayName,
       description: `SCIM group ${input.displayName}`,
       roleIds: []
@@ -280,13 +294,15 @@ export class ScimService {
     return this.toScimGroup({ ...created, roleIds: [], roles: [] });
   }
 
-  async replaceGroup(id: string, input: { displayName: string; members?: Array<{ value: string }> }) {
+  async replaceGroup(id: string, input: { externalId?: string; displayName: string; members?: Array<{ value: string }> }) {
     const existing = await this.groupService.findGroupById(id);
     if (!existing) {
       throw new ValidationError("Group not found");
     }
 
     await this.groupService.updateGroup(id, {
+      externalSource: "scim",
+      externalId: input.externalId,
       name: input.displayName,
       description: existing.description
     });
@@ -321,6 +337,9 @@ export class ScimService {
       if (path === "displayname" && typeof operation.value === "string") {
         await this.groupService.updateGroup(id, { name: operation.value });
       }
+      if (path === "externalid" && typeof operation.value === "string") {
+        await this.groupService.updateGroup(id, { externalSource: "scim", externalId: operation.value });
+      }
 
       if (path === "members" && Array.isArray(operation.value)) {
         const members = operation.value as Array<{ value?: unknown }>;
@@ -350,6 +369,7 @@ export class ScimService {
 
   private toScimUser(user: {
     id: string;
+    externalId?: string;
     username: string;
     email: string;
     givenName: string;
@@ -359,6 +379,7 @@ export class ScimService {
     return {
       schemas: [USER_SCHEMA_ID],
       id: user.id,
+      externalId: user.externalId,
       userName: user.username,
       name: {
         givenName: user.givenName,
@@ -378,7 +399,7 @@ export class ScimService {
     };
   }
 
-  private async toScimGroup(group: { id: string; name: string }) {
+  private async toScimGroup(group: { id: string; name: string; externalId?: string }) {
     const users = await this.userService.listUsers();
     const members: Array<{ value: string; display: string }> = [];
 
@@ -392,6 +413,7 @@ export class ScimService {
     return {
       schemas: [GROUP_SCHEMA_ID],
       id: group.id,
+      externalId: group.externalId,
       displayName: group.name,
       members,
       meta: {
