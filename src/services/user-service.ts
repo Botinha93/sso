@@ -116,6 +116,11 @@ export class UserService {
   }
 
   async deleteUser(id: string) {
+    const groupIds = await this.groupService.listGroupIdsForUser(id);
+    for (const groupId of groupIds) {
+      await this.groupService.removeUserFromGroup({ userId: id, groupId });
+    }
+
     await this.userRepository.delete(id);
   }
 }

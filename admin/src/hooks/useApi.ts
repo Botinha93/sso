@@ -821,6 +821,121 @@ export function useEventNotifications(limit = 100) {
   })
 }
 
+export interface ProvisioningTokenDto {
+  id: string
+  label: string
+  createdAt: string
+  updatedAt: string
+  expiresAt?: string
+  lastUsedAt?: string
+}
+
+export interface ProvisioningMappingDto {
+  id: string
+  name: string
+  sourceAttribute: string
+  targetAttribute: string
+  transformExpression?: string
+  enabled: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ProvisioningJobDto {
+  id: string
+  jobType: 'reconcile'
+  status: 'running' | 'completed' | 'failed'
+  summary: Record<string, unknown>
+  initiatedByUserId?: string
+  createdAt: string
+  completedAt?: string
+}
+
+export function useProvisioningTokens() {
+  return useQuery({
+    queryKey: ['provisioning-tokens'],
+    queryFn: () => jsonFetch(`${API_BASE}/provisioning/tokens`) as Promise<ProvisioningTokenDto[]>
+  })
+}
+
+export function useCreateProvisioningToken() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { label: string; expiresAt?: string }) =>
+      jsonFetch(`${API_BASE}/provisioning/tokens`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }) as Promise<{ id: string; label: string; token: string; createdAt: string; expiresAt?: string }>,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['provisioning-tokens'] })
+  })
+}
+
+export function useDeleteProvisioningToken() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => jsonFetch(`${API_BASE}/provisioning/tokens/${id}`, { method: 'DELETE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['provisioning-tokens'] })
+  })
+}
+
+export function useProvisioningMappings() {
+  return useQuery({
+    queryKey: ['provisioning-mappings'],
+    queryFn: () => jsonFetch(`${API_BASE}/provisioning/mappings`) as Promise<ProvisioningMappingDto[]>
+  })
+}
+
+export function useCreateProvisioningMapping() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: {
+      name: string
+      sourceAttribute: string
+      targetAttribute: string
+      transformExpression?: string
+      enabled?: boolean
+    }) =>
+      jsonFetch(`${API_BASE}/provisioning/mappings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['provisioning-mappings'] })
+  })
+}
+
+export function useDeleteProvisioningMapping() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => jsonFetch(`${API_BASE}/provisioning/mappings/${id}`, { method: 'DELETE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['provisioning-mappings'] })
+  })
+}
+
+export function useProvisioningJobs(limit = 20) {
+  return useQuery({
+    queryKey: ['provisioning-jobs', limit],
+    queryFn: () => jsonFetch(`${API_BASE}/provisioning/jobs?limit=${limit}`) as Promise<ProvisioningJobDto[]>
+  })
+}
+
+export function useRunProvisioningReconcile() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { dryRun: boolean }) =>
+      jsonFetch(`${API_BASE}/provisioning/jobs/reconcile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }) as Promise<ProvisioningJobDto>,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['provisioning-jobs'] })
+      queryClient.invalidateQueries({ queryKey: ['provisioning-mappings'] })
+    }
+  })
+}
+
 // --- Administration / Instance Settings ---
 export function useInstanceSettings() {
   return useQuery({

@@ -67,6 +67,19 @@ export class GroupService {
   }
 
   async deleteGroup(id: string) {
+    const users = await this.userRepository.list();
+    for (const user of users) {
+      const assignments = await this.userGroupAssignmentRepository.listByUser(user.id);
+      if (assignments.some((assignment) => assignment.groupId === id)) {
+        await this.userGroupAssignmentRepository.remove(user.id, id);
+      }
+    }
+
+    const roleAssignments = await this.groupRoleAssignmentRepository.listByGroup(id);
+    for (const assignment of roleAssignments) {
+      await this.groupRoleAssignmentRepository.remove(id, assignment.roleId);
+    }
+
     await this.groupRepository.delete(id);
   }
 

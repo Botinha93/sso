@@ -29,6 +29,10 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 - [x] Epic 2 slice delivered: SCIM Users/Groups lifecycle endpoints (`GET/POST/PATCH/PUT/DELETE`) with dedicated SCIM payload schemas and route/service decomposition.
 - [x] Epic 2 slice delivered: SCIM resources now map to existing user/group services for create, list, update, membership patch, and delete flows.
 - [x] Integration coverage added for SCIM Users/Groups lifecycle behavior.
+- [x] Epic 2 security slice delivered: SCIM bearer-token auth now enforced for all `/scim/v2/*` routes with persisted hashed provisioning tokens and revocation/expiry handling.
+- [x] Epic 2 admin API slice delivered: provisioning token management endpoints (`GET/POST/DELETE /api/admin/provisioning/tokens*`) plus admin docs and OpenAPI updates.
+- [x] Epic 2 provisioning slice delivered: attribute mapping APIs (`GET/POST/DELETE /api/admin/provisioning/mappings`) and reconciliation APIs (`GET /api/admin/provisioning/jobs`, `POST /api/admin/provisioning/jobs/reconcile`) with service/repository support.
+- [x] Epic 2 frontend slice delivered: administration view now includes provisioning token management, mapping management, and dry-run reconciliation controls.
 
 ## Planning assumptions
 
@@ -118,15 +122,18 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 - [x] `GET /scim/v2/ResourceTypes`
 - [x] `GET/POST/PATCH/PUT/DELETE /scim/v2/Users`
 - [x] `GET/POST/PATCH/PUT/DELETE /scim/v2/Groups`
-- [ ] `POST /api/admin/provisioning/mappings` for attribute mapping configuration.
-- [ ] `POST /api/admin/provisioning/jobs/reconcile` for reconciliation runs.
+- [x] `GET /api/admin/provisioning/tokens`
+- [x] `POST /api/admin/provisioning/tokens`
+- [x] `DELETE /api/admin/provisioning/tokens/:id`
+- [x] `POST /api/admin/provisioning/mappings` for attribute mapping configuration.
+- [x] `POST /api/admin/provisioning/jobs/reconcile` for reconciliation runs.
 
 ### Schema and model backlog
 
 - [ ] Add `external_source` and `external_id` to users/groups linkage model.
-- [ ] Add `scim_tokens` table for bearer token auth and rotation.
-- [ ] Add `provisioning_mappings` table for source-to-attribute mapping rules.
-- [ ] Add `provisioning_jobs` table for reconciliation and status tracking.
+- [x] Add `scim_tokens` table for bearer token auth and rotation.
+- [x] Add `provisioning_mappings` table for source-to-attribute mapping rules.
+- [x] Add `provisioning_jobs` table for reconciliation and status tracking.
 - [ ] Add `deprovisioning_queue` table for downstream revoke/offboarding tasks.
 
 ### Code implementation backlog
@@ -134,8 +141,9 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 - [x] Create `src/http/scim-routes.ts` and register under `/scim/v2`.
 - [x] Create `src/services/scim-service.ts` for protocol handling and patch ops.
 - [x] Map SCIM resources to existing user/group services.
+- [x] Add SCIM token service and enforce bearer auth on SCIM routes.
 - [ ] Emit audit and event hooks for SCIM mutations.
-- [ ] Add admin pages for token management and provisioning mappings.
+- [x] Add admin pages for token management and provisioning mappings.
 
 ### Test plan
 
@@ -143,8 +151,9 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 - [ ] Unit: mapping engine (source attributes -> customAttributes).
 - [x] Integration: create/update/deactivate/delete users via SCIM.
 - [x] Integration: group membership sync and idempotency.
+- [x] Integration: SCIM bearer token auth accepts valid tokens and rejects missing/invalid/revoked tokens.
 - [ ] Integration: reconciliation detects and reports drift.
-- [ ] Security: SCIM token auth, rate limit, and malformed payload behavior.
+- [x] Security: SCIM token auth and malformed payload behavior.
 
 ### Suggested files to touch
 

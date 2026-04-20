@@ -358,6 +358,41 @@ paths:
       responses:
         '204':
           description: SCIM token revoked
+  /api/admin/provisioning/mappings:
+    get:
+      summary: List provisioning attribute mappings
+      responses:
+        '200':
+          description: Provisioning mapping list
+    post:
+      summary: Create provisioning attribute mapping
+      responses:
+        '201':
+          description: Provisioning mapping created
+  /api/admin/provisioning/mappings/{id}:
+    delete:
+      summary: Delete provisioning attribute mapping
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Provisioning mapping deleted
+  /api/admin/provisioning/jobs:
+    get:
+      summary: List provisioning job history
+      responses:
+        '200':
+          description: Provisioning job list
+  /api/admin/provisioning/jobs/reconcile:
+    post:
+      summary: Run provisioning reconciliation job
+      responses:
+        '202':
+          description: Reconciliation job accepted
   /api/admin/authentication/flows:
     get:
       summary: List authentication flows

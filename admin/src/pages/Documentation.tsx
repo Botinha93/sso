@@ -79,21 +79,21 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'POST', path: '/oauth/backchannel-logout', auth: 'client', description: 'Back-channel logout endpoint for sid/sub scoped revocation.' },
   { method: 'POST', path: '/oauth/revoke', auth: 'session+csrf', description: 'Legacy local token revocation helper endpoint.' },
 
-  { method: 'GET', path: '/scim/v2/ServiceProviderConfig', auth: 'public', description: 'SCIM service provider capabilities document.' },
-  { method: 'GET', path: '/scim/v2/Schemas', auth: 'public', description: 'Lists supported SCIM schemas for User and Group resources.' },
-  { method: 'GET', path: '/scim/v2/ResourceTypes', auth: 'public', description: 'Lists supported SCIM resource types and endpoint bindings.' },
-  { method: 'GET', path: '/scim/v2/Users', auth: 'public', description: 'Lists SCIM users with optional filter and pagination.' },
-  { method: 'POST', path: '/scim/v2/Users', auth: 'public', description: 'Creates SCIM user.' },
-  { method: 'GET', path: '/scim/v2/Users/:id', auth: 'public', description: 'Gets SCIM user by id.' },
-  { method: 'PUT', path: '/scim/v2/Users/:id', auth: 'public', description: 'Replaces SCIM user profile.' },
-  { method: 'PATCH', path: '/scim/v2/Users/:id', auth: 'public', description: 'Applies SCIM patch operations to user profile.' },
-  { method: 'DELETE', path: '/scim/v2/Users/:id', auth: 'public', description: 'Deletes SCIM user.' },
-  { method: 'GET', path: '/scim/v2/Groups', auth: 'public', description: 'Lists SCIM groups with optional filter and pagination.' },
-  { method: 'POST', path: '/scim/v2/Groups', auth: 'public', description: 'Creates SCIM group.' },
-  { method: 'GET', path: '/scim/v2/Groups/:id', auth: 'public', description: 'Gets SCIM group by id.' },
-  { method: 'PUT', path: '/scim/v2/Groups/:id', auth: 'public', description: 'Replaces SCIM group display name and members.' },
-  { method: 'PATCH', path: '/scim/v2/Groups/:id', auth: 'public', description: 'Applies SCIM patch operations to group display name/members.' },
-  { method: 'DELETE', path: '/scim/v2/Groups/:id', auth: 'public', description: 'Deletes SCIM group.' },
+  { method: 'GET', path: '/scim/v2/ServiceProviderConfig', auth: 'bearer', description: 'SCIM service provider capabilities document.' },
+  { method: 'GET', path: '/scim/v2/Schemas', auth: 'bearer', description: 'Lists supported SCIM schemas for User and Group resources.' },
+  { method: 'GET', path: '/scim/v2/ResourceTypes', auth: 'bearer', description: 'Lists supported SCIM resource types and endpoint bindings.' },
+  { method: 'GET', path: '/scim/v2/Users', auth: 'bearer', description: 'Lists SCIM users with optional filter and pagination.' },
+  { method: 'POST', path: '/scim/v2/Users', auth: 'bearer', description: 'Creates SCIM user.' },
+  { method: 'GET', path: '/scim/v2/Users/:id', auth: 'bearer', description: 'Gets SCIM user by id.' },
+  { method: 'PUT', path: '/scim/v2/Users/:id', auth: 'bearer', description: 'Replaces SCIM user profile.' },
+  { method: 'PATCH', path: '/scim/v2/Users/:id', auth: 'bearer', description: 'Applies SCIM patch operations to user profile.' },
+  { method: 'DELETE', path: '/scim/v2/Users/:id', auth: 'bearer', description: 'Deletes SCIM user.' },
+  { method: 'GET', path: '/scim/v2/Groups', auth: 'bearer', description: 'Lists SCIM groups with optional filter and pagination.' },
+  { method: 'POST', path: '/scim/v2/Groups', auth: 'bearer', description: 'Creates SCIM group.' },
+  { method: 'GET', path: '/scim/v2/Groups/:id', auth: 'bearer', description: 'Gets SCIM group by id.' },
+  { method: 'PUT', path: '/scim/v2/Groups/:id', auth: 'bearer', description: 'Replaces SCIM group display name and members.' },
+  { method: 'PATCH', path: '/scim/v2/Groups/:id', auth: 'bearer', description: 'Applies SCIM patch operations to group display name/members.' },
+  { method: 'DELETE', path: '/scim/v2/Groups/:id', auth: 'bearer', description: 'Deletes SCIM group.' },
 
   { method: 'POST', path: '/auth/login', auth: 'public', description: 'Login endpoint creating session cookie and issuing initial tokens.' },
   { method: 'POST', path: '/auth/logout', auth: 'session+csrf', description: 'Clears active session cookie and emits logout event.' },
@@ -106,6 +106,14 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'PUT', path: '/api/admin/settings', auth: 'session+csrf', description: 'Updates instance-wide transport, CORS, OAuth, email, and runtime security controls.' },
   { method: 'POST', path: '/api/admin/settings/database/test', auth: 'session+csrf', description: 'Tests connectivity to a PostgreSQL/MySQL target database URL.' },
   { method: 'POST', path: '/api/admin/settings/database/migrate', auth: 'session+csrf', description: 'Copies data from SQLite into the configured external PostgreSQL/MySQL database.' },
+  { method: 'GET', path: '/api/admin/provisioning/tokens', auth: 'session', description: 'Lists SCIM provisioning tokens with audit-friendly metadata.' },
+  { method: 'POST', path: '/api/admin/provisioning/tokens', auth: 'session+csrf', description: 'Creates a SCIM provisioning token. Raw token is returned only once.' },
+  { method: 'DELETE', path: '/api/admin/provisioning/tokens/:id', auth: 'session+csrf', description: 'Revokes a SCIM provisioning token by id.' },
+  { method: 'GET', path: '/api/admin/provisioning/mappings', auth: 'session', description: 'Lists configured provisioning attribute mappings.' },
+  { method: 'POST', path: '/api/admin/provisioning/mappings', auth: 'session+csrf', description: 'Creates a provisioning attribute mapping rule.' },
+  { method: 'DELETE', path: '/api/admin/provisioning/mappings/:id', auth: 'session+csrf', description: 'Deletes a provisioning attribute mapping rule.' },
+  { method: 'GET', path: '/api/admin/provisioning/jobs', auth: 'session', description: 'Lists recent provisioning reconciliation jobs.' },
+  { method: 'POST', path: '/api/admin/provisioning/jobs/reconcile', auth: 'session+csrf', description: 'Starts a provisioning reconciliation run (dry-run supported).' },
 
   { method: 'GET', path: '/api/admin/users', auth: 'session', description: 'Lists users.' },
   { method: 'POST', path: '/api/admin/users', auth: 'session+csrf', description: 'Creates user and emits user.created event.' },
@@ -1952,6 +1960,122 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
         }
       }),
       expectedResponse: prettyJson({ id: 'policy_assignment_xxx', scopeType: 'global', priority: 200, decisionStrategy: 'deny_overrides' })
+    }
+  }
+
+  if (route.path === '/api/admin/provisioning/tokens' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        label: 'okta-prod-hr',
+        expiresAt: '2026-07-19T10:00:00.000Z'
+      }),
+      expectedResponse: prettyJson({
+        id: 'scimtok_xxx',
+        label: 'okta-prod-hr',
+        token: 'scim_xxx',
+        createdAt: '2026-04-20T10:00:00.000Z',
+        expiresAt: '2026-07-19T10:00:00.000Z'
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/provisioning/tokens' && route.method === 'GET') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson([
+        {
+          id: 'scimtok_xxx',
+          label: 'okta-prod-hr',
+          createdAt: '2026-04-20T10:00:00.000Z',
+          expiresAt: '2026-07-19T10:00:00.000Z',
+          lastUsedAt: '2026-04-20T12:33:12.000Z',
+          updatedAt: '2026-04-20T12:33:12.000Z'
+        }
+      ])
+    }
+  }
+
+  if (route.path === '/api/admin/provisioning/mappings' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        name: 'workday_manager_mapping',
+        sourceAttribute: 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:manager.value',
+        targetAttribute: 'customAttributes.managerId',
+        transformExpression: 'value?.toLowerCase()',
+        enabled: true
+      }),
+      expectedResponse: prettyJson({
+        id: 'map_xxx',
+        name: 'workday_manager_mapping',
+        sourceAttribute: 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:manager.value',
+        targetAttribute: 'customAttributes.managerId',
+        enabled: true
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/provisioning/mappings' && route.method === 'GET') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson([
+        {
+          id: 'map_xxx',
+          name: 'workday_manager_mapping',
+          sourceAttribute: 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:manager.value',
+          targetAttribute: 'customAttributes.managerId',
+          transformExpression: 'value?.toLowerCase()',
+          enabled: true,
+          createdAt: '2026-04-20T09:00:00.000Z',
+          updatedAt: '2026-04-20T09:00:00.000Z'
+        }
+      ])
+    }
+  }
+
+  if (route.path === '/api/admin/provisioning/jobs/reconcile' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({ dryRun: true }),
+      expectedResponse: prettyJson({
+        id: 'job_xxx',
+        jobType: 'reconcile',
+        status: 'completed',
+        summary: {
+          dryRun: true,
+          usersEvaluated: 42,
+          groupsEvaluated: 8,
+          mappingsApplied: 3,
+          driftDetected: 0,
+          updatedUsers: 0,
+          updatedGroups: 0
+        },
+        createdAt: '2026-04-20T12:00:00.000Z',
+        completedAt: '2026-04-20T12:00:01.000Z'
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/provisioning/jobs' && route.method === 'GET') {
+    return {
+      parameters: [...params, 'Query: limit?'],
+      expectedResponse: prettyJson([
+        {
+          id: 'job_xxx',
+          jobType: 'reconcile',
+          status: 'completed',
+          summary: {
+            dryRun: true,
+            usersEvaluated: 42,
+            groupsEvaluated: 8,
+            mappingsApplied: 3,
+            driftDetected: 0
+          },
+          createdAt: '2026-04-20T12:00:00.000Z',
+          completedAt: '2026-04-20T12:00:01.000Z'
+        }
+      ])
     }
   }
 

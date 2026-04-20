@@ -21,6 +21,8 @@ import type {
   PolicyDecisionLog,
   PolicyDefinition,
   PolicyScopeType,
+  ProvisioningJob,
+  ProvisioningMapping,
   ScimToken,
   RefreshTokenRecord,
   Role,
@@ -75,6 +77,8 @@ type PrismaClientLike = {
   policyAssignment: any;
   policyDecisionLog: any;
   scimToken: any;
+  provisioningMapping: any;
+  provisioningJob: any;
   eventHook: any;
   eventNotification: any;
   $queryRaw<T = PrismaRow[]>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>;
@@ -461,6 +465,27 @@ const mapScimToken = (row: PrismaRow): ScimToken => ({
   expiresAt: readField(row, "expiresAt") ? asDate(readField(row, "expiresAt")) : undefined,
   createdAt: asDate(row.createdAt),
   updatedAt: asDate(row.updatedAt)
+});
+
+const mapProvisioningMapping = (row: PrismaRow): ProvisioningMapping => ({
+  id: String(row.id),
+  name: String(row.name),
+  sourceAttribute: String(row.sourceAttribute),
+  targetAttribute: String(row.targetAttribute),
+  transformExpression: readField(row, "transformExpression") ? String(readField(row, "transformExpression")) : undefined,
+  enabled: asBoolean(row.enabled),
+  createdAt: asDate(row.createdAt),
+  updatedAt: asDate(row.updatedAt)
+});
+
+const mapProvisioningJob = (row: PrismaRow): ProvisioningJob => ({
+  id: String(row.id),
+  jobType: String(row.jobType) as ProvisioningJob["jobType"],
+  status: String(row.status) as ProvisioningJob["status"],
+  summary: parseObjectRecord(row.summaryJson),
+  initiatedByUserId: readField(row, "initiatedByUserId") ? String(readField(row, "initiatedByUserId")) : undefined,
+  createdAt: asDate(row.createdAt),
+  completedAt: maybeDate(readField(row, "completedAt"))
 });
 
 const mapEventHook = (row: PrismaRow): EventHook => ({
@@ -1503,6 +1528,127 @@ class PrismaScimTokenRepository {
   }
 }
 
+class PrismaProvisioningMappingRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+
+  async list(): Promise<ProvisioningMapping[]> {
+    const rows = await this.prisma.provisioningMapping.findMany({ orderBy: { createdAt: "asc" } });
+    return rows.map((row: PrismaRow) => mapProvisioningMapping(row));
+  }
+
+  async create(input: Omit<ProvisioningMapping, "id" | "createdAt" | "updatedAt">): Promise<ProvisioningMapping> {
+    const now = new Date();
+    const mapping: ProvisioningMapping = {
+      ...input,
+      id: nanoid(),
+      createdAt: now,
+      updatedAt: now
+    };
+
+    await this.prisma.provisioningMapping.create({
+      data: {
+        id: mapping.id,
+        name: mapping.name,
+        sourceAttribute: mapping.sourceAttribute,
+        targetAttribute: mapping.targetAttribute,
+        transformExpression: mapping.transformExpression ?? null,
+        enabled: asBooleanInt(mapping.enabled),
+        createdAt: mapping.createdAt.toISOString(),
+        updatedAt: mapping.updatedAt.toISOString()
+      }
+    });
+
+    return mapping;
+  }
+
+  async update(id: string, input: Partial<Omit<ProvisioningMapping, "id" | "createdAt" | "updatedAt">>): Promise<ProvisioningMapping | undefined> {
+    const existing = await this.prisma.provisioningMapping.findUnique({ where: { id } });
+    if (!existing) {
+      return undefined;
+    }
+
+    const current = mapProvisioningMapping(existing as PrismaRow);
+    const updated: ProvisioningMapping = {
+      ...current,
+      ...input,
+      updatedAt: new Date()
+    };
+
+    await this.prisma.provisioningMapping.update({
+      where: { id },
+      data: {
+        name: updated.name,
+        sourceAttribute: updated.sourceAttribute,
+        targetAttribute: updated.targetAttribute,
+        transformExpression: updated.transformExpression ?? null,
+        enabled: asBooleanInt(updated.enabled),
+        updatedAt: updated.updatedAt.toISOString()
+      }
+    });
+
+    return updated;
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.provisioningMapping.delete({ where: { id } }).catch(() => undefined);
+  }
+}
+
+class PrismaProvisioningJobRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+
+  async list(limit = 50): Promise<ProvisioningJob[]> {
+    const rows = await this.prisma.provisioningJob.findMany({ orderBy: { createdAt: "desc" }, take: limit });
+    return rows.map((row: PrismaRow) => mapProvisioningJob(row));
+  }
+
+  async create(input: Omit<ProvisioningJob, "id" | "createdAt">): Promise<ProvisioningJob> {
+    const job: ProvisioningJob = {
+      ...input,
+      id: nanoid(),
+      createdAt: new Date()
+    };
+    await this.prisma.provisioningJob.create({
+      data: {
+        id: job.id,
+        jobType: job.jobType,
+        status: job.status,
+        summaryJson: JSON.stringify(job.summary),
+        initiatedByUserId: job.initiatedByUserId ?? null,
+        createdAt: job.createdAt.toISOString(),
+        completedAt: job.completedAt ? job.completedAt.toISOString() : null
+      }
+    });
+    return job;
+  }
+
+  async update(id: string, input: Partial<Omit<ProvisioningJob, "id" | "createdAt">>): Promise<ProvisioningJob | undefined> {
+    const existing = await this.prisma.provisioningJob.findUnique({ where: { id } });
+    if (!existing) {
+      return undefined;
+    }
+
+    const current = mapProvisioningJob(existing as PrismaRow);
+    const updated: ProvisioningJob = {
+      ...current,
+      ...input
+    };
+
+    await this.prisma.provisioningJob.update({
+      where: { id },
+      data: {
+        jobType: updated.jobType,
+        status: updated.status,
+        summaryJson: JSON.stringify(updated.summary),
+        initiatedByUserId: updated.initiatedByUserId ?? null,
+        completedAt: updated.completedAt ? updated.completedAt.toISOString() : null
+      }
+    });
+
+    return updated;
+  }
+}
+
 class PrismaEventHookRepository {
   constructor(private readonly prisma: PrismaClientLike) {}
 
@@ -1586,6 +1732,8 @@ export const createPrismaRepositories = (prisma: PrismaClientLike): RepositoryBu
   policyAssignmentRepository: new PrismaPolicyAssignmentRepository(prisma),
   policyDecisionLogRepository: new PrismaPolicyDecisionLogRepository(prisma),
   scimTokenRepository: new PrismaScimTokenRepository(prisma),
+  provisioningMappingRepository: new PrismaProvisioningMappingRepository(prisma),
+  provisioningJobRepository: new PrismaProvisioningJobRepository(prisma),
   eventHookRepository: new PrismaEventHookRepository(prisma),
   eventNotificationRepository: new PrismaEventNotificationRepository(prisma),
   instanceSettingsRepository: new PrismaInstanceSettingsRepository(prisma)

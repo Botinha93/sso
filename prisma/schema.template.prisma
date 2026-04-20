@@ -365,6 +365,31 @@ model ScimToken {
   @@map("scim_tokens")
 }
 
+model ProvisioningMapping {
+  id                  String @id
+  name                String
+  sourceAttribute     String @map("source_attribute")
+  targetAttribute     String @map("target_attribute")
+  transformExpression String? @map("transform_expression")
+  enabled             Int
+  createdAt           String @map("created_at")
+  updatedAt           String @map("updated_at")
+
+  @@map("provisioning_mappings")
+}
+
+model ProvisioningJob {
+  id                String @id
+  jobType           String @map("job_type")
+  status            String
+  summaryJson       String @map("summary_json")
+  initiatedByUserId String? @map("initiated_by_user_id")
+  createdAt         String @map("created_at")
+  completedAt       String? @map("completed_at")
+
+  @@map("provisioning_jobs")
+}
+
 model EventHook {
   id         String @id
   eventType  String @map("event_type")

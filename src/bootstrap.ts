@@ -12,6 +12,7 @@ import { FederationService } from "./services/federation-service.js";
 import { GroupService } from "./services/group-service.js";
 import { OidcService } from "./services/oidc-service.js";
 import { PolicyService } from "./services/policy-service.js";
+import { ProvisioningService } from "./services/provisioning-service.js";
 import { EventHookService } from "./services/event-hook-service.js";
 import { EmailService } from "./services/email-service.js";
 import { InstanceSettingsService } from "./services/instance-settings-service.js";
@@ -57,6 +58,8 @@ export const bootstrap = async (config: AppConfig) => {
     policyAssignmentRepository,
     policyDecisionLogRepository,
     scimTokenRepository,
+    provisioningMappingRepository,
+    provisioningJobRepository,
     eventHookRepository,
     eventNotificationRepository,
     instanceSettingsRepository
@@ -111,6 +114,12 @@ export const bootstrap = async (config: AppConfig) => {
   const appService = new AppService(appRepository);
   const scimService = new ScimService(userService, groupService);
   const scimTokenService = new ScimTokenService(scimTokenRepository);
+  const provisioningService = new ProvisioningService(
+    provisioningMappingRepository,
+    provisioningJobRepository,
+    userRepository,
+    groupRepository
+  );
   const setupService = new SetupService(
     userService,
     roleService,
@@ -336,6 +345,7 @@ export const bootstrap = async (config: AppConfig) => {
     userService,
     scimService,
     scimTokenService,
+    provisioningService,
     clientService,
     scopeService,
     appService,

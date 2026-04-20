@@ -56,8 +56,28 @@ model authentication_flows {
   stages_json String
   created_at  String
   updated_at  String
-
   @@ignore
+}
+
+model provisioning_mappings {
+  id                   String? @id
+  name                 String
+  source_attribute     String
+  target_attribute     String
+  transform_expression String?
+  enabled              Int
+  created_at           String
+  updated_at           String
+}
+
+model provisioning_jobs {
+  id                  String? @id
+  job_type            String
+  status              String
+  summary_json        String
+  initiated_by_user_id String?
+  created_at          String
+  completed_at        String?
 }
 
 model authorization_codes {

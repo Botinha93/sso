@@ -56,7 +56,9 @@ import {
   setupInitializeSchema,
   testEventHookSchema,
   createScimTokenSchema,
+  createProvisioningMappingSchema,
   updateInstanceSettingsSchema,
+  reconcileProvisioningJobSchema,
   updateAppSchema,
   updateAuthenticationFlowSchema,
   updateClientSchema,
@@ -78,6 +80,7 @@ import { RoleService } from "../services/role-service.js";
 import { ScopeService } from "../services/scope-service.js";
 import { ScimService } from "../services/scim-service.js";
 import { ScimTokenService } from "../services/scim-token-service.js";
+import { ProvisioningService } from "../services/provisioning-service.js";
 import { SetupService } from "../services/setup-service.js";
 import { TenantService } from "../services/tenant-service.js";
 import { TotpService } from "../services/totp-service.js";
@@ -107,6 +110,7 @@ interface RouteDeps {
   tenantService: TenantService;
   scimService: ScimService;
   scimTokenService: ScimTokenService;
+  provisioningService: ProvisioningService;
   totpService: TotpService;
   userService: UserService;
   userAttributeService: UserAttributeService;
@@ -988,6 +992,33 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const { id } = request.params as { id: string };
     await deps.scimTokenService.revokeToken(id);
     return reply.status(204).send();
+  });
+  app.get("/api/admin/provisioning/mappings", async () => deps.provisioningService.listMappings());
+  app.post("/api/admin/provisioning/mappings", async (request, reply) => {
+    const input = createProvisioningMappingSchema.parse(request.body);
+    const created = await deps.provisioningService.createMapping(input);
+    return reply.status(201).send(created);
+  });
+  app.delete("/api/admin/provisioning/mappings/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    await deps.provisioningService.deleteMapping(id);
+    return reply.status(204).send();
+  });
+  app.get("/api/admin/provisioning/jobs", async (request) => {
+    const limit = Number((request.query as { limit?: string } | undefined)?.limit ?? "20");
+    return deps.provisioningService.listJobs(Number.isFinite(limit) ? limit : 20);
+  });
+  app.post("/api/admin/provisioning/jobs/reconcile", async (request, reply) => {
+    const input = reconcileProvisioningJobSchema.parse(request.body ?? {});
+    const auth = await requireSessionUser(request, reply);
+    if (!auth) {
+      return;
+    }
+    const job = await deps.provisioningService.runReconcile({
+      initiatedByUserId: auth.user.id,
+      dryRun: input.dryRun
+    });
+    return reply.status(202).send(job);
   });
   app.put("/api/admin/settings", async (request) => {
     const input = updateInstanceSettingsSchema.parse(request.body);

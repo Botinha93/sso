@@ -7,6 +7,7 @@ import {
   useTestInstanceEmail,
   useUpdateInstanceSettings
 } from '../hooks/useApi'
+import ProvisioningAdminPanel from '../components/ProvisioningAdminPanel'
 
 interface SettingsForm {
   databaseProvider: 'sqlite' | 'postgresql' | 'mysql'
@@ -223,6 +224,8 @@ export default function Administration() {
           </div>
         </div>
       </div>
+
+      <ProvisioningAdminPanel />
 
       <div className="grid gap-6 xl:grid-cols-2">
         <section className={sectionCls}>

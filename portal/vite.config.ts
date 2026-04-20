@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   base: '/portal/',
+  cacheDir: '../node_modules/.vite/portal',
   plugins: [react()],
   server: {
     port: 5200,

@@ -24,6 +24,8 @@ import type {
   PolicyDecisionLog,
   PolicyDefinition,
   PolicyScopeType,
+  ProvisioningJob,
+  ProvisioningMapping,
   ScimToken,
   RefreshTokenRecord,
   Role,
@@ -52,6 +54,8 @@ import type {
   GroupRepository,
   GroupRoleAssignmentRepository,
   PolicyDefinitionRepository,
+  ProvisioningJobRepository,
+  ProvisioningMappingRepository,
   ScimTokenRepository,
   PolicyAssignmentRepository,
   PolicyDecisionLogRepository,
@@ -436,6 +440,27 @@ export class SqliteDatabase {
         expires_at TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS provisioning_mappings (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        source_attribute TEXT NOT NULL,
+        target_attribute TEXT NOT NULL,
+        transform_expression TEXT,
+        enabled INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS provisioning_jobs (
+        id TEXT PRIMARY KEY,
+        job_type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        summary_json TEXT NOT NULL,
+        initiated_by_user_id TEXT,
+        created_at TEXT NOT NULL,
+        completed_at TEXT
       );
 
       CREATE TABLE IF NOT EXISTS event_hooks (
@@ -825,6 +850,27 @@ const mapScimToken = (row: DbRow): ScimToken => ({
   expiresAt: maybeDate(row.expires_at),
   createdAt: asDate(row.created_at),
   updatedAt: asDate(row.updated_at)
+});
+
+const mapProvisioningMapping = (row: DbRow): ProvisioningMapping => ({
+  id: String(row.id),
+  name: String(row.name),
+  sourceAttribute: String(row.source_attribute),
+  targetAttribute: String(row.target_attribute),
+  transformExpression: row.transform_expression ? String(row.transform_expression) : undefined,
+  enabled: Boolean(row.enabled),
+  createdAt: asDate(row.created_at),
+  updatedAt: asDate(row.updated_at)
+});
+
+const mapProvisioningJob = (row: DbRow): ProvisioningJob => ({
+  id: String(row.id),
+  jobType: String(row.job_type) as ProvisioningJob["jobType"],
+  status: String(row.status) as ProvisioningJob["status"],
+  summary: JSON.parse(String(row.summary_json)) as Record<string, unknown>,
+  initiatedByUserId: row.initiated_by_user_id ? String(row.initiated_by_user_id) : undefined,
+  createdAt: asDate(row.created_at),
+  completedAt: maybeDate(row.completed_at)
 });
 
 const mapEventHook = (row: DbRow): EventHook => ({
@@ -2336,6 +2382,135 @@ export class SqliteScimTokenRepository implements ScimTokenRepository {
 
   async delete(id: string): Promise<void> {
     this.db.prepare("DELETE FROM scim_tokens WHERE id = ?").run(id);
+  }
+}
+
+export class SqliteProvisioningMappingRepository implements ProvisioningMappingRepository {
+  constructor(private readonly db: Database.Database) {}
+
+  async list(): Promise<ProvisioningMapping[]> {
+    const rows = this.db.prepare("SELECT * FROM provisioning_mappings ORDER BY created_at ASC").all() as DbRow[];
+    return rows.map(mapProvisioningMapping);
+  }
+
+  async create(input: Omit<ProvisioningMapping, "id" | "createdAt" | "updatedAt">): Promise<ProvisioningMapping> {
+    const now = new Date();
+    const mapping: ProvisioningMapping = {
+      ...input,
+      id: nanoid(),
+      createdAt: now,
+      updatedAt: now
+    };
+
+    this.db.prepare(`
+      INSERT INTO provisioning_mappings (id, name, source_attribute, target_attribute, transform_expression, enabled, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      mapping.id,
+      mapping.name,
+      mapping.sourceAttribute,
+      mapping.targetAttribute,
+      mapping.transformExpression ?? null,
+      mapping.enabled ? 1 : 0,
+      mapping.createdAt.toISOString(),
+      mapping.updatedAt.toISOString()
+    );
+
+    return mapping;
+  }
+
+  async update(id: string, input: Partial<Omit<ProvisioningMapping, "id" | "createdAt" | "updatedAt">>): Promise<ProvisioningMapping | undefined> {
+    const currentRow = this.db.prepare("SELECT * FROM provisioning_mappings WHERE id = ?").get(id) as DbRow | undefined;
+    if (!currentRow) {
+      return undefined;
+    }
+
+    const current = mapProvisioningMapping(currentRow);
+    const updated: ProvisioningMapping = {
+      ...current,
+      ...input,
+      updatedAt: new Date()
+    };
+
+    this.db.prepare(`
+      UPDATE provisioning_mappings
+      SET name = ?, source_attribute = ?, target_attribute = ?, transform_expression = ?, enabled = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      updated.name,
+      updated.sourceAttribute,
+      updated.targetAttribute,
+      updated.transformExpression ?? null,
+      updated.enabled ? 1 : 0,
+      updated.updatedAt.toISOString(),
+      id
+    );
+
+    return updated;
+  }
+
+  async delete(id: string): Promise<void> {
+    this.db.prepare("DELETE FROM provisioning_mappings WHERE id = ?").run(id);
+  }
+}
+
+export class SqliteProvisioningJobRepository implements ProvisioningJobRepository {
+  constructor(private readonly db: Database.Database) {}
+
+  async list(limit = 50): Promise<ProvisioningJob[]> {
+    const rows = this.db.prepare("SELECT * FROM provisioning_jobs ORDER BY created_at DESC LIMIT ?").all(limit) as DbRow[];
+    return rows.map(mapProvisioningJob);
+  }
+
+  async create(input: Omit<ProvisioningJob, "id" | "createdAt">): Promise<ProvisioningJob> {
+    const job: ProvisioningJob = {
+      ...input,
+      id: nanoid(),
+      createdAt: new Date()
+    };
+
+    this.db.prepare(`
+      INSERT INTO provisioning_jobs (id, job_type, status, summary_json, initiated_by_user_id, created_at, completed_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      job.id,
+      job.jobType,
+      job.status,
+      JSON.stringify(job.summary),
+      job.initiatedByUserId ?? null,
+      job.createdAt.toISOString(),
+      job.completedAt ? job.completedAt.toISOString() : null
+    );
+
+    return job;
+  }
+
+  async update(id: string, input: Partial<Omit<ProvisioningJob, "id" | "createdAt">>): Promise<ProvisioningJob | undefined> {
+    const row = this.db.prepare("SELECT * FROM provisioning_jobs WHERE id = ?").get(id) as DbRow | undefined;
+    if (!row) {
+      return undefined;
+    }
+
+    const current = mapProvisioningJob(row);
+    const updated: ProvisioningJob = {
+      ...current,
+      ...input
+    };
+
+    this.db.prepare(`
+      UPDATE provisioning_jobs
+      SET job_type = ?, status = ?, summary_json = ?, initiated_by_user_id = ?, completed_at = ?
+      WHERE id = ?
+    `).run(
+      updated.jobType,
+      updated.status,
+      JSON.stringify(updated.summary),
+      updated.initiatedByUserId ?? null,
+      updated.completedAt ? updated.completedAt.toISOString() : null,
+      id
+    );
+
+    return updated;
   }
 }
 

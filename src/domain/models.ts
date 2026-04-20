@@ -294,6 +294,27 @@ export interface ScimToken {
   updatedAt: Date;
 }
 
+export interface ProvisioningMapping {
+  id: string;
+  name: string;
+  sourceAttribute: string;
+  targetAttribute: string;
+  transformExpression?: string;
+  enabled: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ProvisioningJob {
+  id: string;
+  jobType: "reconcile";
+  status: "running" | "completed" | "failed";
+  summary: Record<string, unknown>;
+  initiatedByUserId?: string;
+  createdAt: Date;
+  completedAt?: Date;
+}
+
 export interface EventHook {
   id: string;
   eventType: string;

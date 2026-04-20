@@ -1,24 +1,62 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { createTestContext, extractCookie } from "../helpers/test-app.js";
 
 test("SCIM Users and Groups lifecycle endpoints", async (t) => {
-  const tempDir = mkdtempSync(join(tmpdir(), "sso-scim-lifecycle-"));
-  process.env.NODE_ENV = "test";
-  process.env.ISSUER = "http://localhost:4000";
-  process.env.DATABASE_PATH = join(tempDir, "sso.sqlite");
-
-  const { buildApp } = await import("../../src/app.js");
-  const app = await buildApp();
+  const { app, admin } = await createTestContext("integration-scim-lifecycle");
   t.after(async () => {
     await app.close();
   });
 
+  const loginResponse = await app.inject({
+    method: "POST",
+    url: "/auth/login",
+    payload: {
+      email: admin.username,
+      password: admin.password,
+      clientId: "sso-admin-ui",
+      scope: ["openid", "profile", "email"]
+    }
+  });
+
+  assert.equal(loginResponse.statusCode, 200);
+  const sid = extractCookie(loginResponse.headers["set-cookie"], "sid");
+
+  const csrfResponse = await app.inject({
+    method: "GET",
+    url: "/api/csrf-token",
+    headers: {
+      cookie: sid
+    }
+  });
+
+  assert.equal(csrfResponse.statusCode, 200);
+  const csrfCookie = extractCookie(csrfResponse.headers["set-cookie"], "csrf_token");
+  const csrfToken = String(csrfResponse.json().csrf_token);
+  const authCookies = `${sid}; ${csrfCookie}`;
+
+  const tokenResponse = await app.inject({
+    method: "POST",
+    url: "/api/admin/provisioning/tokens",
+    headers: {
+      cookie: authCookies,
+      "x-csrf-token": csrfToken
+    },
+    payload: {
+      label: "integration-scim-token"
+    }
+  });
+
+  assert.equal(tokenResponse.statusCode, 201);
+  const scimToken = String(tokenResponse.json().token);
+  const scimHeaders = {
+    authorization: `Bearer ${scimToken}`
+  };
+
   const createUserResponse = await app.inject({
     method: "POST",
     url: "/scim/v2/Users",
+    headers: scimHeaders,
     payload: {
       userName: "scim.integration.user",
       name: { givenName: "Scim", familyName: "Integration" },
@@ -34,7 +72,8 @@ test("SCIM Users and Groups lifecycle endpoints", async (t) => {
 
   const listUsersResponse = await app.inject({
     method: "GET",
-    url: "/scim/v2/Users?filter=userName%20eq%20%22scim.integration.user%22"
+    url: "/scim/v2/Users?filter=userName%20eq%20%22scim.integration.user%22",
+    headers: scimHeaders
   });
   assert.equal(listUsersResponse.statusCode, 200);
   const listedUsers = listUsersResponse.json() as { totalResults: number; Resources: Array<{ id: string }> };
@@ -44,6 +83,7 @@ test("SCIM Users and Groups lifecycle endpoints", async (t) => {
   const patchUserResponse = await app.inject({
     method: "PATCH",
     url: `/scim/v2/Users/${createdUser.id}`,
+    headers: scimHeaders,
     payload: {
       Operations: [
         { op: "replace", path: "name.givenName", value: "Updated" },
@@ -59,6 +99,7 @@ test("SCIM Users and Groups lifecycle endpoints", async (t) => {
   const createGroupResponse = await app.inject({
     method: "POST",
     url: "/scim/v2/Groups",
+    headers: scimHeaders,
     payload: {
       displayName: "SCIM Integration Group",
       members: [{ value: createdUser.id }]
@@ -72,6 +113,7 @@ test("SCIM Users and Groups lifecycle endpoints", async (t) => {
   const patchGroupResponse = await app.inject({
     method: "PATCH",
     url: `/scim/v2/Groups/${createdGroup.id}`,
+    headers: scimHeaders,
     payload: {
       Operations: [
         { op: "replace", path: "displayName", value: "SCIM Integration Group Updated" }
@@ -84,13 +126,15 @@ test("SCIM Users and Groups lifecycle endpoints", async (t) => {
 
   const deleteGroupResponse = await app.inject({
     method: "DELETE",
-    url: `/scim/v2/Groups/${createdGroup.id}`
+    url: `/scim/v2/Groups/${createdGroup.id}`,
+    headers: scimHeaders
   });
   assert.equal(deleteGroupResponse.statusCode, 204);
 
   const deleteUserResponse = await app.inject({
     method: "DELETE",
-    url: `/scim/v2/Users/${createdUser.id}`
+    url: `/scim/v2/Users/${createdUser.id}`,
+    headers: scimHeaders
   });
   assert.equal(deleteUserResponse.statusCode, 204);
 });

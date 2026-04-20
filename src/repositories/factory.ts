@@ -19,6 +19,8 @@ import type {
   PolicyAssignmentRepository,
   PolicyDecisionLogRepository,
   PolicyDefinitionRepository,
+  ProvisioningJobRepository,
+  ProvisioningMappingRepository,
   ScimTokenRepository,
   RefreshTokenRepository,
   RoleRepository,
@@ -32,6 +34,41 @@ import type {
   UserRoleAssignmentRepository
 } from "./contracts.js";
 import { createPrismaRepositoryBundle } from "./prisma-factory.js";
+import {
+  SqliteAccessTokenRepository,
+  SqliteAppRepository,
+  SqliteAuditRepository,
+  SqliteAuthenticationFlowRepository,
+  SqliteAuthorizationCodeRepository,
+  SqliteClientRepository,
+  SqliteConsentRepository,
+  SqliteDatabase,
+  SqliteEventHookRepository,
+  SqliteEventNotificationRepository,
+  SqliteFederatedIdentityRepository,
+  SqliteFederationProviderRepository,
+  SqliteFederationTransactionRepository,
+  SqliteGroupRepository,
+  SqliteGroupRoleAssignmentRepository,
+  SqliteGroupUserAttributeAssignmentRepository,
+  SqliteInstanceSettingsRepository,
+  SqlitePolicyAssignmentRepository,
+  SqlitePolicyDecisionLogRepository,
+  SqlitePolicyDefinitionRepository,
+  SqliteProvisioningJobRepository,
+  SqliteProvisioningMappingRepository,
+  SqliteRefreshTokenRepository,
+  SqliteRoleRepository,
+  SqliteScopeRepository,
+  SqliteScimTokenRepository,
+  SqliteSessionRepository,
+  SqliteTenantRepository,
+  SqliteTotpCredentialRepository,
+  SqliteUserAttributeRepository,
+  SqliteUserGroupAssignmentRepository,
+  SqliteUserRepository,
+  SqliteUserRoleAssignmentRepository
+} from "./sqlite.js";
 
 export interface RepositoryBundle {
   roleRepository: RoleRepository;
@@ -61,6 +98,8 @@ export interface RepositoryBundle {
   policyAssignmentRepository: PolicyAssignmentRepository;
   policyDecisionLogRepository: PolicyDecisionLogRepository;
   scimTokenRepository: ScimTokenRepository;
+  provisioningMappingRepository: ProvisioningMappingRepository;
+  provisioningJobRepository: ProvisioningJobRepository;
   eventHookRepository: EventHookRepository;
   eventNotificationRepository: EventNotificationRepository;
   instanceSettingsRepository: InstanceSettingsRepository;
@@ -70,6 +109,49 @@ export interface RepositoryBundle {
 export const createRepositoryBundle = async (config: AppConfig): Promise<RepositoryBundle> => {
   if (config.databaseProvider !== "sqlite" && !config.externalDatabaseUrl) {
     throw new Error(`DATABASE_URL is required when DATABASE_PROVIDER=${config.databaseProvider}`);
+  }
+
+  if (config.databaseProvider === "sqlite") {
+    const sqlite = new SqliteDatabase(config.databasePath);
+    sqlite.migrate();
+
+    return {
+      roleRepository: new SqliteRoleRepository(sqlite.connection),
+      tenantRepository: new SqliteTenantRepository(sqlite.connection),
+      appRepository: new SqliteAppRepository(sqlite.connection),
+      groupRepository: new SqliteGroupRepository(sqlite.connection),
+      userGroupAssignmentRepository: new SqliteUserGroupAssignmentRepository(sqlite.connection),
+      groupRoleAssignmentRepository: new SqliteGroupRoleAssignmentRepository(sqlite.connection),
+      assignmentRepository: new SqliteUserRoleAssignmentRepository(sqlite.connection),
+      userRepository: new SqliteUserRepository(sqlite.connection),
+      clientRepository: new SqliteClientRepository(sqlite.connection),
+      scopeRepository: new SqliteScopeRepository(sqlite.connection),
+      sessionRepository: new SqliteSessionRepository(sqlite.connection),
+      totpCredentialRepository: new SqliteTotpCredentialRepository(sqlite.connection),
+      authorizationCodeRepository: new SqliteAuthorizationCodeRepository(sqlite.connection),
+      consentRepository: new SqliteConsentRepository(sqlite.connection),
+      refreshTokenRepository: new SqliteRefreshTokenRepository(sqlite.connection),
+      accessTokenRepository: new SqliteAccessTokenRepository(sqlite.connection),
+      auditRepository: new SqliteAuditRepository(sqlite.connection),
+      authenticationFlowRepository: new SqliteAuthenticationFlowRepository(sqlite.connection),
+      federationProviderRepository: new SqliteFederationProviderRepository(sqlite.connection),
+      federatedIdentityRepository: new SqliteFederatedIdentityRepository(sqlite.connection),
+      federationTransactionRepository: new SqliteFederationTransactionRepository(sqlite.connection),
+      userAttributeRepository: new SqliteUserAttributeRepository(sqlite.connection),
+      groupUserAttributeAssignmentRepository: new SqliteGroupUserAttributeAssignmentRepository(sqlite.connection),
+      policyDefinitionRepository: new SqlitePolicyDefinitionRepository(sqlite.connection),
+      policyAssignmentRepository: new SqlitePolicyAssignmentRepository(sqlite.connection),
+      policyDecisionLogRepository: new SqlitePolicyDecisionLogRepository(sqlite.connection),
+      scimTokenRepository: new SqliteScimTokenRepository(sqlite.connection),
+      provisioningMappingRepository: new SqliteProvisioningMappingRepository(sqlite.connection),
+      provisioningJobRepository: new SqliteProvisioningJobRepository(sqlite.connection),
+      eventHookRepository: new SqliteEventHookRepository(sqlite.connection),
+      eventNotificationRepository: new SqliteEventNotificationRepository(sqlite.connection),
+      instanceSettingsRepository: new SqliteInstanceSettingsRepository(sqlite.connection),
+      dispose: async () => {
+        sqlite.connection.close();
+      }
+    };
   }
 
   return createPrismaRepositoryBundle(config);

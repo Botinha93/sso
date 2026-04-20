@@ -19,6 +19,8 @@ import type {
   PolicyDecisionLog,
   PolicyDefinition,
   PolicyScopeType,
+  ProvisioningJob,
+  ProvisioningMapping,
   ScimToken,
   RefreshTokenRecord,
   Role,
@@ -230,6 +232,19 @@ export interface ScimTokenRepository {
   create(input: Omit<ScimToken, "id" | "createdAt" | "updatedAt" | "lastUsedAt">): Promise<ScimToken>;
   touchLastUsed(id: string, usedAt: Date): Promise<void>;
   delete(id: string): Promise<void>;
+}
+
+export interface ProvisioningMappingRepository {
+  list(): Promise<ProvisioningMapping[]>;
+  create(input: Omit<ProvisioningMapping, "id" | "createdAt" | "updatedAt">): Promise<ProvisioningMapping>;
+  update(id: string, input: Partial<Omit<ProvisioningMapping, "id" | "createdAt" | "updatedAt">>): Promise<ProvisioningMapping | undefined>;
+  delete(id: string): Promise<void>;
+}
+
+export interface ProvisioningJobRepository {
+  list(limit?: number): Promise<ProvisioningJob[]>;
+  create(input: Omit<ProvisioningJob, "id" | "createdAt">): Promise<ProvisioningJob>;
+  update(id: string, input: Partial<Omit<ProvisioningJob, "id" | "createdAt">>): Promise<ProvisioningJob | undefined>;
 }
 
 export interface EventHookRepository {

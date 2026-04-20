@@ -463,6 +463,18 @@ export const createScimTokenSchema = z.object({
   expiresAt: z.string().datetime().optional()
 });
 
+export const createProvisioningMappingSchema = z.object({
+  name: z.string().min(2),
+  sourceAttribute: z.string().min(1),
+  targetAttribute: z.string().min(1),
+  transformExpression: z.string().min(1).optional(),
+  enabled: z.boolean().default(true)
+});
+
+export const reconcileProvisioningJobSchema = z.object({
+  dryRun: z.boolean().default(true)
+});
+
 export const updateInstanceSettingsSchema = z.object({
   databaseProvider: z.enum(["sqlite", "postgresql", "mysql"]).optional(),
   databasePath: z.string().min(1).optional(),

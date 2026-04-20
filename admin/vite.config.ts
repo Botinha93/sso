@@ -2,7 +2,11 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
+  cacheDir: '../node_modules/.vite/admin',
   plugins: [react()],
+  optimizeDeps: {
+    include: ['@monaco-editor/react', 'monaco-editor'],
+  },
   server: {
     port: 5173,
     proxy: {
