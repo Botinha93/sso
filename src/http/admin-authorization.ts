@@ -25,7 +25,10 @@ const ADMIN_RESOURCE_MAP: Record<string, string> = {
   apps: "apps",
   "role-assignments": "roles",
   "group-role-assignments": "groups",
-  "user-groups": "groups"
+  "user-groups": "groups",
+  "service-identities": "service_identities",
+  "connectors": "connectors",
+  "metrics": "connectors"
 };
 
 export function toAdminResource(path: string): string | undefined {

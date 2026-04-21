@@ -5,6 +5,7 @@ export type AuthenticationStageType =
   | "federation"
   | "consent"
   | "mfa_totp"
+  | "mfa_webauthn"
   | "risk_check"
   | "identification"
   | "email_verification"
@@ -88,6 +89,18 @@ export interface TotpCredential {
   userId: string;
   secret: string;
   enabled: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface WebauthnCredential {
+  id: string;
+  userId: string;
+  credentialId: string;
+  publicKey: string;
+  signCount: number;
+  transports: string[];
+  aaguid?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -492,12 +505,20 @@ export type AuditEventType =
   | "saml_service_provider_created"
   | "saml_service_provider_updated"
   | "saml_service_provider_deleted"
+  | "saml_service_provider_metadata_uploaded"
+  | "saml_service_provider_certificate_rotated"
   | "saml_sso_initiated"
   | "saml_sso_succeeded"
   | "saml_sso_failed"
   | "saml_slo_initiated"
   | "saml_assertion_validated"
-  | "saml_assertion_invalid";
+  | "saml_assertion_invalid"
+  | "access_review_campaign_created"
+  | "access_review_item_decided"
+  | "connector_created"
+  | "connector_updated"
+  | "connector_deleted"
+  | "connector_sync_triggered";
 
 export type ElevationStatus = "pending" | "approved" | "active" | "revoked" | "expired";
 export type ElevationSessionStatus = "active" | "revoked" | "expired";
@@ -581,5 +602,103 @@ export interface SamlAssertionAudit {
   notOnOrAfter: Date;
   destinationUrl: string;
   statusCode: string;
+  createdAt: Date;
+}
+
+export type RiskDecision = "allow" | "challenge" | "block";
+export type RiskReason = "failed_login" | "suspicious_ip" | "new_device" | "geo_anomaly" | "brute_force" | "token_abuse" | "bot_detected";
+
+export interface RiskEvent {
+  id: string;
+  userId?: string;
+  ip?: string;
+  deviceFingerprintHash?: string;
+  geo?: string;
+  confidence: number; // 0-100 score
+  reason: RiskReason;
+  decision: RiskDecision;
+  metadata?: Record<string, unknown>;
+  createdAt: Date;
+}
+
+export type ServiceIdentityStatus = "active" | "inactive" | "suspended";
+
+export interface ServiceIdentity {
+  id: string;
+  name: string;
+  description?: string;
+  ownerId?: string;
+  appId?: string;
+  status: ServiceIdentityStatus;
+  allowedScopes: string[];
+  allowedAudiences: string[];
+  metadata?: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ServiceIdentityCredential {
+  id: string;
+  serviceIdentityId: string;
+  clientId: string;
+  clientSecretHash: string;
+  expiresAt?: Date;
+  revokedAt?: Date;
+  rotatedFromId?: string;
+  lastUsedAt?: Date;
+  createdAt: Date;
+}
+
+// ---------------------------------------------------------------------------
+// EPIC 8 – Connector Framework
+// ---------------------------------------------------------------------------
+
+export type ConnectorType = "ldap" | "scim" | "csv" | "sql" | "custom";
+export type ConnectorStatus = "active" | "inactive" | "error";
+export type ConnectorRunStatus = "pending" | "running" | "succeeded" | "failed" | "cancelled";
+
+export interface Connector {
+  id: string;
+  name: string;
+  type: ConnectorType;
+  status: ConnectorStatus;
+  config: Record<string, unknown>;
+  schedule?: string; // cron expression
+  lastSyncAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ConnectorRun {
+  id: string;
+  connectorId: string;
+  status: ConnectorRunStatus;
+  startedAt?: Date;
+  finishedAt?: Date;
+  recordsImported: number;
+  recordsFailed: number;
+  errorMessage?: string;
+  createdAt: Date;
+}
+
+export interface ConnectorMapping {
+  id: string;
+  connectorId: string;
+  sourceField: string;
+  targetField: string;
+  transform?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ---------------------------------------------------------------------------
+// EPIC 8 – Auth Metrics
+// ---------------------------------------------------------------------------
+
+export interface AuthMetricRollup {
+  id: string;
+  bucket: string; // ISO date-hour e.g. "2026-04-20T10"
+  event: string; // "login_success" | "login_failure" | "token_issued" | "policy_denied"
+  count: number;
   createdAt: Date;
 }

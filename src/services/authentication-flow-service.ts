@@ -8,6 +8,7 @@ const VALID_STAGE_TYPES: AuthenticationStageType[] = [
   "federation",
   "consent",
   "mfa_totp",
+  "mfa_webauthn",
   "risk_check",
   "identification",
   "email_verification",

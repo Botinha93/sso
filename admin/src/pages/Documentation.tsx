@@ -14,6 +14,7 @@ interface ApiEndpointDocs {
   parameters: string[]
   requestJson?: string
   expectedResponse: string
+  notes?: string[]
 }
 
 interface TutorialSection {
@@ -95,13 +96,21 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'PATCH', path: '/scim/v2/Groups/:id', auth: 'bearer', description: 'Applies SCIM patch operations to group display name/members/externalId, emitting scim.group.updated plus audit event.' },
   { method: 'DELETE', path: '/scim/v2/Groups/:id', auth: 'bearer', description: 'Deletes SCIM group and emits scim.group.deleted plus audit event.' },
 
+  { method: 'GET', path: '/saml/metadata', auth: 'public', description: 'Returns generated SAML metadata XML for a configured service provider (`spId` query parameter).' },
+  { method: 'POST', path: '/saml/sso', auth: 'session', description: 'Builds and signs a SAML Response for a configured service provider and returns form-post handoff or JSON payload.' },
+  { method: 'POST', path: '/saml/acs/:spId', auth: 'public', description: 'Accepts base64 signed SAML responses for signature verification, signature-wrapping defense checks, validation/audit correlation, audience/destination checks, clock-skew handling, and replay protection (replayed responses are rejected).' },
+  { method: 'POST', path: '/saml/slo', auth: 'session', description: 'Processes SAML logout handoff by revoking the active session and clearing cookie state.' },
+
   { method: 'POST', path: '/auth/login', auth: 'public', description: 'Login endpoint creating session cookie and issuing initial tokens.' },
+  { method: 'POST', path: '/auth/login/webauthn/begin', auth: 'public', description: 'Starts passkey-based login by issuing a WebAuthn challenge for the identified account.' },
+  { method: 'POST', path: '/auth/login/webauthn/finish', auth: 'public', description: 'Completes passkey-based login using credential assertion payload and issues browser session/tokens.' },
   { method: 'POST', path: '/auth/logout', auth: 'session+csrf', description: 'Clears active session cookie and emits logout event.' },
   { method: 'GET', path: '/auth/federation/providers', auth: 'public', description: 'Lists enabled federation providers for sign-in screen.' },
   { method: 'GET', path: '/auth/federation/:providerId/start', auth: 'public', description: 'Starts external IdP authorization redirect.' },
   { method: 'GET', path: '/auth/federation/:providerId/callback', auth: 'public', description: 'Processes external IdP callback and creates local session.' },
 
   { method: 'GET', path: '/api/admin/me', auth: 'session', description: 'Returns authenticated admin profile, roles, groups, and permissions.' },
+  { method: 'GET', path: '/api/admin/security/risk-events', auth: 'session', description: 'Lists normalized security risk events derived from audit telemetry (login failures, lockouts, anomaly detections, and protocol/security blocks).' },
   { method: 'GET', path: '/api/admin/settings', auth: 'session', description: 'Returns persisted instance-wide administration and security settings.' },
   { method: 'PUT', path: '/api/admin/settings', auth: 'session+csrf', description: 'Updates instance-wide transport, CORS, OAuth, email, and runtime security controls.' },
   { method: 'POST', path: '/api/admin/settings/database/test', auth: 'session+csrf', description: 'Tests connectivity to a PostgreSQL/MySQL target database URL.' },
@@ -109,6 +118,8 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'GET', path: '/api/admin/provisioning/tokens', auth: 'session', description: 'Lists SCIM provisioning tokens with audit-friendly metadata.' },
   { method: 'POST', path: '/api/admin/provisioning/tokens', auth: 'session+csrf', description: 'Creates a SCIM provisioning token. Raw token is returned only once.' },
   { method: 'DELETE', path: '/api/admin/provisioning/tokens/:id', auth: 'session+csrf', description: 'Revokes a SCIM provisioning token by id.' },
+  { method: 'POST', path: '/api/admin/saml/service-providers/:id/metadata', auth: 'session+csrf', description: 'Uploads SP metadata XML, stores raw metadata, and optionally applies parsed entityId/ACS/SLO/certificate fields.' },
+  { method: 'POST', path: '/api/admin/saml/service-providers/:id/certificates/rotate', auth: 'session+csrf', description: 'Rotates signing or encryption certificate for a configured service provider without a full object update.' },
   { method: 'GET', path: '/api/admin/provisioning/mappings', auth: 'session', description: 'Lists configured provisioning attribute mappings.' },
   { method: 'POST', path: '/api/admin/provisioning/mappings', auth: 'session+csrf', description: 'Creates a provisioning attribute mapping rule (supports lowercase/uppercase/trim transform expressions).' },
   { method: 'DELETE', path: '/api/admin/provisioning/mappings/:id', auth: 'session+csrf', description: 'Deletes a provisioning attribute mapping rule.' },
@@ -122,7 +133,7 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'POST', path: '/api/admin/access-requests/process-expirations', auth: 'session+csrf', description: 'Expires approved requests past expiresAt and revokes previously granted entitlements (supports dryRun).' },
   { method: 'POST', path: '/api/admin/access-reviews/campaigns', auth: 'session+csrf', description: 'Creates a recertification campaign and generates review items from current role/group assignments.' },
   { method: 'GET', path: '/api/admin/access-reviews/campaigns/:id', auth: 'session', description: 'Returns campaign metadata and generated review items.' },
-  { method: 'POST', path: '/api/admin/access-reviews/items/:id/decision', auth: 'session+csrf', description: 'Records reviewer decision (certified/revoked) and applies revocation for revoked outcomes.' },
+  { method: 'POST', path: '/api/admin/access-reviews/items/:id/decision', auth: 'session+csrf', description: 'Records reviewer decision (certified/revoked), applies revocation for revoked outcomes, and emits attestation evidence metadata into audit/event streams.' },
   { method: 'GET', path: '/api/admin/access-requests/stalled', auth: 'session', description: 'Lists pending access requests that have exceeded the SLA threshold (default 60 min).' },
 
   { method: 'GET', path: '/api/admin/elevations', auth: 'session', description: 'Lists PAM-lite elevation requests with optional status filtering.' },
@@ -223,6 +234,39 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'PATCH', path: '/api/portal/profile', auth: 'session+csrf', description: 'Updates profile and custom attributes for current portal user.' },
   { method: 'POST', path: '/api/portal/change-password', auth: 'session+csrf', description: 'Changes password for current portal user.' },
   { method: 'DELETE', path: '/api/portal/account', auth: 'session+csrf', description: 'Deletes current portal account and revokes sessions.' },
+  { method: 'GET', path: '/api/account/mfa/webauthn/credentials', auth: 'session', description: 'Lists passkey credentials enrolled by the current account.' },
+  { method: 'POST', path: '/api/account/mfa/webauthn/register/begin', auth: 'session+csrf', description: 'Starts passkey enrollment and returns challenge + relying party metadata.' },
+  { method: 'POST', path: '/api/account/mfa/webauthn/register/finish', auth: 'session+csrf', description: 'Completes passkey enrollment and stores credential material/signature counter.' },
+  { method: 'DELETE', path: '/api/account/mfa/webauthn/credentials/:credentialId', auth: 'session+csrf', description: 'Deletes one enrolled passkey credential for the current account.' },
+
+  // Service Identities (Workload Identity)
+  { method: 'GET', path: '/api/admin/service-identities', auth: 'session', description: 'Lists all service identities (non-human machine accounts).' },
+  { method: 'POST', path: '/api/admin/service-identities', auth: 'session+csrf', description: 'Creates a new service identity with allowed scopes and audiences.' },
+  { method: 'GET', path: '/api/admin/service-identities/:id', auth: 'session', description: 'Returns a service identity with its credential history.' },
+  { method: 'PATCH', path: '/api/admin/service-identities/:id', auth: 'session+csrf', description: 'Updates service identity status, scopes, or description.' },
+  { method: 'DELETE', path: '/api/admin/service-identities/:id', auth: 'session+csrf', description: 'Deletes a service identity and all its credentials.' },
+  { method: 'POST', path: '/api/admin/service-identities/:id/credentials', auth: 'session+csrf', description: 'Issues a new credential (client_id + secret) for the service identity. Secret is shown only once.' },
+  { method: 'POST', path: '/api/admin/service-identities/:id/credentials/rotate', auth: 'session+csrf', description: 'Rotates a credential: issues a replacement and revokes the current one atomically.' },
+  { method: 'DELETE', path: '/api/admin/service-identities/:id/credentials/:credentialId', auth: 'session+csrf', description: 'Revokes a specific credential immediately.' },
+  { method: 'GET', path: '/api/admin/service-identities/:id/usage', auth: 'session', description: 'Returns credential usage telemetry including last-used timestamps and status.' },
+
+  // Connector Framework (EPIC 8)
+  { method: 'GET', path: '/api/admin/connectors', auth: 'session', description: 'Lists all configured identity connectors (LDAP, SCIM, CSV, SQL, custom).' },
+  { method: 'POST', path: '/api/admin/connectors', auth: 'session+csrf', description: 'Creates a new connector with a type, config JSON, and optional cron schedule.' },
+  { method: 'GET', path: '/api/admin/connectors/:id', auth: 'session', description: 'Returns a connector and its current status.' },
+  { method: 'PATCH', path: '/api/admin/connectors/:id', auth: 'session+csrf', description: 'Updates connector name, config, schedule, or status.' },
+  { method: 'DELETE', path: '/api/admin/connectors/:id', auth: 'session+csrf', description: 'Deletes a connector and all associated runs and mappings.' },
+  { method: 'POST', path: '/api/admin/connectors/:id/sync', auth: 'session+csrf', description: 'Triggers an immediate sync run for the connector. Returns a ConnectorRun record.' },
+  { method: 'GET', path: '/api/admin/connectors/:id/runs', auth: 'session', description: 'Lists the most recent sync runs for a connector with status, counts, and error messages.' },
+  { method: 'GET', path: '/api/admin/connectors/:id/mappings', auth: 'session', description: 'Lists field mappings for a connector (source → target with optional transform).' },
+  { method: 'POST', path: '/api/admin/connectors/:id/mappings', auth: 'session+csrf', description: 'Creates a new field mapping for a connector.' },
+  { method: 'DELETE', path: '/api/admin/connectors/:connectorId/mappings/:mappingId', auth: 'session+csrf', description: 'Removes a specific field mapping.' },
+
+  // Auth Metrics (EPIC 8)
+  { method: 'GET', path: '/api/admin/metrics/auth', auth: 'session', description: 'Returns bucketed auth event metric rollups. Accepts startHour, endHour, and event filter query params.' },
+
+  // Token Exchange
+  { method: 'POST', path: '/oauth/token/exchange', auth: 'token', description: 'RFC 8693 Token Exchange: validates a subject_token and issues a new scoped access token. Supports access_token and JWT subject token types.' },
 
   { method: 'GET', path: '/users', auth: 'public', description: 'Legacy helper endpoint listing users.' },
   { method: 'GET', path: '/clients', auth: 'public', description: 'Legacy helper endpoint listing clients.' },
@@ -267,340 +311,663 @@ const ADMIN_CONCEPT_GUIDES: ConceptGuide[] = [
   {
     id: 'app',
     title: 'What Is An App?',
-    plainExplanation: 'An app is a logical boundary used to organize users, roles, groups, and clients around one product or business surface.',
-    whyItMatters: 'Apps help keep identity objects separated by product domain and simplify access governance at scale.',
-    whoDefinesIt: 'Platform administrators define and manage apps.',
+    plainExplanation: 'An app is a named logical container that groups together related users, roles, groups, and OAuth clients under a common product or service boundary. Think of it as the organizational unit that says "these identities and this access configuration belong to Product X." Apps are not an OAuth protocol concept — they are an administrative structure this platform introduces so that multiple products can share the same identity infrastructure without interfering with each other.',
+    whyItMatters: 'Without app boundaries, a role named "admin" for your billing product and a role named "admin" for your support product are indistinguishable — they can bleed across products, confuse governance reviews, and create unintended access escalation. Apps give administrators a clean namespace per product, make delegated administration practical (you can give a team admin rights scoped to only their app), and produce audit trails that are meaningful at the product level.',
+    whoDefinesIt: 'Platform super-administrators define apps and assign objects into them. Product-level admins may have rights scoped to their app only.',
     whereInAdmin: ['Apps view', 'Users view', 'Groups view', 'Roles view', 'Clients view'],
     details: [
-      'Users, groups, roles, and clients can be app-scoped.',
-      'App assignment is organizational and governance-focused, not an OAuth protocol field.',
-      'Use app boundaries to avoid mixing identities for unrelated products.'
+      'Users, groups, roles, and clients can all be app-scoped, giving each product its own identity namespace.',
+      'App assignment is purely organizational — it does not change OAuth token fields or claim content by itself.',
+      'Use separate apps when products have different security owners, different administration teams, or meaningfully different access models.',
+      'A single user can belong to multiple apps simultaneously — app scoping is on the objects attached to them, not the user record itself.',
+      'Start with one app per product surface and divide further only when governance requirements actually differ.'
     ]
   },
   {
     id: 'user-registration',
     title: 'How Users Register Or Appear In The System',
-    plainExplanation: 'Users can be created by an admin, provisioned through federation, or created through setup/bootstrap paths.',
-    whyItMatters: 'Knowing origin helps with lifecycle management, policy enforcement, and support troubleshooting.',
-    whoDefinesIt: 'Admins create local users; federation configuration controls externally sourced identities.',
-    whereInAdmin: ['Users view', 'Federation view', 'Setup view'],
+    plainExplanation: 'User records can enter this platform through three different paths, each with different lifecycle expectations. The first path is direct admin creation: an administrator creates the account, sets credentials, and the user logs in with those. The second path is federation: when a user authenticates via an external identity provider (OIDC, SAML), the platform either finds an existing linked record or auto-provisions a new one based on federation mapping rules. The third path is programmatic provisioning via SCIM: an upstream directory (for example Azure AD or Okta) pushes user records into the platform as part of joiner/mover/leaver automation. Each path produces the same user record type but with different trust assumptions, lifecycle responsibilities, and troubleshooting approaches.',
+    whyItMatters: 'The origin of a user record determines who is responsible for its lifecycle. Admin-created users need manual deprovisioning. Federated users may be deprovisioned when the federation session ends or when the upstream IdP removes them. SCIM-provisioned users should be managed entirely by the upstream source of truth. Mixing these patterns without clarity leads to orphaned accounts, stale access, and compliance gaps.',
+    whoDefinesIt: 'Admins create local users directly. Federation configuration (in Federation Providers view) controls which external IdPs can provision or link users. SCIM provisioning tokens and mappings control which upstream directories can push records.',
+    whereInAdmin: ['Users view', 'Federation Providers view', 'Administration view (SCIM)', 'Audit Log'],
     details: [
-      'Admin-created users are explicit local identities with managed credentials.',
-      'Federated users can be linked/provisioned from external IdP login callbacks.',
-      'Password policies and active flags still govern local account usability.'
+      'Admin-created users have local credentials and password policies enforced by this platform.',
+      'Federated users authenticate via an external IdP and may or may not have a local credential — this depends on link-or-provision mapping behavior.',
+      'SCIM-provisioned users are created and updated by an upstream directory; local edits may be overwritten on next sync.',
+      'A user can be both federated and have a local credential if linking is configured to allow it.',
+      'Check the audit log for user creation events to understand the origin and who or what triggered the record.',
+      'Password policies, active/inactive flags, and role assignments apply regardless of how the user was created.'
     ]
   },
   {
     id: 'users',
     title: 'Users: The Human Or Service Identity Record',
-    plainExplanation: 'A user is the core identity object representing a person or managed account that can authenticate and receive roles, groups, sessions, and consents.',
-    whyItMatters: 'Most downstream decisions in the platform are anchored to a user record, including login eligibility, role mapping, and audit history.',
-    whoDefinesIt: 'Admins create and maintain local users; federation may provision or link them automatically.',
-    whereInAdmin: ['Users view', 'Sessions view', 'Consents view', 'Audit Log'],
+    plainExplanation: 'A user record is the persistent identity object that represents a person (or machine account) in this platform. It stores core attributes like email, display name, and active status, and acts as the anchor for everything else: role assignments, group memberships, active sessions, granted consents, MFA credentials, and audit history. When a login succeeds, the platform resolves a user record. When a policy evaluates access, it reads attributes from the user record. When you audit an action, the actor is a user record.',
+    whyItMatters: 'The user record is the source of truth for identity state. A deactivated user cannot log in. A user with no roles receives no role-gated access. A user with stale group membership may carry access they should no longer have. Keeping user records accurate and lifecycle-managed is foundational to correct authorization behavior across all downstream systems.',
+    whoDefinesIt: 'Admins create and maintain local users. Federation and SCIM provisioning can also create or update records automatically based on configuration.',
+    whereInAdmin: ['Users view', 'Sessions view', 'Consents view', 'Audit Log', 'Groups view', 'Roles view'],
     details: [
-      'Users can be active or inactive depending on lifecycle state.',
-      'A user record is separate from a session or token and persists over time.',
-      'Group membership, role assignments, and policy decisions often aggregate onto the user.'
+      'Active/inactive status gates login eligibility independently of role assignments.',
+      'A user record persists indefinitely — sessions and tokens expire, but the record remains until explicitly deleted or deactivated.',
+      'Group membership, role assignments, and attribute values are all referenced from the user record during policy evaluation.',
+      'MFA credentials (TOTP, WebAuthn passkeys) are stored on the user record and govern strong authentication paths.',
+      'Use the Users view to inspect current state, resolve login issues, manage credentials, and review what sessions or consents are active.',
+      'Deactivation is safer than deletion when you need to preserve audit history while removing login access.'
     ]
   },
   {
     id: 'groups',
     title: 'Groups: Membership Bundles For Operational Management',
-    plainExplanation: 'Groups collect users into manageable sets so access and attributes can be administered in bulk.',
-    whyItMatters: 'Without groups, every access decision and attribute mapping becomes per-user manual work.',
-    whoDefinesIt: 'Admins create groups, assign users into them, and optionally attach roles or attributes at the group level.',
+    plainExplanation: 'A group is a named collection of users managed as a single unit. Once users are grouped, you can assign roles to the group instead of to individual users, apply policy treatments to everyone in the group at once, and use group membership as an attribute in ABAC conditions. Groups are a purely administrative convenience — they are not an OAuth standard object and they do not appear in tokens unless you configure claims mappings to include group membership.',
+    whyItMatters: 'Managing access user-by-user breaks down quickly as teams grow. A 50-person engineering team should not need 50 individual role assignments. Groups let you assign roles once to the group and add/remove individuals from it as the team changes. This makes access reviews faster (review the group, not 50 records), onboarding simpler (add to one group, everything follows), and offboarding complete (remove from the group, all related access is removed).',
+    whoDefinesIt: 'Admins create groups and manage membership. SCIM provisioning can also push group structure and membership from upstream directories.',
     whereInAdmin: ['Groups view', 'Users view', 'Roles view', 'Policies view', 'User Attributes'],
     details: [
-      'Groups are an operational convenience layer, not an OAuth standard object.',
-      'A group may represent a team, department, application audience, or region.',
-      'Use groups when many users should share the same roles or policy treatment.'
+      'Groups reduce repetitive per-user administration by letting access follow membership.',
+      'A group can represent a team, department, application audience, region, or any logical classification your organization uses.',
+      'Role assignments on a group propagate to all members — when a member leaves the group, they lose the group-derived role.',
+      'ABAC policies can reference group membership as a subject attribute for fine-grained conditions.',
+      'Groups do not appear in tokens automatically — configure token claims mapping if applications need to see group membership.',
+      'SCIM-sourced groups should be treated as read-only local mirrors; edit them in the upstream directory to prevent drift.'
     ]
   },
   {
     id: 'roles',
     title: 'Roles: Named Access Intent',
-    plainExplanation: 'Roles are named access labels that represent what a user is allowed to do inside an application or tenant context.',
-    whyItMatters: 'Roles create a stable language between identity administration and application authorization logic.',
-    whoDefinesIt: 'Admins define roles and decide how applications interpret them.',
-    whereInAdmin: ['Roles view', 'Users view', 'Groups view', 'Clients view', 'UserInfo and token claims'],
+    plainExplanation: 'A role is a named label that expresses what kind of access a user should have inside a product or system. Roles are assigned to users (directly or via groups) and can be surfaced in tokens as claims for consuming applications to act on. They are part of RBAC (Role-Based Access Control) — the coarse-grained first layer of access decisions. For more precise conditions beyond role membership, ABAC policies build on top.',
+    whyItMatters: 'Roles are the shared language between who-administers-identity (this platform) and who-enforces-access (your applications). When an application checks a token for a role claim like "billing.admin", it trusts that identity administration has correctly verified, assigned, and governed that role. Poorly named, over-assigned, or never-reviewed roles quietly erode access control — users accumulate entitlements they no longer need, and the role catalog loses meaning.',
+    whoDefinesIt: 'Admins define the role catalog and decide what each role name represents. Applications interpret role names and act on them in their own authorization logic.',
+    whereInAdmin: ['Roles view', 'Users view', 'Groups view', 'Clients view', 'Token claims via scope configuration'],
     details: [
-      'A role name should reflect business responsibility, not a low-level permission list.',
-      'Roles often appear as claims in ID or access tokens when the relevant scope is granted.',
-      'Applications consume roles to drive menus, API authorization, and workflow decisions.'
+      'Role names should reflect business responsibility (e.g. "billing.admin", "support.read"), not implementation details.',
+      'Roles are included in tokens only when the client requests the appropriate scope and the flow is configured to emit them.',
+      'Users can hold multiple roles simultaneously; applications should check for specific roles, not rely on a single role existing.',
+      'Use group-based role assignment to keep the role catalog manageable as teams grow.',
+      'Periodic access reviews should validate that users still need the roles assigned to them.',
+      'ABAC policies can consume role information as a subject attribute for additional condition checks beyond simple membership.'
     ]
   },
   {
     id: 'role-assignments',
     title: 'Role Assignments: How Roles Reach Users',
-    plainExplanation: 'Role assignments are the links that attach roles to users directly or indirectly through groups, tenants, or policies.',
-    whyItMatters: 'Defining a role is not enough; assignment determines who actually receives that access.',
-    whoDefinesIt: 'Admins assign roles directly to users or indirectly through group and policy structures.',
-    whereInAdmin: ['Users view', 'Groups view', 'Roles view', 'Policies view'],
+    plainExplanation: 'A role assignment is the record that connects a role to a user or group. Defining a role creates it in the catalog but does not give anyone access — the assignment is the step that actually grants it. Assignments can be direct (role attached to a specific user) or indirect (role attached to a group, which the user belongs to). They can also be scoped to a specific tenant, app, or context, so the same role can mean different things in different organizational containers.',
+    whyItMatters: 'Role assignment is the operational step that turns policy intent into real access. Admins sometimes define a thorough role catalog and then accidentally leave critical roles unassigned, or assign them too broadly. Both failure modes cause problems: users who cannot do their job, or users with access they should not have. Assignment records are also what access reviews inspect — "Who holds the billing.admin role, and should they still have it?" is answered by the assignment table.',
+    whoDefinesIt: 'Admins create direct user-role assignments. Group membership transitively grants group-level role assignments. Policy structures can also drive conditional assignments.',
+    whereInAdmin: ['Users view (roles tab)', 'Groups view (roles tab)', 'Roles view (assignments tab)', 'Policies view'],
     details: [
-      'Direct assignment is precise but harder to scale.',
-      'Group-based assignment is easier to operate for teams and departments.',
-      'Always review role propagation so users do not accumulate unintended access.'
+      'Direct assignments are precise but do not scale — prefer group-based assignment for teams.',
+      'Group-based assignment is the recommended pattern: assign roles to groups, put users in groups.',
+      'When a user is removed from a group, they immediately lose the roles that group carried.',
+      'Periodic access reviews should verify that live assignments still match employment status and business need.',
+      'Tenant-scoped assignments restrict the role to a specific organizational context.',
+      'Do not assign high-privilege roles globally when tenant-scoped assignment is sufficient.'
     ]
   },
   {
     id: 'apps-governance',
     title: 'Apps As Governance Boundaries',
-    plainExplanation: 'Apps partition identity objects by product or platform domain so access decisions stay understandable and constrained.',
-    whyItMatters: 'Without app boundaries, roles, groups, and clients from unrelated products can become mixed and hard to govern.',
-    whoDefinesIt: 'Platform administrators define apps and decide which objects belong to each one.',
+    plainExplanation: 'Apps act as the principal governance boundary within the platform. When a role called "admin" exists in your billing product and another role also called "admin" exists in your support product, the app boundary is what keeps them separate. Without it, those roles share a namespace, access reviews mix unrelated entitlements, and delegating administration becomes difficult because you cannot grant someone rights over "just their product." The app label attaches to users, groups, roles, and clients so that each governance question — who can access this, who should review it, who owns it — can be answered within the correct product context.',
+    whyItMatters: 'Governance reviews are only tractable when the scope of each review is clearly bounded. An org-wide review of all roles in all products is operationally unmanageable. An app-scoped review is actionable: it lists the roles, the assigned users, and the clients for one product surface. App boundaries also enable delegated administration — giving a team lead admin rights scoped to their app without touching anything else. The clearer the app model, the faster and more reliable access reviews, offboarding, and compliance audits become.',
+    whoDefinesIt: 'Platform administrators define apps and decide which identity objects belong to each. Product teams typically advocate for their own app scope and naming conventions.',
     whereInAdmin: ['Apps view', 'Users view', 'Groups view', 'Roles view', 'Clients view'],
     details: [
-      'An app is useful for organizing both business ownership and identity administration.',
-      'Use separate apps when products have different administrators or security expectations.',
-      'App boundaries help documentation, onboarding, and audit review remain clear.'
+      'App boundaries apply to roles, groups, clients, and user membership — the user record itself is global, but everything attached to it can be app-scoped.',
+      'Use separate apps when products have different administrators, different security expectations, or different compliance scope.',
+      'App names should reflect stable product or service names that reviewers and auditors will recognize.',
+      'App boundaries help documentation, onboarding, and audit review remain clear and product-aligned.',
+      'Do not create an app per team or per microservice — use app granularity that matches your governance and access review cadence.'
     ]
   },
   {
     id: 'client',
     title: 'What Is An OAuth Client?',
-    plainExplanation: 'A client represents an application that requests tokens from this authorization server.',
-    whyItMatters: 'Every protocol decision (redirects, grants, scopes, PKCE requirement) is enforced through client configuration.',
-    whoDefinesIt: 'Admins create clients in Clients view; dynamic clients can also be registered via /connect/register.',
+    plainExplanation: 'An OAuth client is the registration record for one application that uses this authorization server to get tokens. It is not the same as the application code — it is the configuration record that defines what the application is allowed to do in the OAuth/OIDC protocol. Every application that participates in login, token issuance, or API authorization needs a client record. The client record answers: What redirects are allowed? What grant types can it use? What scopes can it request? Does it need PKCE? Is it a public (browser/mobile) or confidential (server-side) application?',
+    whyItMatters: 'Client configuration is the enforcement boundary for every application integration. A misconfigured client is one of the most common causes of login failures, token errors, and security vulnerabilities. An overly permissive client — one with wildcard redirects, unnecessary grants, or too many allowed scopes — can be exploited to exhaust tokens or redirect authorization codes to attacker-controlled locations. Every client configuration decision is a security decision.',
+    whoDefinesIt: 'Admins create and manage clients in the Clients view. Dynamic registration can also create clients programmatically via /connect/register if enabled.',
     whereInAdmin: ['Clients view', 'Authentication Flows view', 'Consents view', 'Sessions view'],
     details: [
-      'Client metadata controls what that app is allowed to request.',
-      'Misconfigured clients are a common source of login and token errors.',
-      'Client records are security-critical and should be reviewed as part of release readiness.'
+      'Each application (web app, mobile app, backend API client) needs its own client registration.',
+      'Public clients (SPAs, mobile apps) cannot keep secrets — they must use PKCE instead of client secrets.',
+      'Confidential clients (server-side apps) should have a client secret, HTTPS-only redirects, and minimal allowed scopes.',
+      'Client metadata is checked on every authorize and token request — changes take effect immediately.',
+      'Misconfigured redirect URIs and incorrect grant types are the most common first-line login errors to investigate.',
+      'Review client configurations as part of release readiness: new redirect URIs, scope additions, and grant changes all carry security implications.'
     ]
   },
   {
     id: 'client-id-secret',
     title: 'Client ID And Client Secret',
-    plainExplanation: 'Client ID is the public identifier; client secret is the confidential credential used for trusted clients.',
-    whyItMatters: 'The secret proves client authenticity at token endpoints for confidential flows.',
-    whoDefinesIt: 'Admins define both values when creating clients.',
+    plainExplanation: 'The client ID is a non-secret public identifier for a client application — it appears in authorize request URLs and is intended to be visible. The client secret is a confidential credential that only the authorization server and a trusted (server-side) client share. When a server-side application calls the token endpoint to exchange a code for tokens, it proves it is the correct client by presenting its secret. Without this check, an authorization code stolen in transit could be exchanged by anyone.',
+    whyItMatters: 'The distinction between public and confidential clients exists because only server-side applications can safely store secrets. SPAs and mobile apps run on untrusted devices — their code can be inspected and secrets extracted. That is why public clients must use PKCE instead of a secret. Distributing a client secret in frontend JavaScript or a mobile binary is a high-severity security finding: it allows anyone to impersonate that client at the token endpoint.',
+    whoDefinesIt: 'Admins set both values when creating clients. Secrets should be generated with sufficient entropy and stored in secrets management systems, not in application configuration files under source control.',
     whereInAdmin: ['Clients view'],
     details: [
-      'Client ID can be public and appears in authorize requests.',
-      'Client secret must be protected server-side and never shipped in public browser/mobile code.',
-      'Rotate secrets when compromise is suspected.'
+      'Client ID is public and present in every authorize request URL — never treat it as a secret.',
+      'Client secret is a server-side only credential — never embed it in browser JavaScript, mobile apps, or public repositories.',
+      'Rotate secrets when a team member leaves, when a secret appears in logs, or when compromise is suspected.',
+      'Public clients (SPAs, mobile apps) should not have a client secret — use PKCE S256 instead.',
+      'Secret rotation should be coordinated: generate the new secret, update deployments, then revoke the old one.'
     ]
   },
   {
     id: 'redirect-uris',
     title: 'Redirect URIs',
-    plainExplanation: 'Redirect URIs are allowed callback locations where authorization responses can be sent after login/consent.',
-    whyItMatters: 'Strict URI matching prevents token/code leakage to untrusted domains.',
-    whoDefinesIt: 'Admins define allowed redirect URIs per client.',
-    whereInAdmin: ['Clients view'],
+    plainExplanation: 'A redirect URI is the exact URL the authorization server will send the user back to after a successful (or failed) authorization. After the user logs in and consents, the platform hands the authorization code or token back to the client by redirecting the browser to the registered redirect URI. The platform only sends responses to URIs that are explicitly pre-registered for that client — any mismatch causes the request to be rejected with an error.',
+    whyItMatters: 'Redirect URI validation is one of the most important OAuth security controls. An open redirect — one where the server accepts any URI the client requests — allows an attacker to send the user through a login flow but redirect the authorization code to an attacker-controlled page. That gives the attacker the code, which they can exchange for real tokens. Exact URI matching prevents this entirely. Wildcard or partially-matched redirects are a well-documented attack vector.',
+    whoDefinesIt: 'Admins configure the allowed redirect URI list per client. The list must include every environment the client legitimately uses.',
+    whereInAdmin: ['Clients view (redirectUris field)'],
     details: [
-      'Only exact registered redirects should be accepted.',
-      'Use environment-specific values carefully for local/stage/prod.',
-      'Do not use wildcard redirects for production clients.'
+      'Only exact URI matches should be accepted — never allow wildcard or partial matches in production.',
+      'Register separate URIs for each environment (local development, staging, production) rather than using one permissive pattern.',
+      'Scheme matters: https://app.example.com and http://app.example.com are different URIs with different security properties.',
+      'PKCE does not replace strict redirect URI matching — both controls are needed together.',
+      'If login returns a redirect_uri_mismatch error, the URI the client is sending does not exactly match any registered value.'
     ]
   },
   {
     id: 'scopes',
     title: 'Scopes: What They Are And Where They Come From',
-    plainExplanation: 'Scopes are named permissions/claims bundles a client can request (for example openid, profile, email, roles).',
-    whyItMatters: 'Scopes control what access and identity information gets granted.',
-    whoDefinesIt: 'Platform scope catalog is defined by admins; each client has its own allowed scope subset.',
-    whereInAdmin: ['Clients view', 'Consents view', 'Scopes API usage in Clients'],
+    plainExplanation: 'Scopes are named strings that a client requests during the authorization flow to declare what access or identity information it needs. Standard OIDC scopes like "openid", "profile", and "email" unlock specific claims in the ID token or UserInfo response. Custom scopes can represent API access bundles. When a client requests a scope, the platform checks three things: Is this scope in the platform catalog? Does this client allow it? Does the user consent to granting it? All three must be satisfied for the scope to be included in the token.',
+    whyItMatters: 'Scopes implement least-privilege access for clients. They prevent an application from receiving more identity claims or API access than it actually needs. Over-requesting scopes (asking for everything) and then ignoring them is a common anti-pattern that both exposes unnecessary data and produces friction in consent screens. Well-designed scopes also make consent meaningful — a user who sees "This app will access your profile" understands more than one who sees "This app requests: everything."',
+    whoDefinesIt: 'The platform scope catalog is configured by admins. Each client registration specifies the subset of scopes it is allowed to request. End users grant scopes at consent time.',
+    whereInAdmin: ['Clients view (allowedScopes configuration)', 'Consents view', 'Scopes API and Documentation view'],
     details: [
-      'A requested scope is granted only if the client allows it and user/flow conditions pass.',
-      'Consent records persist approved scopes for user-client pairs.',
-      'Scope names should reflect business meaning and least privilege principles.'
+      '"openid" scope is required for OIDC flows — without it the platform will not issue an ID token.',
+      'Standard scopes: openid (required for OIDC), profile (name/picture/locale), email (email address and verification), roles (role claims).',
+      'A scope must be in the client allowedScopes list to be granted, even if the user consents to it.',
+      'Consent records persist scope approvals for a user-client pair so the consent screen does not re-appear on every login.',
+      'Custom API scopes should be named to reflect the access they grant (e.g. "billing.read", "reports.write").',
+      'Use the Clients view to audit what scopes each application can actually obtain.'
     ]
   },
   {
     id: 'grants',
     title: 'Grants: What They Mean And Who Defines Them',
-    plainExplanation: 'Grant types define how tokens are obtained (authorization_code, refresh_token, client_credentials, password, device_code).',
-    whyItMatters: 'Different client types require different grants and security assumptions.',
-    whoDefinesIt: 'Admins assign grants to clients; active authentication flows must also support those grants.',
-    whereInAdmin: ['Clients view', 'Authentication Flows view'],
+    plainExplanation: 'A grant type is the OAuth mechanism that a client uses to obtain tokens. Each grant type describes a different interaction model: authorization_code is for interactive browser-based logins where a user is present; client_credentials is for machine-to-machine API access with no human user; refresh_token lets applications silently renew access without re-prompting the user; device_code handles TVs and CLIs that cannot open a browser directly; password is a legacy direct credential grant that bypasses the browser entirely (generally discouraged). Each grant type comes with different security properties and recommendations.',
+    whyItMatters: 'Enabling the wrong grant type on a client is a direct security risk. A server-side API client that also has authorization_code enabled could be misused to initiate interactive logins. A public mobile app with client_credentials enabled could exfiltrate long-lived tokens. The grant list on each client should contain exactly the types that application legitimately needs and nothing else.',
+    whoDefinesIt: 'Admins configure allowed grant types per client. Authentication flows also have grantType allowlists — a grant must be enabled in both places to function.',
+    whereInAdmin: ['Clients view (grantTypes field)', 'Authentication Flows view'],
     details: [
-      'Client grant list is an allowlist at client level.',
-      'Authentication flow grantTypes are an allowlist at platform runtime flow level.',
-      'A grant must be enabled in both places to work reliably.'
+      'authorization_code + PKCE is the correct grant for browser SPAs and mobile apps.',
+      'authorization_code + client_secret is the correct grant for server-side web applications.',
+      'client_credentials is the correct grant for background services and machine identities — no user involved.',
+      'refresh_token enables silent token renewal; pair it with refresh token rotation for better security.',
+      'device_code is for input-constrained devices (TVs, CLIs) that cannot open a browser.',
+      'The password grant submits user credentials directly to the token endpoint — avoid it unless legacy system constraints make it unavoidable.',
+      'A grant must be in both the client allowedGrants list and the authentication flow grantTypes list to work.'
     ]
   },
   {
     id: 'flows',
     title: 'What Are Authentication Flows?',
-    plainExplanation: 'Flows are ordered stage pipelines that define authentication behavior and enforcement steps.',
-    whyItMatters: 'Flows determine whether login requires only password or includes federation, consent, MFA, risk checks, and policy stages.',
-    whoDefinesIt: 'Admins define flow stages and activate the intended flow.',
-    whereInAdmin: ['Authentication Flows view', 'Policies view'],
+    plainExplanation: 'An authentication flow is an ordered pipeline of stages that defines what must happen before a login is considered complete. A simple flow might have only a password stage. A more complete flow adds MFA, risk checking, federation handling, consent, and policy evaluation in sequence. Each stage represents a specific authentication or enforcement step, and stages execute in order. The flow assigned to a client (or the default active flow) determines the full set of requirements a user must pass to receive tokens.',
+    whyItMatters: 'Authentication flows are the enforcement layer that makes policy real. You could configure every security rule correctly in policies and ABAC — but without a flow that actually executes those stages, none of it runs at login time. The flow is what turns configuration into runtime behavior. Teams that bypass flows or leave the default flow under-configured often discover the gap only during an incident.',
+    whoDefinesIt: 'Admins define flow stages and select which flow is active. Clients can be associated with specific flows if different applications need different authentication requirements.',
+    whereInAdmin: ['Authentication Flows view', 'Policies view', 'Clients view'],
     details: [
-      'Each flow can be enabled/disabled and associated with grants.',
-      'Stages execute in order and can be required or optional depending on configuration.',
-      'Policy assignments can influence stage outcomes.'
+      'Stages execute in the order they are defined — put required checks (like password) before optional enhancements (like risk scoring).',
+      'Each stage can be required or optional; a required stage that fails blocks token issuance.',
+      'Supported stage types include: password, federation, MFA (TOTP, WebAuthn), consent, risk_check, policy, and device_code.',
+      'Policy assignments at the flow level can influence whether conditional stages are triggered.',
+      'Multiple flows can exist but only one is active at a time as the platform default.',
+      'Changing an active flow takes effect immediately — test changes in a staging environment before promoting to production.'
     ]
   },
   {
     id: 'pkce',
     title: 'PKCE And Cryptographic Proof',
-    plainExplanation: 'PKCE binds authorization code usage to the original client by requiring a code_verifier that matches the original code_challenge.',
-    whyItMatters: 'It protects public clients from authorization code interception attacks.',
-    whoDefinesIt: 'Admins enforce PKCE per client with requirePkce and by restricting grants appropriately.',
-    whereInAdmin: ['Clients view'],
+    plainExplanation: 'PKCE (Proof Key for Code Exchange, pronounced "pixie") is a security extension for the authorization_code grant that protects public clients — browser apps and mobile apps — from authorization code interception. Here is how it works: before the login starts, the client generates a random secret called the code_verifier. It hashes it (using SHA-256) to produce a code_challenge, then sends the challenge to the authorization server at the start of the flow. Later, when the client exchanges the authorization code for tokens, it sends the original code_verifier. The server hashes it again and checks that it matches. If an attacker intercepts the authorization code, they cannot use it because they do not have the original verifier.',
+    whyItMatters: 'Public clients (SPAs, mobile apps) cannot keep a client secret — their code is visible. Without PKCE, an intercepted authorization code can be exchanged for tokens by anyone. With PKCE, the code is useless without the verifier that only the legitimate client holds. The S256 challenge method (SHA-256 hashing) is the required form — plain method (no hashing) offers no real protection and should never be used.',
+    whoDefinesIt: 'Admins enforce PKCE for public clients by setting requirePkce on the client record. The S256 method should be enforced at the platform level.',
+    whereInAdmin: ['Clients view (requirePkce setting)'],
     details: [
-      'Use S256 method to enforce cryptographic challenge derivation.',
-      'Enable requirePkce for public/browser/mobile clients.',
-      'Do not disable PKCE for clients that cannot securely keep a secret.'
+      'Enable requirePkce for all public clients: browser SPAs, mobile apps, and desktop clients.',
+      'Always use S256 (SHA-256) as the challenge method — plain method provides no real protection.',
+      'Confidential server-side clients already use their client secret, but adding PKCE on top is still a security best practice.',
+      'PKCE replaces the need for a client secret for public clients — do not add a secret AND disable PKCE; pick one based on client type.',
+      'If login fails with an "invalid code_verifier" error, the client library is likely misimplementing the challenge calculation.'
     ]
   },
   {
     id: 'crypto-enforcement',
     title: 'How To Enforce Strong Cryptography In Practice',
-    plainExplanation: 'Use signed JWT tokens, HTTPS, PKCE S256, strict redirect matching, and secret hygiene for confidential clients.',
-    whyItMatters: 'Most OAuth/OIDC incidents are caused by weak transport, weak client configuration, or token leakage.',
-    whoDefinesIt: 'Admins enforce through client settings and deployment security posture.',
-    whereInAdmin: ['Clients view', 'Documentation API tutorials', 'Deployment settings outside UI'],
+    plainExplanation: 'Strong cryptography in OAuth/OIDC is not one switch — it is a checklist of layered controls that must all be in place together. The most important layers are: (1) transport security (HTTPS with valid certificates so tokens are never sent over cleartext), (2) token signing (JWTs signed with RS256 or ES256 so recipients can verify the token was genuinely issued by this server), (3) code interception protection (PKCE S256 for public clients so a stolen authorization code cannot be exchanged), (4) redirect binding (exact URI matching so authorization responses cannot be sent to attacker-controlled domains), and (5) secret hygiene (client secrets stored in vaults and never embedded in frontend code). Each layer closes a different attack category — removing any one of them opens a gap that the others cannot compensate for.',
+    whyItMatters: 'OAuth security incidents most commonly trace back to one of a small set of configuration mistakes: plaintext transport exposing tokens in transit, weak or missing PKCE on public clients, wildcard redirects letting codes leak to third-party domains, or client secrets checked into source repositories. These are not theoretical — they are recurrent real-world findings. The good news is that all of them are preventable through enforced client configuration and deployment hygiene. An admin review of every client against this checklist before go-live catches the vast majority of OAuth security gaps.',
+    whoDefinesIt: 'Admins enforce cryptographic controls through client settings (PKCE requirement, redirect URI lists, scope allowlists) and through deployment posture (HTTPS, certificate management, secrets management). Some controls are not in the UI — they require infrastructure configuration outside this admin panel.',
+    whereInAdmin: ['Clients view (requirePkce, redirectUris, grantTypes, allowedScopes)', 'Instance Settings (HTTPS enforcement, CORS)', 'Documentation API tutorials'],
     details: [
-      'Require HTTPS in production environments.',
-      'Use PKCE with S256 and exact redirect URIs for public clients.',
-      'Rotate client secrets and avoid embedding them in frontend code.',
-      'Use least-privileged scopes and revoke unused sessions/consents quickly.'
+      'HTTPS is mandatory in production — do not run authorization or token endpoints over HTTP even on internal networks.',
+      'JWTs should be signed with RS256 or ES256 so the signature is verifiable with a published public key (JWKS endpoint).',
+      'Enable requirePkce with S256 for all public clients (SPAs, mobile apps) — plain PKCE method provides no real protection.',
+      'Redirect URIs must be exact matches — never use wildcard patterns, path prefixes, or case-insensitive comparison in production.',
+      'Client secrets must be stored in a secrets manager (HashiCorp Vault, cloud KMS, etc.) — never in application config files committed to source control.',
+      'Rotate client secrets proactively and revoke the old secret only after all deployments have been updated to the new value.',
+      'Revoke unused sessions and consents to reduce standing access surface — active sessions and consents for departed users are compliance gaps.'
     ]
   },
   {
     id: 'tenants',
     title: 'Tenants: Isolation For Organizations Or Customers',
-    plainExplanation: 'A tenant represents a top-level business partition, often corresponding to a customer, organization, or isolated operational domain.',
-    whyItMatters: 'Tenants prevent identities, roles, and policies from being applied across the wrong customer or organizational boundary.',
-    whoDefinesIt: 'Admins define tenants and decide which users, roles, clients, and policies apply inside them.',
-    whereInAdmin: ['Tenants view', 'Users view', 'Roles view', 'Policies view', 'Clients view'],
+    plainExplanation: 'A tenant is a top-level organizational container that represents a customer, company, or isolated business domain within the same platform instance. Tenants carry their own user populations, role assignments, policies, and configuration scopes. This means the same platform installation can serve multiple organizationally distinct customers without those customers’ identities or policies interfering with each other. Tenants are stronger isolation than groups or apps — they reflect a distinct administrative domain, not just a categorization.',
+    whyItMatters: 'Multi-tenancy is what enables a platform to serve enterprise customers without duplicating infrastructure for each. Without tenant isolation, a role assigned at platform level could apply across all customers, a policy meant for one organization could fire for another, and branding or configuration differences become impossible. Tenants also make delegation clean: a tenant admin has full control within their boundary and no visibility into other tenants.',
+    whoDefinesIt: 'Super-admins define tenants and assign users, roles, policies, and clients into them. Tenant admins may have delegated control within their own tenant.',
+    whereInAdmin: ['Tenants view', 'Users view (tenant membership)', 'Roles view (tenant-scoped assignments)', 'Policies view', 'Clients view'],
     details: [
-      'Tenants are stronger business isolation than groups because they represent distinct administrative domains.',
-      'Use tenant scoping when data, branding, or policy must differ between organizations.',
-      'Be explicit about which roles and flows are tenant-aware.'
+      'Tenants represent administrative isolation — use them when different organizations need independent administration.',
+      'Groups and apps are organizational classification within a tenant; tenants are the boundary between organizations.',
+      'Tenant-scoped role assignments only apply within that tenant — the same user can have different roles in different tenants.',
+      'Policies can be scoped to a tenant so enforcement logic is specific to that organization.',
+      'Be explicit about which configuration is tenant-scoped versus platform-global to avoid unintended cross-tenant bleed.',
+      'Audit events are tenant-tagged, enabling per-customer compliance reporting.'
     ]
   },
   {
     id: 'consents',
     title: 'Consents: User Approval Memory',
-    plainExplanation: 'A consent record stores that a user approved a client to access a specific set of scopes.',
-    whyItMatters: 'Consent is how the platform remembers what a user already agreed to, which affects future authorize prompts.',
-    whoDefinesIt: 'Users create consent by approving a request; admins can review and revoke it.',
-    whereInAdmin: ['Consents view', 'Consent Interaction Screen', 'Clients view'],
+    plainExplanation: 'A consent record is how the platform remembers that a specific user approved a specific client to access a specific set of scopes. When a user logs in through an application and sees the consent screen saying "This app wants to access your profile and email," their approval creates a consent record. On future logins, if the same user authorizes the same client for the same scopes, the consent screen may be skipped because approval was already given. Consents are tied to the three-way relationship: user + client + scope set.',
+    whyItMatters: 'Consent protects users from applications silently expanding their access over time. If an application later requests new scopes it did not originally ask for, a new consent prompt must appear. Admins may also need to revoke consents during offboarding (to ensure an ex-employee’s approvals are not carried forward) or after a client configuration change. Understanding consent records helps explain why some users see a consent screen on a login and others do not.',
+    whoDefinesIt: 'Users grant consent interactively during login. Admins can review and revoke consent records. Clients configured as trusted/first-party may skip the consent screen entirely.',
+    whereInAdmin: ['Consents view', 'Users view (consents tab)', 'Clients view (consent settings)'],
     details: [
-      'Consent is tied to a user-client-scope relationship.',
-      'Revoking consent forces the next interactive flow to request approval again if consent is required.',
-      'Consent helps explain why a client received scopes during a past login.'
+      'Consent is scoped to a user-client-scopeset triple — changing any part of that triple may trigger a new consent prompt.',
+      'First-party clients (your own applications) can be configured to skip consent for a smoother UX.',
+      'Third-party or externally developed clients should always show a consent screen.',
+      'Revoking a consent record forces consent re-collection on the user’s next login with that client.',
+      'Offline_access scope grants a refresh token — pay attention to which clients have this consented.',
+      'During user offboarding, revoke consents alongside sessions to fully remove active application authorizations.'
     ]
   },
   {
     id: 'sessions',
     title: 'Sessions: Live Browser Or Login State',
-    plainExplanation: 'A session tracks an active authenticated state for a user, usually backed by secure cookies and related issuance context.',
-    whyItMatters: 'Sessions are what keep a user signed in between requests and are often the first object to inspect during login support issues.',
-    whoDefinesIt: 'The platform creates sessions during successful login; admins can review and revoke them.',
-    whereInAdmin: ['Sessions view', 'Login view', 'Logout flow', 'Audit Log'],
+    plainExplanation: 'A session is the server-side record of an authenticated user’s active login state. After a successful login, the platform creates a session that tracks who is logged in, from where, when it started, and when it expires. Browsers carry a session reference (typically in a secure, HttpOnly cookie). As long as the session is valid and unexpired, the user can obtain new tokens without re-authenticating. Sessions are separate from tokens — a session lives on the server; tokens are issued to the client application and have their own shorter lifetime.',
+    whyItMatters: 'Sessions are the first object to inspect when diagnosing login issues or responding to security incidents. An unexpectedly long session lifetime means users stay logged in past intended boundaries. An active session for a deactivated user means they can still get tokens until the session expires. During incident response, revoking a session is the fastest way to terminate a user’s active access before all their tokens expire naturally.',
+    whoDefinesIt: 'The platform creates sessions on successful login. Admins set session lifetime policy through instance settings and flow configuration. Admins can revoke individual sessions manually.',
+    whereInAdmin: ['Sessions view', 'Users view (sessions tab)', 'Instance Settings (session lifetime)', 'Audit Log'],
     details: [
-      'A session is not the same thing as an access token, though they may be related operationally.',
-      'Revoking sessions is a rapid response tool after compromise or offboarding.',
-      'Session lifetime, fixation protection, and secure cookie settings are core security controls.'
+      'Session records show current browser login state — use them to verify whether a user is actually logged in right now.',
+      'Revoking a session forces the next request from that browser to re-authenticate — it is a rapid response control.',
+      'Access tokens derived from a session can still be valid after the session is revoked — wait for them to expire or revoke them separately.',
+      'Session fixation protection should be enabled — this rotates the session identifier after login.',
+      'Session lifetime should be shorter for high-risk applications and longer for low-risk internal tools.',
+      'Back-channel logout (where supported) propagates logout across federated sessions and downstream applications.'
     ]
   },
   {
     id: 'devices',
     title: 'Devices And Device Code Login',
-    plainExplanation: 'Devices represent user approvals or login handshakes for clients that cannot show a full browser-based login flow directly.',
-    whyItMatters: 'Device flows are common for TVs, terminals, and constrained clients where traditional redirect-based login is not practical.',
-    whoDefinesIt: 'Admins allow device_code grant support through client and flow configuration; end users complete verification during the flow.',
-    whereInAdmin: ['Devices view', 'Device Verification Interaction Screen', 'Clients view', 'Authentication Flows view'],
+    plainExplanation: 'The device authorization grant (also called device code flow) solves a specific problem: how do you authenticate a user on a device that has no practical way to open a browser or receive a redirect — a smart TV, a CLI tool, a printer, a headless server, or an IoT device? The flow works in two halves. First, the constrained device contacts the authorization server and receives two codes: a device_code (used internally to poll for completion) and a user_code (a short human-readable code like GFTM-XHQK). The device displays the user_code and a verification URL to the user. The user takes out their phone or computer, visits that URL, enters the code, and approves the login. Back on the device, the client has been polling the token endpoint — when the user approves, the poll returns a token and the device is authenticated.',
+    whyItMatters: 'Without the device code flow, applications running on input-constrained devices would have to collect usernames and passwords directly (the password grant) or require users to somehow copy long authorization URLs manually — both are bad security or bad UX. The device code flow preserves the security model of OAuth (the user authenticates on a trusted browser, the device never sees the password) while making it practical for constrained clients. It must still respect all the same client, scope, and policy gates as a normal browser-based flow.',
+    whoDefinesIt: 'Admins enable device_code as an allowed grant on specific clients and ensure the authentication flow supports it. End users complete the approval step on a separate trusted device.',
+    whereInAdmin: ['Devices view (pending and completed device authorizations)', 'Clients view (device_code in grantTypes)', 'Authentication Flows view', 'Device Verification Interaction Screen'],
     details: [
-      'The device receives a code and waits while the user approves on another screen.',
-      'This flow must still respect client, scope, and policy restrictions.',
-      'Monitor device flows for abnormal polling or abuse patterns.'
+      'The device polls the token endpoint using the device_code until the user approves or the code expires — configure appropriate polling intervals to avoid rate limiting.',
+      'user_code display should be prominent and include the verification URL so users know exactly where to go.',
+      'Device code requests must still pass client, scope, and flow policy checks — this grant is not a bypass of authentication policy.',
+      'Monitor active device authorizations for abnormal patterns: codes that are never approved but are repeatedly requested may indicate abuse.',
+      'Set reasonable device_code expiry times (typically 5–15 minutes) to limit the window during which a code can be used.',
+      'Approved device authorizations appear in the Devices view and can be revoked if a shared device is reported lost or compromised.'
     ]
   },
   {
     id: 'federation',
     title: 'Federation Providers: External Identity Sources',
-    plainExplanation: 'Federation providers connect this platform to external identity providers so users can log in with identities managed elsewhere.',
-    whyItMatters: 'Federation reduces password sprawl and lets organizations centralize authentication in an upstream IdP.',
-    whoDefinesIt: 'Admins configure provider metadata, client credentials, mapping, and linking behavior.',
-    whereInAdmin: ['Federation Providers view', 'Login view', 'Users view', 'Authentication Flows view'],
+    plainExplanation: 'Federation lets users log into this platform using an identity they already have at another provider — their corporate Google Workspace account, an Azure AD identity, an Okta organization, or any other OIDC-compatible IdP. When a user chooses to sign in via a federation provider, this platform redirects them to the external IdP for authentication. The external IdP verifies the user and sends back claims (name, email, groups, custom attributes) in a token. This platform receives those claims, maps them according to configuration, and either links the incoming identity to an existing local user record or auto-provisions a new one. The result is a local user session with the same roles and policies as any other user, but backed by an externally managed identity.',
+    whyItMatters: 'Most enterprise organizations already have a centralized identity provider that manages employee accounts, enforces MFA, and handles lifecycle events like offboarding. Making users maintain a separate password in every system is a security risk (password sprawl, no central revocation) and an operational burden. Federation centralizes authentication trust: when an employee leaves the organization, deactivating their account in the upstream IdP automatically blocks their ability to federate into this platform on the next login. Claim mapping quality is critical — if the external claims do not map cleanly to the expected local fields, federated users may get wrong roles, missing attributes, or failed provisioning.',
+    whoDefinesIt: 'Admins configure federation providers in the Federation Providers view: the provider discovery URL (for OIDC), client ID and secret issued by the external IdP, claim mappings, and link-or-provision behavior.',
+    whereInAdmin: ['Federation Providers view', 'Login view (provider selection)', 'Users view (linked identities)', 'Authentication Flows view'],
     details: [
-      'Federation can link an existing local user or auto-provision a new one.',
-      'Claim mapping quality determines whether imported identities behave correctly.',
-      'Treat provider credentials and callback configuration as security-sensitive integration assets.'
+      'Each federation provider requires an OIDC client registration at the external IdP that points back to this platform callback URL.',
+      'Claim mapping converts external claims (e.g. "preferred_username", "groups") into local user fields and attributes.',
+      'Link behavior determines whether an incoming federated identity links to an existing user (by email match) or always creates a new one.',
+      'Auto-provisioned users inherit platform defaults for roles and groups — configure sensible defaults before enabling auto-provisioning.',
+      'Provider credentials (client ID and secret) are security-sensitive — treat them with the same care as any confidential OAuth credential.',
+      'When a federation provider is removed or disabled, users who authenticated only via that provider will lose login access until a recovery path is established.'
+    ]
+  },
+  {
+    id: 'saml-federation',
+    title: 'SAML Federation: Legacy/Enterprise SSO Bridge',
+    plainExplanation: 'SAML 2.0 (Security Assertion Markup Language) is an older but still widely deployed standard for single sign-on. Where OIDC uses JSON tokens and REST-friendly flows, SAML uses XML documents called assertions that are signed with X.509 certificates and transported via browser redirects. This platform acts as a SAML Identity Provider (IdP): when a user tries to access a SAML-enabled service provider (SP) like a legacy SaaS application, the SP redirects the user here, the user authenticates, and this platform sends back a cryptographically signed XML assertion that the SP validates and trusts. The SP never sees the users credentials — only the assertion.',
+    whyItMatters: 'Despite OIDC being the modern standard, many enterprise applications — especially older SaaS platforms, HR systems, and on-premise tools — only support SAML. Without SAML support, integrating those systems requires separate credentials and separate authentication management. Supporting SAML lets the platform act as the central IdP for the entire enterprise estate regardless of protocol. Certificate management is operationally critical: an expired signing certificate breaks all SAML SSO for that service provider until the certificate is rotated and the SP metadata is updated.',
+    whoDefinesIt: 'Admins configure service provider records in the Federation Providers view: the SP entity ID, ACS (Assertion Consumer Service) URL, SLO (Single Logout) URL, NameID format, and signing/encryption certificate behavior.',
+    whereInAdmin: ['Federation Providers view (SAML SP table)', 'Administration view', 'Documentation view', 'Audit Log'],
+    details: [
+      'This platform publishes its own SAML metadata at GET /saml/metadata — service providers use this to configure trust.',
+      'The ACS endpoint (POST /saml/acs/:spId) is where the SP sends assertion responses back after SSO; it validates signature, audience, destination, and replay protection.',
+      'Admin metadata upload parses an SP-provided XML file and populates entityId, ACS URL, SLO URL, and certificate fields automatically.',
+      'Certificate rotation lets you roll signing and encryption keys without recreating the SP record — coordinate the new certificate with the SP before activating it.',
+      'NameID format (persistent, transient, email) should match what the SP expects — mismatches cause login failures even when the assertion is otherwise valid.',
+      'Signature wrapping attacks are defended against by rejecting ambiguous assertion structures at ACS processing time.',
+      'Every ACS assertion handling event is audited with assertion ID, audience, destination, and session correlation for incident traceability.'
     ]
   },
   {
     id: 'attributes',
     title: 'User Attributes: Extensible Identity Data',
-    plainExplanation: 'User attributes are custom typed fields attached to identities so business-specific metadata can participate in policy and application logic.',
-    whyItMatters: 'Not every organization can fit its identity model into name/email/role alone; attributes capture the rest.',
-    whoDefinesIt: 'Admins define attribute schema, enablement, and optional group-level behavior.',
-    whereInAdmin: ['User Attributes view', 'Users view', 'Groups view', 'Policies view'],
+    plainExplanation: 'Standard identity fields — email, name, roles — cover common cases. But organizations often need to attach business-specific metadata to identities: a user’s cost center, their clearance level, their geographic region, their employment type (contractor vs. full-time), or a custom onboarding status flag. User attributes are the mechanism for this. Admins define a schema (attribute name, type, and whether it is enabled) and then values can be set per user or, with group-level inheritance, applied to all users in a group. Those attribute values can then be referenced in ABAC policy conditions, token claims, and application APIs.',
+    whyItMatters: 'Attributes transform the identity platform from a simple login system into a rich data source for access decisions. An ABAC policy that says "allow access only if the user’s clearance_level is >= 3 AND their region is EU" needs those values on the user record. Without attributes, that condition cannot be evaluated and every access decision reduces to coarse role checks. Attributes also reduce the number of roles needed: instead of creating a separate role for every combination of region, team, and seniority, you model those as attributes and write one policy that references them. Schema governance matters — undefined or inconsistently used attributes produce wrong policy decisions.',
+    whoDefinesIt: 'Admins define the attribute schema (name, type, enabled status) in the User Attributes view. Individual attribute values are set on user records or inherited from groups. Applications and policies consume them.',
+    whereInAdmin: ['User Attributes view (schema definition)', 'Users view (per-user attribute values)', 'Groups view (group-level attribute inheritance)', 'Policies view (attribute conditions in ABAC rules)'],
     details: [
-      'Attributes should be governed like schema, not treated as arbitrary free text.',
-      'Only add attributes with a real consumer such as policy logic or application behavior.',
-      'Keep naming clear so downstream systems understand the meaning.'
+      'Attribute names should be stable identifiers using consistent casing — changing names breaks any policies or application logic that references them.',
+      'Use typed attributes (string, number, boolean) so policies can perform correct comparisons without type coercion surprises.',
+      'Group-level attribute inheritance sets a default value for all group members, which users can override on a per-user basis if enabled.',
+      'Only create attributes that have a concrete consumer — a policy condition, a token claim mapping, or an application-side check.',
+      'Treat the attribute schema like database schema: additions are low-risk, but renames or type changes are breaking and need coordination.',
+      'Review attribute values during access reviews — stale or incorrect attribute values can silently produce wrong authorization decisions.'
     ]
   },
   {
     id: 'policies',
     title: 'Policies: Decision Rules Applied Across Scope',
-    plainExplanation: 'Policies are reusable rules that influence access, stage behavior, or enforcement for specific scopes such as global, tenant, group, or user.',
-    whyItMatters: 'Policies let you apply consistent behavior without rewriting every client or flow individually.',
-    whoDefinesIt: 'Admins define policies and assign them at the correct scope boundary.',
-    whereInAdmin: ['Policies view', 'Authentication Flows view', 'Users view', 'Groups view', 'Tenants view'],
+    plainExplanation: 'Policies are named, reusable rule definitions that encode a decision or enforcement behavior and can be assigned at different scopes — global, tenant, group, or user. A policy might specify "require MFA for all admin-role users," or "allow access to resource X only if the requester’s department attribute is finance," or "deny any request from countries outside the allowlist." Defining a policy separates the rule from the assignment: the same policy definition can be assigned to multiple groups or tenants, and the rule behavior follows the assignment scope. Policy categories include authentication (affecting flow stage behavior) and authorization (affecting ABAC access decisions).',
+    whyItMatters: 'Without policies, enforcing consistent behavior across a large user base requires per-client or per-user configuration, which is unmanageable at scale and inconsistent by nature. A single policy definition assigned to a group of 500 users enforces the same rule for all of them with one change. Policies also create a clear audit trail: instead of investigating why a particular user was or was not allowed access, you can trace the specific policy that was evaluated, what decision it made, and what inputs it received. Global policies are powerful but dangerous — a misconfigured global policy can lock out all users from every flow simultaneously.',
+    whoDefinesIt: 'Admins define policy rules in the Policies view and create assignments at the appropriate scope. Policy scripts (for ABAC conditions) run in a sandboxed environment with restricted globals.',
+    whereInAdmin: ['Policies view (definition and simulation)', 'Authentication Flows view (flow-level policy stages)', 'Users view (user-scoped policy assignments)', 'Groups view (group-scoped assignments)', 'Tenants view (tenant-scoped assignments)'],
     details: [
-      'The same policy may produce different outcomes depending on assignment scope.',
-      'Global policies should be used carefully because they affect many identities at once.',
-      'Good policy design keeps enforcement predictable and auditable.'
+      'Policy categories: "authentication" policies affect stage behavior during login; "authorization" policies affect ABAC access decisions.',
+      'Policy effect (allow/deny) and priority determine outcomes when multiple policies match the same request.',
+      'Decision strategy per assignment (deny_overrides, allow_overrides, first_applicable) governs conflict resolution.',
+      'Global policies should be used sparingly and tested thoroughly — they evaluate for every applicable subject at every decision point.',
+      'Use the policy simulation endpoint (/api/admin/policies/evaluate) to test decision outcomes before assigning policies to production scope.',
+      'Decision logs record who triggered an evaluation, what inputs were used, and what the outcome was — use them during access investigations.',
+      'Policy conditions execute in a sandboxed VM with a timeout — keep conditions simple and deterministic.'
+    ]
+  },
+  {
+    id: 'abac-fundamentals',
+    title: 'ABAC Fundamentals: Context-Aware Authorization',
+    plainExplanation: 'RBAC (Role-Based Access Control) answers one question: does this user have the right role? It is fast and simple but quickly grows unwieldy when access requirements are more nuanced than role membership. ABAC (Attribute-Based Access Control) goes further by evaluating four dimensions: the subject (who is requesting, including their attributes like department, clearance, region), the resource (what they are requesting, including its attributes like classification, owner, sensitivity tier), the action (what they want to do — read, write, delete, approve), and the context (environmental factors like time of day, IP address, risk score, environment tier). A policy rule combines conditions across these dimensions: "allow write if subject.department = finance AND resource.classification != top_secret AND context.environment = production."',
+    whyItMatters: 'Without ABAC, every distinct access scenario needs its own role. A system with 5 departments, 3 resource sensitivity tiers, and 4 action types would need 60 roles under pure RBAC — and that is a small example. ABAC lets you express all 60 scenarios with one policy that references attributes. This is called avoiding "role explosion." ABAC also enables truly contextual decisions that RBAC cannot: "allow only during business hours," "require elevated clearance if the user’s risk score is above threshold," or "only permit access to resources the subject owns." These conditions make authorization logic match real-world policy intent rather than forcing that intent into a role taxonomy.',
+    whoDefinesIt: 'Admins write ABAC policy rules in the Policies view and assign them at the appropriate scope. Services calling the authorization check endpoint provide current request context (resource, action, environment attributes) at evaluation time.',
+    whereInAdmin: ['Policies view (ABAC rule authoring and simulation)', 'Authorization check endpoint (/api/admin/authorization/check)', 'Decision logs (Audit Log)', 'Documentation view'],
+    details: [
+      'RBAC remains useful as a fast prefilter — check coarse role membership first, then run ABAC for fine-grained decisioning.',
+      'Policy conditions evaluate subject attributes (from the user record), resource attributes (from the caller’s request context), and environment attributes (IP, time, risk score).',
+      'Effect (allow/deny) and priority resolve conflicts when multiple policies match the same request.',
+      'Decision strategies: deny_overrides means any deny wins regardless of allow policies; allow_overrides means any allow wins; first_applicable stops at the first matching rule.',
+      'Use the simulation endpoint to dry-run policy decisions with specific subject/resource/action inputs before assigning to production scope.',
+      'Keep policy condition scripts short and side-effect-free — they run in a sandboxed VM with a timeout, and complex logic slows authorization decisions.',
+      'Decision logs (GET /api/admin/policies/decisions) record every evaluation for auditability and investigation.'
     ]
   },
   {
     id: 'interaction-views',
     title: 'Interaction Views: What The User Actually Sees During Auth',
-    plainExplanation: 'Interaction views are the screens rendered during the authentication journey, such as login, consent, and device verification.',
-    whyItMatters: 'These views are where security decisions become user-facing behavior, so mismatch between backend rules and UI wording causes confusion.',
-    whoDefinesIt: 'The platform defines the screens; admins influence behavior through flow, client, and policy configuration.',
-    whereInAdmin: ['Interaction Views view', 'Login view', 'Consent Interaction Screen', 'Device Verification Interaction Screen'],
+    plainExplanation: 'Interaction views are the browser screens that appear at each step of the authentication journey. The login screen asks for credentials. The consent screen presents the list of requested scopes and asks the user to approve them. The device verification screen shows the user code entry UI for device code flows. The MFA screen prompts for a TOTP code or WebAuthn gesture. Each of these views is driven by backend state — what the flow requires, what scopes the client is requesting, what MFA factors the user has enrolled — but the user only sees the rendered HTML page. The gap between backend configuration and what actually appears on screen is where many support issues originate.',
+    whyItMatters: 'Authentication configuration is easy to verify in isolation but surprisingly easy to misconfigure in ways that only become visible during a live login. An admin might enable a new flow stage or change consent settings without realizing how it changes the user-facing page. A user who sees a consent screen listing more permissions than they expect, or a step-up prompt that does not explain why it appeared, will often abandon the flow or contact support. Checking interaction views after configuration changes is the fastest way to validate that backend rules translate into a sensible, accurate user experience.',
+    whoDefinesIt: 'The platform renders interaction view templates based on current flow, client, and policy state. Admins influence behavior through authentication flow configuration, client consent settings, and MFA policy, but the screen rendering itself is handled by the platform.',
+    whereInAdmin: ['Login view (credential and federation screens)', 'Consent Interaction Screen', 'Device Verification Interaction Screen', 'MFA prompt screens', 'Authentication Flows view (stage configuration)'],
     details: [
-      'Interaction views should accurately reflect requested scopes and required steps.',
-      'Changes in flows or policies often surface first as differences in these screens.',
-      'Use them to validate the real end-user experience, not just backend configuration.'
+      'The consent screen lists requested scopes — if the scope list looks wrong, check the client’s allowedScopes and the authorize request’s scope parameter.',
+      'MFA prompts appear when a flow stage requires them — if they are appearing unexpectedly, trace back to which stage is triggering the requirement.',
+      'The device verification screen appears only when the device_code grant is active for the client and flow.',
+      'Step-up prompts from adaptive auth (risk_check stage) should ideally explain to the user why additional verification is needed.',
+      'Changes to flow stages, consent settings, or policy assignments often surface as differences in these screens — test in a staging environment after every significant flow change.',
+      'If a user reports seeing a screen they did not expect, check the audit log for the login event to trace which stage triggered it.'
     ]
   },
   {
     id: 'events-hooks',
     title: 'Events And Hooks: Outbound Notifications Of Change',
-    plainExplanation: 'Events describe important system actions, while hooks deliver selected events to external systems for automation or monitoring.',
-    whyItMatters: 'Hooks turn the identity system into an integration point for SIEM, workflow engines, and operational alerting.',
-    whoDefinesIt: 'Admins configure webhook targets and decide which downstream systems consume them.',
-    whereInAdmin: ['Events view', 'Audit Log', 'Policies view'],
+    plainExplanation: 'Events are structured records of things that happened in the platform: a user was created, a login succeeded or failed, a role was assigned, a SCIM provisioning run completed, a risk event was triggered. By themselves, events are just telemetry stored in the audit log. Hooks are the mechanism that turns those events into outbound notifications: when a configured event type fires, the platform makes an HTTP POST to a registered webhook endpoint carrying the event payload. This lets external systems react to identity changes in real time — a SIEM ingests login failures for threat detection, a ticketing system opens a review ticket when a privileged role is assigned, or a Slack bot alerts the security team when a break-glass elevation occurs.',
+    whyItMatters: 'Most security and operational workflows that involve identity data need to span multiple systems. A deprovisioning flow might require: SCIM deletes the user here, an HR system marks the offboarding complete, an ITSM ticket is created for confirmation, and a SIEM alert checks for any last-minute access. Without event hooks, each of these steps requires polling or manual coordination. With hooks, the platform proactively pushes notifications and the downstream systems react. The quality of that integration depends entirely on which events are hooked, what the payload contains, and whether delivery failures are monitored and retried.',
+    whoDefinesIt: 'Admins configure webhook targets (URLs, auth headers) and select which event types each target should receive. Downstream system owners implement the receivers.',
+    whereInAdmin: ['Events view (hook configuration and delivery history)', 'Audit Log (underlying event stream)', 'Administration view'],
     details: [
-      'Not every event should trigger the same downstream action; choose consumers carefully.',
-      'Delivery history is important when debugging failed automation.',
-      'Event design should separate informational telemetry from security-critical alerts.'
+      'Webhook targets should use HTTPS and require an authentication header — never send events to unauthenticated or HTTP endpoints.',
+      'Configure per-target event type filtering — a SIEM should receive security events; an HR system likely only needs provisioning lifecycle events.',
+      'Delivery history is essential for debugging: a hook that consistently fails silently means downstream automation is not running.',
+      'Implement retry logic and idempotency on webhook receivers — the same event may be delivered more than once during retries.',
+      'Security-critical events (break-glass elevation, admin role assignment, failed login spike) should have dedicated hook targets with monitored receivers.',
+      'Test webhook delivery in staging before pointing hooks at production receivers — malformed payloads or authentication failures are easier to debug before go-live.'
     ]
   },
   {
     id: 'audit-log',
     title: 'Audit Log: Forensics And Accountability Record',
-    plainExplanation: 'The audit log is the chronological record of meaningful security and administrative activity in the platform.',
-    whyItMatters: 'It is the main source for answering who changed what, when it happened, and what context surrounded the event.',
-    whoDefinesIt: 'The platform emits audit entries automatically; admins consume them for review and incident response.',
-    whereInAdmin: ['Audit Log', 'Users view', 'Clients view', 'Sessions view', 'Events view'],
+    plainExplanation: 'The audit log is the authoritative, append-only record of every meaningful security and administrative action taken in this platform. Each entry captures: who (the actor — admin user, system process, or API caller), what (the action type — user.created, session.revoked, role.assigned, policy.evaluated, break-glass.invoked), which (the target object and its identifier), when (timestamp with timezone), and context (IP address, request ID, outcome). The audit log is not just an operational monitoring tool — it is evidence. During a security investigation, a compliance audit, or an access review, the audit log is the primary source of truth for reconstructing what happened and whether it was authorized.',
+    whyItMatters: 'Without a complete audit log, security incidents become unresolvable: you cannot answer when a credential was first used from an unusual location, who approved a sensitive role assignment, or whether a terminated employee attempted access after offboarding. Many compliance frameworks (SOC 2, ISO 27001, HIPAA, PCI DSS) require demonstrable audit trails for privileged operations and access changes. The audit log satisfies those requirements, but only if every write path in the platform emits audit events and those events are retained long enough to cover the review window. Gaps in audit coverage are not just operational blind spots — they are compliance findings.',
+    whoDefinesIt: 'The platform emits audit entries automatically on write operations — there is no admin configuration required to enable basic auditing. Admins consume it for investigation, review, and compliance reporting.',
+    whereInAdmin: ['Audit Log view (primary consumer)', 'Users view (per-user audit history)', 'Clients view (per-client audit history)', 'Sessions view (session lifecycle events)', 'Events view (hook delivery audit trail)'],
     details: [
-      'Audit entries should be reviewed during access anomalies, client misconfiguration, and offboarding investigations.',
-      'Good audit data links actor, action, target, and timestamp clearly.',
-      'Treat the audit log as evidence, not just dashboard noise.'
+      'Every audit entry links actor, action type, target object, timestamp, and outcome — use all five dimensions when investigating an incident.',
+      'The audit log is append-only — entries are never edited or deleted, making it tamper-evident for compliance purposes.',
+      'Start audit investigations by filtering on the affected user or resource and the relevant time window, then expand outward.',
+      'Look for sequences, not just individual events: a successful login followed by an unusual role assignment followed by a bulk export query is more meaningful than any single event.',
+      'Security-critical events to monitor regularly: break-glass invocations, admin role assignments, policy changes, client secret rotations, high-volume failed logins.',
+      'Retain audit logs for at least the period required by your compliance framework — common minimums are 1 year for SOC 2 and 6 years for HIPAA audit controls.',
+      'Event hook consumers that mirror audit events to a SIEM extend retention and enable correlation with non-identity events.'
     ]
   },
   {
     id: 'instance-settings',
     title: 'Instance Settings: Global Security Posture Controls',
-    plainExplanation: 'Instance settings are server-wide controls that change how the platform accepts requests and enforces transport or OAuth security rules.',
-    whyItMatters: 'These switches affect every client and admin operator because they sit above per-client configuration.',
-    whoDefinesIt: 'Platform administrators with administration access define and update these settings.',
-    whereInAdmin: ['Administration view', 'Clients view', 'Login view'],
+    plainExplanation: 'Instance settings are server-wide configuration values that set the security and behavioral baseline for the entire platform installation. Unlike client or flow settings that apply to one integration, instance settings apply universally: HTTPS enforcement means every endpoint requires TLS, not just selected ones. CORS allowlists define which origins the server will respond to for browser-initiated requests. Token algorithm preferences set the default signing algorithm for all issued JWTs. PKCE enforcement can be required platform-wide regardless of individual client settings. These settings represent the minimum security posture the operators have committed to for this deployment.',
+    whyItMatters: 'Per-client configuration provides flexibility but creates risk through inconsistency — a client configured permissively can undermine a security baseline that every other client meets. Instance settings close that gap by establishing non-negotiable platform-level controls. If HTTPS is required at the instance level, no client can accidentally or intentionally downgrade to plaintext. If a PKCE enforcement is set platform-wide, clients cannot opt out. This layered model — instance baseline + client refinement — is the correct way to operate a multi-tenant authorization server where not every client administrator has full security context.',
+    whoDefinesIt: 'Super-administrators with administration access define and update instance settings. Changes should be reviewed, documented, and communicated to affected integration teams before being applied in production.',
+    whereInAdmin: ['Administration view (instance settings panel)', 'Clients view (per-client overrides within instance baseline)', 'Login view (settings that affect login page behavior)'],
     details: [
-      'Use instance settings for platform-wide guardrails such as HTTPS enforcement and CORS allowlists.',
-      'Client settings refine behavior for one integration; instance settings set the security baseline for all of them.',
-      'Changes can take effect on the next request, so operators should stage and communicate them carefully.'
+      'Instance settings sit above client settings in precedence — a client cannot configure a behavior that instance settings prohibit.',
+      'HTTPS enforcement at the instance level prevents token and session material from ever being transmitted over plaintext transport.',
+      'CORS allowlists should be as narrow as possible — allowing all origins (*) on an authorization server is a high-severity misconfiguration.',
+      'Changes to instance settings take effect on the next request — test in staging first and communicate with integration teams before changing in production.',
+      'Review instance settings as part of security posture assessments; they define what the platform actually enforces rather than what individual client configs assume.',
+      'Token signing algorithm preferences should favor RS256 or ES256 — symmetric algorithms (HS256) require sharing the signing key with token consumers, which is operationally risky at scale.'
+    ]
+  },
+  {
+    id: 'workload-identity',
+    title: 'Workload Identity: Non-Human Credentials Governance',
+    plainExplanation: 'Every automated process, background job, microservice, and integration script that needs to call a protected API is a workload identity — a non-human actor that needs credentials but has no human to log in interactively. Service identities model these actors explicitly: each has a name (describing the workload), an owner (the team accountable for it), a set of allowed scopes and audiences (constraining what it can request), and one or more credentials (client secrets or tokens) with expiry and rotation history. Rather than sharing a human user credential for automation (a common anti-pattern), each workload gets its own tightly scoped identity that can be independently rotated, revoked, and audited.',
+    whyItMatters: 'Shared or unmanaged service credentials are one of the most common sources of credential sprawl and post-breach lateral movement. When a developer leaves and their personal token was being used by three CI pipelines, deactivating that account breaks three systems. When a service credential is never rotated, it becomes a long-lived attack surface — a credential leaked in a Git commit from two years ago may still be valid. Service identities solve this by making non-human credentials first-class objects with lifecycle management, rotation scheduling, last-used tracking, and explicit revocation. Blast radius is also constrained: a compromised service identity that is narrowly scoped can only reach the APIs it was authorized for, not everything a human admin can access.',
+    whoDefinesIt: 'Platform admins create service identities, issue credentials, and define allowed scope and audience constraints. Service owners are responsible for credential rotation and reporting suspected compromise.',
+    whereInAdmin: ['Service Identities view', 'Audit Log (credential issuance and rotation events)', 'Documentation view'],
+    details: [
+      'Each service identity should represent one logical workload — separate identities per environment (staging, production) is safer than one shared identity.',
+      'Allowed scopes and audiences should be exactly what the workload needs — never grant broader access to make configuration easier.',
+      'Credentials should have defined expiry and a rotation schedule — treat indefinite credentials as a security finding.',
+      'Last-used timestamps help identify stale credentials: a service identity not used in 90+ days is a candidate for decommissioning.',
+      'Token exchange (RFC 8693) allows a service to request a narrowed downstream token from a broad subject token — use it to reduce scope at service-to-service boundaries.',
+      'Credential rotation should be zero-downtime: issue the new credential, update the workload, verify it works, then revoke the old one.',
+      'Audit any service identity with credentials that have never been rotated since issuance — those are likely forgotten and unmonitored.'
+    ]
+  },
+  {
+    id: 'scim-fundamentals',
+    title: 'SCIM Fundamentals: Provisioning Contract And Lifecycle',
+    plainExplanation: 'SCIM (System for Cross-domain Identity Management) is an open standard protocol (RFC 7642-7644) that defines a REST API and JSON schema for synchronizing user and group records between systems. The canonical use case is an enterprise directory (Active Directory, Azure AD, Okta, Google Workspace) that acts as the authoritative source of truth for employee identities, pushing those identities into downstream SaaS and platform systems. SCIM provides standard verbs for the full lifecycle: create a new user when they are onboarded, update their attributes when they change departments, partially patch their record when their manager changes, and delete or deactivate the record when they leave. Both sides speak the same schema, so no custom transformation code is needed between the directory and the application.',
+    whyItMatters: 'Manual user provisioning does not scale and does not deprovision reliably. When an employee is onboarded, IT creates accounts in every system they need. When they leave, IT must remember to deactivate every account in every system — and frequently they do not. Stale accounts from departed employees are one of the most common findings in security audits. SCIM automates the entire lifecycle from a single source of truth: the moment HR processes an offboarding, the directory sends a SCIM DELETE or PATCH (deactivate), and the user loses access across all connected systems within minutes, not days. The provisioning token model ensures only authorized upstream directories can make SCIM calls.',
+    whoDefinesIt: 'Platform admins create provisioning tokens and configure attribute mappings. The upstream identity platform (Azure AD, Okta, etc.) is configured to call this platform SCIM endpoints using the issued bearer token.',
+    whereInAdmin: ['Administration view (provisioning tokens, mappings, reconciliation)', 'Users view (SCIM-sourced user records)', 'Groups view (SCIM-sourced groups)', 'Audit Log (SCIM lifecycle events)'],
+    details: [
+      'SCIM endpoints are at /scim/v2/Users and /scim/v2/Groups and require bearer token authentication.',
+      'Provisioning tokens are bearer credentials — rotate them on schedule and revoke them immediately if an upstream directory configuration is decommissioned.',
+      'Attribute mappings define how external SCIM attributes map to local user fields, including enterprise user extensions for department or cost center.',
+      'SCIM PATCH operations use JSON Patch syntax — partial updates are more common than full PUT replaces during attribute changes.',
+      'Reconciliation jobs compare the current local user state against what the upstream has sent and report or remediate drift.',
+      'SCIM-sourced user records should generally not be edited directly in the admin panel — changes will be overwritten on the next sync from the upstream directory.',
+      'Deprovisioning via SCIM can either delete the user or deactivate them — deactivation is usually preferred to preserve audit history.'
+    ]
+  },
+  {
+    id: 'access-governance',
+    title: 'Access Governance: Request, Approval, And Evidence',
+    plainExplanation: 'Access governance is the practice of making access grants deliberate, evidenced, and time-limited rather than persistent and assumed. Instead of an admin silently assigning a sensitive role whenever requested, access governance introduces an explicit workflow: a user or manager submits an access request with a business justification and optional expiry, one or more designated approvers receive the request and decide to approve or reject it with written rationale, and the platform creates the entitlement assignment only if approved. Every step is recorded with timestamps, actors, and reasons. When the expiry arrives, the platform automatically revokes the assignment and the access ends without requiring a manual deprovisioning step.',
+    whyItMatters: 'Unmanaged access grants accumulate over time. Employees change roles, projects end, and contractors finish their engagement — but roles and group memberships often persist indefinitely because there is no systematic cleanup process. The result is privilege creep: users and service accounts accumulating access far beyond what their current role requires. Access governance prevents this at the source by requiring justification for every sensitive grant, building in expiry by default, and creating an evidence trail that satisfies compliance requirements. During a SOC 2 audit, reviewers want to see that access to production systems requires approval, has a business justification, and expires. The access request log provides exactly that evidence.',
+    whoDefinesIt: 'Admins configure governance workflow settings and designate approvers. Users and managers initiate requests. Approvers make and record decisions. The platform enforces expiry and automates revocation.',
+    whereInAdmin: ['Administration view (access requests and approval queue)', 'Audit Log (decision evidence)', 'Documentation view'],
+    details: [
+      'Every access request should include a specific business justification — vague requests should be rejected by approvers.',
+      'Request expiry should default to the shortest period that still allows the work to be done — avoid indefinite grants for temporary needs.',
+      'Approval rationale is compliance evidence; reviewers should write decisions that an auditor reading them 12 months later can understand without additional context.',
+      'Stalled requests (no decision within a configured SLA window) should trigger escalation to a secondary approver or manager.',
+      'Approved grants are automatically revoked at expiry — verify this is working by checking that no expired-access assignments exist in the active state.',
+      'Pair access governance with recertification campaigns: governance controls what gets granted, recertification controls whether existing grants should remain.'
+    ]
+  },
+  {
+    id: 'recertification',
+    title: 'Recertification Campaigns: Periodic Access Validation',
+    plainExplanation: 'A recertification campaign is a structured review process where designated reviewers are presented with a list of existing access assignments and asked to make an explicit decision on each one: certify (the access is still appropriate and should remain) or revoke (the access is no longer needed). The platform generates the review item list from current assignment state, assigns items to appropriate reviewers (often the manager or resource owner), and collects decisions with rationale over a defined review window. Revoked items trigger automatic assignment removal. The campaign record itself — with each item, its reviewer, the decision, and the written rationale — becomes the audit attestation document.',
+    whyItMatters: 'Access governance controls what gets granted. Recertification controls what persists. Even with excellent request and approval workflows in place, people change roles, projects end, and org structure evolves — historical grants accumulate that were correct when made but are no longer appropriate. Without periodic recertification, the only cleanup mechanism is manual spot checks that rarely happen. Many compliance frameworks (SOC 2 CC6.3, HIPAA, ISO 27001 A.9.2.5) require evidence of periodic access reviews. A completed recertification campaign with documented reviewer decisions is the artifact that satisfies that requirement.',
+    whoDefinesIt: 'Admins configure campaign scope, period, and reviewer assignments. Resource owners and managers execute the review decisions. The platform automates item generation, reminder sending, and revocation on revoked decisions.',
+    whereInAdmin: ['Administration view (campaigns, review items, decisions)', 'Audit Log (campaign completion records and revocation events)', 'Documentation view'],
+    details: [
+      'Start campaigns with high-risk entitlements first: admin roles, privilege escalation access, production system credentials.',
+      'Every reviewer decision must include written rationale — approved with no explanation is insufficient evidence for an auditor.',
+      'Configure campaign deadlines with escalation: if a reviewer does not act within the window, escalate or apply a default revocation rule.',
+      'Default-deny on timeout (revoke if no decision is made by deadline) is safer than default-certify.',
+      'Revoked outcomes should trigger immediate assignment deletion — verify post-campaign that revoked access is actually gone from active assignments.',
+      'Completed campaign records with all decisions and rationale are compliance attestation evidence; do not purge them on a short retention schedule.'
+    ]
+  },
+  {
+    id: 'pam-lite',
+    title: 'PAM-lite Elevation: Time-Bound Privileged Access',
+    plainExplanation: 'PAM-lite implements just-in-time privilege elevation: instead of giving administrators standing access to high-risk operations all the time, the platform requires an explicit elevation request each time privileged access is needed. The requester specifies what they need access to, why, and for how long. An approver reviews and approves or rejects. Once approved, the requester activates the elevation to start a time-bounded privileged session. When the session expires, the elevated access ends automatically — no cleanup step is required, and the time-bound design enforces cleanup by construction. Every elevation request, approval decision, session activation, and expiry is recorded in the audit log.',
+    whyItMatters: 'Standing privileged access — where administrators have elevated permissions all the time regardless of whether they are doing privileged work — is one of the highest-risk patterns in access management. An admin account with permanent broad access is a high-value target: compromising it gives an attacker unlimited time to extract data or make changes. By requiring elevation only when needed and expiring it when done, the window during which elevated access is active is dramatically reduced. This is the zero standing privilege principle. Even if an admin account is compromised, the attacker cannot perform privileged operations until they also complete an elevation request — which creates a detection and intervention opportunity.',
+    whoDefinesIt: 'Admins configure elevation policies and designate approvers for each resource and action pair. Users submit elevation requests. Approvers review and decide. The platform enforces time limits and blocks privileged calls without active elevation.',
+    whereInAdmin: ['Administration view (elevation policies, active sessions, request queue)', 'Audit Log (elevation lifecycle events)', 'Documentation view'],
+    details: [
+      'Every elevation request must include a specific justification — generic reasons should be rejected by approvers as insufficient.',
+      'Elevation duration should match the expected task — a 15-minute task does not need a 4-hour window.',
+      'Active elevation sessions should be monitored; unusually long sessions or sessions on unexpected resources are investigation indicators.',
+      'The platform checks active elevation status before executing privileged operations — calls fail if no active elevation covers the resource and action.',
+      'Elevation sessions expire automatically — verify that post-expiry access is actually revoked and not cached by downstream systems.',
+      'Pair elevation with break-glass for emergency paths: elevation covers planned privileged tasks, break-glass covers unexpected incidents requiring immediate access.'
+    ]
+  },
+  {
+    id: 'break-glass',
+    title: 'Break-Glass: Emergency Privilege Override',
+    plainExplanation: 'Break-glass is the emergency privilege mechanism for situations where normal approval workflows are too slow and the cost of waiting for approval exceeds the risk of acting without it. The name comes from the physical metaphor: a fire alarm behind a glass panel that you break in a genuine emergency, accepting that breaking it is visible, logged, and will be reviewed afterward. In the platform, a break-glass invocation immediately activates elevated access without waiting for an approver, but it collects a mandatory written justification at activation time, sets a hard configurable time limit, and emits elevated-priority audit events flagging the invocation as exceptional. Every break-glass use is expected to be reviewed after the emergency is resolved.',
+    whyItMatters: 'Without a controlled emergency path, operators who need immediate access during an outage will find informal bypasses — sharing credentials, disabling security controls, or using built-in superuser accounts that are never properly audited. These informal bypasses are invisible to governance processes and often never cleaned up. Break-glass provides a sanctioned emergency path that is faster than normal approval (immediate activation) but more heavily audited than normal privileged tasks. The goal is not to eliminate emergency access — emergencies are real — but to ensure that when break-glass is used, it is visible, documented, time-limited, and reviewed.',
+    whoDefinesIt: 'Admins configure break-glass access policies and restrict authorization to the minimum set of operators needed. Authorized operators invoke at their discretion during incidents. The security team reviews all invocations post-incident.',
+    whereInAdmin: ['Administration view (break-glass policies and authorized operators)', 'Audit Log (enriched invocation events flagged as exceptional)', 'Documentation view'],
+    details: [
+      'Break-glass access requires an explicit written justification at invocation time — the justification should reference the incident ticket number.',
+      'Duration should be as short as the emergency requires — automatic expiry means cleanup is not dependent on the operator remembering to revoke.',
+      'Every break-glass invocation should be reviewed post-incident: what happened, was the use justified, and was access revoked promptly?',
+      'Restrict break-glass authorization to the minimum set of operators necessary — not all admins should be break-glass authorized.',
+      'Break-glass events should trigger real-time alerts to the security team — an unexpected invocation may itself be an incident indicator.',
+      'Retrospective review of break-glass usage should be a standing item in incident post-mortems.'
+    ]
+  },
+  {
+    id: 'webauthn-passkeys',
+    title: 'WebAuthn And Passkeys: Phishing-Resistant Authentication',
+    plainExplanation: 'WebAuthn is a browser and device standard that replaces passwords with public-key cryptography. Instead of a shared secret (a password that both you and the server know and that can be stolen from either side), WebAuthn generates a unique key pair during registration: the private key stays locked inside your device or authenticator hardware and never leaves it, while the public key is stored on the server. At login, the server issues a one-time random challenge. The device signs it with the private key, and the server verifies the signature with the public key. Nothing reusable or guessable is ever transmitted. A passkey is a user-friendly implementation of WebAuthn that syncs across devices via the operating system (Apple, Google, Microsoft), making phishing-resistant login as simple as a fingerprint or face scan.',
+    whyItMatters: 'Phishing works by tricking a user into entering their credentials on a fake lookalike site. With passwords, once you type them in, the attacker has them. WebAuthn is structurally immune to this attack because the private key never leaves the device, and the cryptographic response is bound to the exact origin (domain) the browser is connected to. A fake site cannot harvest a usable credential even if the user is fully deceived. This also eliminates credential stuffing (reusing leaked passwords from other breaches), password spraying, and man-in-the-middle attacks that intercept cleartext credentials. For high-value admin accounts and enterprise users, passkeys represent the most meaningful security upgrade available today.',
+    whoDefinesIt: 'Platform authentication flows and MFA configuration determine whether WebAuthn is offered as an option or required as a mandatory factor. Users enroll their own passkeys via the account security portal. Admins can view enrolled credentials and revoke them during offboarding or suspected compromise.',
+    whereInAdmin: ['Authentication Flows view (mfa_webauthn stage)', 'Portal account security page (user enrollment)', 'Users view (credential management)', 'Administration view'],
+    details: [
+      'WebAuthn credentials are origin-bound: a credential enrolled for app.example.com cannot be used by fake-app.example.com, even if the user is tricked.',
+      'Registration ceremony: device generates key pair, sends public key and attestation to server, private key never leaves the device.',
+      'Login ceremony: server sends a random challenge, device signs it with the private key, server verifies with the stored public key.',
+      'Passkeys synced via OS (iCloud Keychain, Google Password Manager, Windows Hello) survive device loss and make cross-device login practical.',
+      'Hardware security keys (YubiKey, etc.) use the same WebAuthn protocol but store keys on the hardware token instead of device OS.',
+      'Enable mfa_webauthn as a flow stage to require WebAuthn as a second factor after password, or as a sole credential for passwordless flows.',
+      'Credential lifecycle events (register, login, removal) are audited and should be reviewed for anomalies like registrations from unexpected locations.'
+    ]
+  },
+  {
+    id: 'adaptive-auth',
+    title: 'Adaptive Authentication: Risk-Aware Step-Up',
+    plainExplanation: 'Adaptive authentication is a login strategy that adjusts the authentication requirements in real time based on the assessed risk of a particular login attempt. Instead of every user always going through the same fixed set of steps, the platform evaluates signals about the current login context and decides whether the situation is normal or suspicious. Low-risk logins (recognized device, known IP, typical working hours) may proceed with just a password. High-risk logins (new device, unusual country, IP flagged in threat feeds, many recent failures) are stepped up to a stronger factor like MFA or an explicit user challenge. Truly anomalous logins can be blocked entirely.',
+    whyItMatters: 'Requiring MFA on every single login creates friction that users work around — they stay logged in longer, use weaker devices, or find other bypasses. Requiring it never leaves the system unprotected. Adaptive auth solves this tradeoff: friction is proportional to actual risk, so legitimate users with normal patterns have a smooth experience while attackers, who by definition have unusual patterns (wrong IP, unknown device, impossible travel), face higher barriers. This means 95% of logins are low-friction and 5% of risky logins get additional scrutiny. The security outcome improves for the high-risk population without degrading UX for everyone else.',
+    whoDefinesIt: 'The platform collects and scores risk signals automatically. Admins configure the risk_check stage in authentication flows and define threshold policies for challenge, allow, and block outcomes. Risk event records are stored and visible in the Administration view.',
+    whereInAdmin: ['Authentication Flows view (risk_check stage)', 'Administration view (risk events)', 'Audit Log', 'Policies view'],
+    details: [
+      'Risk signals evaluated at login time include: IP address reputation, geolocation and impossible travel detection, device fingerprint novelty, time-of-day patterns, and recent failed attempt history.',
+      'Risk events are scored with a confidence level and reason code — these are visible in the Administration view for operator review.',
+      'Three possible risk outcomes: allow (risk acceptable, proceed normally), challenge (risk elevated, require step-up MFA), block (risk too high, deny and log).',
+      'The risk_check flow stage should be positioned before credential finalization so a block decision prevents token issuance even if credentials were valid.',
+      'A challenged login that passes MFA results in a normal session — the risk concern was resolved by the additional factor.',
+      'A blocked login must be explicitly investigated and cleared by an admin before the user can proceed.',
+      'Risk scoring quality depends on signal completeness — for best results, ensure IP and device context is passed through to the authentication flow.',
+      'Review risk event records periodically to calibrate thresholds: too many false positives frustrate legitimate users; too few flagged events means the system is not catching real anomalies.'
+    ]
+  },
+  {
+    id: 'connectors-ops',
+    title: 'Connectors: External Identity Sync Operations',
+    plainExplanation: 'Connectors model the ongoing synchronization relationship between this platform and an external system that holds identity-relevant data — an HR system, a SaaS directory, a legacy LDAP store, or a custom data source. A connector defines the source, the sync schedule, the field mappings from source format to platform format, and the run behavior (full sync vs. incremental). When a connector run fires, it fetches records from the external source, applies the field mappings, and creates or updates the corresponding local identity records. Run logs record how many records were processed, how many failed, what errors occurred, and when the run completed.',
+    whyItMatters: 'Connectors extend the platform reach into enterprise data systems without requiring those systems to implement SCIM or OIDC. Not every data source the identity platform needs to consume is a modern directory. Connector failures are operationally invisible unless monitored — a connector that has been silently failing for two weeks means user records are stale, role assignments may be wrong, and downstream authorization decisions are based on outdated data. Run failure rates and record error counts are the first signal that something is wrong upstream.',
+    whoDefinesIt: 'Platform admins configure connector type, source credentials, field mappings, and schedule from the Connectors view. Connector run telemetry is available to any admin reviewing data freshness.',
+    whereInAdmin: ['Connectors view (run history, field mappings, run trigger)', 'Audit Log (run lifecycle events)', 'Documentation view'],
+    details: [
+      'Each connector run produces a record with imported record count, failed record count, and structured error messages — review failed counts regularly.',
+      'Field mappings define how source attributes translate to platform user fields — mapping errors often produce empty or incorrectly typed attribute values.',
+      'A silent connector failure (runs completing with zero records when thousands are expected) is harder to detect than an error — set alerts on both error rates and unexpected zero-record runs.',
+      'Compare run telemetry before and after connector configuration changes to verify the expected effect on record imports.',
+      'Connector runs should be idempotent: re-running the same sync should not create duplicate records.',
+      'Source credentials used by connectors are secrets — rotate them on schedule and revoke immediately if the source system credential is compromised.'
+    ]
+  },
+  {
+    id: 'token-exchange',
+    title: 'Token Exchange: Delegation And Scope Down',
+    plainExplanation: 'Token exchange (RFC 8693) is a protocol extension that allows one trusted service to present an existing token and request a new token with a different audience, different scope, or representing a different principal. The canonical use case is a service-to-service call chain: a user logs in and gets a broad access token. Service A receives that token and needs to call Service B on behalf of the user — but Service B should only see a narrowly scoped token for its own audience, not the original broad token. Service A calls the token exchange endpoint, presents its own client credentials and the subject token, and receives a new token scoped specifically for Service B.',
+    whyItMatters: 'Without token exchange, service-to-service delegation is typically handled in one of two bad ways: passing the original user token all the way through the call chain (every downstream service gets the full user scope, violating least privilege) or having each service use a shared service account token (no user context, no audit trail). Token exchange solves both: downstream services receive tokens scoped to exactly what they need, the token carries the original user subject for audit purposes, and each exchange is individually auditable.',
+    whoDefinesIt: 'Platform admins configure which clients can perform token exchange and what scope constraints apply. Service owners decide where exchanged tokens are accepted and verify audience validation is enforced.',
+    whereInAdmin: ['Clients view (exchange-enabled client configuration)', 'Policies view (token exchange policy)', 'Audit Log (exchange events)', 'Documentation view'],
+    details: [
+      'Token exchange uses grant type urn:ietf:params:oauth:grant-type:token-exchange with subject_token, subject_token_type, audience, and scope parameters.',
+      'The exchanged token should have a shorter lifetime than the subject token.',
+      'Audience restriction on the exchanged token means it can only be used by the intended service — validate audience on the receiving end.',
+      'Scope must be equal to or a subset of the subject token scopes — token exchange cannot elevate scope.',
+      'Log every exchange event with the subject token issuer, requester client, requested audience, and resulting scope.',
+      'Impersonation (act_as) and delegation (on_behalf_of) are distinct modes — impersonation makes the new token appear to come from the subject; delegation identifies both subject and acting party.'
+    ]
+  },
+  {
+    id: 'risk-events',
+    title: 'Risk Events: Normalized Security Signals',
+    plainExplanation: 'A risk event is a structured record created when the platform detects a pattern in authentication or API activity that is anomalous, suspicious, or policy-violating. Instead of leaving operators to manually scan raw audit logs, the platform normalizes observations into classified risk events with severity labels, reason codes, and confidence scores. Examples: a user with 12 failed login attempts in 60 seconds produces a credential_stuffing risk event; a successful login from a country the user has never accessed from produces a suspicious_location event; a request carrying a malformed JWT produces a protocol_violation event.',
+    whyItMatters: 'Raw audit logs are comprehensive but operationally overwhelming — in a platform handling thousands of logins per day, manually triaging individual log entries for security signals is not practical. Risk events surface the signal from the noise. They are also the input to adaptive authentication — when the risk_check flow stage is configured, it reads the current risk context for the incoming login and makes a challenge or block decision based on the presence and severity of recent risk events. This makes the security response real-time and automated rather than reactive.',
+    whoDefinesIt: 'The platform derives and classifies risk records automatically. Admins consume and respond to them and can tune thresholds to reduce false positives.',
+    whereInAdmin: ['Administration view (risk event feed with severity and reason codes)', 'Audit Log (correlated raw events)', 'Authentication Flows view (adaptive auth configuration)'],
+    details: [
+      'Risk event severity levels: informational (pattern noted), medium (elevated suspicion, consider review), high (strong signal, investigate promptly).',
+      'Reason codes classify the signal type: failed_login_spike, suspicious_location, credential_stuffing, impossible_travel, threat_intel_match, protocol_violation, anomaly_pattern.',
+      'Confidence score reflects how certain the classification is — low-confidence events need more context before acting on them.',
+      'Recurring medium-severity events from the same user or IP may indicate probing or a persistent misconfiguration.',
+      'Use risk events with the audit log — the risk event gives the classification, the audit log gives the full request context.',
+      'Suppress or tune risk event thresholds if they are generating persistent false positives that obscure real signals.'
+    ]
+  },
+  {
+    id: 'saml-sp-ops',
+    title: 'SAML Service Provider Operations',
+    plainExplanation: 'Once a SAML service provider is registered, the work is not finished — SAML integrations require ongoing operational maintenance. The two most operationally critical tasks are metadata management and certificate lifecycle. Metadata management: the XML metadata document that describes a service provider can change over time when the SP makes infrastructure changes. Manually editing each field individually is error-prone; the admin metadata upload endpoint accepts a fresh XML file and updates all relevant fields automatically. Certificate lifecycle: SAML assertions are signed with an X.509 certificate. Those certificates expire. When a signing or encryption certificate is approaching expiry, it must be rotated before it expires — if it expires in production, all SAML SSO for that SP fails immediately.',
+    whyItMatters: 'SAML integration failures during business hours are high-impact events: users cannot log into the affected SaaS application at all. Most SAML outages are caused by predictable, preventable events: certificate expiry that was not tracked, a metadata endpoint change at the SP not reflected in the platform, or a NameID format mismatch after the SP was upgraded. Proactive certificate monitoring, coordinated rotation procedures, and regular metadata refreshes prevent these outages entirely.',
+    whoDefinesIt: 'Platform admins maintain SP records, perform metadata uploads, and rotate certificates. SP owners at the partner organization must coordinate when metadata or certificates change on their side.',
+    whereInAdmin: ['Federation Providers view (SP record management, metadata upload, certificate management)', 'Audit Log (SP record change events)', 'Documentation view'],
+    details: [
+      'Track certificate expiry dates for all registered SPs and schedule rotation at least 30 days before expiry.',
+      'Certificate rotation is a two-phase operation: generate new certificate, update the SP record, confirm the SP accepts it, then revoke the old certificate.',
+      'Metadata upload parses an SP-provided XML file and populates entityId, ACS URL, SLO URL, and NameID format — confirm each field looks correct after upload.',
+      'NameID format must match exactly what the SP expects: persistent, transient, or email format.',
+      'Test SSO after every metadata upload or certificate rotation before confirming to the SP that the change is complete.',
+      'Audit log SP record changes so that if SAML SSO breaks unexpectedly, you can correlate the failure timestamp with any recent record modifications.'
+    ]
+  },
+  {
+    id: 'auth-metrics',
+    title: 'Auth Metrics: Operational Trend Buckets',
+    plainExplanation: 'Auth metrics are pre-aggregated counts of authentication and authorization events grouped into time windows (hourly, daily). Where the audit log shows individual events, auth metrics show rates and trends: how many logins succeeded in the last hour, how many token requests failed, how many policy decisions were deny vs. allow, how the error rate changed after a deployment. The platform continuously rolls up event telemetry into these buckets so operators can answer operational questions without querying millions of raw audit records.',
+    whyItMatters: 'Individual events are necessary for investigation but insufficient for operational awareness. A sudden doubling of login failures might be 2 events in a low-traffic system or 200,000 in a high-traffic one — the rate change is immediately meaningful in both. Trend visibility is how operators catch regressions before users report them. A deployment that pushed a bad flow configuration change will show up as a spike in authentication failures in the next metric bucket, often within minutes, long before the support tickets come in.',
+    whoDefinesIt: 'The platform emits and aggregates metric buckets automatically. Admins use them for monitoring, troubleshooting, and reporting on login health trends.',
+    whereInAdmin: ['Connectors view (auth metric trend view)', 'Administration view (operational dashboard)', 'Documentation view'],
+    details: [
+      'Key metric dimensions: login_success, login_failure, token_issued, token_denied, policy_allow, policy_deny, mfa_enrolled, mfa_challenged, mfa_failed.',
+      'Compare metric buckets before and after deployments or configuration changes to detect regressions immediately.',
+      'A sustained elevated failure rate not explained by a known event is a signal to investigate — check risk events and audit logs for the same time window.',
+      'Session and token issuance drops can indicate a broken flow configuration silently preventing logins from completing.',
+      'Policy deny rate spikes after an ABAC policy change may mean the new policy is over-restrictive — cross-reference with the decision log.',
+      'Use auth metrics alongside connector run health to understand whether user lifecycle changes are affecting login rates as expected.'
     ]
   }
 ]
@@ -608,9 +975,9 @@ const ADMIN_CONCEPT_GUIDES: ConceptGuide[] = [
 const VIEW_LEARN_MORE: Record<string, string[]> = {
   Setup: ['user-registration', 'users', 'crypto-enforcement'],
   Login: ['flows', 'scopes', 'sessions', 'interaction-views'],
-  Dashboard: ['app', 'apps-governance', 'client', 'audit-log'],
-  Users: ['user-registration', 'users', 'groups', 'roles', 'role-assignments', 'attributes', 'sessions'],
-  Groups: ['groups', 'roles', 'role-assignments', 'attributes', 'apps-governance'],
+  Dashboard: ['app', 'apps-governance', 'client', 'audit-log', 'abac-fundamentals'],
+  Users: ['user-registration', 'users', 'groups', 'roles', 'role-assignments', 'attributes', 'sessions', 'scim-fundamentals'],
+  Groups: ['groups', 'roles', 'role-assignments', 'attributes', 'apps-governance', 'scim-fundamentals'],
   Roles: ['roles', 'role-assignments', 'scopes', 'tenants', 'apps-governance'],
   Clients: ['client', 'client-id-secret', 'redirect-uris', 'scopes', 'grants', 'flows', 'pkce', 'crypto-enforcement'],
   Consents: ['consents', 'scopes', 'client', 'interaction-views'],
@@ -618,17 +985,19 @@ const VIEW_LEARN_MORE: Record<string, string[]> = {
   Devices: ['devices', 'grants', 'flows', 'interaction-views'],
   Apps: ['app', 'apps-governance', 'roles', 'groups', 'client'],
   Tenants: ['tenants', 'roles', 'policies', 'flows', 'scopes'],
-  'Federation Providers': ['federation', 'user-registration', 'users', 'flows', 'crypto-enforcement'],
-  'Authentication Flows': ['flows', 'grants', 'policies', 'interaction-views'],
+  'Federation Providers': ['federation', 'saml-federation', 'saml-sp-ops', 'user-registration', 'users', 'flows', 'crypto-enforcement'],
+  Administration: ['instance-settings', 'crypto-enforcement', 'redirect-uris', 'pkce', 'saml-federation', 'risk-events', 'scim-fundamentals', 'access-governance', 'recertification', 'pam-lite', 'break-glass', 'adaptive-auth', 'webauthn-passkeys'],
+  'Service Identities': ['workload-identity', 'token-exchange', 'client-id-secret', 'scopes', 'audit-log'],
+  Connectors: ['connectors-ops', 'auth-metrics', 'flows', 'policies', 'audit-log'],
+  'Authentication Flows': ['flows', 'grants', 'policies', 'interaction-views', 'adaptive-auth', 'webauthn-passkeys'],
   'Interaction Views': ['interaction-views', 'flows', 'scopes', 'consents', 'devices'],
   'User Attributes': ['attributes', 'users', 'groups', 'policies'],
-  Policies: ['policies', 'flows', 'tenants', 'groups', 'crypto-enforcement'],
-  Administration: ['instance-settings', 'crypto-enforcement', 'redirect-uris', 'pkce'],
+  Policies: ['policies', 'abac-fundamentals', 'flows', 'tenants', 'groups', 'crypto-enforcement'],
   Events: ['events-hooks', 'audit-log', 'client'],
   'Audit Log': ['audit-log', 'sessions', 'events-hooks', 'crypto-enforcement'],
   'Consent Interaction Screen': ['consents', 'scopes', 'interaction-views'],
   'Device Verification Interaction Screen': ['devices', 'grants', 'interaction-views'],
-  Documentation: ['client', 'roles', 'groups', 'policies', 'scopes', 'pkce']
+  Documentation: ['client', 'roles', 'groups', 'policies', 'abac-fundamentals', 'scopes', 'pkce', 'saml-federation', 'saml-sp-ops', 'token-exchange', 'scim-fundamentals', 'risk-events', 'auth-metrics', 'access-governance', 'recertification', 'pam-lite', 'break-glass', 'adaptive-auth', 'webauthn-passkeys']
 }
 
 const ENTITY_FIELD_TUTORIALS: EntityFieldGuide[] = [
@@ -1057,6 +1426,40 @@ const ENTITY_FIELD_TUTORIALS: EntityFieldGuide[] = [
     ]
   },
   {
+    entity: 'ABAC Decision Simulation',
+    view: 'Policies',
+    purpose: 'Tests authorization outcomes before enforcing them in production request paths.',
+    whenToUse: 'Use simulation when authoring or updating policy logic, assignment scope, or decision strategy to avoid unintended deny/allow regressions.',
+    learnMore: ['abac-fundamentals', 'policies', 'audit-log'],
+    fields: [
+      {
+        field: 'Subject',
+        meaning: 'Actor identity context used by the evaluator (for example user id, roles, groups, tenant).',
+        recommendation: 'Model realistic actor context from production requests to avoid false confidence.'
+      },
+      {
+        field: 'Resource',
+        meaning: 'Protected target identifier or pattern being accessed.',
+        recommendation: 'Use canonical resource naming conventions that match runtime enforcement.'
+      },
+      {
+        field: 'Action',
+        meaning: 'Operation attempted on the resource (read, write, approve, revoke, etc.).',
+        recommendation: 'Keep actions consistent across services so policy reuse remains predictable.'
+      },
+      {
+        field: 'Context JSON',
+        meaning: 'Additional request attributes such as IP, risk, time, or custom claims.',
+        recommendation: 'Include only attributes that are reliably available in live request handling.'
+      },
+      {
+        field: 'Decision Strategy',
+        meaning: 'Conflict resolver for matching policies (deny_overrides, allow_overrides, first_applicable).',
+        recommendation: 'Document strategy choice and validate edge cases with mixed allow/deny rules.'
+      }
+    ]
+  },
+  {
     entity: 'Policy Assignment',
     view: 'Policies',
     purpose: 'Attaches a policy definition to a scope boundary such as global, tenant, group, or user.',
@@ -1273,6 +1676,476 @@ const ENTITY_FIELD_TUTORIALS: EntityFieldGuide[] = [
         recommendation: 'Revoke proactively when the device is lost, shared, or no longer trusted.'
       }
     ]
+  },
+  {
+    entity: 'SCIM Provisioning Token',
+    view: 'Administration',
+    purpose: 'Bearer credential used by external provisioning systems to call SCIM lifecycle endpoints.',
+    whenToUse: 'Create one token per integration boundary and rotate/revoke independently for safer blast-radius control.',
+    learnMore: ['scim-fundamentals', 'crypto-enforcement', 'audit-log'],
+    fields: [
+      {
+        field: 'Label',
+        meaning: 'Human-readable integration name for operational ownership.',
+        recommendation: 'Use environment-qualified labels like okta-hr-prod for fast incident targeting.'
+      },
+      {
+        field: 'Raw Token (one-time)',
+        meaning: 'Secret value returned only at creation and never shown again.',
+        recommendation: 'Store immediately in a secret manager and avoid sharing in tickets or chats.'
+      },
+      {
+        field: 'Created At / Expires At',
+        meaning: 'Lifecycle timestamps controlling token validity window.',
+        recommendation: 'Use explicit expiry and pre-plan rotation before expiration windows.'
+      },
+      {
+        field: 'Last Used At',
+        meaning: 'Most recent observed API usage for this token.',
+        recommendation: 'Revoke tokens that remain unused beyond expected integration cadence.'
+      }
+    ]
+  },
+  {
+    entity: 'SCIM Provisioning Mapping',
+    view: 'Administration',
+    purpose: 'Defines how upstream SCIM attributes map into local identity fields and custom attributes.',
+    whenToUse: 'Configure mappings whenever upstream profile shape differs from platform user schema.',
+    learnMore: ['scim-fundamentals', 'attributes', 'users'],
+    fields: [
+      {
+        field: 'Source Attribute',
+        meaning: 'Incoming SCIM path or expression from upstream payloads.',
+        recommendation: 'Use stable source identifiers and validate against real provider payloads.'
+      },
+      {
+        field: 'Target Attribute',
+        meaning: 'Destination local field path where data is written.',
+        recommendation: 'Map to documented schema keys to keep policy and app behavior stable.'
+      },
+      {
+        field: 'Transform Expression',
+        meaning: 'Optional expression used to normalize source values before persistence.',
+        recommendation: 'Keep transforms deterministic, side-effect free, and easy to test.'
+      },
+      {
+        field: 'Enabled',
+        meaning: 'Controls whether the mapping is active in reconciliation and provisioning flows.',
+        recommendation: 'Disable during migration rollouts before permanent deletion.'
+      }
+    ]
+  },
+  {
+    entity: 'SCIM Reconciliation Job',
+    view: 'Administration',
+    purpose: 'Represents a drift-analysis or synchronization run between upstream SCIM state and local platform state.',
+    whenToUse: 'Run reconcile periodically or after mapping updates to measure drift and apply controlled corrections.',
+    learnMore: ['scim-fundamentals', 'audit-log'],
+    fields: [
+      {
+        field: 'Dry Run',
+        meaning: 'Execution mode that computes drift without applying changes.',
+        recommendation: 'Run dry mode first when introducing new mappings or source systems.'
+      },
+      {
+        field: 'Status',
+        meaning: 'Job lifecycle state from start to completion.',
+        recommendation: 'Investigate stuck or repeatedly failing jobs as operational incidents.'
+      },
+      {
+        field: 'Summary Counters',
+        meaning: 'Aggregates such as evaluated records, drift detected, and updates applied.',
+        recommendation: 'Track trends over time to catch silent data quality regressions early.'
+      },
+      {
+        field: 'Completed At',
+        meaning: 'Finalization timestamp for reporting and audit correlation.',
+        recommendation: 'Use completion chronology to correlate with downstream access anomalies.'
+      }
+    ]
+  },
+  {
+    entity: 'Access Request',
+    view: 'Administration',
+    purpose: 'Captures a proposed entitlement change that requires approval workflow before access is granted.',
+    whenToUse: 'Submit when a user needs new role/group/entitlement access with traceable business justification.',
+    learnMore: ['access-governance', 'recertification', 'audit-log'],
+    fields: [
+      {
+        field: 'Subject User ID',
+        meaning: 'Identity receiving the requested entitlement if approved.',
+        recommendation: 'Validate subject identity carefully to avoid mis-granting access.'
+      },
+      {
+        field: 'Entitlement Type/Value',
+        meaning: 'Specific access target requested (for example role or group).',
+        recommendation: 'Use canonical entitlement identifiers to prevent ambiguous approvals.'
+      },
+      {
+        field: 'Justification',
+        meaning: 'Business reason supporting the access request.',
+        recommendation: 'Require concrete operational need, not generic placeholder text.'
+      },
+      {
+        field: 'Expires At',
+        meaning: 'Optional timestamp for automatic access expiry after approval.',
+        recommendation: 'Set explicit expiry for elevated or temporary access requests.'
+      },
+      {
+        field: 'Status',
+        meaning: 'Current workflow state such as pending, approved, rejected, or expired.',
+        recommendation: 'Monitor pending backlog and stalled items to maintain SLA quality.'
+      }
+    ]
+  },
+  {
+    entity: 'Access Review Campaign',
+    view: 'Administration',
+    purpose: 'Defines a recertification cycle that generates review items for existing assignments.',
+    whenToUse: 'Create campaigns quarterly or after org/security changes to validate existing access.',
+    learnMore: ['recertification', 'access-governance', 'audit-log'],
+    fields: [
+      {
+        field: 'Name',
+        meaning: 'Identifier for the recertification cycle.',
+        recommendation: 'Use period-based naming (for example q2-2026-finance-access-review).'
+      },
+      {
+        field: 'Description',
+        meaning: 'Scope explanation for reviewers.',
+        recommendation: 'State inclusion rules and reviewer expectations explicitly.'
+      },
+      {
+        field: 'Due At',
+        meaning: 'Deadline for reviewer decisions.',
+        recommendation: 'Set realistic windows and escalate before due date breaches.'
+      },
+      {
+        field: 'Generated Items',
+        meaning: 'Count of entitlements queued for certification.',
+        recommendation: 'Watch for unusual count shifts indicating scoping bugs.'
+      }
+    ]
+  },
+  {
+    entity: 'Elevation Request',
+    view: 'Administration',
+    purpose: 'Represents a PAM-lite request for temporary privileged action on a target resource.',
+    whenToUse: 'Create for operational maintenance or incident response requiring short-lived elevated permissions.',
+    learnMore: ['pam-lite', 'break-glass', 'audit-log'],
+    fields: [
+      {
+        field: 'Resource',
+        meaning: 'Target system or object requiring privileged operations.',
+        recommendation: 'Use specific resource identifiers to avoid overbroad elevation scope.'
+      },
+      {
+        field: 'Action',
+        meaning: 'Privileged operation requested on the resource.',
+        recommendation: 'Align actions to least-privilege verbs and avoid generic admin-all labels.'
+      },
+      {
+        field: 'Justification',
+        meaning: 'Reason for requesting elevated access.',
+        recommendation: 'Require incident/ticket context to support post-incident audits.'
+      },
+      {
+        field: 'Duration Minutes',
+        meaning: 'Time window before automatic expiry.',
+        recommendation: 'Prefer the shortest operationally viable duration.'
+      },
+      {
+        field: 'Status',
+        meaning: 'Lifecycle from pending to approved/active/revoked/expired.',
+        recommendation: 'Ensure status transitions are monitored to prevent orphaned privilege.'
+      }
+    ]
+  },
+  {
+    entity: 'Break-Glass Elevation',
+    view: 'Administration',
+    purpose: 'Emergency privileged session that bypasses normal approval path with strict audit requirements.',
+    whenToUse: 'Use only for critical incidents where waiting for approval would materially increase impact.',
+    learnMore: ['break-glass', 'pam-lite', 'audit-log'],
+    fields: [
+      {
+        field: 'Reason',
+        meaning: 'Emergency narrative justifying approval bypass.',
+        recommendation: 'Provide incident-specific detail; avoid generic urgency text.'
+      },
+      {
+        field: 'Resource / Action',
+        meaning: 'Target scope for emergency privilege.',
+        recommendation: 'Constrain as tightly as possible to the immediate incident need.'
+      },
+      {
+        field: 'Duration Minutes',
+        meaning: 'Hard expiration for emergency privilege window.',
+        recommendation: 'Use minimal duration and require re-invocation if scope changes.'
+      },
+      {
+        field: 'Correlation ID',
+        meaning: 'Audit correlation anchor for linked privileged actions.',
+        recommendation: 'Track this across logs and postmortem evidence packs.'
+      }
+    ]
+  },
+  {
+    entity: 'WebAuthn Credential',
+    view: 'Documentation',
+    purpose: 'Represents one enrolled passkey credential used for phishing-resistant authentication.',
+    whenToUse: 'Review when enabling passwordless or strong MFA journeys and during credential lifecycle support.',
+    learnMore: ['webauthn-passkeys', 'adaptive-auth', 'crypto-enforcement'],
+    fields: [
+      {
+        field: 'Credential ID',
+        meaning: 'Unique identifier for the authenticator credential.',
+        recommendation: 'Treat as technical identifier for revocation/troubleshooting, not user-facing label.'
+      },
+      {
+        field: 'AAGUID',
+        meaning: 'Authenticator model identifier from the WebAuthn ceremony.',
+        recommendation: 'Use for assurance and hardware fleet analysis when needed.'
+      },
+      {
+        field: 'Sign Count',
+        meaning: 'Counter used to detect cloned credential replay behavior.',
+        recommendation: 'Investigate anomalies or non-monotonic updates as potential compromise indicators.'
+      },
+      {
+        field: 'Transports',
+        meaning: 'Authenticator communication methods such as usb, nfc, ble, or internal.',
+        recommendation: 'Document expected transport profiles for support and policy tuning.'
+      }
+    ]
+  },
+  {
+    entity: 'Service Identity',
+    view: 'Service Identities',
+    purpose: 'Defines a non-human principal used for machine-to-machine token issuance with explicit scope and audience boundaries.',
+    whenToUse: 'Create a service identity when an integration or workload needs OAuth tokens without a human login journey.',
+    learnMore: ['workload-identity', 'token-exchange', 'scopes', 'audit-log'],
+    fields: [
+      {
+        field: 'Name',
+        meaning: 'Human-friendly workload identity label shown in operations and audits.',
+        recommendation: 'Use deterministic names that map to owning service and environment.'
+      },
+      {
+        field: 'Description',
+        meaning: 'Operator context describing owner, purpose, and operational boundaries.',
+        recommendation: 'Document ownership and escalation contact to speed incident response.'
+      },
+      {
+        field: 'Status',
+        meaning: 'Lifecycle control for whether credentials should be considered usable.',
+        recommendation: 'Suspend or deactivate before deletion for safer rollback windows.'
+      },
+      {
+        field: 'Allowed Scopes',
+        meaning: 'Maximum permission set the service identity can request.',
+        recommendation: 'Keep scope lists minimal and aligned to one workload purpose.'
+      },
+      {
+        field: 'Allowed Audiences',
+        meaning: 'Downstream resource servers this identity can target during token issuance.',
+        recommendation: 'Restrict audiences to trusted APIs instead of broad wildcard patterns.'
+      }
+    ]
+  },
+  {
+    entity: 'Service Identity Credential',
+    view: 'Service Identities',
+    purpose: 'Represents a concrete client credential pair issued for a service identity with lifecycle and usage tracking.',
+    whenToUse: 'Issue a credential for deployment bootstrap, rotate on schedule, and revoke immediately on compromise or ownership change.',
+    learnMore: ['workload-identity', 'token-exchange', 'audit-log'],
+    fields: [
+      {
+        field: 'Client ID',
+        meaning: 'Public identifier used by workload clients during token requests.',
+        recommendation: 'Treat as non-secret but monitor for unexpected usage patterns.'
+      },
+      {
+        field: 'Client Secret (one-time)',
+        meaning: 'Confidential value shown only once when issuing or rotating credentials.',
+        recommendation: 'Store immediately in a secret manager; never rely on UI retrieval later.'
+      },
+      {
+        field: 'Expires At',
+        meaning: 'Credential lifetime boundary for automatic expiration behavior.',
+        recommendation: 'Prefer short rotation intervals for high-impact integrations.'
+      },
+      {
+        field: 'Last Used At',
+        meaning: 'Most recent observed token usage timestamp for this credential.',
+        recommendation: 'Use inactivity windows to identify stale credentials for cleanup.'
+      },
+      {
+        field: 'Revoked At',
+        meaning: 'Timestamp showing explicit revocation and end of validity.',
+        recommendation: 'Record reason externally so revocation history is actionable.'
+      }
+    ]
+  },
+  {
+    entity: 'Connector',
+    view: 'Connectors',
+    purpose: 'Defines one external identity source integration and its sync configuration.',
+    whenToUse: 'Create a connector when users or attributes should be synchronized from LDAP, SCIM, CSV, SQL, or custom systems.',
+    learnMore: ['connectors-ops', 'auth-metrics', 'audit-log'],
+    fields: [
+      {
+        field: 'Name',
+        meaning: 'Operational label for the connector integration.',
+        recommendation: 'Name by source system and environment, such as hr-ldap-prod.'
+      },
+      {
+        field: 'Type',
+        meaning: 'Connector engine profile controlling expected config and behavior.',
+        recommendation: 'Choose the narrowest type matching your source to avoid custom parsing drift.'
+      },
+      {
+        field: 'Status',
+        meaning: 'Current operational state used to allow, pause, or flag failures.',
+        recommendation: 'Set inactive during planned maintenance and investigate error quickly.'
+      },
+      {
+        field: 'Schedule',
+        meaning: 'Cron expression for automatic synchronization cadence.',
+        recommendation: 'Balance freshness and source load; avoid overlapping schedules.'
+      },
+      {
+        field: 'Config JSON',
+        meaning: 'Type-specific connection and mapping runtime configuration.',
+        recommendation: 'Keep secrets out of plain text and validate schema before saving.'
+      }
+    ]
+  },
+  {
+    entity: 'Connector Mapping',
+    view: 'Connectors',
+    purpose: 'Maps source attributes into target identity fields with optional transformation logic.',
+    whenToUse: 'Define mappings whenever source schema differs from platform identity schema.',
+    learnMore: ['connectors-ops', 'attributes', 'users'],
+    fields: [
+      {
+        field: 'Source Field',
+        meaning: 'Attribute path from the upstream payload.',
+        recommendation: 'Use canonical source names and document nested path assumptions.'
+      },
+      {
+        field: 'Target Field',
+        meaning: 'Destination field written into the platform model.',
+        recommendation: 'Map to stable schema keys to avoid downstream policy breakage.'
+      },
+      {
+        field: 'Transform',
+        meaning: 'Optional normalization expression applied before persistence.',
+        recommendation: 'Keep transforms deterministic and test against representative samples.'
+      }
+    ]
+  },
+  {
+    entity: 'Connector Run',
+    view: 'Connectors',
+    purpose: 'Represents one sync execution with status, duration, and import/failure counters.',
+    whenToUse: 'Review runs after manual sync, scheduled jobs, or incident troubleshooting.',
+    learnMore: ['connectors-ops', 'auth-metrics', 'audit-log'],
+    fields: [
+      {
+        field: 'Status',
+        meaning: 'Execution state such as pending, running, succeeded, failed, or cancelled.',
+        recommendation: 'Track transitions to detect stuck jobs and scheduler health issues.'
+      },
+      {
+        field: 'Started / Finished At',
+        meaning: 'Execution timing used to calculate duration and latency trends.',
+        recommendation: 'Investigate unusual duration spikes as possible source or mapping problems.'
+      },
+      {
+        field: 'Records Imported',
+        meaning: 'Count of successfully processed records.',
+        recommendation: 'Baseline expected volume and alert on large drops.'
+      },
+      {
+        field: 'Records Failed',
+        meaning: 'Count of records rejected or errored during processing.',
+        recommendation: 'Treat sustained failures as data quality or transform regression indicators.'
+      },
+      {
+        field: 'Error Message',
+        meaning: 'Top-level error context captured for failed executions.',
+        recommendation: 'Correlate with source logs and mapping changes before reruns.'
+      }
+    ]
+  },
+  {
+    entity: 'SAML Service Provider',
+    view: 'Federation Providers',
+    purpose: 'Defines enterprise SAML integration endpoints, certificates, and metadata alignment for one relying service.',
+    whenToUse: 'Use this when integrating enterprise applications that require SAML rather than OIDC federation.',
+    learnMore: ['saml-federation', 'saml-sp-ops', 'crypto-enforcement', 'audit-log'],
+    fields: [
+      {
+        field: 'Entity ID',
+        meaning: 'Unique SAML identifier for the service provider.',
+        recommendation: 'Keep exact partner-provided value; mismatches break assertions.'
+      },
+      {
+        field: 'ACS URL',
+        meaning: 'Assertion Consumer Service endpoint receiving signed responses.',
+        recommendation: 'Validate exact HTTPS destination to prevent assertion leakage.'
+      },
+      {
+        field: 'SLO URL',
+        meaning: 'Optional single logout endpoint for session handoff.',
+        recommendation: 'Populate only when partner supports tested logout workflows.'
+      },
+      {
+        field: 'Metadata XML Upload',
+        meaning: 'Imports endpoint and certificate details from partner metadata.',
+        recommendation: 'Use overwrite intentionally and review parsed values before saving.'
+      },
+      {
+        field: 'Certificate Rotation (signing/encryption)',
+        meaning: 'Dedicated action to replace SP certificates without full object patching.',
+        recommendation: 'Rotate before expiry and coordinate rollout windows with partners.'
+      }
+    ]
+  },
+  {
+    entity: 'Security Risk Event',
+    view: 'Administration',
+    purpose: 'Represents one normalized security signal derived from raw audit telemetry.',
+    whenToUse: 'Review risk events during login incidents, abuse investigations, or posture monitoring.',
+    learnMore: ['risk-events', 'audit-log', 'instance-settings'],
+    fields: [
+      {
+        field: 'Source Type',
+        meaning: 'Canonical category for the underlying event source (for example login_failed).',
+        recommendation: 'Group by source type to identify repeated control failures.'
+      },
+      {
+        field: 'Severity',
+        meaning: 'Normalized triage level used for prioritization.',
+        recommendation: 'Escalate high/critical quickly and correlate medium spikes.'
+      },
+      {
+        field: 'Title',
+        meaning: 'Operator summary describing what happened.',
+        recommendation: 'Use title with metadata, not as standalone incident evidence.'
+      },
+      {
+        field: 'IP / Actor Context',
+        meaning: 'Network and actor indicators associated with the event.',
+        recommendation: 'Cross-reference with audit and session records for attribution.'
+      },
+      {
+        field: 'Created At',
+        meaning: 'Time the normalized event was recorded.',
+        recommendation: 'Analyze timeline clusters to detect coordinated attacks.'
+      }
+    ]
   }
 ]
 
@@ -1397,6 +2270,7 @@ const ADMIN_VIEW_CATALOG = [
     purpose: 'External identity provider integration management.',
     functions: [
       'Configure OIDC federation providers.',
+      'Operate SAML service providers including metadata import and certificate rotation.',
       'Enable/disable providers and manage secrets/endpoints.',
       'Support identity linking and external login paths.'
     ]
@@ -1444,9 +2318,13 @@ const ADMIN_VIEW_CATALOG = [
     route: '/administration',
     purpose: 'Instance-wide transport, CORS, and OAuth security posture management.',
     functions: [
+      'Manage SCIM provisioning tokens, mappings, and reconciliation operations.',
+      'Operate access governance workflows: access requests, approvals, recertification campaigns, and reviewer decisions.',
+      'Run PAM-lite controls for elevation requests, activation/revocation, and emergency break-glass flows.',
       'Require HTTPS and secure cookies for browser and admin traffic.',
       'Manage CORS allowlist behavior for cross-origin browser requests.',
-      'Enforce stricter OAuth settings such as HTTPS redirect URIs and S256-only PKCE.'
+      'Enforce stricter OAuth settings such as HTTPS redirect URIs and S256-only PKCE.',
+      'Review normalized security risk events derived from audit telemetry.'
     ]
   },
   {
@@ -1487,12 +2365,33 @@ const ADMIN_VIEW_CATALOG = [
     ]
   },
   {
+    view: 'Service Identities',
+    route: '/service-identities',
+    purpose: 'Manage non-human identities and machine credentials for service-to-service authentication.',
+    functions: [
+      'Create service identities with explicit allowed scopes and audiences.',
+      'Issue, rotate, and revoke credentials with one-time secret visibility.',
+      'Monitor credential usage telemetry and lifecycle status (active/expired/revoked).'
+    ]
+  },
+  {
     view: 'Documentation',
     route: '/documentation',
     purpose: 'Built-in knowledge base for platform operators and developers.',
     functions: [
       'Reference API route catalog with request/response examples.',
       'Understand operational modules and extension boundaries.'
+    ]
+  },
+  {
+    view: 'Connectors',
+    route: '/connectors',
+    purpose: 'Manage external identity source connectors (LDAP, SCIM, CSV, SQL, custom) and monitor auth performance metrics.',
+    functions: [
+      'Create and configure connectors with type-specific JSON config.',
+      'Trigger manual sync runs and view historical run results.',
+      'Define source→target field mappings with optional transform expressions.',
+      'View auth metric rollups (login success/failure, tokens issued, policy denials) aggregated by hour.'
     ]
   }
 ]
@@ -1718,12 +2617,18 @@ function prettyJson(value: unknown) {
 
 function endpointDocs(route: ApiRoute): ApiEndpointDocs {
   const idParam = route.path.includes(':id')
+  const credentialIdParam = route.path.includes(':credentialId')
+  const connectorIdParam = route.path.includes(':connectorId')
+  const mappingIdParam = route.path.includes(':mappingId')
   const deviceCodeParam = route.path.includes(':deviceCode')
   const groupIdParam = route.path.includes(':groupId')
   const providerIdParam = route.path.includes(':providerId')
 
   const params: string[] = []
   if (idParam) params.push('Path: id (string)')
+  if (credentialIdParam) params.push('Path: credentialId (string)')
+  if (connectorIdParam) params.push('Path: connectorId (string)')
+  if (mappingIdParam) params.push('Path: mappingId (string)')
   if (deviceCodeParam) params.push('Path: deviceCode (string)')
   if (groupIdParam) params.push('Path: groupId (string)')
   if (providerIdParam) params.push('Path: providerId (string)')
@@ -1776,6 +2681,26 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
       parameters: params,
       requestJson: prettyJson({ grant_type: 'authorization_code', code: 'code_xxx', client_id: 'client_id', client_secret: 'client_secret', redirect_uri: 'http://localhost:3000/callback' }),
       expectedResponse: prettyJson({ access_token: 'eyJ...', token_type: 'Bearer', expires_in: 900, refresh_token: 'r_xxx', id_token: 'eyJ...' })
+    }
+  }
+
+  if (route.path === '/oauth/token/exchange') {
+    return {
+      parameters: [...params, 'Header: Authorization: Bearer <subject_access_token> (or provide subject_token in body)'],
+      requestJson: prettyJson({
+        grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+        subject_token: 'eyJ_subject_token',
+        subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+        scope: 'openid profile email',
+        audience: 'internal-api'
+      }),
+      expectedResponse: prettyJson({
+        access_token: 'eyJ_exchanged_token',
+        token_type: 'Bearer',
+        issued_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+        expires_in: 900,
+        scope: 'openid profile email'
+      })
     }
   }
 
@@ -2269,7 +3194,10 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
         decidedByUserId: 'admin_xxx',
         decidedAt: '2026-04-20T12:45:00.000Z',
         updatedAt: '2026-04-20T12:45:00.000Z'
-      })
+      }),
+      notes: [
+        'Each review decision emits attestation evidence metadata in audit events (`type=access_review_item_decided`) for downstream export pipelines.'
+      ]
     }
   }
 
@@ -2406,6 +3334,362 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
     }
   }
 
+  if (route.path === '/api/admin/security/risk-events') {
+    return {
+      parameters: [...params, 'Query: limit?'],
+      expectedResponse: prettyJson([
+        {
+          id: 'aud_xxx',
+          sourceType: 'login_failed',
+          severity: 'medium',
+          title: 'Failed login attempt',
+          createdAt: '2026-04-20T12:45:00.000Z',
+          ip: '127.0.0.1'
+        }
+      ])
+    }
+  }
+
+  if (route.path === '/api/admin/saml/service-providers/:id/metadata' && route.method === 'POST') {
+    return {
+      parameters: [...params, 'Body: metadataXml (string), applyParsedFields? (boolean)'],
+      requestJson: prettyJson({
+        metadataXml: '<EntityDescriptor entityID="https://sp.example.com/metadata">...</EntityDescriptor>',
+        applyParsedFields: true
+      }),
+      expectedResponse: prettyJson({
+        id: 'sp_xxx',
+        metadataStored: true,
+        applied: {
+          entityId: 'https://sp.example.com/metadata',
+          acsUrl: 'https://sp.example.com/saml/acs',
+          sloUrl: 'https://sp.example.com/saml/slo'
+        }
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/saml/service-providers/:id/certificates/rotate' && route.method === 'POST') {
+    return {
+      parameters: [...params, 'Body: use (signing|encryption), algorithm?, expiresAt?'],
+      requestJson: prettyJson({
+        use: 'signing',
+        algorithm: 'rsa-sha256',
+        expiresAt: '2027-01-01T00:00:00.000Z'
+      }),
+      expectedResponse: prettyJson({
+        id: 'sp_xxx',
+        certificate: {
+          use: 'signing',
+          kid: 'cert_new_xxx',
+          rotatedAt: '2026-04-20T15:00:00.000Z',
+          expiresAt: '2027-01-01T00:00:00.000Z'
+        }
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/service-identities' && route.method === 'GET') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson([
+        {
+          id: 'svc_xxx',
+          name: 'billing-worker',
+          description: 'Background invoice processor',
+          status: 'active',
+          allowedScopes: ['billing.read', 'billing.write'],
+          allowedAudiences: ['internal-api'],
+          createdAt: '2026-04-20T10:00:00.000Z',
+          updatedAt: '2026-04-20T10:00:00.000Z'
+        }
+      ])
+    }
+  }
+
+  if (route.path === '/api/admin/service-identities' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        name: 'billing-worker',
+        description: 'Background invoice processor',
+        allowedScopes: ['billing.read', 'billing.write'],
+        allowedAudiences: ['internal-api']
+      }),
+      expectedResponse: prettyJson({
+        id: 'svc_xxx',
+        name: 'billing-worker',
+        status: 'active',
+        allowedScopes: ['billing.read', 'billing.write'],
+        allowedAudiences: ['internal-api']
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/service-identities/:id' && route.method === 'GET') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({
+        id: 'svc_xxx',
+        name: 'billing-worker',
+        status: 'active',
+        description: 'Background invoice processor',
+        allowedScopes: ['billing.read', 'billing.write'],
+        allowedAudiences: ['internal-api'],
+        credentials: [
+          {
+            id: 'cred_xxx',
+            clientId: 'svc_billing_worker',
+            status: 'active',
+            createdAt: '2026-04-20T10:05:00.000Z',
+            lastUsedAt: '2026-04-20T12:45:00.000Z'
+          }
+        ]
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/service-identities/:id' && route.method === 'PATCH') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        description: 'Updated description',
+        status: 'active',
+        allowedScopes: ['billing.read'],
+        allowedAudiences: ['internal-api', 'analytics-api']
+      }),
+      expectedResponse: prettyJson({
+        id: 'svc_xxx',
+        status: 'active',
+        description: 'Updated description',
+        allowedScopes: ['billing.read'],
+        allowedAudiences: ['internal-api', 'analytics-api'],
+        updatedAt: '2026-04-20T13:00:00.000Z'
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/service-identities/:id/credentials' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({ label: 'primary-credential' }),
+      expectedResponse: prettyJson({
+        id: 'cred_xxx',
+        clientId: 'svc_billing_worker',
+        clientSecret: 'svc_secret_xxx',
+        status: 'active',
+        createdAt: '2026-04-20T13:05:00.000Z'
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/service-identities/:id/credentials/rotate' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({ reason: 'Routine rotation' }),
+      expectedResponse: prettyJson({
+        revokedCredentialId: 'cred_old_xxx',
+        credential: {
+          id: 'cred_new_xxx',
+          clientId: 'svc_billing_worker',
+          clientSecret: 'svc_secret_new_xxx',
+          status: 'active'
+        }
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/service-identities/:id/credentials/:credentialId' && route.method === 'DELETE') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({ id: 'cred_xxx', revoked: true, revokedAt: '2026-04-20T13:10:00.000Z' })
+    }
+  }
+
+  if (route.path === '/api/admin/service-identities/:id/usage' && route.method === 'GET') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({
+        identityId: 'svc_xxx',
+        totalTokenRequests24h: 142,
+        credentials: [
+          {
+            id: 'cred_xxx',
+            clientId: 'svc_billing_worker',
+            status: 'active',
+            lastUsedAt: '2026-04-20T12:45:00.000Z',
+            requests24h: 142
+          }
+        ]
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/connectors' && route.method === 'GET') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson([
+        {
+          id: 'conn_xxx',
+          name: 'Corporate LDAP',
+          type: 'ldap',
+          status: 'active',
+          scheduleCron: '*/15 * * * *',
+          createdAt: '2026-04-20T09:00:00.000Z'
+        }
+      ])
+    }
+  }
+
+  if (route.path === '/api/admin/connectors' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        name: 'Corporate LDAP',
+        type: 'ldap',
+        config: {
+          host: 'ldap.example.com',
+          port: 636,
+          baseDn: 'dc=example,dc=com',
+          bindDn: 'cn=sync,dc=example,dc=com'
+        },
+        scheduleCron: '*/15 * * * *'
+      }),
+      expectedResponse: prettyJson({ id: 'conn_xxx', name: 'Corporate LDAP', type: 'ldap', status: 'active' })
+    }
+  }
+
+  if (route.path === '/api/admin/connectors/:id' && route.method === 'GET') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({
+        id: 'conn_xxx',
+        name: 'Corporate LDAP',
+        type: 'ldap',
+        status: 'active',
+        config: { host: 'ldap.example.com', port: 636 },
+        scheduleCron: '*/15 * * * *',
+        lastRunAt: '2026-04-20T12:30:00.000Z'
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/connectors/:id' && route.method === 'PATCH') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        name: 'Corporate LDAP (Primary)',
+        status: 'active',
+        scheduleCron: '*/10 * * * *'
+      }),
+      expectedResponse: prettyJson({
+        id: 'conn_xxx',
+        name: 'Corporate LDAP (Primary)',
+        status: 'active',
+        scheduleCron: '*/10 * * * *',
+        updatedAt: '2026-04-20T13:15:00.000Z'
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/connectors/:id/sync' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({ reason: 'Manual sync from admin UI' }),
+      expectedResponse: prettyJson({
+        id: 'run_xxx',
+        connectorId: 'conn_xxx',
+        status: 'queued',
+        triggeredBy: 'admin_xxx',
+        createdAt: '2026-04-20T13:20:00.000Z'
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/connectors/:id/runs' && route.method === 'GET') {
+    return {
+      parameters: [...params, 'Query: limit?'],
+      expectedResponse: prettyJson([
+        {
+          id: 'run_xxx',
+          connectorId: 'conn_xxx',
+          status: 'succeeded',
+          startedAt: '2026-04-20T12:30:00.000Z',
+          finishedAt: '2026-04-20T12:31:12.000Z',
+          stats: {
+            fetched: 123,
+            created: 4,
+            updated: 18,
+            failed: 0
+          }
+        }
+      ])
+    }
+  }
+
+  if (route.path === '/api/admin/connectors/:id/mappings' && route.method === 'GET') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson([
+        {
+          id: 'map_xxx',
+          connectorId: 'conn_xxx',
+          sourcePath: 'mail',
+          targetField: 'email',
+          transform: 'value?.toLowerCase()'
+        }
+      ])
+    }
+  }
+
+  if (route.path === '/api/admin/connectors/:id/mappings' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        sourcePath: 'department',
+        targetField: 'customAttributes.department',
+        transform: 'value?.trim()'
+      }),
+      expectedResponse: prettyJson({
+        id: 'map_new_xxx',
+        connectorId: 'conn_xxx',
+        sourcePath: 'department',
+        targetField: 'customAttributes.department',
+        transform: 'value?.trim()'
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/connectors/:connectorId/mappings/:mappingId' && route.method === 'DELETE') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({ id: 'map_xxx', connectorId: 'conn_xxx', deleted: true })
+    }
+  }
+
+  if (route.path === '/api/admin/metrics/auth' && route.method === 'GET') {
+    return {
+      parameters: [...params, 'Query: startHour?, endHour?, event?'],
+      expectedResponse: prettyJson({
+        buckets: [
+          {
+            hour: '2026-04-20T12:00:00.000Z',
+            loginSuccess: 214,
+            loginFailure: 9,
+            mfaChallenge: 37,
+            tokenIssued: 298
+          }
+        ],
+        totals: {
+          loginSuccess: 214,
+          loginFailure: 9,
+          mfaChallenge: 37,
+          tokenIssued: 298
+        }
+      })
+    }
+  }
+
   if (!isMutation) {
     return {
       parameters: params,
@@ -2511,7 +3795,7 @@ function ApiDocs() {
                   {isOpen ? (
                     <tr className="border-t border-slate-100 bg-slate-50/50">
                       <td className="px-4 py-4" colSpan={5}>
-                        <div className="grid gap-4 lg:grid-cols-3">
+                        <div className="grid gap-4 lg:grid-cols-1">
                           <div>
                             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Parameters</p>
                             {docs.parameters.length ? (
@@ -2641,9 +3925,9 @@ function AdminDocs() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-      <aside className="lg:sticky lg:top-24 lg:self-start">
+      <aside className="lg:sticky lg:top-0 lg:self-start">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">In-Page Menu</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Documentation Menu</p>
           <div className="relative mt-3">
             <Search size={14} className="pointer-events-none absolute left-3 top-2.5 text-slate-400" />
             <input
@@ -2889,14 +4173,14 @@ function AdminDocs() {
         {visibleConcepts.map((concept) => (
           <section id={`concept-${concept.id}`} key={concept.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <h4 className="text-base font-semibold text-slate-900">{concept.title}</h4>
-            <p className="mt-2 text-sm text-slate-700"><span className="font-semibold">Plain explanation:</span> {concept.plainExplanation}</p>
-            <p className="mt-1 text-sm text-slate-700"><span className="font-semibold">Why it matters:</span> {concept.whyItMatters}</p>
-            <p className="mt-1 text-sm text-slate-700"><span className="font-semibold">Who defines it:</span> {concept.whoDefinesIt}</p>
+            <p className="mt-2 text-sm text-slate-700 p-2"><span className="font-semibold">Plain explanation:</span> {concept.plainExplanation}</p>
+            <p className="mt-1 text-sm text-slate-700 p-2"><span className="font-semibold">Why it matters:</span> {concept.whyItMatters}</p>
+            <p className="mt-1 text-sm text-slate-700 p-2"><span className="font-semibold">Who defines it:</span> {concept.whoDefinesIt}</p>
             <div className="mt-2">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Where in Admin</p>
               <ul className="mt-1 space-y-1 text-sm text-slate-700">
                 {concept.whereInAdmin.map((where) => (
-                  <li key={where}>{where}</li>
+                  <li style={{marginLeft:15, listStyle:'circle'}} key={where}>{where}</li>
                 ))}
               </ul>
             </div>
@@ -2904,7 +4188,7 @@ function AdminDocs() {
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Details</p>
               <ul className="mt-1 space-y-1 text-sm text-slate-700">
                 {concept.details.map((detail) => (
-                  <li key={detail}>{detail}</li>
+                  <li style={{paddingLeft:5}} key={detail}>{detail}</li>
                 ))}
               </ul>
             </div>

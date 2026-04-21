@@ -34,6 +34,7 @@ import type {
   Session,
   Tenant,
   TotpCredential,
+  WebauthnCredential,
   User,
   UserAttributeDefinition,
   GroupUserAttributeAssignment,
@@ -41,7 +42,17 @@ import type {
   UserRoleAssignment,
   SamlServiceProvider,
   SamlNameIdMapping,
-  SamlAssertionAudit
+  SamlAssertionAudit,
+  RiskEvent,
+  RiskDecision,
+  RiskReason,
+  ServiceIdentity,
+  ServiceIdentityCredential,
+  ServiceIdentityStatus,
+  Connector,
+  ConnectorRun,
+  ConnectorMapping,
+  AuthMetricRollup
 } from "../domain/models.js";
 
 type Awaitable<T> = T | Promise<T>;
@@ -107,6 +118,13 @@ export interface TotpCredentialRepository {
   findByUserId(userId: string): Awaitable<TotpCredential | undefined>;
   upsert(input: Omit<TotpCredential, "createdAt" | "updatedAt">): Awaitable<TotpCredential>;
   delete(userId: string): Awaitable<void>;
+}
+
+export interface WebauthnCredentialRepository {
+  listByUserId(userId: string): Awaitable<WebauthnCredential[]>;
+  findByCredentialId(credentialId: string): Awaitable<WebauthnCredential | undefined>;
+  upsert(input: Omit<WebauthnCredential, "id" | "createdAt" | "updatedAt">): Awaitable<WebauthnCredential>;
+  deleteByCredentialId(credentialId: string): Awaitable<void>;
 }
 
 export interface AuthorizationCodeRepository {
@@ -345,4 +363,55 @@ export interface SamlAssertionAuditRepository {
   list(input?: { limit?: number; spId?: string }): Awaitable<SamlAssertionAudit[]>;
   findById(id: string): Awaitable<SamlAssertionAudit | undefined>;
   create(input: Omit<SamlAssertionAudit, "id" | "createdAt">): Awaitable<SamlAssertionAudit>;
+}
+
+export interface RiskEventRepository {
+  create(input: Omit<RiskEvent, "id" | "createdAt">): Awaitable<RiskEvent>;
+  list(input?: { limit?: number; userId?: string; minConfidence?: number }): Awaitable<RiskEvent[]>;
+  countRecentByIp(ip: string, windowMs: number): Awaitable<number>;
+}
+
+export interface ServiceIdentityRepository {
+  create(input: Omit<ServiceIdentity, "id" | "createdAt" | "updatedAt">): Awaitable<ServiceIdentity>;
+  list(): Awaitable<ServiceIdentity[]>;
+  findById(id: string): Awaitable<ServiceIdentity | undefined>;
+  update(id: string, input: Partial<Omit<ServiceIdentity, "id" | "createdAt">>): Awaitable<ServiceIdentity | undefined>;
+  delete(id: string): Awaitable<void>;
+}
+
+export interface ServiceIdentityCredentialRepository {
+  create(input: Omit<ServiceIdentityCredential, "id" | "createdAt">): Awaitable<ServiceIdentityCredential>;
+  listByServiceIdentity(serviceIdentityId: string): Awaitable<ServiceIdentityCredential[]>;
+  findById(id: string): Awaitable<ServiceIdentityCredential | undefined>;
+  findByClientId(clientId: string): Awaitable<ServiceIdentityCredential | undefined>;
+  revoke(id: string, revokedAt: Date): Awaitable<void>;
+  touchLastUsed(id: string, usedAt: Date): Awaitable<void>;
+}
+
+export interface ConnectorRepository {
+  list(): Awaitable<Connector[]>;
+  findById(id: string): Awaitable<Connector | undefined>;
+  create(input: Omit<Connector, "id" | "createdAt" | "updatedAt">): Awaitable<Connector>;
+  update(id: string, input: Partial<Omit<Connector, "id" | "createdAt">>): Awaitable<Connector | undefined>;
+  delete(id: string): Awaitable<void>;
+}
+
+export interface ConnectorRunRepository {
+  listByConnector(connectorId: string, limit?: number): Awaitable<ConnectorRun[]>;
+  findById(id: string): Awaitable<ConnectorRun | undefined>;
+  create(input: Omit<ConnectorRun, "id" | "createdAt">): Awaitable<ConnectorRun>;
+  update(id: string, input: Partial<Omit<ConnectorRun, "id" | "createdAt">>): Awaitable<ConnectorRun | undefined>;
+  deleteByConnector(connectorId: string): Awaitable<void>;
+}
+
+export interface ConnectorMappingRepository {
+  listByConnector(connectorId: string): Awaitable<ConnectorMapping[]>;
+  create(input: Omit<ConnectorMapping, "id" | "createdAt" | "updatedAt">): Awaitable<ConnectorMapping>;
+  update(id: string, input: Partial<Omit<ConnectorMapping, "id" | "createdAt">>): Awaitable<ConnectorMapping | undefined>;
+  delete(id: string): Awaitable<void>;
+}
+
+export interface AuthMetricRepository {
+  increment(bucket: string, event: string, by?: number): Awaitable<void>;
+  query(input: { startBucket: string; endBucket: string; event?: string }): Awaitable<AuthMetricRollup[]>;
 }

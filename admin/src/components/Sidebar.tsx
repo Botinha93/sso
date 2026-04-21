@@ -18,7 +18,9 @@ import {
   BellRing,
   Settings2,
   BookText,
-  LogOut
+  LogOut,
+  Bot,
+  GitMerge
 } from 'lucide-react'
 
 const navGroups = [
@@ -55,6 +57,8 @@ const navGroups = [
     items: [
       { path: '/apps', label: 'Apps', icon: Boxes, permission: 'apps:view' },
       { path: '/tenants', label: 'Tenants', icon: Building2, permission: 'tenants:view' },
+      { path: '/service-identities', label: 'Service Identities', icon: Bot, permission: 'service_identities:view' },
+      { path: '/connectors', label: 'Connectors', icon: GitMerge, permission: 'connectors:view' },
       { path: '/events', label: 'Events', icon: BellRing, permission: 'events:view' },
       { path: '/administration', label: 'Administration', icon: Settings2, permission: 'administration:view' },
       { path: '/audit', label: 'Audit Log', icon: FileText, permission: 'audit_log:view' },

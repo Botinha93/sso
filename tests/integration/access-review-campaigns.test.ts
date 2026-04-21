@@ -183,4 +183,21 @@ test("access review campaign generation and revocation decisions", async (t) => 
   const users = usersAfterDecision.json() as Array<{ id: string; roles: string[] }>;
   const subjectAfterDecision = users.find((user) => user.id === subject.id);
   assert.equal(subjectAfterDecision?.roles.includes(role.name), false);
+
+  const auditEventsResponse = await app.inject({
+    method: "GET",
+    url: "/api/admin/audit?limit=200",
+    headers: { cookie: sid }
+  });
+  assert.equal(auditEventsResponse.statusCode, 200);
+
+  const auditEvents = auditEventsResponse.json() as Array<{ type: string; metadata?: Record<string, unknown> }>;
+  const attestationEvent = auditEvents.find((event) =>
+    event.type === "access_review_item_decided" && event.metadata?.itemId === roleItem!.id
+  );
+
+  assert.ok(attestationEvent);
+  assert.equal(attestationEvent?.metadata?.evidenceType, "access_review_attestation");
+  assert.equal(attestationEvent?.metadata?.decision, "revoked");
+  assert.equal(attestationEvent?.metadata?.campaignId, created.campaign.id);
 });

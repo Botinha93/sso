@@ -20,6 +20,8 @@ import UserAttributes from './pages/UserAttributes'
 import Policies from './pages/Policies'
 import EventHooks from './pages/EventHooks'
 import Administration from './pages/Administration'
+import ServiceIdentities from './pages/ServiceIdentities'
+import Connectors from './pages/Connectors'
 import Documentation from './pages/Documentation'
 import Login from './pages/Login'
 import Consent from './pages/Consent'
@@ -106,6 +108,8 @@ function AppContent() {
                       <Route path="/policies" element={require('policies:view', <Policies />)} />
                       <Route path="/events" element={require('events:view', <EventHooks />)} />
                       <Route path="/administration" element={require('administration:view', <Administration />)} />
+                      <Route path="/service-identities" element={require('service_identities:view', <ServiceIdentities />)} />
+                      <Route path="/connectors" element={require('connectors:view', <Connectors />)} />
                       <Route path="/documentation" element={require('users:view', <Documentation />)} />
                     </Routes>
                   </div>

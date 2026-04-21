@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, Lock, Mail, Network, RefreshCw, ShieldCheck } from 'lucide-react'
 import {
+  useAdminRiskEvents,
   useInstanceSettings,
   useMigrateDatabaseFromSqlite,
   useTestExternalDatabaseConnection,
@@ -68,6 +69,7 @@ const defaultForm: SettingsForm = {
 
 export default function Administration() {
   const { data, isLoading, refetch } = useInstanceSettings()
+  const { data: riskEvents, refetch: refetchRiskEvents } = useAdminRiskEvents(15)
   const updateSettings = useUpdateInstanceSettings()
   const testEmail = useTestInstanceEmail()
   const testExternalDb = useTestExternalDatabaseConnection()
@@ -227,6 +229,37 @@ export default function Administration() {
           </div>
         </div>
       </div>
+
+      <section className={sectionCls}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ShieldCheck size={16} className="text-slate-500" />
+            <h2 className="text-base font-semibold text-slate-900">Recent Security Risk Events</h2>
+          </div>
+          <button onClick={() => refetchRiskEvents()} className="text-xs font-medium text-slate-500 hover:text-slate-700">Refresh</button>
+        </div>
+        <p className="mt-2 text-xs text-slate-500">Normalized risk telemetry derived from audit activity (login failures, lockouts, anomaly detections, protocol guardrails).</p>
+        <div className="mt-4 divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
+          {(riskEvents ?? []).length === 0 ? (
+            <div className="px-3 py-3 text-sm text-slate-500">No risk events recorded yet.</div>
+          ) : (
+            (riskEvents ?? []).map((event) => (
+              <div key={event.id} className="flex items-center justify-between px-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-slate-900">{event.title}</p>
+                  <p className="text-xs text-slate-500">{event.sourceType} {event.ip ? `• ${event.ip}` : ''}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase ${event.severity === 'critical' ? 'border-red-200 bg-red-50 text-red-700' : event.severity === 'high' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>
+                    {event.severity}
+                  </span>
+                  <span className="text-xs text-slate-400">{new Date(event.createdAt).toLocaleString()}</span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
 
       <ProvisioningAdminPanel />
       <AccessGovernancePanel />

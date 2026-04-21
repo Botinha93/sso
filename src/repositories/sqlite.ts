@@ -39,6 +39,7 @@ import type {
   Session,
   Tenant,
   TotpCredential,
+  WebauthnCredential,
   User,
   UserAttributeDefinition,
   UserGroupAssignment,
@@ -83,6 +84,7 @@ import type {
   SessionRepository,
   TenantRepository,
   TotpCredentialRepository,
+  WebauthnCredentialRepository,
   UserAttributeRepository,
   UserGroupAssignmentRepository,
   UserRepository,
@@ -215,6 +217,19 @@ export class SqliteDatabase {
         user_id TEXT PRIMARY KEY,
         secret TEXT NOT NULL,
         enabled INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS webauthn_credentials (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        credential_id TEXT NOT NULL UNIQUE,
+        public_key TEXT NOT NULL,
+        sign_count INTEGER NOT NULL DEFAULT 0,
+        transports_json TEXT NOT NULL DEFAULT '[]',
+        aaguid TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -654,6 +669,91 @@ export class SqliteDatabase {
         created_at TEXT NOT NULL,
         FOREIGN KEY (sp_id) REFERENCES saml_service_providers(id)
       );
+
+      CREATE TABLE IF NOT EXISTS risk_events (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        ip TEXT,
+        device_fingerprint_hash TEXT,
+        geo TEXT,
+        confidence INTEGER NOT NULL DEFAULT 0,
+        reason TEXT NOT NULL,
+        decision TEXT NOT NULL,
+        metadata_json TEXT,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS service_identities (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        owner_id TEXT,
+        app_id TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        allowed_scopes_json TEXT NOT NULL DEFAULT '[]',
+        allowed_audiences_json TEXT NOT NULL DEFAULT '[]',
+        metadata_json TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS service_identity_credentials (
+        id TEXT PRIMARY KEY,
+        service_identity_id TEXT NOT NULL,
+        client_id TEXT NOT NULL UNIQUE,
+        client_secret_hash TEXT NOT NULL,
+        expires_at TEXT,
+        revoked_at TEXT,
+        rotated_from_id TEXT,
+        last_used_at TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (service_identity_id) REFERENCES service_identities(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS connectors (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        config_json TEXT NOT NULL DEFAULT '{}',
+        schedule TEXT,
+        last_sync_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS connector_runs (
+        id TEXT PRIMARY KEY,
+        connector_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        started_at TEXT,
+        finished_at TEXT,
+        records_imported INTEGER NOT NULL DEFAULT 0,
+        records_failed INTEGER NOT NULL DEFAULT 0,
+        error_message TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (connector_id) REFERENCES connectors(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS connector_mappings (
+        id TEXT PRIMARY KEY,
+        connector_id TEXT NOT NULL,
+        source_field TEXT NOT NULL,
+        target_field TEXT NOT NULL,
+        transform TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (connector_id) REFERENCES connectors(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS auth_metric_rollups (
+        id TEXT NOT NULL,
+        bucket TEXT NOT NULL,
+        event TEXT NOT NULL,
+        count INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (bucket, event)
+      );
     `);
 
     const userColumns = this.connection.prepare("PRAGMA table_info(users)").all() as Array<{ name: string }>;
@@ -979,6 +1079,18 @@ const mapTotpCredential = (row: DbRow): TotpCredential => ({
   userId: String(row.user_id),
   secret: String(row.secret),
   enabled: Boolean(row.enabled),
+  createdAt: asDate(row.created_at),
+  updatedAt: asDate(row.updated_at)
+});
+
+const mapWebauthnCredential = (row: DbRow): WebauthnCredential => ({
+  id: String(row.id),
+  userId: String(row.user_id),
+  credentialId: String(row.credential_id),
+  publicKey: String(row.public_key),
+  signCount: Number(row.sign_count),
+  transports: parseStringArray(row.transports_json),
+  aaguid: row.aaguid ? String(row.aaguid) : undefined,
   createdAt: asDate(row.created_at),
   updatedAt: asDate(row.updated_at)
 });
@@ -1659,6 +1771,65 @@ export class SqliteTotpCredentialRepository {
 
   delete(userId: string): void {
     this.db.prepare("DELETE FROM totp_credentials WHERE user_id = ?").run(userId);
+  }
+}
+
+export class SqliteWebauthnCredentialRepository implements WebauthnCredentialRepository {
+  constructor(private readonly db: Database.Database) {}
+
+  listByUserId(userId: string): WebauthnCredential[] {
+    const rows = this.db.prepare("SELECT * FROM webauthn_credentials WHERE user_id = ? ORDER BY created_at DESC").all(userId) as DbRow[];
+    return rows.map(mapWebauthnCredential);
+  }
+
+  findByCredentialId(credentialId: string): WebauthnCredential | undefined {
+    const row = this.db.prepare("SELECT * FROM webauthn_credentials WHERE credential_id = ?").get(credentialId) as DbRow | undefined;
+    return row ? mapWebauthnCredential(row) : undefined;
+  }
+
+  upsert(input: Omit<WebauthnCredential, "id" | "createdAt" | "updatedAt">): WebauthnCredential {
+    const existing = this.findByCredentialId(input.credentialId);
+    const now = new Date();
+    const nextId = existing?.id ?? nanoid();
+    const createdAt = existing?.createdAt ?? now;
+
+    this.db.prepare(`
+      INSERT INTO webauthn_credentials (id, user_id, credential_id, public_key, sign_count, transports_json, aaguid, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(credential_id) DO UPDATE SET
+        user_id = excluded.user_id,
+        public_key = excluded.public_key,
+        sign_count = excluded.sign_count,
+        transports_json = excluded.transports_json,
+        aaguid = excluded.aaguid,
+        updated_at = excluded.updated_at
+    `).run(
+      nextId,
+      input.userId,
+      input.credentialId,
+      input.publicKey,
+      input.signCount,
+      JSON.stringify(input.transports),
+      input.aaguid ?? null,
+      createdAt.toISOString(),
+      now.toISOString()
+    );
+
+    return {
+      id: nextId,
+      userId: input.userId,
+      credentialId: input.credentialId,
+      publicKey: input.publicKey,
+      signCount: input.signCount,
+      transports: input.transports,
+      aaguid: input.aaguid,
+      createdAt,
+      updatedAt: now
+    };
+  }
+
+  deleteByCredentialId(credentialId: string): void {
+    this.db.prepare("DELETE FROM webauthn_credentials WHERE credential_id = ?").run(credentialId);
   }
 }
 

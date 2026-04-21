@@ -39,12 +39,15 @@ import type {
   Session,
   Tenant,
   TotpCredential,
+  WebauthnCredential,
   User,
   UserAttributeDefinition,
   UserGroupAssignment,
   UserRoleAssignment
 } from "../domain/models.js";
 import type { RepositoryBundle } from "./factory.js";
+import type { RiskEvent, RiskDecision, RiskReason, ServiceIdentity, ServiceIdentityCredential, ServiceIdentityStatus, Connector, ConnectorRun, ConnectorMapping, AuthMetricRollup } from "../domain/models.js";
+import type { RiskEventRepository, ServiceIdentityRepository, ServiceIdentityCredentialRepository, ConnectorRepository, ConnectorRunRepository, ConnectorMappingRepository, AuthMetricRepository } from "./contracts.js";
 
 type PrismaRow = Record<string, unknown>;
 
@@ -65,6 +68,7 @@ type PrismaClientLike = {
   scope: any;
   session: any;
   totpCredential: any;
+  webauthnCredential: any;
   authorizationCode: any;
   tenant: any;
   app: any;
@@ -231,6 +235,18 @@ const mapTotpCredential = (row: PrismaRow): TotpCredential => ({
   enabled: asBoolean(row.enabled),
   createdAt: asDate(row.createdAt),
   updatedAt: asDate(row.updatedAt)
+});
+
+const mapWebauthnCredential = (row: PrismaRow): WebauthnCredential => ({
+  id: String(row.id),
+  userId: String(readField(row, "userId", "user_id")),
+  credentialId: String(readField(row, "credentialId", "credential_id")),
+  publicKey: String(readField(row, "publicKey", "public_key")),
+  signCount: Number(readField(row, "signCount", "sign_count")),
+  transports: parseStringArray(readField(row, "transportsJson", "transports_json")),
+  aaguid: readField(row, "aaguid") ? String(readField(row, "aaguid")) : undefined,
+  createdAt: asDate(readField(row, "createdAt", "created_at")),
+  updatedAt: asDate(readField(row, "updatedAt", "updated_at"))
 });
 
 const mapAuthorizationCode = (row: PrismaRow): AuthorizationCode => ({
@@ -1091,6 +1107,69 @@ class PrismaTotpCredentialRepository {
 
   async delete(userId: string): Promise<void> {
     await this.prisma.totpCredential.delete({ where: { userId } }).catch(() => undefined);
+  }
+}
+
+class PrismaWebauthnCredentialRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+
+  async listByUserId(userId: string): Promise<WebauthnCredential[]> {
+    const rows = await this.prisma.webauthnCredential.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" }
+    });
+    return rows.map((row: PrismaRow) => mapWebauthnCredential(row));
+  }
+
+  async findByCredentialId(credentialId: string): Promise<WebauthnCredential | undefined> {
+    const row = await this.prisma.webauthnCredential.findUnique({ where: { credentialId } });
+    return row ? mapWebauthnCredential(row as PrismaRow) : undefined;
+  }
+
+  async upsert(input: Omit<WebauthnCredential, "id" | "createdAt" | "updatedAt">): Promise<WebauthnCredential> {
+    const existing = await this.findByCredentialId(input.credentialId);
+    const createdAt = existing?.createdAt ?? new Date();
+    const updatedAt = new Date();
+    const id = existing?.id ?? nanoid();
+
+    await this.prisma.webauthnCredential.upsert({
+      where: { credentialId: input.credentialId },
+      create: {
+        id,
+        userId: input.userId,
+        credentialId: input.credentialId,
+        publicKey: input.publicKey,
+        signCount: input.signCount,
+        transportsJson: JSON.stringify(input.transports),
+        aaguid: input.aaguid ?? null,
+        createdAt: createdAt.toISOString(),
+        updatedAt: updatedAt.toISOString()
+      },
+      update: {
+        userId: input.userId,
+        publicKey: input.publicKey,
+        signCount: input.signCount,
+        transportsJson: JSON.stringify(input.transports),
+        aaguid: input.aaguid ?? null,
+        updatedAt: updatedAt.toISOString()
+      }
+    });
+
+    return {
+      id,
+      userId: input.userId,
+      credentialId: input.credentialId,
+      publicKey: input.publicKey,
+      signCount: input.signCount,
+      transports: input.transports,
+      aaguid: input.aaguid,
+      createdAt,
+      updatedAt
+    };
+  }
+
+  async deleteByCredentialId(credentialId: string): Promise<void> {
+    await this.prisma.webauthnCredential.delete({ where: { credentialId } }).catch(() => undefined);
   }
 }
 
@@ -2442,6 +2521,70 @@ class PrismaElevationSessionRepository {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Stub implementations for repos not yet backed by Prisma schema models.
+// These are used by PostgreSQL/MySQL Prisma bundles and will be fully
+// implemented when the corresponding models are added to schema.prisma.
+// ---------------------------------------------------------------------------
+
+class PrismaRiskEventRepository implements RiskEventRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+  async create(_input: Omit<RiskEvent, "id" | "createdAt">): Promise<RiskEvent> { throw new Error("RiskEventRepository not yet implemented for Prisma provider"); }
+  async list(_input?: { limit?: number; userId?: string; minConfidence?: number }): Promise<RiskEvent[]> { return []; }
+  async countRecentByIp(_ip: string, _windowMs: number): Promise<number> { return 0; }
+}
+
+class PrismaServiceIdentityRepository implements ServiceIdentityRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+  async create(_input: Omit<ServiceIdentity, "id" | "createdAt" | "updatedAt">): Promise<ServiceIdentity> { throw new Error("ServiceIdentityRepository not yet implemented for Prisma provider"); }
+  async list(): Promise<ServiceIdentity[]> { return []; }
+  async findById(_id: string): Promise<ServiceIdentity | undefined> { return undefined; }
+  async update(_id: string, _input: Partial<Omit<ServiceIdentity, "id" | "createdAt">>): Promise<ServiceIdentity | undefined> { return undefined; }
+  async delete(_id: string): Promise<void> {}
+}
+
+class PrismaServiceIdentityCredentialRepository implements ServiceIdentityCredentialRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+  async create(_input: Omit<ServiceIdentityCredential, "id" | "createdAt">): Promise<ServiceIdentityCredential> { throw new Error("ServiceIdentityCredentialRepository not yet implemented for Prisma provider"); }
+  async listByServiceIdentity(_serviceIdentityId: string): Promise<ServiceIdentityCredential[]> { return []; }
+  async findById(_id: string): Promise<ServiceIdentityCredential | undefined> { return undefined; }
+  async findByClientId(_clientId: string): Promise<ServiceIdentityCredential | undefined> { return undefined; }
+  async revoke(_id: string, _revokedAt: Date): Promise<void> {}
+  async touchLastUsed(_id: string, _usedAt: Date): Promise<void> {}
+}
+
+class PrismaConnectorRepository implements ConnectorRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+  async list(): Promise<Connector[]> { return []; }
+  async findById(_id: string): Promise<Connector | undefined> { return undefined; }
+  async create(_input: Omit<Connector, "id" | "createdAt" | "updatedAt">): Promise<Connector> { throw new Error("ConnectorRepository not yet implemented for Prisma provider"); }
+  async update(_id: string, _input: Partial<Omit<Connector, "id" | "createdAt">>): Promise<Connector | undefined> { return undefined; }
+  async delete(_id: string): Promise<void> {}
+}
+
+class PrismaConnectorRunRepository implements ConnectorRunRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+  async listByConnector(_connectorId: string, _limit?: number): Promise<ConnectorRun[]> { return []; }
+  async findById(_id: string): Promise<ConnectorRun | undefined> { return undefined; }
+  async create(_input: Omit<ConnectorRun, "id" | "createdAt">): Promise<ConnectorRun> { throw new Error("ConnectorRunRepository not yet implemented for Prisma provider"); }
+  async update(_id: string, _input: Partial<Omit<ConnectorRun, "id" | "createdAt">>): Promise<ConnectorRun | undefined> { return undefined; }
+  async deleteByConnector(_connectorId: string): Promise<void> {}
+}
+
+class PrismaConnectorMappingRepository implements ConnectorMappingRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+  async listByConnector(_connectorId: string): Promise<ConnectorMapping[]> { return []; }
+  async create(_input: Omit<ConnectorMapping, "id" | "createdAt" | "updatedAt">): Promise<ConnectorMapping> { throw new Error("ConnectorMappingRepository not yet implemented for Prisma provider"); }
+  async update(_id: string, _input: Partial<Omit<ConnectorMapping, "id" | "createdAt">>): Promise<ConnectorMapping | undefined> { return undefined; }
+  async delete(_id: string): Promise<void> {}
+}
+
+class PrismaAuthMetricRepository implements AuthMetricRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+  async increment(_bucket: string, _event: string, _by?: number): Promise<void> {}
+  async query(_input: { startBucket: string; endBucket: string; event?: string }): Promise<AuthMetricRollup[]> { return []; }
+}
+
 export const createPrismaRepositories = (prisma: PrismaClientLike): RepositoryBundle => ({
   roleRepository: new PrismaRoleRepository(prisma),
   tenantRepository: new PrismaTenantRepository(prisma),
@@ -2455,6 +2598,7 @@ export const createPrismaRepositories = (prisma: PrismaClientLike): RepositoryBu
   scopeRepository: new PrismaScopeRepository(prisma),
   sessionRepository: new PrismaSessionRepository(prisma),
   totpCredentialRepository: new PrismaTotpCredentialRepository(prisma),
+  webauthnCredentialRepository: new PrismaWebauthnCredentialRepository(prisma),
   authorizationCodeRepository: new PrismaAuthorizationCodeRepository(prisma),
   consentRepository: new PrismaConsentRepository(prisma),
   refreshTokenRepository: new PrismaRefreshTokenRepository(prisma),
@@ -2484,5 +2628,12 @@ export const createPrismaRepositories = (prisma: PrismaClientLike): RepositoryBu
   instanceSettingsRepository: new PrismaInstanceSettingsRepository(prisma),
   samlServiceProviderRepository: new PrismaSamlServiceProviderRepository(prisma),
   samlNameIdMappingRepository: new PrismaSamlNameIdMappingRepository(prisma),
-  samlAssertionAuditRepository: new PrismaSamlAssertionAuditRepository(prisma)
+  samlAssertionAuditRepository: new PrismaSamlAssertionAuditRepository(prisma),
+  riskEventRepository: new PrismaRiskEventRepository(prisma),
+  serviceIdentityRepository: new PrismaServiceIdentityRepository(prisma),
+  serviceIdentityCredentialRepository: new PrismaServiceIdentityCredentialRepository(prisma),
+  connectorRepository: new PrismaConnectorRepository(prisma),
+  connectorRunRepository: new PrismaConnectorRunRepository(prisma),
+  connectorMappingRepository: new PrismaConnectorMappingRepository(prisma),
+  authMetricRepository: new PrismaAuthMetricRepository(prisma)
 });

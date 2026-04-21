@@ -95,6 +95,27 @@ export interface TotpEnrollmentResponse {
   expiresIn: number
 }
 
+export interface WebauthnCredentialSummary {
+  credentialId: string
+  transports: string[]
+  aaguid?: string
+  signCount: number
+  createdAt: string
+}
+
+export interface WebauthnRegistrationBeginResponse {
+  registrationId: string
+  challenge: string
+  rpId: string
+  rpName: string
+  user: {
+    id: string
+    name: string
+    displayName: string
+  }
+  timeoutMs: number
+}
+
 export function useTotpStatus() {
   return useQuery<TotpStatusResponse>({
     queryKey: ['account-totp-status'],
@@ -131,5 +152,51 @@ export function useTotpDisable() {
   return useMutation({
     mutationFn: () => apiFetch('/api/account/mfa/totp', { method: 'DELETE' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['account-totp-status'] })
+  })
+}
+
+export function useWebauthnCredentials() {
+  return useQuery<WebauthnCredentialSummary[]>({
+    queryKey: ['account-webauthn-credentials'],
+    queryFn: () => apiFetch('/api/account/mfa/webauthn/credentials')
+  })
+}
+
+export function useWebauthnRegisterBegin() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload?: { displayName?: string }): Promise<WebauthnRegistrationBeginResponse> => apiFetch('/api/account/mfa/webauthn/register/begin', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload ?? {})
+    }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['account-webauthn-credentials'] })
+  })
+}
+
+export function useWebauthnRegisterFinish() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: {
+      registrationId: string
+      credentialId: string
+      publicKey: string
+      transports?: string[]
+      aaguid?: string
+      signCount?: number
+    }) => apiFetch('/api/account/mfa/webauthn/register/finish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['account-webauthn-credentials'] })
+  })
+}
+
+export function useWebauthnDeleteCredential() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (credentialId: string) => apiFetch(`/api/account/mfa/webauthn/credentials/${encodeURIComponent(credentialId)}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['account-webauthn-credentials'] })
   })
 }

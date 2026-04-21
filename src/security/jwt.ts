@@ -136,6 +136,10 @@ export class JwtService {
     };
   }
 
+  getSigningKeys() {
+    return this.keys;
+  }
+
   async verifyAccessToken(token: string) {
     const { payload } = await jwtVerify(token, this.keys.publicKey, {
       issuer: this.appConfig.issuer

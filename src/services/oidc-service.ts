@@ -44,7 +44,8 @@ export class OidcService {
         "refresh_token",
         "client_credentials",
         "password",
-        "urn:ietf:params:oauth:grant-type:device_code"
+        "urn:ietf:params:oauth:grant-type:device_code",
+        "urn:ietf:params:oauth:grant-type:token-exchange"
       ],
       code_challenge_methods_supported: ["S256"]
     };
@@ -52,5 +53,25 @@ export class OidcService {
 
   jwks() {
     return this.jwtService.getJwks();
+  }
+
+  async mintExchangeToken(input: { sub: string; scopes: string[]; accessTokenId: string }) {
+    const { nanoid } = await import("nanoid");
+    const { SignJWT } = await import("jose");
+
+    const keys = this.jwtService.getSigningKeys();
+    const now = Math.floor(Date.now() / 1000);
+    const scopeValue = input.scopes.join(" ");
+
+    const accessToken = await new SignJWT({ scope: scopeValue })
+      .setProtectedHeader({ alg: "RS256", kid: keys.kid })
+      .setIssuer(this.appConfig.issuer)
+      .setSubject(input.sub)
+      .setJti(input.accessTokenId)
+      .setIssuedAt(now)
+      .setExpirationTime(now + this.appConfig.ttl.accessTokenSeconds)
+      .sign(keys.privateKey);
+
+    return { accessToken, tokenType: "Bearer", expiresIn: this.appConfig.ttl.accessTokenSeconds, scope: scopeValue };
   }
 }

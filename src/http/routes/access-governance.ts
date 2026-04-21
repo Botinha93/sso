@@ -1,6 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import type { AccessGovernanceService } from "../../services/access-governance-service.js";
 import type { AccessReviewService } from "../../services/access-review-service.js";
+import type { AuditRepository } from "../../repositories/contracts.js";
+import type { EventHookService } from "../../services/event-hook-service.js";
 import {
   createAccessRequestSchema,
   createAccessReviewCampaignSchema,
@@ -9,10 +11,13 @@ import {
   processExpiredAccessRequestsSchema,
   listAccessRequestsQuerySchema
 } from "../schemas.js";
+import { buildAccessReviewAttestationEvidence } from "./access-review-attestation.js";
 
 export interface AccessGovernanceRouteDeps {
   accessGovernanceService: AccessGovernanceService;
   accessReviewService: AccessReviewService;
+  auditRepository: AuditRepository;
+  eventHookService: EventHookService;
   requireSessionUser: (request: any, reply: any) => Promise<{ session: any; user: any } | null>;
 }
 
@@ -98,6 +103,25 @@ export const registerAccessGovernanceRoutes = async (app: FastifyInstance, deps:
       dueAt: input.dueAt ? new Date(input.dueAt) : undefined
     });
 
+    await deps.auditRepository.log({
+      type: "access_review_campaign_created",
+      actorId: auth.user.id,
+      actorType: "user",
+      ip: request.ip,
+      metadata: {
+        campaignId: created.campaign.id,
+        generatedItems: created.generatedItems,
+        dueAt: created.campaign.dueAt?.toISOString()
+      }
+    });
+
+    await deps.eventHookService.emit("access.review.campaign.created", {
+      campaignId: created.campaign.id,
+      createdByUserId: auth.user.id,
+      generatedItems: created.generatedItems,
+      dueAt: created.campaign.dueAt?.toISOString()
+    });
+
     return reply.status(201).send(created);
   });
 
@@ -108,7 +132,7 @@ export const registerAccessGovernanceRoutes = async (app: FastifyInstance, deps:
 
   app.get("/api/admin/access-reviews/campaigns", async (request) => {
     const limit = Number((request.query as { limit?: string } | undefined)?.limit ?? "20");
-    return deps.accessReviewService.listCampaigns(Number.isFinite(limit) ? limit : 20);
+    return deps.accessReviewService.listCampaigns({ limit: Number.isFinite(limit) ? limit : 20 });
   });
 
   app.post("/api/admin/access-reviews/items/:id/decision", async (request, reply) => {
@@ -117,11 +141,34 @@ export const registerAccessGovernanceRoutes = async (app: FastifyInstance, deps:
 
     const { id } = request.params as { id: string };
     const input = decideAccessReviewItemSchema.parse(request.body ?? {});
-    return deps.accessReviewService.decideItem({
+    const decided = await deps.accessReviewService.decideItem({
       itemId: id,
       decision: input.decision,
       decidedByUserId: auth.user.id,
       rationale: input.rationale
     });
+
+    const attestationEvidence = buildAccessReviewAttestationEvidence({
+      item: decided,
+      reviewerUserId: auth.user.id
+    });
+
+    await deps.auditRepository.log({
+      type: "access_review_item_decided",
+      actorId: auth.user.id,
+      actorType: "user",
+      ip: request.ip,
+      metadata: {
+        ...attestationEvidence,
+        evidenceVersion: "1.0"
+      }
+    });
+
+    await deps.eventHookService.emit("access.review.item.decided", {
+      ...attestationEvidence,
+      evidenceVersion: "1.0"
+    });
+
+    return decided;
   });
 };

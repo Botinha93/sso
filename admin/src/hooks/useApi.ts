@@ -533,6 +533,83 @@ export function useDeleteFederationProvider() {
   })
 }
 
+export interface SamlServiceProviderDto {
+  id: string
+  appId?: string
+  entityId: string
+  metadata?: string
+  acsUrl: string
+  sloUrl?: string
+  signingCertificate?: string
+  encryptionCertificate?: string
+  nameIdFormat: 'persistent' | 'transient' | 'emailAddress'
+  enabled: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export function useSamlServiceProviders(params?: { limit?: number; offset?: number; enabled?: boolean }) {
+  const qs = new URLSearchParams()
+  if (typeof params?.limit === 'number') qs.set('limit', String(params.limit))
+  if (typeof params?.offset === 'number') qs.set('offset', String(params.offset))
+  if (typeof params?.enabled === 'boolean') qs.set('enabled', String(params.enabled))
+  const query = qs.toString()
+
+  return useQuery({
+    queryKey: ['saml-service-providers', params],
+    queryFn: () => jsonFetch(`${API_BASE}/saml/service-providers` + (query ? `?${query}` : '')) as Promise<{
+      items: SamlServiceProviderDto[]
+      total: number
+      limit: number
+      offset: number
+    }>
+  })
+}
+
+export function useUploadSamlServiceProviderMetadata() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, metadata, overwriteManualFields }: { id: string; metadata: string; overwriteManualFields?: boolean }) =>
+      jsonFetch(`${API_BASE}/saml/service-providers/${id}/metadata`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ metadata, overwriteManualFields })
+      }) as Promise<{
+        serviceProvider: SamlServiceProviderDto
+        imported: {
+          entityId: string
+          acsUrl: string
+          sloUrl?: string
+          hasSigningCertificate: boolean
+        }
+      }>,
+    onSuccess: (_data, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['saml-service-providers'] })
+      queryClient.invalidateQueries({ queryKey: ['saml-service-provider', id] })
+    }
+  })
+}
+
+export function useRotateSamlServiceProviderCertificate() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, certificateType, certificate }: {
+      id: string
+      certificateType: 'signing' | 'encryption'
+      certificate: string
+    }) =>
+      jsonFetch(`${API_BASE}/saml/service-providers/${id}/certificates/rotate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ certificateType, certificate })
+      }) as Promise<SamlServiceProviderDto>,
+    onSuccess: (_data, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['saml-service-providers'] })
+      queryClient.invalidateQueries({ queryKey: ['saml-service-provider', id] })
+    }
+  })
+}
+
 // --- Authentication Flows ---
 export function useAuthenticationFlows() {
   return useQuery({
@@ -1274,5 +1351,308 @@ export function useElevationSessions(status?: ElevationSessionDto['status']) {
       const params = status ? `?status=${status}` : ''
       return jsonFetch(`${API_BASE}/elevations/sessions${params}`) as Promise<ElevationSessionDto[]>
     }
+  })
+}
+
+export interface ServiceIdentityDto {
+  id: string
+  name: string
+  description?: string
+  ownerId?: string
+  appId?: string
+  status: 'active' | 'inactive' | 'suspended'
+  allowedScopes: string[]
+  allowedAudiences: string[]
+  metadata?: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+  credentials?: ServiceIdentityCredentialDto[]
+}
+
+export interface ServiceIdentityCredentialDto {
+  id: string
+  serviceIdentityId: string
+  clientId: string
+  expiresAt?: string
+  revokedAt?: string
+  lastUsedAt?: string
+  createdAt: string
+}
+
+export interface ServiceIdentityUsageDto {
+  credentialId: string
+  clientId: string
+  lastUsedAt?: string
+  status: 'active' | 'expired' | 'revoked'
+}
+
+export function useServiceIdentities() {
+  return useQuery({
+    queryKey: ['service-identities'],
+    queryFn: () => jsonFetch(`${API_BASE}/service-identities`) as Promise<{ data: ServiceIdentityDto[] }>
+  })
+}
+
+export function useServiceIdentity(id: string) {
+  return useQuery({
+    queryKey: ['service-identity', id],
+    queryFn: () => jsonFetch(`${API_BASE}/service-identities/${id}`) as Promise<ServiceIdentityDto>,
+    enabled: !!id
+  })
+}
+
+export function useServiceIdentityUsage(id: string) {
+  return useQuery({
+    queryKey: ['service-identity-usage', id],
+    queryFn: () => jsonFetch(`${API_BASE}/service-identities/${id}/usage`) as Promise<{ data: ServiceIdentityUsageDto[] }>,
+    enabled: !!id
+  })
+}
+
+export function useCreateServiceIdentity() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: Partial<ServiceIdentityDto>) =>
+      jsonFetch(`${API_BASE}/service-identities`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      }) as Promise<ServiceIdentityDto>,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['service-identities'] })
+  })
+}
+
+export function useUpdateServiceIdentity() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<ServiceIdentityDto> }) =>
+      jsonFetch(`${API_BASE}/service-identities/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      }) as Promise<ServiceIdentityDto>,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['service-identities'] })
+  })
+}
+
+export function useDeleteServiceIdentity() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      jsonFetch(`${API_BASE}/service-identities/${id}`, { method: 'DELETE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['service-identities'] })
+  })
+}
+
+export function useIssueServiceIdentityCredential() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, expiresInDays }: { id: string; expiresInDays?: number }) =>
+      jsonFetch(`${API_BASE}/service-identities/${id}/credentials`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expiresInDays })
+      }) as Promise<{ credential: ServiceIdentityCredentialDto; plainClientSecret: string }>,
+    onSuccess: (_data, { id }) => queryClient.invalidateQueries({ queryKey: ['service-identity', id] })
+  })
+}
+
+export function useRotateServiceIdentityCredential() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, credentialId, expiresInDays }: { id: string; credentialId: string; expiresInDays?: number }) =>
+      jsonFetch(`${API_BASE}/service-identities/${id}/credentials/rotate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credentialId, expiresInDays })
+      }) as Promise<{ credential: ServiceIdentityCredentialDto; plainClientSecret: string }>,
+    onSuccess: (_data, { id }) => queryClient.invalidateQueries({ queryKey: ['service-identity', id] })
+  })
+}
+
+export function useRevokeServiceIdentityCredential() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, credentialId }: { id: string; credentialId: string }) =>
+      jsonFetch(`${API_BASE}/service-identities/${id}/credentials/${credentialId}`, { method: 'DELETE' }),
+    onSuccess: (_data, { id }) => queryClient.invalidateQueries({ queryKey: ['service-identity', id] })
+  })
+}
+
+// ── Connector Framework ──────────────────────────────────────────────────────
+
+export type ConnectorType = 'ldap' | 'scim' | 'csv' | 'sql' | 'custom'
+export type ConnectorStatus = 'active' | 'inactive' | 'error'
+export type ConnectorRunStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+
+export interface ConnectorDto {
+  id: string
+  name: string
+  type: ConnectorType
+  status: ConnectorStatus
+  config: Record<string, unknown>
+  schedule?: string
+  lastSyncAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ConnectorRunDto {
+  id: string
+  connectorId: string
+  status: ConnectorRunStatus
+  startedAt?: string
+  finishedAt?: string
+  recordsImported: number
+  recordsFailed: number
+  errorMessage?: string
+  createdAt: string
+}
+
+export interface ConnectorMappingDto {
+  id: string
+  connectorId: string
+  sourceField: string
+  targetField: string
+  transform?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AuthMetricDto {
+  id: string
+  bucket: string
+  event: string
+  count: number
+  createdAt: string
+}
+
+export function useConnectors() {
+  return useQuery({
+    queryKey: ['connectors'],
+    queryFn: () => jsonFetch(`${API_BASE}/connectors`) as Promise<{ data: ConnectorDto[] }>
+  })
+}
+
+export function useConnector(id: string) {
+  return useQuery({
+    queryKey: ['connector', id],
+    queryFn: () => jsonFetch(`${API_BASE}/connectors/${id}`) as Promise<ConnectorDto>,
+    enabled: !!id
+  })
+}
+
+export function useCreateConnector() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: Partial<ConnectorDto>) =>
+      jsonFetch(`${API_BASE}/connectors`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      }) as Promise<ConnectorDto>,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['connectors'] })
+  })
+}
+
+export function useUpdateConnector() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<ConnectorDto> }) =>
+      jsonFetch(`${API_BASE}/connectors/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      }) as Promise<ConnectorDto>,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['connectors'] })
+  })
+}
+
+export function useDeleteConnector() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      jsonFetch(`${API_BASE}/connectors/${id}`, { method: 'DELETE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['connectors'] })
+  })
+}
+
+export function useTriggerConnectorSync() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      jsonFetch(`${API_BASE}/connectors/${id}/sync`, { method: 'POST' }) as Promise<ConnectorRunDto>,
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ['connectors'] })
+      queryClient.invalidateQueries({ queryKey: ['connector-runs', id] })
+    }
+  })
+}
+
+export function useConnectorRuns(connectorId: string) {
+  return useQuery({
+    queryKey: ['connector-runs', connectorId],
+    queryFn: () => jsonFetch(`${API_BASE}/connectors/${connectorId}/runs`) as Promise<{ data: ConnectorRunDto[] }>,
+    enabled: !!connectorId
+  })
+}
+
+export function useConnectorMappings(connectorId: string) {
+  return useQuery({
+    queryKey: ['connector-mappings', connectorId],
+    queryFn: () => jsonFetch(`${API_BASE}/connectors/${connectorId}/mappings`) as Promise<{ data: ConnectorMappingDto[] }>,
+    enabled: !!connectorId
+  })
+}
+
+export function useCreateConnectorMapping() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ connectorId, data }: { connectorId: string; data: { sourceField: string; targetField: string; transform?: string } }) =>
+      jsonFetch(`${API_BASE}/connectors/${connectorId}/mappings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      }) as Promise<ConnectorMappingDto>,
+    onSuccess: (_data, { connectorId }) => queryClient.invalidateQueries({ queryKey: ['connector-mappings', connectorId] })
+  })
+}
+
+export function useDeleteConnectorMapping() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ connectorId, mappingId }: { connectorId: string; mappingId: string }) =>
+      jsonFetch(`${API_BASE}/connectors/${connectorId}/mappings/${mappingId}`, { method: 'DELETE' }),
+    onSuccess: (_data, { connectorId }) => queryClient.invalidateQueries({ queryKey: ['connector-mappings', connectorId] })
+  })
+}
+
+export function useAuthMetrics(params?: { startHour?: string; endHour?: string; event?: string }) {
+  const qs = new URLSearchParams()
+  if (params?.startHour) qs.set('startHour', params.startHour)
+  if (params?.endHour) qs.set('endHour', params.endHour)
+  if (params?.event) qs.set('event', params.event)
+  const query = qs.toString()
+  return useQuery({
+    queryKey: ['auth-metrics', params],
+    queryFn: () => jsonFetch(`${API_BASE}/metrics/auth` + (query ? '?' + query : '')) as Promise<{ data: AuthMetricDto[] }>
+  })
+}
+
+export interface AdminRiskEventDto {
+  id: string
+  sourceType: string
+  severity: 'medium' | 'high' | 'critical'
+  title: string
+  createdAt: string
+  actorId?: string
+  ip?: string
+  metadata?: Record<string, unknown>
+}
+
+export function useAdminRiskEvents(limit = 25) {
+  return useQuery({
+    queryKey: ['admin-risk-events', limit],
+    queryFn: () => jsonFetch(`${API_BASE}/security/risk-events?limit=${limit}`) as Promise<AdminRiskEventDto[]>
   })
 }

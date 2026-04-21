@@ -109,6 +109,32 @@ export const verifyTotpEnrollmentSchema = z.object({
   code: z.string().min(6).max(8)
 });
 
+export const webauthnRegisterBeginSchema = z.object({
+  displayName: z.string().min(1).max(120).optional()
+});
+
+export const webauthnRegisterFinishSchema = z.object({
+  registrationId: z.string().min(8),
+  credentialId: z.string().min(16),
+  publicKey: z.string().min(16),
+  transports: z.array(z.string().min(2)).default([]),
+  aaguid: z.string().min(1).optional(),
+  signCount: z.number().int().min(0).default(0)
+});
+
+export const webauthnLoginBeginSchema = z.object({
+  identifier: z.string().min(1),
+  clientId: z.string().min(2).default("sso-admin-ui"),
+  tenantSlug: z.string().min(2).optional(),
+  scope: z.array(z.string()).default(["openid", "profile", "email"])
+});
+
+export const webauthnLoginFinishSchema = z.object({
+  loginId: z.string().min(8),
+  credentialId: z.string().min(16),
+  signCount: z.number().int().min(0).optional()
+});
+
 export const authorizeSchema = z.object({
   response_type: z.enum(["code", "token"]),
   client_id: z.string().min(2),
@@ -361,6 +387,8 @@ const authenticationStageTypeSchema = z.enum([
   "federation",
   "consent",
   "mfa_totp",
+  "mfa_webauthn",
+  "mfa_webauthn",
   "risk_check",
   "identification",
   "email_verification",
@@ -614,3 +642,66 @@ export const createEmergencyBreakGlassSchema = z.object({
   requesterId: z.string().optional(),
   durationMinutes: z.number().int().min(1).max(120).optional()
 });
+
+export const createServiceIdentitySchema = z.object({
+  name: z.string().min(3),
+  description: z.string().optional(),
+  ownerId: z.string().optional(),
+  appId: z.string().optional(),
+  status: z.enum(["active", "inactive", "suspended"]).default("active"),
+  allowedScopes: z.array(z.string()).default([]),
+  allowedAudiences: z.array(z.string()).default([]),
+  metadata: z.record(z.string(), z.unknown()).optional()
+});
+
+export const updateServiceIdentitySchema = z.object({
+  name: z.string().min(3).optional(),
+  description: z.string().optional(),
+  ownerId: z.string().optional(),
+  appId: z.string().optional(),
+  status: z.enum(["active", "inactive", "suspended"]).optional(),
+  allowedScopes: z.array(z.string()).optional(),
+  allowedAudiences: z.array(z.string()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional()
+});
+
+export const issueServiceIdentityCredentialSchema = z.object({
+  expiresInDays: z.number().int().min(1).max(3650).optional()
+});
+
+export const tokenExchangeSchema = z.object({
+  grant_type: z.literal("urn:ietf:params:oauth:grant-type:token-exchange"),
+  subject_token: z.string().min(1),
+  subject_token_type: z.string().min(1),
+  requested_token_type: z.string().optional(),
+  audience: z.string().optional(),
+  scope: z.string().optional(),
+  client_id: z.string().optional(),
+  client_secret: z.string().optional()
+});
+
+// ---------------------------------------------------------------------------
+// EPIC 8 – Connector Framework
+// ---------------------------------------------------------------------------
+
+export const createConnectorSchema = z.object({
+  name: z.string().min(2),
+  type: z.enum(["ldap", "scim", "csv", "sql", "custom"]),
+  config: z.record(z.string(), z.unknown()).default({}),
+  schedule: z.string().optional()
+});
+
+export const updateConnectorSchema = z.object({
+  name: z.string().min(2).optional(),
+  type: z.enum(["ldap", "scim", "csv", "sql", "custom"]).optional(),
+  status: z.enum(["active", "inactive", "error"]).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
+  schedule: z.string().optional()
+});
+
+export const createConnectorMappingSchema = z.object({
+  sourceField: z.string().min(1),
+  targetField: z.string().min(1),
+  transform: z.string().optional()
+});
+

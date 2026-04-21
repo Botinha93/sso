@@ -7,6 +7,8 @@ import type { SamlService } from "../services/saml-service.js";
 import {
   createServiceProviderSchema,
   updateServiceProviderSchema,
+  uploadServiceProviderMetadataSchema,
+  rotateServiceProviderCertificateSchema,
   listServiceProvidersSchema,
   listAssertionAuditsSchema,
 } from "./saml-schemas.js";
@@ -150,6 +152,86 @@ export const registerSamlAdminRoutes = async (app: FastifyInstance, deps: SamlRo
           },
         });
         
+        return reply.status(200).send(updated);
+      } catch (error) {
+        if (error instanceof Error) {
+          return reply.status(400).send({ error: error.message });
+        }
+        throw error;
+      }
+    },
+  });
+
+  // Upload and parse SAML metadata for an existing service provider
+  app.post("/api/admin/saml/service-providers/:id/metadata", {
+    handler: async (request, reply) => {
+      try {
+        const { id } = request.params as { id: string };
+        const input = uploadServiceProviderMetadataSchema.parse(request.body);
+        const sessionId = (request as any).sessionId || "system";
+        const actorType = sessionId === "system" ? "system" : "user";
+
+        const result = await deps.samlService.uploadServiceProviderMetadata(id, {
+          metadata: input.metadata,
+          overwriteManualFields: input.overwriteManualFields,
+        });
+
+        await deps.auditRepository.log({
+          type: "saml_service_provider_metadata_uploaded",
+          actorId: sessionId,
+          actorType,
+          metadata: {
+            serviceProviderId: id,
+            overwriteManualFields: input.overwriteManualFields,
+            importedEntityId: result.parsed.entityId,
+            importedAcsUrl: result.parsed.acsUrl,
+            importedSloUrl: result.parsed.sloUrl,
+            importedSigningCertificate: Boolean(result.parsed.signingCertificate),
+          },
+        });
+
+        return reply.status(200).send({
+          serviceProvider: result.serviceProvider,
+          imported: {
+            entityId: result.parsed.entityId,
+            acsUrl: result.parsed.acsUrl,
+            sloUrl: result.parsed.sloUrl,
+            hasSigningCertificate: Boolean(result.parsed.signingCertificate),
+          },
+        });
+      } catch (error) {
+        if (error instanceof Error) {
+          return reply.status(400).send({ error: error.message });
+        }
+        throw error;
+      }
+    },
+  });
+
+  // Rotate service-provider certificates without requiring full object patching
+  app.post("/api/admin/saml/service-providers/:id/certificates/rotate", {
+    handler: async (request, reply) => {
+      try {
+        const { id } = request.params as { id: string };
+        const input = rotateServiceProviderCertificateSchema.parse(request.body);
+        const sessionId = (request as any).sessionId || "system";
+        const actorType = sessionId === "system" ? "system" : "user";
+
+        const updated = await deps.samlService.rotateServiceProviderCertificate(id, {
+          certificateType: input.certificateType,
+          certificate: input.certificate,
+        });
+
+        await deps.auditRepository.log({
+          type: "saml_service_provider_certificate_rotated",
+          actorId: sessionId,
+          actorType,
+          metadata: {
+            serviceProviderId: id,
+            certificateType: input.certificateType,
+          },
+        });
+
         return reply.status(200).send(updated);
       } catch (error) {
         if (error instanceof Error) {

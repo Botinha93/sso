@@ -369,7 +369,6 @@ export class ScimService {
     givenName: string;
     familyName: string;
     active: boolean;
-    [key: string]: unknown;
   }) {
     return {
       schemas: [USER_SCHEMA_ID],
@@ -394,7 +393,7 @@ export class ScimService {
     };
   }
 
-  private async toScimGroup(group: { id: string; name: string; externalId?: string; [key: string]: unknown }) {
+  private async toScimGroup(group: { id: string; name: string; externalId?: string }) {
     const users = await this.userService.listUsers();
     const members: Array<{ value: string; display: string }> = [];
 

@@ -37,7 +37,22 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 - [x] EPIC 6 slice delivered: PAM-lite elevation controls with request/session lifecycle, approval workflows, and hard-expiry sessions.
 - [x] EPIC 6 slice delivered: emergency break-glass elevation for admins to bypass approvals with full audit trail and metadata tracking.
 - [x] EPIC 4 OpenAPI slice delivered: SAML admin endpoints (`/api/admin/saml/service-providers`, `/api/admin/saml/assertions`) with schema definitions.
-- [ ] EPIC 4 foundation: SAML 2.0 service provider registration, metadata endpoints, and assertion auditing (in progress - schema/models/services complete; routes/tests pending).
+- [x] EPIC 4 foundation slice delivered: SAML protocol endpoints (`GET /saml/metadata`, `POST /saml/sso`, `POST /saml/slo`, `POST /saml/acs/:spId`) with XML helper utilities, assertion audience/destination validation, and integration coverage.
+- [x] EPIC 4 hardening slice delivered: extracted SAML assertion security validation and replay-protection service with dedicated unit coverage for SAML response parsing/validation primitives.
+- [x] EPIC 4 hardening follow-up: deterministic SAML integration coverage now verifies ACS replay blocking and SLO session invalidation propagation.
+- [x] EPIC 4 security slice delivered: SAML response XML signing on `/saml/sso` plus signature verification enforcement on `/saml/acs/:spId`, including tamper-rejection integration coverage.
+- [x] EPIC 4 admin slice delivered: metadata upload (`POST /api/admin/saml/service-providers/:id/metadata`) and targeted certificate rotation (`POST /api/admin/saml/service-providers/:id/certificates/rotate`) with integration coverage.
+- [x] EPIC 4 security hardening follow-up: ACS now rejects ambiguous assertion structures (signature-wrapping defense), and coverage explicitly verifies destination/audience and skew-aware validation checks.
+- [x] EPIC 4 foundation: SAML 2.0 service provider registration, metadata endpoints, and assertion auditing.
+- [x] EPIC 5 foundation slice delivered: admin security telemetry endpoint (`GET /api/admin/security/risk-events`) with integration coverage and admin documentation/OpenAPI updates.
+- [x] EPIC 5 slice delivered: WebAuthn/passkey backend foundation (`register begin/finish`, `login begin/finish`), repository persistence for SQLite+Prisma paths, and authentication stage support for `mfa_webauthn`.
+- [x] EPIC 5 frontend/docs slice delivered: portal account security view now manages passkey credentials and admin documentation view catalogs new WebAuthn endpoints.
+- [x] EPIC 5 coverage slice delivered: unit + integration tests added for WebAuthn challenge lifecycle and register/login flows.
+- [x] EPIC 5 follow-up slice delivered: `risk_events` persistence model and repository/service foundations added for adaptive risk scoring.
+- [x] EPIC 7 slice delivered: workload identity admin APIs (`service-identities` CRUD + credential issue/rotate/revoke + usage), OAuth token exchange endpoint support, admin UI page, admin documentation view updates, and OpenAPI coverage.
+- [x] EPIC 7 coverage slice delivered: integration tests added for service identity lifecycle and token exchange success/failure paths.
+- [x] EPIC 7 quality follow-up: unit coverage added for service identity credential rotation behavior and expired/revoked credential validation.
+- [x] EPIC 5 adaptive-auth follow-up: login pre-credential enforcement now evaluates risk scoring during `risk_check`, records risk events, and requires explicit acknowledgement on challenged risk outcomes.
 
 ## Planning assumptions
 
@@ -196,7 +211,7 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 - [x] Add `access_requests` table (requester, subject, entitlement, status, justification, expires_at).
 - [x] Add `access_request_approvals` table (approver, decision, rationale, timestamp).
 - [x] Add `review_campaigns` and `review_items` tables.
-- [ ] Add attestation metadata to audit events for evidence export.
+- [x] Add attestation metadata to audit events for evidence export.
 
 ### Code implementation backlog
 
@@ -211,7 +226,7 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 - [x] Integration: create request -> approval -> entitlement assignment.
 - [x] Integration: expiration revokes assignment.
 - [x] Integration: campaign generation includes in-scope assignments.
-- [ ] E2E: reviewer certifies/revokes access and audit evidence is generated.
+- [x] E2E: reviewer certifies/revokes access and audit evidence is generated.
 
 ---
 
@@ -224,17 +239,17 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 
 ### API backlog
 
-- [ ] `GET /saml/metadata`
-- [ ] `POST /saml/sso`
-- [ ] `POST /saml/slo`
-- [ ] `POST /saml/acs/:spId`
-- [ ] Admin endpoints for SP metadata upload and certificate rotation.
-- [ ] `GET /api/admin/saml/service-providers` (list)
-- [ ] `POST /api/admin/saml/service-providers` (create)
-- [ ] `GET /api/admin/saml/service-providers/:id` (get)
-- [ ] `PATCH /api/admin/saml/service-providers/:id` (update)
-- [ ] `DELETE /api/admin/saml/service-providers/:id` (delete)
-- [ ] `GET /api/admin/saml/assertions` (audit list)
+- [x] `GET /saml/metadata`
+- [x] `POST /saml/sso`
+- [x] `POST /saml/slo`
+- [x] `POST /saml/acs/:spId`
+- [x] Admin endpoints for SP metadata upload and certificate rotation.
+- [x] `GET /api/admin/saml/service-providers` (list)
+- [x] `POST /api/admin/saml/service-providers` (create)
+- [x] `GET /api/admin/saml/service-providers/:id` (get)
+- [x] `PATCH /api/admin/saml/service-providers/:id` (update)
+- [x] `DELETE /api/admin/saml/service-providers/:id` (delete)
+- [x] `GET /api/admin/saml/assertions` (audit list)
 
 ### Schema and model backlog
 
@@ -248,19 +263,23 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 
 - [x] Create `src/services/saml-service.ts` with full CRUD and audit operations.
 - [x] SQLite repository implementation for SAML service providers, name ID mappings, assertion audits.
-- [ ] Prisma repository implementations for SAML entities.
-- [ ] Create `src/http/samllib.ts` for XML signing and assertion generation utilities.
-- [ ] Create `src/http/saml-routes.ts` with metadata, SSO, SLO, ACS flows.
-- [ ] Implement XML signing, assertion generation, and audience validation.
-- [ ] Bridge SAML session lifecycle to existing session repository and logout flows.
+- [x] Prisma repository implementations for SAML entities.
+- [x] Create `src/http/samllib.ts` for XML signing and assertion generation utilities.
+- [x] Create `src/http/saml-routes.ts` with metadata, SSO, SLO, ACS flows.
+- [x] Implement XML signing, assertion generation, and audience validation.
+- [x] Implement SAML audience/destination validation, replay detection guard, and skew-aware expiry checks for ACS processing.
+- [x] Bridge SAML session lifecycle to existing session repository and logout flows.
+- [x] Add metadata parsing/upload and targeted certificate rotation operations for service providers.
 
 ### Test plan
 
-- [ ] Unit: SAML response builder and signature validation helpers.
-- [ ] Integration: service provider CRUD operations.
-- [ ] Integration: IdP-initiated and SP-initiated SSO.
-- [ ] Integration: logout propagation and replay protection.
-- [ ] Security: signature wrapping, clock skew, and destination checks.
+- [x] Unit: SAML response builder and signature validation helpers.
+- [x] Unit: SAML response parsing and assertion security guardrails (audience/destination/expiry/replay).
+- [x] Integration: service provider CRUD operations.
+- [x] Integration: metadata upload + certificate rotation admin flows.
+- [x] Integration: IdP-initiated and SP-initiated SSO.
+- [x] Integration: logout propagation and replay protection.
+- [x] Security: signature wrapping, clock skew, and destination checks.
 
 ---
 
@@ -273,30 +292,30 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 
 ### API backlog
 
-- [ ] `POST /api/account/mfa/webauthn/register/begin`
-- [ ] `POST /api/account/mfa/webauthn/register/finish`
-- [ ] `POST /auth/login/webauthn/begin`
-- [ ] `POST /auth/login/webauthn/finish`
-- [ ] `GET /api/admin/security/risk-events`
+- [x] `POST /api/account/mfa/webauthn/register/begin`
+- [x] `POST /api/account/mfa/webauthn/register/finish`
+- [x] `POST /auth/login/webauthn/begin`
+- [x] `POST /auth/login/webauthn/finish`
+- [x] `GET /api/admin/security/risk-events`
 
 ### Schema and model backlog
 
-- [ ] Add `webauthn_credentials` table (user_id, credential_id, public_key, sign_count, transports, aaguid).
-- [ ] Add `risk_events` table (ip, device fingerprint hash, geo, confidence, reason, decision).
-- [ ] Extend `authentication_flows` stage support with `mfa_webauthn`.
+- [x] Add `webauthn_credentials` table (user_id, credential_id, public_key, sign_count, transports, aaguid).
+- [x] Add `risk_events` table (ip, device fingerprint hash, geo, confidence, reason, decision).
+- [x] Extend `authentication_flows` stage support with `mfa_webauthn`.
 
 ### Code implementation backlog
 
-- [ ] Create `src/services/webauthn-service.ts`.
-- [ ] Add challenge store and replay protection.
-- [ ] Integrate risk score into stage policy checks.
-- [ ] Add admin and portal UI for credential management.
+- [x] Create `src/services/webauthn-service.ts`.
+- [x] Add challenge store and replay protection.
+- [x] Integrate risk score into stage policy checks.
+- [x] Add admin and portal UI for credential management.
 
 ### Test plan
 
-- [ ] Unit: challenge lifecycle and sign count logic.
-- [ ] Integration: registration and authentication ceremony success/failure cases.
-- [ ] Integration: high-risk login triggers step-up requirement.
+- [x] Unit: challenge lifecycle and sign count logic.
+- [x] Integration: registration and authentication ceremony success/failure cases.
+- [x] Integration: high-risk login triggers step-up requirement.
 - [ ] E2E: passwordless login for enrolled user.
 
 ---
@@ -348,21 +367,21 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 
 ### API backlog
 
-- [ ] `POST /api/admin/service-identities`
-- [ ] `POST /api/admin/service-identities/:id/credentials/rotate`
-- [ ] `GET /api/admin/service-identities/:id/usage`
-- [ ] Add OAuth token exchange endpoint support (`urn:ietf:params:oauth:grant-type:token-exchange`).
+- [x] `POST /api/admin/service-identities`
+- [x] `POST /api/admin/service-identities/:id/credentials/rotate`
+- [x] `GET /api/admin/service-identities/:id/usage`
+- [x] Add OAuth token exchange endpoint support (`urn:ietf:params:oauth:grant-type:token-exchange`).
 
 ### Schema and model backlog
 
-- [ ] Add `service_identities` table with owner and lifecycle metadata.
-- [ ] Add `service_identity_credentials` table with rotation history.
+- [x] Add `service_identities` table with owner and lifecycle metadata.
+- [x] Add `service_identity_credentials` table with rotation history.
 - [ ] Add usage telemetry linkage from access tokens to service identity.
 
 ### Test plan
 
-- [ ] Unit: rotation policy and expiration validation.
-- [ ] Integration: token exchange flow and audience restrictions.
+- [x] Unit: rotation policy and expiration validation.
+- [x] Integration: token exchange flow and audience restrictions.
 - [ ] Integration: automated expiry alerts and revocation behavior.
 
 ---
@@ -376,15 +395,15 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 
 ### API backlog
 
-- [ ] `POST /api/admin/connectors`
-- [ ] `POST /api/admin/connectors/:id/sync`
-- [ ] `GET /api/admin/connectors/:id/runs`
-- [ ] `GET /api/admin/metrics/auth`
+- [x] `POST /api/admin/connectors`
+- [x] `POST /api/admin/connectors/:id/sync`
+- [x] `GET /api/admin/connectors/:id/runs`
+- [x] `GET /api/admin/metrics/auth`
 
 ### Schema and model backlog
 
-- [ ] Add `connectors`, `connector_runs`, `connector_mappings` tables.
-- [ ] Add metrics rollup tables for auth outcomes and policy latency.
+- [x] Add `connectors`, `connector_runs`, `connector_mappings` tables.
+- [x] Add metrics rollup tables for auth outcomes and policy latency.
 
 ### Test plan
 

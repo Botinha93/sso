@@ -5,17 +5,16 @@ import type {
   SamlServiceProviderRepository,
   SamlNameIdMappingRepository,
   SamlAssertionAuditRepository,
-  AuditRepository,
-  UserRepository
+  AuditRepository
 } from "../repositories/contracts.js";
+import { parseSamlServiceProviderMetadata } from "./saml-metadata-parser.js";
 
 export class SamlService {
   constructor(
     private readonly spRepository: SamlServiceProviderRepository,
     private readonly nameIdMappingRepository: SamlNameIdMappingRepository,
     private readonly assertionAuditRepository: SamlAssertionAuditRepository,
-    private readonly auditRepository: AuditRepository,
-    private readonly userRepository: UserRepository
+    private readonly auditRepository: AuditRepository
   ) {}
 
   async createServiceProvider(input: {
@@ -124,6 +123,97 @@ export class SamlService {
       metadata: { 
         action: "saml_sp_updated",
         spId: id
+      }
+    });
+
+    return updated;
+  }
+
+  async uploadServiceProviderMetadata(
+    id: string,
+    input: { metadata: string; overwriteManualFields?: boolean }
+  ): Promise<{ serviceProvider: SamlServiceProvider; parsed: ReturnType<typeof parseSamlServiceProviderMetadata> }> {
+    const existing = await this.spRepository.findById(id);
+    if (!existing) {
+      throw new ValidationError("Service provider not found");
+    }
+
+    const metadata = input.metadata.trim();
+    if (!metadata) {
+      throw new ValidationError("Metadata XML is required");
+    }
+
+    const parsed = parseSamlServiceProviderMetadata(metadata);
+    const shouldOverwrite = input.overwriteManualFields !== false;
+
+    const updatePayload: Partial<Omit<SamlServiceProvider, "id" | "createdAt">> = {
+      metadata,
+    };
+
+    if (shouldOverwrite) {
+      if (parsed.entityId) {
+        updatePayload.entityId = parsed.entityId;
+      }
+      if (parsed.acsUrl) {
+        updatePayload.acsUrl = parsed.acsUrl;
+      }
+      if (parsed.sloUrl) {
+        updatePayload.sloUrl = parsed.sloUrl;
+      }
+      if (parsed.signingCertificate) {
+        updatePayload.signingCertificate = parsed.signingCertificate;
+      }
+    }
+
+    const updated = await this.spRepository.update(id, updatePayload);
+    if (!updated) {
+      throw new ValidationError("Failed to update service provider metadata");
+    }
+
+    await this.auditRepository.log({
+      type: "policy_decision_evaluated",
+      actorType: "system",
+      metadata: {
+        action: "saml_sp_metadata_uploaded",
+        spId: id,
+        overwriteManualFields: shouldOverwrite,
+      }
+    });
+
+    return { serviceProvider: updated, parsed };
+  }
+
+  async rotateServiceProviderCertificate(
+    id: string,
+    input: { certificateType: "signing" | "encryption"; certificate: string }
+  ): Promise<SamlServiceProvider> {
+    const existing = await this.spRepository.findById(id);
+    if (!existing) {
+      throw new ValidationError("Service provider not found");
+    }
+
+    const certificate = input.certificate.trim();
+    if (!certificate) {
+      throw new ValidationError("Certificate is required");
+    }
+
+    const updatePayload: Partial<Omit<SamlServiceProvider, "id" | "createdAt">> =
+      input.certificateType === "encryption"
+        ? { encryptionCertificate: certificate }
+        : { signingCertificate: certificate };
+
+    const updated = await this.spRepository.update(id, updatePayload);
+    if (!updated) {
+      throw new ValidationError("Failed to rotate certificate");
+    }
+
+    await this.auditRepository.log({
+      type: "policy_decision_evaluated",
+      actorType: "system",
+      metadata: {
+        action: "saml_sp_certificate_rotated",
+        spId: id,
+        certificateType: input.certificateType,
       }
     });
 

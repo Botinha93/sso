@@ -23,6 +23,7 @@ import type {
   GroupRoleAssignmentRepository,
   GroupUserAttributeAssignmentRepository,
   InstanceSettingsRepository,
+  RiskEventRepository,
   SamlAssertionAuditRepository,
   SamlNameIdMappingRepository,
   SamlServiceProviderRepository,
@@ -35,15 +36,25 @@ import type {
   RefreshTokenRepository,
   RoleRepository,
   ScopeRepository,
+  ServiceIdentityRepository,
+  ServiceIdentityCredentialRepository,
   SessionRepository,
   TenantRepository,
   TotpCredentialRepository,
+  WebauthnCredentialRepository,
   UserAttributeRepository,
   UserGroupAssignmentRepository,
   UserRepository,
-  UserRoleAssignmentRepository
+  UserRoleAssignmentRepository,
+  ConnectorRepository,
+  ConnectorRunRepository,
+  ConnectorMappingRepository,
+  AuthMetricRepository
 } from "./contracts.js";
 import { createPrismaRepositoryBundle } from "./prisma-factory.js";
+import { SqliteRiskEventRepository } from "./sqlite-risk.js";
+import { SqliteServiceIdentityRepository, SqliteServiceIdentityCredentialRepository } from "./sqlite-workload-identity.js";
+import { SqliteConnectorRepository, SqliteConnectorRunRepository, SqliteConnectorMappingRepository, SqliteAuthMetricRepository } from "./sqlite-connectors.js";
 import {
   SqliteAccessTokenRepository,
   SqliteAccessRequestRepository,
@@ -84,6 +95,7 @@ import {
   SqliteSessionRepository,
   SqliteTenantRepository,
   SqliteTotpCredentialRepository,
+  SqliteWebauthnCredentialRepository,
   SqliteUserAttributeRepository,
   SqliteUserGroupAssignmentRepository,
   SqliteUserRepository,
@@ -103,6 +115,7 @@ export interface RepositoryBundle {
   scopeRepository: ScopeRepository;
   sessionRepository: SessionRepository;
   totpCredentialRepository: TotpCredentialRepository;
+  webauthnCredentialRepository: WebauthnCredentialRepository;
   authorizationCodeRepository: AuthorizationCodeRepository;
   consentRepository: ConsentRepository;
   refreshTokenRepository: RefreshTokenRepository;
@@ -133,6 +146,13 @@ export interface RepositoryBundle {
   samlServiceProviderRepository: SamlServiceProviderRepository;
   samlNameIdMappingRepository: SamlNameIdMappingRepository;
   samlAssertionAuditRepository: SamlAssertionAuditRepository;
+  riskEventRepository: RiskEventRepository;
+  serviceIdentityRepository: ServiceIdentityRepository;
+  serviceIdentityCredentialRepository: ServiceIdentityCredentialRepository;
+  connectorRepository: ConnectorRepository;
+  connectorRunRepository: ConnectorRunRepository;
+  connectorMappingRepository: ConnectorMappingRepository;
+  authMetricRepository: AuthMetricRepository;
   dispose?: () => Promise<void>;
 }
 
@@ -158,6 +178,7 @@ export const createRepositoryBundle = async (config: AppConfig): Promise<Reposit
       scopeRepository: new SqliteScopeRepository(sqlite.connection),
       sessionRepository: new SqliteSessionRepository(sqlite.connection),
       totpCredentialRepository: new SqliteTotpCredentialRepository(sqlite.connection),
+      webauthnCredentialRepository: new SqliteWebauthnCredentialRepository(sqlite.connection),
       authorizationCodeRepository: new SqliteAuthorizationCodeRepository(sqlite.connection),
       consentRepository: new SqliteConsentRepository(sqlite.connection),
       refreshTokenRepository: new SqliteRefreshTokenRepository(sqlite.connection),
@@ -188,6 +209,13 @@ export const createRepositoryBundle = async (config: AppConfig): Promise<Reposit
       samlServiceProviderRepository: new SqliteSamlServiceProviderRepository(sqlite.connection),
       samlNameIdMappingRepository: new SqliteSamlNameIdMappingRepository(sqlite.connection),
       samlAssertionAuditRepository: new SqliteSamlAssertionAuditRepository(sqlite.connection),
+      riskEventRepository: new SqliteRiskEventRepository(sqlite.connection),
+      serviceIdentityRepository: new SqliteServiceIdentityRepository(sqlite.connection),
+      serviceIdentityCredentialRepository: new SqliteServiceIdentityCredentialRepository(sqlite.connection),
+      connectorRepository: new SqliteConnectorRepository(sqlite.connection),
+      connectorRunRepository: new SqliteConnectorRunRepository(sqlite.connection),
+      connectorMappingRepository: new SqliteConnectorMappingRepository(sqlite.connection),
+      authMetricRepository: new SqliteAuthMetricRepository(sqlite.connection),
       dispose: async () => {
         sqlite.connection.close();
       }

@@ -496,7 +496,7 @@ paths:
           description: Access review campaign details
   /api/admin/access-reviews/items/{id}/decision:
     post:
-      summary: Record a decision for an access review item
+      summary: Record a decision for an access review item and emit attestation evidence metadata
       parameters:
         - in: path
           name: id
@@ -519,6 +519,20 @@ paths:
       responses:
         '200':
           description: Access review item updated
+  /api/admin/security/risk-events:
+    get:
+      summary: List normalized security risk events derived from audit telemetry
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        '200':
+          description: List of security risk events
   /api/admin/access-requests/stalled:
     get:
       summary: List stalled pending access requests that have exceeded the SLA threshold
@@ -759,6 +773,105 @@ paths:
                       expiresAt:
                         type: string
                         format: date-time
+  /saml/metadata:
+    get:
+      summary: Generate SAML metadata for a service provider
+      parameters:
+        - in: query
+          name: spId
+          required: true
+          schema:
+            type: string
+          description: Service provider ID
+      responses:
+        '200':
+          description: SAML metadata XML
+          content:
+            application/samlmetadata+xml:
+              schema:
+                type: string
+  /saml/sso:
+    post:
+      summary: Create signed SAML response for SP login handoff
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [spId]
+              properties:
+                spId:
+                  type: string
+                requestId:
+                  type: string
+                  description: Optional request correlation from upstream AuthnRequest
+                relayState:
+                  type: string
+                userId:
+                  type: string
+                  description: Optional override user; defaults to current session user
+                responseMode:
+                  type: string
+                  enum: [form_post, json]
+                  default: form_post
+      responses:
+        '200':
+          description: HTML auto-post form or JSON payload with base64 signed SAML response
+        '401':
+          description: No active session and no valid user context
+        '400':
+          description: Invalid service provider or payload
+  /saml/acs/{spId}:
+    post:
+      summary: Verify signature, validate, and audit inbound SAML assertion response
+      parameters:
+        - in: path
+          name: spId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [SAMLResponse]
+              properties:
+                SAMLResponse:
+                  type: string
+                  description: Base64-encoded SAML response XML
+                RelayState:
+                  type: string
+      responses:
+        '200':
+          description: Assertion accepted and audited
+        '400':
+          description: Assertion validation failed
+        '422':
+          description: Assertion security validation failed (signature/signature-wrapping/audience/destination/expiry/replay)
+        '404':
+          description: Service provider not found
+  /saml/slo:
+    post:
+      summary: Revoke current session via SAML single logout handoff
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sessionId:
+                  type: string
+                relayState:
+                  type: string
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Logout processed
   /api/admin/saml/service-providers:
     get:
       summary: List SAML service providers
@@ -908,6 +1021,85 @@ paths:
       responses:
         '204':
           description: SAML service provider deleted
+  /api/admin/saml/service-providers/{id}/metadata:
+    post:
+      summary: Upload and parse service provider metadata XML
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [metadata]
+              properties:
+                metadata:
+                  type: string
+                  description: Raw SAML metadata XML document.
+                overwriteManualFields:
+                  type: boolean
+                  default: true
+                  description: When true, parsed metadata values overwrite entityId/ACS/SLO/certificate fields.
+      responses:
+        '200':
+          description: Metadata uploaded and parsed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  serviceProvider:
+                    $ref: '#/components/schemas/SamlServiceProvider'
+                  imported:
+                    type: object
+                    properties:
+                      entityId:
+                        type: string
+                      acsUrl:
+                        type: string
+                      sloUrl:
+                        type: string
+                      hasSigningCertificate:
+                        type: boolean
+        '400':
+          description: Invalid metadata payload or service provider id
+  /api/admin/saml/service-providers/{id}/certificates/rotate:
+    post:
+      summary: Rotate service provider signing or encryption certificate
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [certificate]
+              properties:
+                certificateType:
+                  type: string
+                  enum: [signing, encryption]
+                  default: signing
+                certificate:
+                  type: string
+      responses:
+        '200':
+          description: Certificate rotated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SamlServiceProvider'
+        '400':
+          description: Invalid rotation payload or service provider id
   /api/admin/saml/assertions:
     get:
       summary: List SAML assertion audits
@@ -1206,6 +1398,520 @@ paths:
       responses:
         '200':
           description: User profile and apps
+  /auth/login/webauthn/begin:
+    post:
+      summary: Start WebAuthn login challenge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identifier]
+              properties:
+                identifier:
+                  type: string
+                clientId:
+                  type: string
+                tenantSlug:
+                  type: string
+                scope:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: WebAuthn login challenge created
+        '401':
+          description: Invalid identity or no passkey enrolled
+  /auth/login/webauthn/finish:
+    post:
+      summary: Complete WebAuthn login challenge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [loginId, credentialId]
+              properties:
+                loginId:
+                  type: string
+                credentialId:
+                  type: string
+                signCount:
+                  type: integer
+                  minimum: 0
+      responses:
+        '200':
+          description: Login completed and session created
+        '401':
+          description: Invalid challenge or assertion
+  /api/account/mfa/webauthn/credentials:
+    get:
+      summary: List current account WebAuthn credentials
+      responses:
+        '200':
+          description: WebAuthn credentials for current account
+  /api/account/mfa/webauthn/register/begin:
+    post:
+      summary: Start WebAuthn registration
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                displayName:
+                  type: string
+      responses:
+        '200':
+          description: WebAuthn registration challenge created
+  /api/account/mfa/webauthn/register/finish:
+    post:
+      summary: Complete WebAuthn registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [registrationId, credentialId, publicKey]
+              properties:
+                registrationId:
+                  type: string
+                credentialId:
+                  type: string
+                publicKey:
+                  type: string
+                transports:
+                  type: array
+                  items:
+                    type: string
+                aaguid:
+                  type: string
+                signCount:
+                  type: integer
+                  minimum: 0
+      responses:
+        '200':
+          description: WebAuthn credential stored
+  /api/account/mfa/webauthn/credentials/{credentialId}:
+    delete:
+      summary: Delete one enrolled WebAuthn credential
+      parameters:
+        - in: path
+          name: credentialId
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Credential removed
+
+  /api/admin/service-identities:
+    get:
+      summary: List service identities
+      tags: [Workload Identity]
+      responses:
+        '200':
+          description: List of service identities
+    post:
+      summary: Create a service identity
+      tags: [Workload Identity]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                status:
+                  type: string
+                  enum: [active, inactive, suspended]
+                allowedScopes:
+                  type: array
+                  items:
+                    type: string
+                allowedAudiences:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Service identity created
+
+  /api/admin/service-identities/{id}:
+    get:
+      summary: Get service identity with credentials
+      tags: [Workload Identity]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Service identity detail
+    patch:
+      summary: Update service identity
+      tags: [Workload Identity]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Updated service identity
+    delete:
+      summary: Delete service identity
+      tags: [Workload Identity]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+
+  /api/admin/service-identities/{id}/credentials:
+    post:
+      summary: Issue new credential for service identity
+      tags: [Workload Identity]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expiresInDays:
+                  type: integer
+      responses:
+        '201':
+          description: Credential issued with plainClientSecret (shown once)
+
+  /api/admin/service-identities/{id}/credentials/rotate:
+    post:
+      summary: Rotate credential (issue + revoke old)
+      tags: [Workload Identity]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [credentialId]
+              properties:
+                credentialId:
+                  type: string
+                expiresInDays:
+                  type: integer
+      responses:
+        '201':
+          description: New credential issued
+
+  /api/admin/service-identities/{id}/credentials/{credentialId}:
+    delete:
+      summary: Revoke a credential
+      tags: [Workload Identity]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: credentialId
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Revoked
+
+  /api/admin/service-identities/{id}/usage:
+    get:
+      summary: Get credential usage for a service identity
+      tags: [Workload Identity]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Credential usage telemetry
+
+  /api/admin/connectors:
+    get:
+      summary: List connectors
+      tags: [Connectors]
+      responses:
+        '200':
+          description: Connector list
+    post:
+      summary: Create connector
+      tags: [Connectors]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, type, config]
+              properties:
+                name:
+                  type: string
+                type:
+                  type: string
+                  enum: [ldap, scim, csv, sql, custom]
+                config:
+                  type: object
+                schedule:
+                  type: string
+      responses:
+        '201':
+          description: Connector created
+
+  /api/admin/connectors/{id}:
+    get:
+      summary: Get connector
+      tags: [Connectors]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Connector detail
+        '404':
+          description: Connector not found
+    patch:
+      summary: Update connector
+      tags: [Connectors]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                type:
+                  type: string
+                  enum: [ldap, scim, csv, sql, custom]
+                status:
+                  type: string
+                  enum: [active, inactive, error]
+                config:
+                  type: object
+                schedule:
+                  type: string
+      responses:
+        '200':
+          description: Updated connector
+        '404':
+          description: Connector not found
+    delete:
+      summary: Delete connector
+      tags: [Connectors]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Connector deleted
+
+  /api/admin/connectors/{id}/sync:
+    post:
+      summary: Trigger connector sync
+      tags: [Connectors]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '202':
+          description: Connector sync run accepted
+        '400':
+          description: Connector inactive
+        '404':
+          description: Connector not found
+
+  /api/admin/connectors/{id}/runs:
+    get:
+      summary: List connector runs
+      tags: [Connectors]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Connector run history
+        '404':
+          description: Connector not found
+
+  /api/admin/connectors/{id}/mappings:
+    get:
+      summary: List connector mappings
+      tags: [Connectors]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Connector field mappings
+        '404':
+          description: Connector not found
+    post:
+      summary: Create connector mapping
+      tags: [Connectors]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sourceField, targetField]
+              properties:
+                sourceField:
+                  type: string
+                targetField:
+                  type: string
+                transform:
+                  type: string
+      responses:
+        '201':
+          description: Connector mapping created
+        '404':
+          description: Connector not found
+
+  /api/admin/connectors/{connectorId}/mappings/{mappingId}:
+    delete:
+      summary: Delete connector mapping
+      tags: [Connectors]
+      parameters:
+        - in: path
+          name: connectorId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: mappingId
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Connector mapping deleted
+
+  /api/admin/metrics/auth:
+    get:
+      summary: Query authentication metric rollups
+      tags: [Connectors]
+      parameters:
+        - in: query
+          name: startHour
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: endHour
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: event
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Authentication metric rollups
+
+  /oauth/token/exchange:
+    post:
+      summary: RFC 8693 Token Exchange
+      tags: [OAuth2]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [grant_type, subject_token, subject_token_type]
+              properties:
+                grant_type:
+                  type: string
+                  enum: ['urn:ietf:params:oauth:grant-type:token-exchange']
+                subject_token:
+                  type: string
+                subject_token_type:
+                  type: string
+                audience:
+                  type: string
+                scope:
+                  type: string
+      responses:
+        '200':
+          description: Exchanged access token
+
 components:
   schemas:
     AuthenticationStage:
@@ -1219,6 +1925,7 @@ components:
             - federation
             - consent
             - mfa_totp
+            - mfa_webauthn
             - risk_check
             - identification
             - email_verification
@@ -1334,26 +2041,33 @@ components:
         spId:
           type: string
           description: Service provider ID that processed the assertion
-        userId:
+        requestId:
           type: string
-          nullable: true
-          description: User ID extracted from the assertion
-        sessionId:
+          description: Upstream request ID correlated to this response
+        responseId:
           type: string
-          nullable: true
-          description: Session ID created from the assertion
-        status:
+          description: SAML response ID
+        subject:
           type: string
-          enum: [success, failure, validation_error, signature_error]
-          description: Status of assertion processing
-        errorMessage:
+          description: Assertion subject/NameID
+        audience:
           type: string
-          nullable: true
-          description: Error message if processing failed
-        attributes:
-          type: object
-          additionalProperties: true
-          description: Extracted SAML attributes
+          description: Intended assertion audience
+        assertionId:
+          type: string
+          description: SAML assertion ID
+        issueInstant:
+          type: string
+          format: date-time
+        notOnOrAfter:
+          type: string
+          format: date-time
+        destinationUrl:
+          type: string
+          format: uri
+        statusCode:
+          type: string
+          description: SAML status code URN from assertion processing
         createdAt:
           type: string
           format: date-time

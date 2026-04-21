@@ -1,4 +1,4 @@
-import { AppWindow, ChevronDown, ChevronUp, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { AppWindow, ChevronDown, ChevronUp, Pencil, Plus, RefreshCw, Shield, Trash2, Upload } from 'lucide-react'
 import type { Dispatch, SetStateAction } from 'react'
 import { useMemo, useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -7,7 +7,11 @@ import {
   useCreateFederationProvider,
   useDeleteFederationProvider,
   useFederationProviders,
+  useRotateSamlServiceProviderCertificate,
+  useSamlServiceProviders,
+  useUploadSamlServiceProviderMetadata,
   useUpdateFederationProvider,
+  type SamlServiceProviderDto,
 } from '../hooks/useApi'
 
 interface FederationProvider {
@@ -224,18 +228,29 @@ const blankForm = {
 
 const FederationProviders = () => {
   const { data, isLoading, refetch } = useFederationProviders()
+  const { data: samlData, isLoading: samlLoading, refetch: refetchSamlProviders } = useSamlServiceProviders({ limit: 100, offset: 0 })
   const createProvider = useCreateFederationProvider()
   const updateProvider = useUpdateFederationProvider()
   const deleteProvider = useDeleteFederationProvider()
+  const uploadSamlMetadata = useUploadSamlServiceProviderMetadata()
+  const rotateSamlCertificate = useRotateSamlServiceProviderCertificate()
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [providerToDelete, setProviderToDelete] = useState<FederationProvider | null>(null)
+  const [metadataTarget, setMetadataTarget] = useState<SamlServiceProviderDto | null>(null)
+  const [rotateTarget, setRotateTarget] = useState<SamlServiceProviderDto | null>(null)
+  const [metadataXml, setMetadataXml] = useState('')
+  const [overwriteManualFields, setOverwriteManualFields] = useState(true)
+  const [certificateType, setCertificateType] = useState<'signing' | 'encryption'>('signing')
+  const [certificatePem, setCertificatePem] = useState('')
+  const [samlActionMessage, setSamlActionMessage] = useState<string | null>(null)
   const [form, setForm] = useState(blankForm)
   const [editingId, setEditingId] = useState<string>('')
   const [templatePicked, setTemplatePicked] = useState(false)
 
   const providers = useMemo(() => (data ?? []) as FederationProvider[], [data])
+  const samlProviders = useMemo(() => samlData?.items ?? [], [samlData])
 
   const openCreate = () => {
     setForm(blankForm)
@@ -322,6 +337,44 @@ const FederationProviders = () => {
     deleteProvider.mutate(providerToDelete.id, { onSuccess: () => setProviderToDelete(null) })
   }
 
+  const openMetadataUpload = (provider: SamlServiceProviderDto) => {
+    setMetadataTarget(provider)
+    setMetadataXml(provider.metadata ?? '')
+    setOverwriteManualFields(true)
+    setSamlActionMessage(null)
+  }
+
+  const openCertificateRotate = (provider: SamlServiceProviderDto, type: 'signing' | 'encryption') => {
+    setRotateTarget(provider)
+    setCertificateType(type)
+    setCertificatePem('')
+    setSamlActionMessage(null)
+  }
+
+  const submitMetadataUpload = async () => {
+    if (!metadataTarget || !metadataXml.trim()) return
+    await uploadSamlMetadata.mutateAsync({
+      id: metadataTarget.id,
+      metadata: metadataXml,
+      overwriteManualFields,
+    })
+    setMetadataTarget(null)
+    setSamlActionMessage('Service provider metadata uploaded successfully.')
+    await refetchSamlProviders()
+  }
+
+  const submitCertificateRotation = async () => {
+    if (!rotateTarget || !certificatePem.trim()) return
+    await rotateSamlCertificate.mutateAsync({
+      id: rotateTarget.id,
+      certificateType,
+      certificate: certificatePem,
+    })
+    setRotateTarget(null)
+    setSamlActionMessage(`${certificateType === 'signing' ? 'Signing' : 'Encryption'} certificate rotated.`)
+    await refetchSamlProviders()
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
@@ -402,6 +455,81 @@ const FederationProviders = () => {
         )}
       </div>
 
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden mt-8">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
+          <div>
+            <h4 className="text-sm font-semibold text-slate-700">SAML Service Providers</h4>
+            <p className="text-xs text-slate-500 mt-0.5">Manage metadata imports and certificate rotation without full provider updates.</p>
+          </div>
+          <button onClick={() => refetchSamlProviders()} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors">
+            <RefreshCw size={12} />
+            Refresh
+          </button>
+        </div>
+
+        {samlActionMessage ? (
+          <div className="mx-5 mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{samlActionMessage}</div>
+        ) : null}
+
+        {samlLoading ? (
+          <div className="p-10 text-center text-slate-400 text-sm">Loading SAML providers…</div>
+        ) : samlProviders.length === 0 ? (
+          <div className="p-10 text-center text-slate-400 text-sm">No SAML service providers configured</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-sm">
+              <thead className="border-b border-slate-100 bg-slate-50">
+                <tr>
+                  {['Entity ID', 'ACS URL', 'Status', 'Updated', 'Actions'].map((header) => (
+                    <th key={header} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{header}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {samlProviders.map((provider) => (
+                  <tr key={provider.id} className="hover:bg-slate-50/40">
+                    <td className="px-4 py-3">
+                      <p className="font-mono text-xs text-slate-700 break-all">{provider.entityId}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="font-mono text-xs text-slate-600 break-all">{provider.acsUrl}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${provider.enabled ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>
+                        {provider.enabled ? 'enabled' : 'disabled'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-500">{new Date(provider.updatedAt).toLocaleString()}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1.5">
+                        <button
+                          onClick={() => openMetadataUpload(provider)}
+                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                        >
+                          <Upload size={12} /> Metadata
+                        </button>
+                        <button
+                          onClick={() => openCertificateRotate(provider, 'signing')}
+                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                        >
+                          <Shield size={12} /> Rotate Signing
+                        </button>
+                        <button
+                          onClick={() => openCertificateRotate(provider, 'encryption')}
+                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                        >
+                          <Shield size={12} /> Rotate Encryption
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title="Create Federation Provider">
         <TemplatePicker onSelect={applyTemplate} />
         <ProviderForm form={form} setForm={setForm} showId onSubmit={onCreate} submitLabel={createProvider.isPending ? 'Creating…' : 'Create Provider'} pending={createProvider.isPending} />
@@ -409,6 +537,76 @@ const FederationProviders = () => {
 
       <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title="Edit Federation Provider">
         <ProviderForm form={form} setForm={setForm} onSubmit={onEdit} submitLabel={updateProvider.isPending ? 'Saving…' : 'Save Changes'} pending={updateProvider.isPending} />
+      </Modal>
+
+      <Modal isOpen={!!metadataTarget} onClose={() => setMetadataTarget(null)} title="Upload SAML Metadata">
+        <div className="space-y-3">
+          {metadataTarget ? <p className="text-xs text-slate-500">Target: <span className="font-mono">{metadataTarget.entityId}</span></p> : null}
+          <div>
+            <label className={labelCls}>Metadata XML</label>
+            <textarea
+              className="w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 font-mono text-xs text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+              rows={10}
+              placeholder="<EntityDescriptor ...>...</EntityDescriptor>"
+              value={metadataXml}
+              onChange={(e) => setMetadataXml(e.target.value)}
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+            <input
+              type="checkbox"
+              className="rounded border-slate-300"
+              checked={overwriteManualFields}
+              onChange={(e) => setOverwriteManualFields(e.target.checked)}
+            />
+            Overwrite manually configured SAML fields with parsed metadata values
+          </label>
+          <div className="flex justify-end">
+            <button
+              onClick={submitMetadataUpload}
+              disabled={uploadSamlMetadata.isPending || !metadataXml.trim()}
+              className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+            >
+              {uploadSamlMetadata.isPending ? 'Uploading…' : 'Upload Metadata'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={!!rotateTarget} onClose={() => setRotateTarget(null)} title="Rotate SAML Certificate">
+        <div className="space-y-3">
+          {rotateTarget ? <p className="text-xs text-slate-500">Target: <span className="font-mono">{rotateTarget.entityId}</span></p> : null}
+          <div>
+            <label className={labelCls}>Certificate Type</label>
+            <select
+              className={fieldCls}
+              value={certificateType}
+              onChange={(e) => setCertificateType(e.target.value as 'signing' | 'encryption')}
+            >
+              <option value="signing">Signing</option>
+              <option value="encryption">Encryption</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>Certificate (PEM)</label>
+            <textarea
+              className="w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 font-mono text-xs text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+              rows={10}
+              placeholder="-----BEGIN CERTIFICATE-----"
+              value={certificatePem}
+              onChange={(e) => setCertificatePem(e.target.value)}
+            />
+          </div>
+          <div className="flex justify-end">
+            <button
+              onClick={submitCertificateRotation}
+              disabled={rotateSamlCertificate.isPending || !certificatePem.trim()}
+              className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+            >
+              {rotateSamlCertificate.isPending ? 'Rotating…' : 'Rotate Certificate'}
+            </button>
+          </div>
+        </div>
       </Modal>
 
       <ConfirmDialog

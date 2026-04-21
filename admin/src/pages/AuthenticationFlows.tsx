@@ -14,6 +14,7 @@ type StageType =
   | 'federation'
   | 'consent'
   | 'mfa_totp'
+  | 'mfa_webauthn'
   | 'risk_check'
   | 'identification'
   | 'email_verification'
@@ -64,6 +65,7 @@ const STAGE_OPTIONS: Array<{ value: StageType; label: string }> = [
   { value: 'federation', label: 'Federation' },
   { value: 'consent', label: 'Consent' },
   { value: 'mfa_totp', label: 'MFA (TOTP)' },
+  { value: 'mfa_webauthn', label: 'MFA (WebAuthn / Passkey)' },
   { value: 'risk_check', label: 'Risk Check' },
   { value: 'identification', label: 'Identification' },
   { value: 'email_verification', label: 'Email Verification' },

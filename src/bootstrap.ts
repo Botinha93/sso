@@ -27,9 +27,15 @@ import { ScopeService } from "./services/scope-service.js";
 import { ScimService } from "./services/scim-service.js";
 import { ScimTokenService } from "./services/scim-token-service.js";
 import { SamlService } from "./services/saml-service.js";
+import { SamlReplayProtectionService } from "./services/saml-replay-protection-service.js";
+import { SamlSignatureService } from "./services/saml-signature-service.js";
 import { SetupService } from "./services/setup-service.js";
 import { TenantService } from "./services/tenant-service.js";
 import { TotpService } from "./services/totp-service.js";
+import { WebauthnService } from "./services/webauthn-service.js";
+import { RiskService } from "./services/risk-service.js";
+import { ServiceIdentityService } from "./services/service-identity-service.js";
+import { ConnectorService, AuthMetricsService } from "./services/connector-service.js";
 import { UserAttributeService } from "./services/user-attribute-service.js";
 import { UserService } from "./services/user-service.js";
 
@@ -48,6 +54,7 @@ export const bootstrap = async (config: AppConfig) => {
     scopeRepository,
     sessionRepository,
     totpCredentialRepository,
+    webauthnCredentialRepository,
     authorizationCodeRepository,
     consentRepository,
     refreshTokenRepository,
@@ -79,6 +86,19 @@ export const bootstrap = async (config: AppConfig) => {
     samlNameIdMappingRepository,
     samlAssertionAuditRepository
   } = repositories;
+
+  const riskService = new RiskService(repositories.riskEventRepository);
+  const connectorService = new ConnectorService(
+    repositories.connectorRepository,
+    repositories.connectorRunRepository,
+    repositories.connectorMappingRepository,
+    auditRepository
+  );
+  const authMetricsService = new AuthMetricsService(repositories.authMetricRepository);
+  const serviceIdentityService = new ServiceIdentityService(
+    repositories.serviceIdentityRepository,
+    repositories.serviceIdentityCredentialRepository
+  );
 
   const roleService = new RoleService(
     roleRepository,
@@ -135,6 +155,8 @@ export const bootstrap = async (config: AppConfig) => {
     samlAssertionAuditRepository,
     auditRepository
   );
+  const samlReplayProtectionService = new SamlReplayProtectionService();
+  const samlSignatureService = new SamlSignatureService();
   const provisioningService = new ProvisioningService(
     provisioningMappingRepository,
     provisioningJobRepository,
@@ -178,6 +200,7 @@ export const bootstrap = async (config: AppConfig) => {
     instanceSettingsService
   );
   const totpService = new TotpService(config, totpCredentialRepository);
+  const webauthnService = new WebauthnService(config, webauthnCredentialRepository);
 
   // Keep sane defaults in place across upgrades and restarts.
   await setupService.ensureSaneDefaults();
@@ -394,6 +417,11 @@ export const bootstrap = async (config: AppConfig) => {
     scimService,
     scimTokenService,
     samlService,
+    samlReplayProtectionService,
+    samlSignatureService,
+    samlServiceProviderRepository,
+    samlNameIdMappingRepository,
+    samlAssertionAuditRepository,
     provisioningService,
     deprovisioningService,
     accessGovernanceService,
@@ -404,6 +432,11 @@ export const bootstrap = async (config: AppConfig) => {
     appService,
     setupService,
     totpService,
+    webauthnService,
+    riskService,
+    serviceIdentityService,
+    connectorService,
+    authMetricsService,
     authService,
     oidcService,
     auditRepository,

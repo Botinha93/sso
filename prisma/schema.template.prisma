@@ -104,6 +104,20 @@ model TotpCredential {
   @@map("totp_credentials")
 }
 
+model WebauthnCredential {
+  id             String  @id
+  userId         String  @map("user_id")
+  credentialId   String  @unique @map("credential_id")
+  publicKey      String  @map("public_key")
+  signCount      Int     @default(0) @map("sign_count")
+  transportsJson String  @default("[]") @map("transports_json")
+  aaguid         String?
+  createdAt      String  @map("created_at")
+  updatedAt      String  @map("updated_at")
+
+  @@map("webauthn_credentials")
+}
+
 model AuthorizationCode {
   id                 String  @id
   code               String  @unique

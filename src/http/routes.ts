@@ -7,9 +7,13 @@ import { getAssetContentType, readFrontendAsset } from "./view-assets.js";
 import { hasAdminPermission, toAdminAction, toAdminResource } from "./admin-authorization.js";
 import { registerScimRoutes } from "./scim-routes.js";
 import { registerSamlAdminRoutes } from "./saml-routes.js";
+import { registerSamlProtocolRoutes } from "./saml-protocol-routes.js";
 import { registerAccessGovernanceRoutes } from "./routes/access-governance.js";
 import { registerProvisioningRoutes } from "./routes/provisioning.js";
 import { registerElevationRoutes } from "./routes/elevations.js";
+import { registerServiceIdentityRoutes } from "./routes/service-identities.js";
+import { deriveRiskEventsFromAudit } from "./routes/security-risk-events.js";
+import { registerConnectorRoutes } from "./routes/connectors.js";
 import {
   assignGroupRoleSchema,
   assignRoleSchema,
@@ -48,6 +52,10 @@ import {
   testDatabaseConnectionSchema,
   mfaLoginSchema,
   verifyTotpEnrollmentSchema,
+  webauthnLoginBeginSchema,
+  webauthnLoginFinishSchema,
+  webauthnRegisterBeginSchema,
+  webauthnRegisterFinishSchema,
   refreshTokenSchema,
   resetUserPasswordSchema,
   revokeTokenSchema,
@@ -89,6 +97,8 @@ import { ElevationService } from "../services/elevation-service.js";
 import { SetupService } from "../services/setup-service.js";
 import { TenantService } from "../services/tenant-service.js";
 import { TotpService } from "../services/totp-service.js";
+import { WebauthnService } from "../services/webauthn-service.js";
+import { ServiceIdentityService } from "../services/service-identity-service.js";
 import { UserService } from "../services/user-service.js";
 import { UserAttributeService } from "../services/user-attribute-service.js";
 import { PolicyService } from "../services/policy-service.js";
@@ -100,7 +110,17 @@ import { RecoveryService } from "../services/recovery-service.js";
 import { SecurityService } from "../services/security-service.js";
 import { AuthorizationService } from "../services/authorization-service.js";
 import { SamlService } from "../services/saml-service.js";
-import type { AuditRepository, PolicyDecisionLogRepository } from "../repositories/contracts.js";
+import { SamlReplayProtectionService } from "../services/saml-replay-protection-service.js";
+import { SamlSignatureService } from "../services/saml-signature-service.js";
+import { RiskService } from "../services/risk-service.js";
+import { ConnectorService, AuthMetricsService } from "../services/connector-service.js";
+import type {
+  AuditRepository,
+  PolicyDecisionLogRepository,
+  SamlAssertionAuditRepository,
+  SamlNameIdMappingRepository,
+  SamlServiceProviderRepository
+} from "../repositories/contracts.js";
 
 interface RouteDeps {
   authService: AuthService;
@@ -122,6 +142,8 @@ interface RouteDeps {
   accessReviewService: AccessReviewService;
   elevationService: ElevationService;
   totpService: TotpService;
+  webauthnService: WebauthnService;
+  serviceIdentityService: ServiceIdentityService;
   userService: UserService;
   userAttributeService: UserAttributeService;
   policyService: PolicyService;
@@ -130,8 +152,16 @@ interface RouteDeps {
   databaseMigrationService: DatabaseMigrationService;
   recoveryService: RecoveryService;
   securityService: SecurityService;
+  riskService: RiskService;
+  connectorService: ConnectorService;
+  authMetricsService: AuthMetricsService;
   authorizationService: AuthorizationService;
   samlService: SamlService;
+  samlReplayProtectionService: SamlReplayProtectionService;
+  samlSignatureService: SamlSignatureService;
+  samlServiceProviderRepository: SamlServiceProviderRepository;
+  samlNameIdMappingRepository: SamlNameIdMappingRepository;
+  samlAssertionAuditRepository: SamlAssertionAuditRepository;
   instanceSettingsService: InstanceSettingsService;
   auditRepository: AuditRepository;
   policyDecisionLogRepository: PolicyDecisionLogRepository;
@@ -279,6 +309,24 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     await deps.authenticationFlowService.assertStageEnabled("password");
 
     if (await deps.authenticationFlowService.isStageEnabled("risk_check")) {
+      const riskScore = await deps.riskService.evaluateLoginRisk({
+        userId: input.user.id,
+        ip: input.ip
+      });
+
+      await deps.riskService.recordEvent({
+        userId: input.user.id,
+        ip: input.ip,
+        confidence: riskScore.score,
+        reason: riskScore.reasons[0] ?? "suspicious_ip",
+        decision: riskScore.decision,
+        metadata: {
+          reasons: riskScore.reasons,
+          clientId: input.clientId,
+          tenantSlug: input.tenantSlug
+        }
+      });
+
       await enforcePoliciesForStage({
         stage: "risk_check",
         user: input.user,
@@ -286,6 +334,14 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         clientId: input.clientId,
         ip: input.ip
       });
+
+      if (riskScore.decision === "block") {
+        throw new AuthenticationError("Login blocked due to elevated risk");
+      }
+
+      if (riskScore.decision === "challenge" && input.promptAcknowledged !== true) {
+        throw new AuthenticationError("Additional verification required due to elevated risk");
+      }
     }
 
     if (await deps.authenticationFlowService.isStageEnabled("captcha") && !input.captchaToken) {
@@ -463,10 +519,20 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
   await registerSamlAdminRoutes(app, {
     samlService: deps.samlService,
-    samlServiceProviderRepository: (deps as any).samlServiceProviderRepository,
-    samlNameIdMappingRepository: (deps as any).samlNameIdMappingRepository,
-    samlAssertionAuditRepository: (deps as any).samlAssertionAuditRepository,
+    samlServiceProviderRepository: deps.samlServiceProviderRepository,
+    samlNameIdMappingRepository: deps.samlNameIdMappingRepository,
+    samlAssertionAuditRepository: deps.samlAssertionAuditRepository,
     auditRepository: deps.auditRepository
+  });
+
+  await registerSamlProtocolRoutes(app, {
+    samlService: deps.samlService,
+    samlServiceProviderRepository: deps.samlServiceProviderRepository,
+    authService: deps.authService,
+    userService: deps.userService,
+    auditRepository: deps.auditRepository,
+    samlReplayProtectionService: deps.samlReplayProtectionService,
+    samlSignatureService: deps.samlSignatureService
   });
 
   app.get("/.well-known/openid-configuration", async () => deps.oidcService.discoveryDocument());
@@ -660,6 +726,10 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
           return reply.status(400).send({ error: "invalid_grant", error_description: "MFA is required for password grant" });
         }
 
+        if (await deps.authenticationFlowService.isStageEnabled("mfa_webauthn") && (await deps.webauthnService.listCredentials(user.id)).length > 0) {
+          return reply.status(400).send({ error: "invalid_grant", error_description: "WebAuthn MFA is required; use interactive login" });
+        }
+
         await enforcePostLoginStage({
           user,
           clientId: parsed.data.client_id,
@@ -700,6 +770,17 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
           ip: request.ip,
           reason: err instanceof Error ? err.message : "unknown"
         });
+        await deps.riskService.recordEvent({
+          userId: undefined,
+          ip: request.ip,
+          confidence: 40,
+          reason: "failed_login",
+          decision: "challenge",
+          metadata: {
+            identifier: parsed.data.username,
+            grant: "password"
+          }
+        });
         await deps.auditRepository.log({
           type: "login_failed",
           actorType: "user",
@@ -719,6 +800,67 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       throw err;
     }
     return reply.status(400).send({ error: "unsupported_grant_type" });
+  });
+
+  app.post("/oauth/token/exchange", async (request, reply) => {
+    const { tokenExchangeSchema } = await import("./schemas.js");
+    const parsed = tokenExchangeSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "invalid_request", error_description: "Missing required fields for token exchange" });
+    }
+    const { subject_token, subject_token_type, scope, client_id, client_secret } = parsed.data;
+
+    if (subject_token_type !== "urn:ietf:params:oauth:token-type:access_token" &&
+        subject_token_type !== "urn:ietf:params:oauth:token-type:jwt") {
+      return reply.status(400).send({ error: "invalid_request", error_description: "Unsupported subject_token_type" });
+    }
+
+    let subjectPayload: Record<string, unknown>;
+    try {
+      subjectPayload = await deps.authService.jwtService.verifyAccessToken(subject_token);
+    } catch {
+      return reply.status(401).send({ error: "invalid_token", error_description: "Subject token validation failed" });
+    }
+
+    // Optionally validate client presenting the exchange request
+    if (client_id && client_secret) {
+      try {
+        const client = await deps.clientService.findClientById(client_id);
+        if (!client || client.secret !== client_secret) {
+          return reply.status(401).send({ error: "invalid_client" });
+        }
+      } catch {
+        return reply.status(401).send({ error: "invalid_client" });
+      }
+    }
+
+    const subjectSub = String(subjectPayload.sub ?? "");
+    const requestedScopes = scope ? scope.split(" ") : (subjectPayload.scope ? String(subjectPayload.scope).split(" ") : []);
+    const { nanoid } = await import("nanoid");
+    const accessTokenId = nanoid();
+
+    // Issue a new token with the same subject but potentially different scopes/audience
+    const newToken = await deps.oidcService.mintExchangeToken({
+      sub: subjectSub,
+      scopes: requestedScopes,
+      accessTokenId
+    });
+
+    await deps.auditRepository.log({
+      type: "token_issued",
+      actorType: "client",
+      clientId: client_id,
+      ip: request.ip,
+      metadata: { grant: "token_exchange", sub: subjectSub, scopes: requestedScopes }
+    });
+
+    return reply.status(200).send({
+      access_token: newToken.accessToken,
+      token_type: "Bearer",
+      expires_in: newToken.expiresIn,
+      issued_token_type: "urn:ietf:params:oauth:token-type:access_token",
+      scope: requestedScopes.join(" ")
+    });
   });
 
   app.post("/oauth/device/authorize", async (request, reply) => {
@@ -824,6 +966,22 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         );
       }
 
+      if (await deps.authenticationFlowService.isStageEnabled("mfa_webauthn") && (await deps.webauthnService.listCredentials(user.id)).length > 0) {
+        const challenge = await deps.webauthnService.startLogin({
+          user,
+          clientId: input.clientId,
+          scope: input.scope,
+          tenantSlug: input.tenantSlug,
+          ip: request.ip
+        });
+
+        return reply.status(202).send({
+          mfaRequired: true,
+          mfaMethod: "webauthn",
+          ...challenge
+        });
+      }
+
       await enforcePostLoginStage({
         user,
         tenantSlug: input.tenantSlug,
@@ -859,6 +1017,17 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         identifier: input.email,
         ip: request.ip,
         reason: err instanceof Error ? err.message : "unknown"
+      });
+      await deps.riskService.recordEvent({
+        userId: undefined,
+        ip: request.ip,
+        confidence: 40,
+        reason: "failed_login",
+        decision: "challenge",
+        metadata: {
+          identifier: input.email,
+          grant: "interactive"
+        }
       });
       await deps.auditRepository.log({
         type: "login_failed",
@@ -937,6 +1106,85 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     }
   });
 
+  app.post("/auth/login/webauthn/begin", async (request, reply) => {
+    const input = webauthnLoginBeginSchema.parse(request.body);
+
+    try {
+      const user = await deps.userService.findUserByEmail(input.identifier.trim()) ?? await deps.userService.findUserByUsername(input.identifier.trim());
+      if (!user || !user.active) {
+        throw new AuthenticationError("Invalid credentials");
+      }
+
+      const challenge = await deps.webauthnService.startLogin({
+        user,
+        clientId: input.clientId,
+        scope: input.scope,
+        tenantSlug: input.tenantSlug,
+        ip: request.ip
+      });
+
+      return reply.status(200).send(challenge);
+    } catch (error) {
+      return reply.status(401).send({ error: "invalid_grant", error_description: error instanceof Error ? error.message : "WebAuthn login failed" });
+    }
+  });
+
+  app.post("/auth/login/webauthn/finish", async (request, reply) => {
+    const input = webauthnLoginFinishSchema.parse(request.body);
+
+    try {
+      const result = await deps.webauthnService.finishLogin(input);
+      const user = await deps.userService.findUserById(result.userId);
+      if (!user) {
+        throw new AuthenticationError("User not found");
+      }
+
+      await deps.policyService.enforceStagePolicies({
+        stage: "mfa_webauthn",
+        user,
+        tenantId: await resolveTenantId(result.tenantSlug),
+        clientId: result.clientId,
+        ip: result.ip ?? request.ip
+      });
+
+      await enforcePostLoginStage({
+        user,
+        tenantSlug: result.tenantSlug,
+        clientId: result.clientId,
+        ip: result.ip ?? request.ip
+      });
+
+      const { session, tokens } = await deps.authService.completeLoginForUser({
+        userId: user.id,
+        clientId: result.clientId,
+        scope: result.scope,
+        tenantSlug: result.tenantSlug,
+        ip: result.ip ?? request.ip,
+        userAgent: clientUserAgent(request)
+      });
+
+      await deps.eventHookService.emit("auth.login.succeeded", {
+        userId: session.userId,
+        clientId: session.clientId,
+        sessionId: session.id,
+        ip: request.ip,
+        mfa: "webauthn"
+      });
+
+      reply.setCookie("sid", session.id, {
+        httpOnly: true,
+        secure: await deps.instanceSettingsService.shouldUseSecureCookies(),
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 8
+      });
+
+      return { session, ...tokens };
+    } catch (error) {
+      return reply.status(401).send({ error: "invalid_grant", error_description: error instanceof Error ? error.message : "WebAuthn login failed" });
+    }
+  });
+
   app.get("/auth/federation/providers", async () => deps.federationService.listProviders());
 
   app.get("/api/admin/federation/providers", async () => deps.federationService.listConfiguredProviders());
@@ -1006,6 +1254,61 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return reply.status(204).send();
   });
 
+  app.get("/api/account/mfa/webauthn/credentials", async (request, reply) => {
+    const auth = await requireSessionUser(request, reply);
+    if (!auth) {
+      return;
+    }
+
+    const credentials = await deps.webauthnService.listCredentials(auth.user.id);
+    return credentials.map((credential) => ({
+      credentialId: credential.credentialId,
+      transports: credential.transports,
+      aaguid: credential.aaguid,
+      signCount: credential.signCount,
+      createdAt: credential.createdAt
+    }));
+  });
+
+  app.post("/api/account/mfa/webauthn/register/begin", async (request, reply) => {
+    const auth = await requireSessionUser(request, reply);
+    if (!auth) {
+      return;
+    }
+
+    const input = webauthnRegisterBeginSchema.parse(request.body);
+    return deps.webauthnService.startRegistration(auth.user, input.displayName);
+  });
+
+  app.post("/api/account/mfa/webauthn/register/finish", async (request, reply) => {
+    const auth = await requireSessionUser(request, reply);
+    if (!auth) {
+      return;
+    }
+
+    const input = webauthnRegisterFinishSchema.parse(request.body);
+    return deps.webauthnService.finishRegistration({
+      userId: auth.user.id,
+      registrationId: input.registrationId,
+      credentialId: input.credentialId,
+      publicKey: input.publicKey,
+      transports: input.transports,
+      aaguid: input.aaguid,
+      signCount: input.signCount
+    });
+  });
+
+  app.delete("/api/account/mfa/webauthn/credentials/:credentialId", async (request, reply) => {
+    const auth = await requireSessionUser(request, reply);
+    if (!auth) {
+      return;
+    }
+
+    const { credentialId } = request.params as { credentialId: string };
+    await deps.webauthnService.removeCredential(auth.user.id, credentialId);
+    return reply.status(204).send();
+  });
+
   app.get("/api/admin/settings", async () => deps.instanceSettingsService.getSettings());
 
   // Delegation: provisioning, access governance, elevations
@@ -1018,12 +1321,16 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   await registerAccessGovernanceRoutes(app, {
     accessGovernanceService: deps.accessGovernanceService,
     accessReviewService: deps.accessReviewService,
+    auditRepository: deps.auditRepository,
+    eventHookService: deps.eventHookService,
     requireSessionUser
   });
   await registerElevationRoutes(app, {
     elevationService: deps.elevationService,
     requireSessionUser
   });
+  registerServiceIdentityRoutes(app, deps.serviceIdentityService);
+  registerConnectorRoutes(app, deps.connectorService, deps.authMetricsService);
 
   app.put("/api/admin/settings", async (request) => {
     const input = updateInstanceSettingsSchema.parse(request.body);
@@ -1968,6 +2275,13 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.get("/api/admin/audit", async (request) => {
     const { limit } = request.query as { limit?: string };
     return deps.auditRepository.list(limit ? Number(limit) : 200);
+  });
+
+  app.get("/api/admin/security/risk-events", async (request) => {
+    const { limit } = request.query as { limit?: string };
+    const requestedLimit = limit ? Number(limit) : 50;
+    const sourceEvents = await deps.auditRepository.list(Math.max(200, requestedLimit * 5));
+    return deriveRiskEventsFromAudit(sourceEvents, requestedLimit);
   });
 
   app.get("/users", async () => deps.userService.listUsers());
