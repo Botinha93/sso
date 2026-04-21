@@ -142,7 +142,8 @@ export class JwtService {
 
   async verifyAccessToken(token: string) {
     const { payload } = await jwtVerify(token, this.keys.publicKey, {
-      issuer: this.appConfig.issuer
+      issuer: this.appConfig.issuer,
+      algorithms: ["RS256"]
     });
 
     return payload;

@@ -74,6 +74,8 @@ const sanitizeAuditError = (error: unknown): string => {
   return "Unknown assertion validation error";
 };
 
+const publicSamlProtocolError = () => "SAML request could not be completed";
+
 export const registerSamlProtocolRoutes = async (app: FastifyInstance, deps: SamlProtocolRouteDeps) => {
   app.get("/saml/metadata", async (request, reply) => {
     const query = samlMetadataSchema.parse(request.query);
@@ -232,10 +234,10 @@ export const registerSamlProtocolRoutes = async (app: FastifyInstance, deps: Sam
       });
 
       if (error instanceof AppError) {
-        return reply.status(error.statusCode).send({ error: error.message });
+        return reply.status(error.statusCode).send({ error: publicSamlProtocolError() });
       }
 
-      return reply.status(400).send({ error: sanitizeAuditError(error) });
+      return reply.status(400).send({ error: publicSamlProtocolError() });
     }
   });
 

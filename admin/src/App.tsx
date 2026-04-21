@@ -17,6 +17,7 @@ import FederationProviders from './pages/FederationProviders'
 import AuthenticationFlows from './pages/AuthenticationFlows'
 import Devices from './pages/Devices'
 import InteractionViews from './pages/InteractionViews'
+import UiCustomizations from './pages/UiCustomizations'
 import UserAttributes from './pages/UserAttributes'
 import Policies from './pages/Policies'
 import EventHooks from './pages/EventHooks'
@@ -145,6 +146,7 @@ function AppContent() {
                       <Route path="/federation" element={require('federation_providers:view', <FederationProviders />)} />
                       <Route path="/authentication" element={require('authentication_flows:view', <AuthenticationFlows />)} />
                       <Route path="/interaction-views" element={require('authentication_flows:view', <InteractionViews />)} />
+                      <Route path="/experience-customization" element={require('administration:view', <UiCustomizations />)} />
                       <Route path="/user-attributes" element={require('user_attributes:view', <UserAttributes />)} />
                       <Route path="/policies" element={require('policies:view', <Policies />)} />
                       <Route path="/access-governance" element={require('administration:view', <AccessGovernance />)} />

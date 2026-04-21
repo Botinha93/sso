@@ -9,6 +9,30 @@ const asNumber = (name, fallback) => {
     const raw = process.env[name];
     return raw ? Number(raw) : fallback;
 };
+const asBoolean = (name, fallback) => {
+    const raw = process.env[name];
+    if (raw === undefined) {
+        return fallback;
+    }
+    const normalized = raw.trim().toLowerCase();
+    if (["1", "true", "yes", "on"].includes(normalized)) {
+        return true;
+    }
+    if (["0", "false", "no", "off"].includes(normalized)) {
+        return false;
+    }
+    throw new Error(`Invalid boolean environment variable: ${name}`);
+};
+const resolveCookieSecret = () => {
+    const configured = process.env.COOKIE_SECRET?.trim();
+    if (configured) {
+        return configured;
+    }
+    if (process.env.NODE_ENV === "production") {
+        throw new Error("Missing required environment variable: COOKIE_SECRET");
+    }
+    return "northstar-sso-cookie-secret";
+};
 const asFederationProviders = () => {
     const raw = process.env.FEDERATION_PROVIDERS_JSON;
     if (!raw) {
@@ -34,6 +58,8 @@ const asFederationProviders = () => {
 export const loadConfig = () => ({
     port: asNumber("PORT", 4000),
     host: process.env.HOST ?? "127.0.0.1",
+    trustProxy: asBoolean("TRUST_PROXY", false),
+    cookieSecret: resolveCookieSecret(),
     databaseProvider: (() => {
         const raw = (process.env.DATABASE_PROVIDER ?? "sqlite").toLowerCase();
         if (raw === "sqlite" || raw === "postgresql" || raw === "mysql") {

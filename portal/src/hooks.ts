@@ -16,7 +16,7 @@ async function apiFetch(url: string, init?: RequestInit) {
   const method = (init?.method ?? 'GET').toUpperCase()
   const headers: Record<string, string> = { ...(init?.headers as Record<string, string> | undefined) }
 
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && url.startsWith('/api/account')) {
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && (url.startsWith('/api/account') || url.startsWith('/api/portal'))) {
     headers['X-CSRF-Token'] = await getCsrfToken()
   }
 
@@ -32,6 +32,7 @@ export interface PortalApp {
   name: string
   description: string
   icon?: string
+  imageUrl?: string
   url?: string
 }
 
@@ -41,6 +42,7 @@ export interface PortalUser {
   username: string
   givenName: string
   familyName: string
+  avatarUrl?: string
   appId?: string
   customAttributes: Record<string, string>
   apps: PortalApp[]
@@ -57,7 +59,7 @@ export function usePortalMe() {
 export function usePortalUpdateProfile() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: { givenName?: string; familyName?: string; email?: string; username?: string; customAttributes?: Record<string, string> }) =>
+    mutationFn: (data: { givenName?: string; familyName?: string; avatarUrl?: string; email?: string; username?: string; customAttributes?: Record<string, string> }) =>
       apiFetch(`${API}/profile`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -81,6 +83,30 @@ export function usePortalChangePassword() {
 export function usePortalDeleteAccount() {
   return useMutation({
     mutationFn: () => apiFetch(`${API}/account`, { method: 'DELETE' })
+  })
+}
+
+export function usePortalUploadAvatar() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const token = await getCsrfToken()
+      const form = new FormData()
+      form.set('file', file)
+      return apiFetch(`${API}/avatar`, {
+        method: 'POST',
+        headers: { 'X-CSRF-Token': token },
+        body: form
+      })
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['portal-me'] })
+  })
+}
+
+export function usePortalDefaultAvatars(initials: string) {
+  return useQuery({
+    queryKey: ['portal-default-user-avatars', initials],
+    queryFn: () => apiFetch(`/api/media/defaults/users?initials=${encodeURIComponent(initials)}`)
   })
 }
 

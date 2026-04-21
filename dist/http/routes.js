@@ -1,11 +1,90 @@
-import { randomBytes } from "node:crypto";
-import { AppError, AuthenticationError } from "../core/errors.js";
+import { randomBytes, timingSafeEqual } from "node:crypto";
+import { AppError, AuthenticationError, ValidationError } from "../core/errors.js";
 import { verifyPassword } from "../security/password.js";
 import { getAssetContentType, readFrontendAsset } from "./view-assets.js";
 import { hasAdminPermission, toAdminAction, toAdminResource } from "./admin-authorization.js";
 import { registerScimRoutes } from "./scim-routes.js";
-import { assignGroupRoleSchema, assignRoleSchema, assignUserGroupSchema, backChannelLogoutSchema, authorizeSchema, createAppSchema, createClientSchema, createScopeSchema, createAuthenticationFlowSchema, deviceAuthorizationSchema, deviceVerificationSchema, dynamicClientRegistrationSchema, frontChannelLogoutSchema, createFederationProviderSchema, createGroupSchema, createUserAttributeSchema, createPolicySchema, createEventHookSchema, createTenantSchema, createRoleSchema, updateGroupSchema, updateRoleSchema, createUserSchema, introspectSchema, loginSchema, migrateDatabaseSchema, oidcRevokeSchema, portalChangePasswordSchema, portalUpdateProfileSchema, recoverySchema, recoveryRequestSchema, sendTestEmailSchema, testDatabaseConnectionSchema, mfaLoginSchema, verifyTotpEnrollmentSchema, resetUserPasswordSchema, revokeTokenSchema, tokenSchema, setUserAttributeGroupAssignmentSchema, setPolicyAssignmentSchema, evaluatePolicyDecisionSchema, authorizationCheckSchema, removePolicyAssignmentSchema, setupInitializeSchema, testEventHookSchema, createScimTokenSchema, createProvisioningMappingSchema, createAccessRequestSchema, decideAccessRequestSchema, processExpiredAccessRequestsSchema, updateInstanceSettingsSchema, listAccessRequestsQuerySchema, reconcileProvisioningJobSchema, updateAppSchema, updateAuthenticationFlowSchema, updateClientSchema, updateEventHookSchema, updateFederationProviderSchema, updatePolicySchema, updateTenantSchema, updateUserAttributeSchema, updateUserSchema } from "./schemas.js";
+import { registerSamlAdminRoutes } from "./saml-routes.js";
+import { registerSamlProtocolRoutes } from "./saml-protocol-routes.js";
+import { registerAccessGovernanceRoutes } from "./routes/access-governance.js";
+import { registerProvisioningRoutes } from "./routes/provisioning.js";
+import { registerElevationRoutes } from "./routes/elevations.js";
+import { registerServiceIdentityRoutes } from "./routes/service-identities.js";
+import { deriveRiskEventsFromAudit } from "./routes/security-risk-events.js";
+import { registerConnectorRoutes } from "./routes/connectors.js";
+import { registerPluginRoutes } from "./routes/plugins.js";
+import { assignGroupRoleSchema, assignRoleSchema, assignUserGroupSchema, backChannelLogoutSchema, authorizeSchema, createAppSchema, createClientSchema, createScopeSchema, createAuthenticationFlowSchema, deviceAuthorizationSchema, deviceVerificationSchema, dynamicClientRegistrationSchema, frontChannelLogoutSchema, createFederationProviderSchema, createGroupSchema, createUserAttributeSchema, createPolicySchema, createEventHookSchema, createTenantSchema, createRoleSchema, updateGroupSchema, updateRoleSchema, createUserSchema, introspectSchema, loginSchema, migrateDatabaseSchema, oidcRevokeSchema, portalChangePasswordSchema, portalUpdateProfileSchema, recoverySchema, recoveryRequestSchema, sendTestEmailSchema, testDatabaseConnectionSchema, mfaLoginSchema, verifyTotpEnrollmentSchema, webauthnLoginBeginSchema, webauthnLoginFinishSchema, webauthnRegisterBeginSchema, webauthnRegisterFinishSchema, resetUserPasswordSchema, revokeTokenSchema, tokenSchema, setUserAttributeGroupAssignmentSchema, setPolicyAssignmentSchema, evaluatePolicyDecisionSchema, authorizationCheckSchema, removePolicyAssignmentSchema, setupInitializeSchema, testEventHookSchema, updateInstanceSettingsSchema, updateAppSchema, updateAuthenticationFlowSchema, updateClientSchema, updateEventHookSchema, updateFederationProviderSchema, updatePolicySchema, updateTenantSchema, updateUserAttributeSchema, updateUserSchema } from "./schemas.js";
 export const registerRoutes = async (app, deps) => {
+    const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+    const allowedImageMimeTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"]);
+    const escapeXml = (value) => value
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    const normalizeInitials = (value) => {
+        if (!value)
+            return "AB";
+        const cleaned = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
+        return cleaned || "AB";
+    };
+    const renderUserDefaultSvg = (variant, initialsRaw) => {
+        const initials = escapeXml(normalizeInitials(initialsRaw));
+        const palette = {
+            initials: ["#334155", "#0f172a"],
+            sunset: ["#f97316", "#dc2626"],
+            forest: ["#10b981", "#065f46"],
+            ocean: ["#0ea5e9", "#1d4ed8"],
+            mono: ["#71717a", "#27272a"]
+        };
+        const [start, end] = palette[variant] ?? palette.initials;
+        return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320" fill="none">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${start}" />
+      <stop offset="100%" stop-color="${end}" />
+    </linearGradient>
+  </defs>
+  <rect width="320" height="320" rx="160" fill="url(#g)" />
+  <text x="160" y="182" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="108" font-weight="700" fill="white">${initials}</text>
+</svg>`;
+    };
+    const renderAppDefaultSvg = (variant) => {
+        const templateByVariant = {
+            grid: `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320" fill="none"><rect width="320" height="320" rx="48" fill="#0f172a"/><rect x="48" y="48" width="92" height="92" rx="16" fill="#22d3ee"/><rect x="180" y="48" width="92" height="92" rx="16" fill="#38bdf8"/><rect x="48" y="180" width="92" height="92" rx="16" fill="#7dd3fc"/><rect x="180" y="180" width="92" height="92" rx="16" fill="#bae6fd"/></svg>`,
+            bolt: `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320" fill="none"><rect width="320" height="320" rx="48" fill="#0b1022"/><path d="M190 36L98 178h56l-22 106 92-142h-56l22-106z" fill="#facc15"/></svg>`,
+            shield: `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320" fill="none"><rect width="320" height="320" rx="48" fill="#0b1324"/><path d="M160 40l84 30v74c0 58-31 111-84 136-53-25-84-78-84-136V70l84-30z" fill="#22c55e"/><path d="M160 84l45 16v44c0 37-19 71-45 89-26-18-45-52-45-89v-44l45-16z" fill="#bbf7d0"/></svg>`,
+            orbit: `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320" fill="none"><rect width="320" height="320" rx="48" fill="#111827"/><circle cx="160" cy="160" r="38" fill="#f43f5e"/><ellipse cx="160" cy="160" rx="116" ry="52" stroke="#fb7185" stroke-width="16"/><ellipse cx="160" cy="160" rx="52" ry="116" stroke="#fda4af" stroke-width="16"/></svg>`
+        };
+        return templateByVariant[variant] ?? templateByVariant.grid;
+    };
+    const readImageUpload = async (request, reply) => {
+        const part = await request.file();
+        if (!part) {
+            reply.status(400).send({ error: "validation_error", message: "Image file is required" });
+            return null;
+        }
+        if (!allowedImageMimeTypes.has(part.mimetype)) {
+            reply.status(415).send({ error: "unsupported_media_type", message: "Only image uploads are supported" });
+            return null;
+        }
+        const chunks = [];
+        let total = 0;
+        for await (const chunk of part.file) {
+            total += chunk.length;
+            if (total > MAX_IMAGE_BYTES) {
+                reply.status(413).send({ error: "payload_too_large", message: "Image must be 2MB or less" });
+                return null;
+            }
+            chunks.push(chunk);
+        }
+        return {
+            bytes: Buffer.concat(chunks),
+            mimeType: part.mimetype
+        };
+    };
     const sendFrontendIndex = async (reply, frontend) => {
         const html = await readFrontendAsset(frontend, "index.html");
         return reply.type("text/html; charset=utf-8").send(html);
@@ -19,6 +98,53 @@ export const registerRoutes = async (app, deps) => {
             return "/";
         }
         return value;
+    }
+    async function isAllowedPostLogoutRedirect(clientId, redirectUri) {
+        if (!clientId) {
+            return false;
+        }
+        const client = await deps.clientService.findClientById(clientId);
+        return Boolean(client?.redirectUris.includes(redirectUri));
+    }
+    async function resolveValidatedPostLogoutRedirect(input) {
+        if (!input.redirectUri) {
+            return undefined;
+        }
+        if (!await isAllowedPostLogoutRedirect(input.clientId, input.redirectUri)) {
+            throw new AuthenticationError("Unregistered post-logout redirect URI");
+        }
+        const url = new URL(input.redirectUri);
+        if (input.state) {
+            url.searchParams.set("state", input.state);
+        }
+        return url.toString();
+    }
+    function isSensitiveProtocolPath(path) {
+        return path.startsWith("/auth") || path.startsWith("/oauth") || path.startsWith("/saml");
+    }
+    function publicErrorMessageForPath(path, error) {
+        if (path === "/oauth/introspect" || path === "/oauth/userinfo") {
+            return "Token validation failed";
+        }
+        if (path === "/auth/login/mfa") {
+            return "MFA verification failed";
+        }
+        if (path === "/auth/login/webauthn/begin" || path === "/auth/login/webauthn/finish") {
+            return "Authentication failed";
+        }
+        if (path === "/auth/recovery/request") {
+            return "Recovery request could not be completed";
+        }
+        if (path === "/auth/recovery") {
+            return "Recovery verification failed";
+        }
+        if (path.startsWith("/auth") || path.startsWith("/oauth")) {
+            return error instanceof ValidationError ? "Invalid request" : "Authentication failed";
+        }
+        if (path.startsWith("/saml")) {
+            return "SAML request could not be completed";
+        }
+        return error.message;
     }
     async function getSession(request) {
         const sid = request.cookies?.sid;
@@ -51,6 +177,9 @@ export const registerRoutes = async (app, deps) => {
         }
         if (path === "/auth/recovery/request") {
             configs.push({ endpointKey: "auth_recovery_request", limit: 5, windowMs: 15 * 60_000, actorKey: request.ip });
+        }
+        if (path === "/api/setup/initialize") {
+            configs.push({ endpointKey: "setup_initialize", limit: 5, windowMs: 15 * 60_000, actorKey: request.ip });
         }
         if (path === "/oauth/device/verify") {
             configs.push({ endpointKey: "oauth_device_verify", limit: 10, windowMs: 60_000, actorKey: request.ip });
@@ -120,6 +249,22 @@ export const registerRoutes = async (app, deps) => {
     async function enforcePreCredentialStages(input) {
         await deps.authenticationFlowService.assertStageEnabled("password");
         if (await deps.authenticationFlowService.isStageEnabled("risk_check")) {
+            const riskScore = await deps.riskService.evaluateLoginRisk({
+                userId: input.user.id,
+                ip: input.ip
+            });
+            await deps.riskService.recordEvent({
+                userId: input.user.id,
+                ip: input.ip,
+                confidence: riskScore.score,
+                reason: riskScore.reasons[0] ?? "suspicious_ip",
+                decision: riskScore.decision,
+                metadata: {
+                    reasons: riskScore.reasons,
+                    clientId: input.clientId,
+                    tenantSlug: input.tenantSlug
+                }
+            });
             await enforcePoliciesForStage({
                 stage: "risk_check",
                 user: input.user,
@@ -127,6 +272,12 @@ export const registerRoutes = async (app, deps) => {
                 clientId: input.clientId,
                 ip: input.ip
             });
+            if (riskScore.decision === "block") {
+                throw new AuthenticationError("Login blocked due to elevated risk");
+            }
+            if (riskScore.decision === "challenge" && input.promptAcknowledged !== true) {
+                throw new AuthenticationError("Additional verification required due to elevated risk");
+            }
         }
         if (await deps.authenticationFlowService.isStageEnabled("captcha") && !input.captchaToken) {
             throw new AuthenticationError("Captcha verification is required");
@@ -176,7 +327,13 @@ export const registerRoutes = async (app, deps) => {
     function verifyCsrf(request, reply) {
         const cookieToken = request.cookies?.csrf_token;
         const headerToken = request.headers["x-csrf-token"];
-        if (!cookieToken || !headerToken || cookieToken !== headerToken) {
+        if (!cookieToken || !headerToken) {
+            reply.status(403).send({ error: "invalid_csrf_token" });
+            return false;
+        }
+        const cookieBuf = Buffer.from(cookieToken);
+        const headerBuf = Buffer.from(typeof headerToken === "string" ? headerToken : "");
+        if (cookieBuf.length !== headerBuf.length || !timingSafeEqual(cookieBuf, headerBuf)) {
             reply.status(403).send({ error: "invalid_csrf_token" });
             return false;
         }
@@ -196,7 +353,7 @@ export const registerRoutes = async (app, deps) => {
         }
         const path = request.url.split("?")[0];
         const requiresCsrf = csrfProtectedMethods.has(request.method) && !csrfExemptPaths.has(path);
-        if (requiresCsrf && (path.startsWith("/api/admin") || path.startsWith("/api/account") || path === "/auth/logout")) {
+        if (requiresCsrf && (path.startsWith("/api/admin") || path.startsWith("/api/account") || path.startsWith("/api/portal") || path === "/auth/logout")) {
             if (!verifyCsrf(request, reply)) {
                 return;
             }
@@ -265,12 +422,80 @@ export const registerRoutes = async (app, deps) => {
         status: "ok",
         timestamp: new Date().toISOString()
     }));
+    app.get("/media/uploads/*", async (request, reply) => {
+        const relativePath = String(request.params["*"] ?? "");
+        if (!relativePath) {
+            return reply.status(404).send({ error: "not_found" });
+        }
+        try {
+            const uploaded = await deps.mediaService.readUploaded(relativePath);
+            return reply.type(uploaded.mimeType).send(uploaded.data);
+        }
+        catch {
+            return reply.status(404).send({ error: "not_found" });
+        }
+    });
+    app.get("/media/defaults/user/:variant.svg", async (request, reply) => {
+        const { variant } = request.params;
+        const text = typeof request.query?.text === "string"
+            ? String(request.query.text)
+            : undefined;
+        return reply.type("image/svg+xml").send(renderUserDefaultSvg(variant, text));
+    });
+    app.get("/media/defaults/app/:variant.svg", async (request, reply) => {
+        const { variant } = request.params;
+        return reply.type("image/svg+xml").send(renderAppDefaultSvg(variant));
+    });
+    app.get("/api/media/defaults/users", async (request) => {
+        const initials = typeof request.query?.initials === "string"
+            ? String(request.query.initials)
+            : "AB";
+        return { items: deps.mediaService.listDefaultUserAvatars(initials) };
+    });
+    app.get("/api/media/defaults/apps", async () => {
+        return { items: deps.mediaService.listDefaultAppImages() };
+    });
+    app.get("/api/ui/customization", async (request, reply) => {
+        const surfaceRaw = typeof request.query?.surface === "string" ? request.query.surface : undefined;
+        const clientId = typeof request.query?.clientId === "string" ? request.query.clientId : undefined;
+        const appId = typeof request.query?.appId === "string" ? request.query.appId : undefined;
+        const allowed = ["admin_login", "consent", "portal_login", "portal_launcher"];
+        const surface = allowed.find((item) => item === surfaceRaw);
+        if (!surface) {
+            return reply.status(400).send({ error: "validation_error", message: "surface query parameter is required" });
+        }
+        const customization = await deps.instanceSettingsService.resolveUiCustomization({
+            surface,
+            clientId,
+            appId
+        });
+        return {
+            surface,
+            customization
+        };
+    });
     await registerScimRoutes(app, {
         scimService: deps.scimService,
         scimTokenService: deps.scimTokenService,
         auditRepository: deps.auditRepository,
         eventHookService: deps.eventHookService,
         deprovisioningService: deps.deprovisioningService
+    });
+    await registerSamlAdminRoutes(app, {
+        samlService: deps.samlService,
+        samlServiceProviderRepository: deps.samlServiceProviderRepository,
+        samlNameIdMappingRepository: deps.samlNameIdMappingRepository,
+        samlAssertionAuditRepository: deps.samlAssertionAuditRepository,
+        auditRepository: deps.auditRepository
+    });
+    await registerSamlProtocolRoutes(app, {
+        samlService: deps.samlService,
+        samlServiceProviderRepository: deps.samlServiceProviderRepository,
+        authService: deps.authService,
+        userService: deps.userService,
+        auditRepository: deps.auditRepository,
+        samlReplayProtectionService: deps.samlReplayProtectionService,
+        samlSignatureService: deps.samlSignatureService
     });
     app.get("/.well-known/openid-configuration", async () => deps.oidcService.discoveryDocument());
     app.get("/.well-known/jwks.json", async () => deps.oidcService.jwks());
@@ -448,6 +673,9 @@ export const registerRoutes = async (app, deps) => {
                 if (await deps.authenticationFlowService.isStageEnabled("mfa_totp") && await deps.totpService.requiresTotp(user.id)) {
                     return reply.status(400).send({ error: "invalid_grant", error_description: "MFA is required for password grant" });
                 }
+                if (await deps.authenticationFlowService.isStageEnabled("mfa_webauthn") && (await deps.webauthnService.listCredentials(user.id)).length > 0) {
+                    return reply.status(400).send({ error: "invalid_grant", error_description: "WebAuthn MFA is required; use interactive login" });
+                }
                 await enforcePostLoginStage({
                     user,
                     clientId: parsed.data.client_id,
@@ -486,6 +714,17 @@ export const registerRoutes = async (app, deps) => {
                     ip: request.ip,
                     reason: err instanceof Error ? err.message : "unknown"
                 });
+                await deps.riskService.recordEvent({
+                    userId: undefined,
+                    ip: request.ip,
+                    confidence: 40,
+                    reason: "failed_login",
+                    decision: "challenge",
+                    metadata: {
+                        identifier: parsed.data.username,
+                        grant: "password"
+                    }
+                });
                 await deps.auditRepository.log({
                     type: "login_failed",
                     actorType: "user",
@@ -500,11 +739,88 @@ export const registerRoutes = async (app, deps) => {
                 });
             }
             if (err instanceof AppError) {
-                return reply.status(err.statusCode).send({ error: "invalid_grant", error_description: err.message });
+                return reply.status(err.statusCode).send({ error: "invalid_grant", error_description: publicErrorMessageForPath("/oauth/token", err) });
             }
             throw err;
         }
         return reply.status(400).send({ error: "unsupported_grant_type" });
+    });
+    app.post("/oauth/token/exchange", async (request, reply) => {
+        const { tokenExchangeSchema } = await import("./schemas.js");
+        const parsed = tokenExchangeSchema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.status(400).send({ error: "invalid_request", error_description: "Missing required fields for token exchange" });
+        }
+        const { subject_token, subject_token_type, scope, client_id, client_secret } = parsed.data;
+        if (subject_token_type !== "urn:ietf:params:oauth:token-type:access_token" &&
+            subject_token_type !== "urn:ietf:params:oauth:token-type:jwt") {
+            return reply.status(400).send({ error: "invalid_request", error_description: "Unsupported subject_token_type" });
+        }
+        let subjectPayload;
+        try {
+            subjectPayload = await deps.authService.jwtService.verifyAccessToken(subject_token);
+        }
+        catch {
+            return reply.status(401).send({ error: "invalid_token", error_description: "Subject token validation failed" });
+        }
+        let exchangeActor;
+        // Optionally validate the caller presenting the exchange request.
+        // Accept either a registered OAuth client or a service identity credential.
+        if (client_id || client_secret) {
+            if (!client_id || !client_secret) {
+                return reply.status(400).send({ error: "invalid_request", error_description: "client_id and client_secret must be provided together" });
+            }
+            let matchedClient = false;
+            try {
+                const client = await deps.clientService.findClientById(client_id);
+                if (client && client.secret === client_secret) {
+                    matchedClient = true;
+                    exchangeActor = { type: "client", id: client.id };
+                }
+            }
+            catch {
+                // Fallback to service identity verification below.
+            }
+            if (!matchedClient) {
+                const serviceIdentity = await deps.serviceIdentityService.verifyCredential(client_id, client_secret);
+                if (!serviceIdentity) {
+                    return reply.status(401).send({ error: "invalid_client" });
+                }
+                exchangeActor = { type: "service_identity", id: serviceIdentity.id, clientId: client_id };
+            }
+        }
+        const subjectSub = String(subjectPayload.sub ?? "");
+        const requestedScopes = scope ? scope.split(" ") : (subjectPayload.scope ? String(subjectPayload.scope).split(" ") : []);
+        const { nanoid } = await import("nanoid");
+        const accessTokenId = nanoid();
+        // Issue a new token with the same subject but potentially different scopes/audience
+        const newToken = await deps.oidcService.mintExchangeToken({
+            sub: subjectSub,
+            scopes: requestedScopes,
+            accessTokenId
+        });
+        await deps.auditRepository.log({
+            type: "token_issued",
+            actorType: "client",
+            clientId: exchangeActor?.type === "client" ? exchangeActor.id : client_id,
+            ip: request.ip,
+            metadata: {
+                grant: "token_exchange",
+                sub: subjectSub,
+                scopes: requestedScopes,
+                accessTokenId,
+                exchangeActorType: exchangeActor?.type,
+                serviceIdentityId: exchangeActor?.type === "service_identity" ? exchangeActor.id : undefined,
+                serviceIdentityClientId: exchangeActor?.type === "service_identity" ? exchangeActor.clientId : undefined
+            }
+        });
+        return reply.status(200).send({
+            access_token: newToken.accessToken,
+            token_type: "Bearer",
+            expires_in: newToken.expiresIn,
+            issued_token_type: "urn:ietf:params:oauth:token-type:access_token",
+            scope: requestedScopes.join(" ")
+        });
     });
     app.post("/oauth/device/authorize", async (request, reply) => {
         const input = deviceAuthorizationSchema.parse(request.body);
@@ -526,8 +842,12 @@ export const registerRoutes = async (app, deps) => {
         return reply.status(200).send(result);
     });
     app.post("/oauth/introspect", async (request) => {
-        const { token } = introspectSchema.parse(request.body);
-        return await deps.authService.introspectToken(token);
+        const input = introspectSchema.parse(request.body);
+        return await deps.authService.introspectToken({
+            token: input.token,
+            clientId: input.client_id,
+            clientSecret: input.client_secret
+        });
     });
     app.post("/oauth/token/revoke", async (request, reply) => {
         const { token } = oidcRevokeSchema.parse(request.body);
@@ -573,7 +893,7 @@ export const registerRoutes = async (app, deps) => {
         }
         catch (err) {
             if (err instanceof AppError) {
-                return reply.status(err.statusCode).send({ error: "invalid_token", error_description: err.message });
+                return reply.status(err.statusCode).send({ error: "invalid_token", error_description: publicErrorMessageForPath("/oauth/userinfo", err) });
             }
             throw err;
         }
@@ -598,6 +918,20 @@ export const registerRoutes = async (app, deps) => {
                     tenantSlug: input.tenantSlug,
                     ip: request.ip
                 }));
+            }
+            if (await deps.authenticationFlowService.isStageEnabled("mfa_webauthn") && (await deps.webauthnService.listCredentials(user.id)).length > 0) {
+                const challenge = await deps.webauthnService.startLogin({
+                    user,
+                    clientId: input.clientId,
+                    scope: input.scope,
+                    tenantSlug: input.tenantSlug,
+                    ip: request.ip
+                });
+                return reply.status(202).send({
+                    mfaRequired: true,
+                    mfaMethod: "webauthn",
+                    ...challenge
+                });
             }
             await enforcePostLoginStage({
                 user,
@@ -634,6 +968,17 @@ export const registerRoutes = async (app, deps) => {
                 identifier: input.email,
                 ip: request.ip,
                 reason: err instanceof Error ? err.message : "unknown"
+            });
+            await deps.riskService.recordEvent({
+                userId: undefined,
+                ip: request.ip,
+                confidence: 40,
+                reason: "failed_login",
+                decision: "challenge",
+                metadata: {
+                    identifier: input.email,
+                    grant: "interactive"
+                }
             });
             await deps.auditRepository.log({
                 type: "login_failed",
@@ -699,7 +1044,76 @@ export const registerRoutes = async (app, deps) => {
             return { session, ...tokens };
         }
         catch (err) {
-            return reply.status(401).send({ error: "invalid_grant", error_description: err instanceof Error ? err.message : "MFA failed" });
+            return reply.status(401).send({ error: "invalid_grant", error_description: "MFA verification failed" });
+        }
+    });
+    app.post("/auth/login/webauthn/begin", async (request, reply) => {
+        const input = webauthnLoginBeginSchema.parse(request.body);
+        try {
+            const user = await deps.userService.findUserByEmail(input.identifier.trim()) ?? await deps.userService.findUserByUsername(input.identifier.trim());
+            if (!user || !user.active) {
+                throw new AuthenticationError("Invalid credentials");
+            }
+            const challenge = await deps.webauthnService.startLogin({
+                user,
+                clientId: input.clientId,
+                scope: input.scope,
+                tenantSlug: input.tenantSlug,
+                ip: request.ip
+            });
+            return reply.status(200).send(challenge);
+        }
+        catch (error) {
+            return reply.status(401).send({ error: "invalid_grant", error_description: "Authentication failed" });
+        }
+    });
+    app.post("/auth/login/webauthn/finish", async (request, reply) => {
+        const input = webauthnLoginFinishSchema.parse(request.body);
+        try {
+            const result = await deps.webauthnService.finishLogin(input);
+            const user = await deps.userService.findUserById(result.userId);
+            if (!user) {
+                throw new AuthenticationError("User not found");
+            }
+            await deps.policyService.enforceStagePolicies({
+                stage: "mfa_webauthn",
+                user,
+                tenantId: await resolveTenantId(result.tenantSlug),
+                clientId: result.clientId,
+                ip: result.ip ?? request.ip
+            });
+            await enforcePostLoginStage({
+                user,
+                tenantSlug: result.tenantSlug,
+                clientId: result.clientId,
+                ip: result.ip ?? request.ip
+            });
+            const { session, tokens } = await deps.authService.completeLoginForUser({
+                userId: user.id,
+                clientId: result.clientId,
+                scope: result.scope,
+                tenantSlug: result.tenantSlug,
+                ip: result.ip ?? request.ip,
+                userAgent: clientUserAgent(request)
+            });
+            await deps.eventHookService.emit("auth.login.succeeded", {
+                userId: session.userId,
+                clientId: session.clientId,
+                sessionId: session.id,
+                ip: request.ip,
+                mfa: "webauthn"
+            });
+            reply.setCookie("sid", session.id, {
+                httpOnly: true,
+                secure: await deps.instanceSettingsService.shouldUseSecureCookies(),
+                sameSite: "lax",
+                path: "/",
+                maxAge: 60 * 60 * 8
+            });
+            return { session, ...tokens };
+        }
+        catch (error) {
+            return reply.status(401).send({ error: "invalid_grant", error_description: "Authentication failed" });
         }
     });
     app.get("/auth/federation/providers", async () => deps.federationService.listProviders());
@@ -719,6 +1133,7 @@ export const registerRoutes = async (app, deps) => {
             username: user.username,
             givenName: user.givenName,
             familyName: user.familyName,
+            avatarUrl: user.avatarUrl,
             roles: await deps.roleService.resolveNamesForUser(user.id),
             groups: await deps.groupService.resolveGroupNamesForUser(user.id),
             permissions: await deps.roleService.resolvePermissionsForUser(user.id)
@@ -758,112 +1173,75 @@ export const registerRoutes = async (app, deps) => {
         deps.totpService.disable(auth.user.id);
         return reply.status(204).send();
     });
+    app.get("/api/account/mfa/webauthn/credentials", async (request, reply) => {
+        const auth = await requireSessionUser(request, reply);
+        if (!auth) {
+            return;
+        }
+        const credentials = await deps.webauthnService.listCredentials(auth.user.id);
+        return credentials.map((credential) => ({
+            credentialId: credential.credentialId,
+            transports: credential.transports,
+            aaguid: credential.aaguid,
+            signCount: credential.signCount,
+            createdAt: credential.createdAt
+        }));
+    });
+    app.post("/api/account/mfa/webauthn/register/begin", async (request, reply) => {
+        const auth = await requireSessionUser(request, reply);
+        if (!auth) {
+            return;
+        }
+        const input = webauthnRegisterBeginSchema.parse(request.body);
+        return deps.webauthnService.startRegistration(auth.user, input.displayName);
+    });
+    app.post("/api/account/mfa/webauthn/register/finish", async (request, reply) => {
+        const auth = await requireSessionUser(request, reply);
+        if (!auth) {
+            return;
+        }
+        const input = webauthnRegisterFinishSchema.parse(request.body);
+        return deps.webauthnService.finishRegistration({
+            userId: auth.user.id,
+            registrationId: input.registrationId,
+            credentialId: input.credentialId,
+            publicKey: input.publicKey,
+            transports: input.transports,
+            aaguid: input.aaguid,
+            signCount: input.signCount
+        });
+    });
+    app.delete("/api/account/mfa/webauthn/credentials/:credentialId", async (request, reply) => {
+        const auth = await requireSessionUser(request, reply);
+        if (!auth) {
+            return;
+        }
+        const { credentialId } = request.params;
+        await deps.webauthnService.removeCredential(auth.user.id, credentialId);
+        return reply.status(204).send();
+    });
     app.get("/api/admin/settings", async () => deps.instanceSettingsService.getSettings());
-    app.get("/api/admin/provisioning/tokens", async () => deps.scimTokenService.listTokens());
-    app.post("/api/admin/provisioning/tokens", async (request, reply) => {
-        const input = createScimTokenSchema.parse(request.body);
-        const created = await deps.scimTokenService.createToken({
-            label: input.label,
-            expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined
-        });
-        return reply.status(201).send(created);
+    // Delegation: provisioning, access governance, elevations
+    await registerProvisioningRoutes(app, {
+        scimTokenService: deps.scimTokenService,
+        provisioningService: deps.provisioningService,
+        deprovisioningService: deps.deprovisioningService,
+        requireSessionUser
     });
-    app.delete("/api/admin/provisioning/tokens/:id", async (request, reply) => {
-        const { id } = request.params;
-        await deps.scimTokenService.revokeToken(id);
-        return reply.status(204).send();
+    await registerAccessGovernanceRoutes(app, {
+        accessGovernanceService: deps.accessGovernanceService,
+        accessReviewService: deps.accessReviewService,
+        auditRepository: deps.auditRepository,
+        eventHookService: deps.eventHookService,
+        requireSessionUser
     });
-    app.get("/api/admin/provisioning/mappings", async () => deps.provisioningService.listMappings());
-    app.post("/api/admin/provisioning/mappings", async (request, reply) => {
-        const input = createProvisioningMappingSchema.parse(request.body);
-        const created = await deps.provisioningService.createMapping(input);
-        return reply.status(201).send(created);
+    await registerElevationRoutes(app, {
+        elevationService: deps.elevationService,
+        requireSessionUser
     });
-    app.delete("/api/admin/provisioning/mappings/:id", async (request, reply) => {
-        const { id } = request.params;
-        await deps.provisioningService.deleteMapping(id);
-        return reply.status(204).send();
-    });
-    app.get("/api/admin/provisioning/jobs", async (request) => {
-        const limit = Number(request.query?.limit ?? "20");
-        return deps.provisioningService.listJobs(Number.isFinite(limit) ? limit : 20);
-    });
-    app.get("/api/admin/access-requests", async (request) => {
-        const query = listAccessRequestsQuerySchema.parse(request.query ?? {});
-        return deps.accessGovernanceService.listAccessRequests({
-            status: query.status,
-            limit: query.limit
-        });
-    });
-    app.post("/api/admin/access-requests", async (request, reply) => {
-        const auth = await requireSessionUser(request, reply);
-        if (!auth) {
-            return;
-        }
-        const input = createAccessRequestSchema.parse(request.body);
-        const created = await deps.accessGovernanceService.createAccessRequest({
-            requesterId: auth.user.id,
-            subjectUserId: input.subjectUserId,
-            entitlementType: input.entitlementType,
-            entitlementValue: input.entitlementValue,
-            justification: input.justification,
-            expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined
-        });
-        return reply.status(201).send(created);
-    });
-    app.post("/api/admin/access-requests/:id/approve", async (request, reply) => {
-        const auth = await requireSessionUser(request, reply);
-        if (!auth) {
-            return;
-        }
-        const { id } = request.params;
-        const input = decideAccessRequestSchema.parse(request.body ?? {});
-        return deps.accessGovernanceService.approveAccessRequest({
-            accessRequestId: id,
-            approverId: auth.user.id,
-            rationale: input.rationale
-        });
-    });
-    app.post("/api/admin/access-requests/:id/reject", async (request, reply) => {
-        const auth = await requireSessionUser(request, reply);
-        if (!auth) {
-            return;
-        }
-        const { id } = request.params;
-        const input = decideAccessRequestSchema.parse(request.body ?? {});
-        return deps.accessGovernanceService.rejectAccessRequest({
-            accessRequestId: id,
-            approverId: auth.user.id,
-            rationale: input.rationale
-        });
-    });
-    app.post("/api/admin/access-requests/process-expirations", async (request, reply) => {
-        const auth = await requireSessionUser(request, reply);
-        if (!auth) {
-            return;
-        }
-        const input = processExpiredAccessRequestsSchema.parse(request.body ?? {});
-        return deps.accessGovernanceService.processExpiredAccessRequests({
-            dryRun: input.dryRun,
-            now: input.now ? new Date(input.now) : undefined
-        });
-    });
-    app.get("/api/admin/provisioning/deprovisioning-queue", async (request) => {
-        const limit = Number(request.query?.limit ?? "100");
-        return deps.deprovisioningService.listQueue(Number.isFinite(limit) ? limit : 100);
-    });
-    app.post("/api/admin/provisioning/jobs/reconcile", async (request, reply) => {
-        const input = reconcileProvisioningJobSchema.parse(request.body ?? {});
-        const auth = await requireSessionUser(request, reply);
-        if (!auth) {
-            return;
-        }
-        const job = await deps.provisioningService.runReconcile({
-            initiatedByUserId: auth.user.id,
-            dryRun: input.dryRun
-        });
-        return reply.status(202).send(job);
-    });
+    registerServiceIdentityRoutes(app, deps.serviceIdentityService);
+    registerConnectorRoutes(app, deps.connectorService, deps.authMetricsService);
+    registerPluginRoutes(app, deps.pluginService, deps.pluginRuntimeService);
     app.put("/api/admin/settings", async (request) => {
         const input = updateInstanceSettingsSchema.parse(request.body);
         return deps.instanceSettingsService.updateSettings(input);
@@ -1230,46 +1608,54 @@ export const registerRoutes = async (app, deps) => {
         }
         reply.clearCookie("sid", { path: "/" });
         if (post_logout_redirect_uri) {
-            const url = new URL(post_logout_redirect_uri);
-            if (state)
-                url.searchParams.set("state", state);
-            return reply.redirect(url.toString());
+            if (!session) {
+                return reply.status(401).send({ error: "unauthorized" });
+            }
+            const redirectUrl = await resolveValidatedPostLogoutRedirect({
+                clientId: session.clientId,
+                redirectUri: post_logout_redirect_uri,
+                state
+            });
+            return reply.redirect(redirectUrl ?? "/login");
         }
         return reply.redirect("/login");
     });
     app.get("/oauth/frontchannel-logout", async (request, reply) => {
         const input = frontChannelLogoutSchema.parse(request.query);
-        const now = new Date();
-        const matchingSessions = (await deps.authService.sessionRepository.list()).filter((session) => {
-            if (input.sid && session.id === input.sid) {
-                return true;
-            }
-            if (input.sub && session.userId === input.sub) {
-                return true;
-            }
-            return false;
-        });
-        for (const session of matchingSessions) {
-            await enforceInvalidationForSession({ session, ip: request.ip });
-            deps.securityService.revokeSessionObservation(session.id);
-            if (!session.revokedAt) {
-                await deps.authService.sessionRepository.revoke(session.id, now);
-            }
+        const session = await getSession(request);
+        if (!session) {
+            return reply.status(401).send({ error: "unauthorized" });
+        }
+        if ((input.sid && input.sid !== session.id) || (input.sub && input.sub !== session.userId)) {
+            return reply.status(403).send({ error: "forbidden" });
+        }
+        await enforceInvalidationForSession({ session, ip: request.ip });
+        deps.securityService.revokeSessionObservation(session.id);
+        if (!session.revokedAt) {
+            await deps.authService.sessionRepository.revoke(session.id, new Date());
         }
         reply.clearCookie("sid", { path: "/" });
         if (input.post_logout_redirect_uri) {
-            const redirectUrl = new URL(input.post_logout_redirect_uri);
-            if (input.state) {
-                redirectUrl.searchParams.set("state", input.state);
-            }
-            return reply.redirect(redirectUrl.toString());
+            const redirectUrl = await resolveValidatedPostLogoutRedirect({
+                clientId: session.clientId,
+                redirectUri: input.post_logout_redirect_uri,
+                state: input.state
+            });
+            return reply.redirect(redirectUrl ?? "/login");
         }
         return reply.type("text/html; charset=utf-8").send("<!DOCTYPE html><html><body>Front-channel logout complete</body></html>");
     });
     app.post("/oauth/backchannel-logout", async (request, reply) => {
         const input = backChannelLogoutSchema.parse(request.body);
+        const client = await deps.authService.authenticateClient({
+            clientId: input.client_id,
+            clientSecret: input.client_secret
+        });
         const now = new Date();
         const matchingSessions = (await deps.authService.sessionRepository.list()).filter((session) => {
+            if (session.clientId !== client.id) {
+                return false;
+            }
             if (input.sid && session.id === input.sid) {
                 return true;
             }
@@ -1331,7 +1717,7 @@ export const registerRoutes = async (app, deps) => {
         }
         catch (err) {
             if (err instanceof AppError) {
-                return reply.status(err.statusCode).send({ error: "invalid_request", error_description: err.message });
+                return reply.status(err.statusCode).send({ error: "invalid_request", error_description: publicErrorMessageForPath("/auth/recovery/request", err) });
             }
             throw err;
         }
@@ -1424,7 +1810,7 @@ export const registerRoutes = async (app, deps) => {
         }
         catch (err) {
             if (err instanceof AppError) {
-                return reply.status(err.statusCode).send({ error: "invalid_grant", error_description: err.message });
+                return reply.status(err.statusCode).send({ error: "invalid_grant", error_description: publicErrorMessageForPath("/auth/recovery", err) });
             }
             throw err;
         }
@@ -1445,9 +1831,9 @@ export const registerRoutes = async (app, deps) => {
     });
     app.patch("/api/admin/users/:id", async (request, reply) => {
         const { id } = request.params;
-        const { appId, externalSource, externalId, isServiceUser, email, username, givenName, familyName, active, groupIds, customAttributes } = updateUserSchema.parse(request.body);
-        if (appId !== undefined || externalSource !== undefined || externalId !== undefined || isServiceUser !== undefined || email !== undefined || username !== undefined || givenName !== undefined || familyName !== undefined) {
-            await deps.userService.updateUserProfile(id, { appId, externalSource, externalId, isServiceUser, email, username, givenName, familyName });
+        const { appId, externalSource, externalId, isServiceUser, avatarUrl, email, username, givenName, familyName, active, groupIds, customAttributes } = updateUserSchema.parse(request.body);
+        if (appId !== undefined || externalSource !== undefined || externalId !== undefined || isServiceUser !== undefined || avatarUrl !== undefined || email !== undefined || username !== undefined || givenName !== undefined || familyName !== undefined) {
+            await deps.userService.updateUserProfile(id, { appId, externalSource, externalId, isServiceUser, avatarUrl, email, username, givenName, familyName });
         }
         if (active !== undefined)
             await deps.userService.setUserActive(id, active);
@@ -1472,6 +1858,7 @@ export const registerRoutes = async (app, deps) => {
             externalSource,
             externalId,
             isServiceUser,
+            avatarUrl,
             active,
             email,
             username,
@@ -1480,7 +1867,7 @@ export const registerRoutes = async (app, deps) => {
             updatedGroupIds: groupIds,
             updatedCustomAttributes: customAttributes ? Object.keys(customAttributes) : undefined
         });
-        return { id, appId, externalSource, externalId, isServiceUser, active, email, username, givenName, familyName };
+        return { id, appId, externalSource, externalId, isServiceUser, avatarUrl, active, email, username, givenName, familyName };
     });
     app.post("/api/admin/users/:id/reset-password", async (request, reply) => {
         const { id } = request.params;
@@ -1502,6 +1889,27 @@ export const registerRoutes = async (app, deps) => {
             revokedSessions: userSessions.length
         });
         return reply.status(204).send();
+    });
+    app.post("/api/admin/users/:id/avatar", async (request, reply) => {
+        const { id } = request.params;
+        const user = await deps.userService.findUserById(id);
+        if (!user) {
+            return reply.status(404).send({ error: "not_found", message: "User not found" });
+        }
+        const uploaded = await readImageUpload(request, reply);
+        if (!uploaded) {
+            return;
+        }
+        const previousAvatarUrl = user.avatarUrl;
+        const saved = await deps.mediaService.saveUploadedImage({
+            bucket: "users",
+            ownerId: user.id,
+            bytes: uploaded.bytes,
+            mimeType: uploaded.mimeType
+        });
+        await deps.userService.updateUserProfile(user.id, { avatarUrl: saved.url });
+        await deps.mediaService.deleteByUrl(previousAvatarUrl);
+        return reply.status(200).send({ avatarUrl: saved.url });
     });
     app.delete("/api/admin/users/:id", async (request, reply) => {
         const { id } = request.params;
@@ -1630,6 +2038,27 @@ export const registerRoutes = async (app, deps) => {
         const input = updateAppSchema.parse(request.body);
         return deps.appService.updateApp(id, input);
     });
+    app.post("/api/admin/apps/:id/image", async (request, reply) => {
+        const { id } = request.params;
+        const existingApp = await deps.appService.findAppById(id);
+        if (!existingApp) {
+            return reply.status(404).send({ error: "not_found", message: "App not found" });
+        }
+        const uploaded = await readImageUpload(request, reply);
+        if (!uploaded) {
+            return;
+        }
+        const previousImageUrl = existingApp.imageUrl;
+        const saved = await deps.mediaService.saveUploadedImage({
+            bucket: "apps",
+            ownerId: id,
+            bytes: uploaded.bytes,
+            mimeType: uploaded.mimeType
+        });
+        const updated = await deps.appService.updateApp(id, { imageUrl: saved.url });
+        await deps.mediaService.deleteByUrl(previousImageUrl);
+        return reply.status(200).send({ imageUrl: updated.imageUrl });
+    });
     app.delete("/api/admin/apps/:id", async (request, reply) => {
         const { id } = request.params;
         await deps.appService.deleteApp(id);
@@ -1738,6 +2167,12 @@ export const registerRoutes = async (app, deps) => {
         const { limit } = request.query;
         return deps.auditRepository.list(limit ? Number(limit) : 200);
     });
+    app.get("/api/admin/security/risk-events", async (request) => {
+        const { limit } = request.query;
+        const requestedLimit = limit ? Number(limit) : 50;
+        const sourceEvents = await deps.auditRepository.list(Math.max(200, requestedLimit * 5));
+        return deriveRiskEventsFromAudit(sourceEvents, requestedLimit);
+    });
     app.get("/users", async () => deps.userService.listUsers());
     app.get("/clients", async () => deps.clientService.listClients());
     app.get("/roles", async () => deps.roleService.listRoles());
@@ -1813,9 +2248,10 @@ export const registerRoutes = async (app, deps) => {
             username: user.username,
             givenName: user.givenName,
             familyName: user.familyName,
+            avatarUrl: user.avatarUrl,
             customAttributes: user.customAttributes,
             appId: user.appId,
-            apps: userApps.map(a => ({ id: a.id, name: a.name, description: a.description, icon: a.icon, url: a.url }))
+            apps: userApps.map(a => ({ id: a.id, name: a.name, description: a.description, icon: a.icon, imageUrl: a.imageUrl, url: a.url }))
         };
     });
     // PATCH /api/portal/profile — update own profile
@@ -1824,10 +2260,11 @@ export const registerRoutes = async (app, deps) => {
         if (!session)
             return reply.status(401).send({ error: "unauthorized" });
         const input = portalUpdateProfileSchema.parse(request.body);
-        if (input.givenName !== undefined || input.familyName !== undefined || input.email !== undefined || input.username !== undefined) {
+        if (input.givenName !== undefined || input.familyName !== undefined || input.avatarUrl !== undefined || input.email !== undefined || input.username !== undefined) {
             await deps.userService.updateUserProfile(session.userId, {
                 givenName: input.givenName,
                 familyName: input.familyName,
+                avatarUrl: input.avatarUrl,
                 email: input.email,
                 username: input.username
             });
@@ -1869,6 +2306,28 @@ export const registerRoutes = async (app, deps) => {
         reply.clearCookie("sid", { path: "/" });
         return reply.status(204).send();
     });
+    app.post("/api/portal/avatar", async (request, reply) => {
+        const session = await getPortalSession(request);
+        if (!session)
+            return reply.status(401).send({ error: "unauthorized" });
+        const user = await deps.userService.findUserById(session.userId);
+        if (!user)
+            return reply.status(401).send({ error: "unauthorized" });
+        const uploaded = await readImageUpload(request, reply);
+        if (!uploaded) {
+            return;
+        }
+        const previousAvatarUrl = user.avatarUrl;
+        const saved = await deps.mediaService.saveUploadedImage({
+            bucket: "users",
+            ownerId: user.id,
+            bytes: uploaded.bytes,
+            mimeType: uploaded.mimeType
+        });
+        await deps.userService.updateUserProfile(user.id, { avatarUrl: saved.url });
+        await deps.mediaService.deleteByUrl(previousAvatarUrl);
+        return reply.status(200).send({ avatarUrl: saved.url });
+    });
     app.get("/portal", async (_request, reply) => {
         return sendFrontendIndex(reply, "portal");
     });
@@ -1891,6 +2350,13 @@ export const registerRoutes = async (app, deps) => {
     });
     app.setErrorHandler((error, request, reply) => {
         if (error instanceof AppError) {
+            const path = request.url.split("?")[0];
+            if (isSensitiveProtocolPath(path)) {
+                return reply.status(error.statusCode).send({
+                    error: error.name,
+                    message: publicErrorMessageForPath(path, error)
+                });
+            }
             return reply.status(error.statusCode).send({ error: error.name, message: error.message });
         }
         if (typeof error === "object" && error !== null && "issues" in error) {

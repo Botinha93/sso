@@ -24,7 +24,8 @@ import {
   LogOut,
   Bot,
   GitMerge,
-  Puzzle
+  Puzzle,
+  Sparkles
 } from 'lucide-react'
 
 const navGroups = [
@@ -72,6 +73,7 @@ const navGroups = [
     items: [
       { path: '/connectors', label: 'Connectors', icon: GitMerge, permission: 'connectors:view' },
       { path: '/plugins', label: 'Plugins', icon: Puzzle, permission: 'administration:view' },
+      { path: '/experience-customization', label: 'Experience Customization', icon: Sparkles, permission: 'administration:view' },
       { path: '/metrics', label: 'Auth Metrics', icon: BarChart3, permission: 'connectors:view' },
       { path: '/tenants', label: 'Tenants', icon: Building2, permission: 'tenants:view' },
       { path: '/service-identities', label: 'Service Identities', icon: Bot, permission: 'service_identities:view' },

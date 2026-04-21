@@ -56,6 +56,7 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 - [x] EPIC 8 extensibility slice delivered: admin plugin management foundation (`/api/admin/plugins*`) with manifest validation, bundle upload/cataloging, and admin UI operations for upload/list/delete.
 - [x] EPIC 8 extensibility runtime slice delivered: active plugins now execute in sandboxed runtime on declared hooks with audit visibility, hot-reload after plugin changes, and developer documentation with manifest + handler contract examples.
 - [x] EPIC 8 customization slice delivered: app/client-aware UI customization settings for login, consent, and portal surfaces, with public resolver endpoint and administration editor.
+- [x] EPIC 8 customization follow-up delivered: dedicated admin Experience Customization UI with default/client/app scope targeting, per-surface field editor, and live preview.
 
 ## Planning assumptions
 

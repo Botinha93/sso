@@ -72,7 +72,7 @@ export interface UserRepository {
   findByEmail(email: string): Awaitable<User | undefined>;
   findByUsername(username: string): Awaitable<User | undefined>;
   findById(id: string): Awaitable<User | undefined>;
-  updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId" | "externalSource" | "externalId" | "isServiceUser">>): Awaitable<User | undefined>;
+  updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId" | "externalSource" | "externalId" | "isServiceUser" | "avatarUrl">>): Awaitable<User | undefined>;
   setPasswordHash(id: string, passwordHash: string): Awaitable<void>;
   setActive(id: string, active: boolean): Awaitable<void>;
   setCustomAttributes(id: string, customAttributes: Record<string, string>): Awaitable<void>;

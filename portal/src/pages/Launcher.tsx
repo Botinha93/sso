@@ -76,8 +76,8 @@ export default function Launcher({ user }: Props) {
         {/* Welcome */}
         <div className="mb-10">
           <div className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center">
-              <User size={20} className="text-slate-500" />
+            <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden">
+              {user.avatarUrl ? <img src={user.avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : <User size={20} className="text-slate-500" />}
             </div>
             <div>
               <h1 className="text-xl font-bold text-slate-900">
@@ -113,7 +113,7 @@ function AppTile({ app }: { app: PortalUser['apps'][0] }) {
   const content = (
     <div className="group bg-white rounded-2xl border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all p-5 flex flex-col items-center gap-3 cursor-pointer relative">
       <div className="w-14 h-14 rounded-2xl bg-slate-100 group-hover:bg-slate-200 transition-colors flex items-center justify-center text-3xl">
-        {app.icon || '📦'}
+        {app.imageUrl ? <img src={app.imageUrl} alt={app.name} className="h-full w-full rounded-2xl object-cover" /> : (app.icon || '📦')}
       </div>
       <div className="text-center">
         <p className="text-sm font-semibold text-slate-900 leading-tight">{app.name}</p>

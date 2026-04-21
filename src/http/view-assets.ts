@@ -1,5 +1,5 @@
 import { access, readFile } from "node:fs/promises";
-import { dirname, extname, join, resolve } from "node:path";
+import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -48,6 +48,13 @@ export const readViewAsset = async (filename: string) => {
 export const readFrontendAsset = async (frontend: keyof typeof frontendDirs, relativePath: string) => {
   for (const dir of frontendDirs[frontend]) {
     const filePath = join(dir, relativePath);
+    const resolvedPath = resolve(filePath);
+    const resolvedDir = resolve(dir);
+
+    // Prevent path traversal: resolved path must remain within the frontend directory.
+    if (!resolvedPath.startsWith(resolvedDir + sep) && resolvedPath !== resolvedDir) {
+      continue;
+    }
 
     try {
       await access(filePath);

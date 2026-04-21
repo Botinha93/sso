@@ -12,11 +12,11 @@ export class AppService {
     return this.appRepository.findById(id);
   }
 
-  async createApp(input: { name: string; description: string; icon?: string; url?: string }) {
+  async createApp(input: { name: string; description: string; icon?: string; imageUrl?: string; url?: string }) {
     return this.appRepository.create(input);
   }
 
-  async updateApp(id: string, input: { name?: string; description?: string; icon?: string; url?: string | null }) {
+  async updateApp(id: string, input: { name?: string; description?: string; icon?: string; imageUrl?: string; url?: string | null }) {
     const updated = await this.appRepository.update(id, {
       ...input,
       url: input.url ?? undefined

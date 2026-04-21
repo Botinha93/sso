@@ -41,6 +41,7 @@ export class SqliteDatabase {
         name TEXT NOT NULL UNIQUE,
         description TEXT NOT NULL,
         icon TEXT,
+        image_url TEXT,
         url TEXT,
         created_at TEXT NOT NULL
       );
@@ -67,6 +68,7 @@ export class SqliteDatabase {
         external_source TEXT,
         external_id TEXT,
         is_service_user INTEGER NOT NULL DEFAULT 0,
+        avatar_url TEXT,
         email TEXT NOT NULL UNIQUE,
         username TEXT NOT NULL UNIQUE,
         password_hash TEXT NOT NULL,
@@ -114,6 +116,19 @@ export class SqliteDatabase {
         user_id TEXT PRIMARY KEY,
         secret TEXT NOT NULL,
         enabled INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS webauthn_credentials (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        credential_id TEXT NOT NULL UNIQUE,
+        public_key TEXT NOT NULL,
+        sign_count INTEGER NOT NULL DEFAULT 0,
+        transports_json TEXT NOT NULL DEFAULT '[]',
+        aaguid TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -424,6 +439,72 @@ export class SqliteDatabase {
         FOREIGN KEY (approver_id) REFERENCES users(id)
       );
 
+      CREATE TABLE IF NOT EXISTS access_review_campaigns (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL,
+        created_by_user_id TEXT NOT NULL,
+        due_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (created_by_user_id) REFERENCES users(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS access_review_items (
+        id TEXT PRIMARY KEY,
+        campaign_id TEXT NOT NULL,
+        subject_user_id TEXT NOT NULL,
+        entitlement_type TEXT NOT NULL,
+        entitlement_value TEXT NOT NULL,
+        current_state TEXT NOT NULL,
+        decision TEXT,
+        decided_by_user_id TEXT,
+        decision_rationale TEXT,
+        decided_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (campaign_id) REFERENCES access_review_campaigns(id),
+        FOREIGN KEY (subject_user_id) REFERENCES users(id),
+        FOREIGN KEY (decided_by_user_id) REFERENCES users(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS elevation_requests (
+        id TEXT PRIMARY KEY,
+        correlation_id TEXT NOT NULL,
+        requester_id TEXT NOT NULL,
+        justification TEXT NOT NULL,
+        resource TEXT NOT NULL,
+        action TEXT NOT NULL,
+        status TEXT NOT NULL,
+        approved_by_user_id TEXT,
+        approved_at TEXT,
+        activated_at TEXT,
+        expires_at TEXT,
+        revoked_at TEXT,
+        revoked_by_user_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (requester_id) REFERENCES users(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS elevation_sessions (
+        id TEXT PRIMARY KEY,
+        correlation_id TEXT NOT NULL,
+        elevation_request_id TEXT NOT NULL,
+        requester_id TEXT NOT NULL,
+        resource TEXT NOT NULL,
+        action TEXT NOT NULL,
+        status TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        ended_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (elevation_request_id) REFERENCES elevation_requests(id),
+        FOREIGN KEY (requester_id) REFERENCES users(id)
+      );
+
       CREATE TABLE IF NOT EXISTS event_hooks (
         id TEXT PRIMARY KEY,
         event_type TEXT NOT NULL,
@@ -447,6 +528,131 @@ export class SqliteDatabase {
         created_at TEXT NOT NULL,
         FOREIGN KEY (hook_id) REFERENCES event_hooks(id)
       );
+
+      CREATE TABLE IF NOT EXISTS saml_service_providers (
+        id TEXT PRIMARY KEY,
+        app_id TEXT,
+        entity_id TEXT UNIQUE NOT NULL,
+        metadata TEXT,
+        acs_url TEXT NOT NULL,
+        slo_url TEXT,
+        signing_certificate TEXT,
+        encryption_certificate TEXT,
+        name_id_format TEXT NOT NULL,
+        enabled INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS saml_name_id_mappings (
+        id TEXT PRIMARY KEY,
+        sp_id TEXT NOT NULL,
+        format TEXT NOT NULL,
+        source_attribute TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (sp_id) REFERENCES saml_service_providers(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS saml_assertion_audits (
+        id TEXT PRIMARY KEY,
+        sp_id TEXT NOT NULL,
+        request_id TEXT NOT NULL,
+        response_id TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        audience TEXT NOT NULL,
+        assertion_id TEXT NOT NULL,
+        issue_instant TEXT NOT NULL,
+        not_on_or_after TEXT NOT NULL,
+        destination_url TEXT NOT NULL,
+        status_code TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (sp_id) REFERENCES saml_service_providers(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS risk_events (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        ip TEXT,
+        device_fingerprint_hash TEXT,
+        geo TEXT,
+        confidence INTEGER NOT NULL DEFAULT 0,
+        reason TEXT NOT NULL,
+        decision TEXT NOT NULL,
+        metadata_json TEXT,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS service_identities (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        owner_id TEXT,
+        app_id TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        allowed_scopes_json TEXT NOT NULL DEFAULT '[]',
+        allowed_audiences_json TEXT NOT NULL DEFAULT '[]',
+        metadata_json TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS service_identity_credentials (
+        id TEXT PRIMARY KEY,
+        service_identity_id TEXT NOT NULL,
+        client_id TEXT NOT NULL UNIQUE,
+        client_secret_hash TEXT NOT NULL,
+        expires_at TEXT,
+        revoked_at TEXT,
+        rotated_from_id TEXT,
+        last_used_at TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (service_identity_id) REFERENCES service_identities(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS connectors (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        config_json TEXT NOT NULL DEFAULT '{}',
+        schedule TEXT,
+        last_sync_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS connector_runs (
+        id TEXT PRIMARY KEY,
+        connector_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        started_at TEXT,
+        finished_at TEXT,
+        records_imported INTEGER NOT NULL DEFAULT 0,
+        records_failed INTEGER NOT NULL DEFAULT 0,
+        error_message TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (connector_id) REFERENCES connectors(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS connector_mappings (
+        id TEXT PRIMARY KEY,
+        connector_id TEXT NOT NULL,
+        source_field TEXT NOT NULL,
+        target_field TEXT NOT NULL,
+        transform TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (connector_id) REFERENCES connectors(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS auth_metric_rollups (
+        id TEXT NOT NULL,
+        bucket TEXT NOT NULL,
+        event TEXT NOT NULL,
+        count INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (bucket, event)
+      );
     `);
         const userColumns = this.connection.prepare("PRAGMA table_info(users)").all();
         const hasCustomAttributesColumn = userColumns.some((column) => column.name === "custom_attributes_json");
@@ -468,6 +674,10 @@ export class SqliteDatabase {
         const hasUserExternalIdColumn = userColumns.some((column) => column.name === "external_id");
         if (!hasUserExternalIdColumn) {
             this.connection.exec("ALTER TABLE users ADD COLUMN external_id TEXT;");
+        }
+        const hasUserAvatarUrlColumn = userColumns.some((column) => column.name === "avatar_url");
+        if (!hasUserAvatarUrlColumn) {
+            this.connection.exec("ALTER TABLE users ADD COLUMN avatar_url TEXT;");
         }
         const clientColumns = this.connection.prepare("PRAGMA table_info(oauth_clients)").all();
         const hasResourcesColumn = clientColumns.some((column) => column.name === "resources_json");
@@ -508,6 +718,10 @@ export class SqliteDatabase {
         const hasAppUrlColumn = appColumns.some((column) => column.name === "url");
         if (!hasAppUrlColumn) {
             this.connection.exec("ALTER TABLE apps ADD COLUMN url TEXT;");
+        }
+        const hasAppImageUrlColumn = appColumns.some((column) => column.name === "image_url");
+        if (!hasAppImageUrlColumn) {
+            this.connection.exec("ALTER TABLE apps ADD COLUMN image_url TEXT;");
         }
         const authFlowColumns = this.connection.prepare("PRAGMA table_info(authentication_flows)").all();
         const hasDesignationColumn = authFlowColumns.some((column) => column.name === "designation");
@@ -603,6 +817,96 @@ export class SqliteDatabase {
         );
       `);
         }
+        const accessReviewCampaignColumns = this.connection.prepare("PRAGMA table_info(access_review_campaigns)").all();
+        if (accessReviewCampaignColumns.length === 0) {
+            this.connection.exec(`
+        CREATE TABLE IF NOT EXISTS access_review_campaigns (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          description TEXT,
+          status TEXT NOT NULL,
+          created_by_user_id TEXT NOT NULL,
+          due_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (created_by_user_id) REFERENCES users(id)
+        );
+      `);
+        }
+        const accessReviewItemColumns = this.connection.prepare("PRAGMA table_info(access_review_items)").all();
+        if (accessReviewItemColumns.length === 0) {
+            this.connection.exec(`
+        CREATE TABLE IF NOT EXISTS access_review_items (
+          id TEXT PRIMARY KEY,
+          campaign_id TEXT NOT NULL,
+          subject_user_id TEXT NOT NULL,
+          entitlement_type TEXT NOT NULL,
+          entitlement_value TEXT NOT NULL,
+          current_state TEXT NOT NULL,
+          decision TEXT,
+          decided_by_user_id TEXT,
+          decision_rationale TEXT,
+          decided_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (campaign_id) REFERENCES access_review_campaigns(id),
+          FOREIGN KEY (subject_user_id) REFERENCES users(id),
+          FOREIGN KEY (decided_by_user_id) REFERENCES users(id)
+        );
+      `);
+        }
+        const elevationColumns = this.connection.prepare("PRAGMA table_info(elevation_requests)").all();
+        if (elevationColumns.length === 0) {
+            this.connection.exec(`
+        CREATE TABLE IF NOT EXISTS elevation_requests (
+          id TEXT PRIMARY KEY,
+          correlation_id TEXT NOT NULL,
+          requester_id TEXT NOT NULL,
+          justification TEXT NOT NULL,
+          resource TEXT NOT NULL,
+          action TEXT NOT NULL,
+          status TEXT NOT NULL,
+          approved_by_user_id TEXT,
+          approved_at TEXT,
+          activated_at TEXT,
+          expires_at TEXT,
+          revoked_at TEXT,
+          revoked_by_user_id TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (requester_id) REFERENCES users(id)
+        );
+      `);
+        }
+        const hasElevationCorrelationId = elevationColumns.some((column) => column.name === "correlation_id");
+        if (!hasElevationCorrelationId) {
+            this.connection.exec("ALTER TABLE elevation_requests ADD COLUMN correlation_id TEXT NOT NULL DEFAULT '';\nUPDATE elevation_requests SET correlation_id = id WHERE correlation_id = '';\n");
+        }
+        const elevationSessionColumns = this.connection.prepare("PRAGMA table_info(elevation_sessions)").all();
+        if (elevationSessionColumns.length === 0) {
+            this.connection.exec(`
+        CREATE TABLE IF NOT EXISTS elevation_sessions (
+          id TEXT PRIMARY KEY,
+          correlation_id TEXT NOT NULL,
+          elevation_request_id TEXT NOT NULL,
+          requester_id TEXT NOT NULL,
+          resource TEXT NOT NULL,
+          action TEXT NOT NULL,
+          status TEXT NOT NULL,
+          started_at TEXT NOT NULL,
+          expires_at TEXT NOT NULL,
+          ended_at TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (elevation_request_id) REFERENCES elevation_requests(id),
+          FOREIGN KEY (requester_id) REFERENCES users(id)
+        );
+      `);
+        }
+        const hasElevationSessionCorrelationId = elevationSessionColumns.some((column) => column.name === "correlation_id");
+        if (!hasElevationSessionCorrelationId) {
+            this.connection.exec("ALTER TABLE elevation_sessions ADD COLUMN correlation_id TEXT NOT NULL DEFAULT '';\nUPDATE elevation_sessions SET correlation_id = elevation_request_id WHERE correlation_id = '';\n");
+        }
     }
 }
 const mapRole = (row) => ({
@@ -620,6 +924,7 @@ const mapUser = (row) => ({
     externalSource: row.external_source ? String(row.external_source) : undefined,
     externalId: row.external_id ? String(row.external_id) : undefined,
     isServiceUser: Boolean(row.is_service_user),
+    avatarUrl: row.avatar_url ? String(row.avatar_url) : undefined,
     email: String(row.email),
     username: String(row.username),
     passwordHash: String(row.password_hash),
@@ -664,6 +969,17 @@ const mapTotpCredential = (row) => ({
     createdAt: asDate(row.created_at),
     updatedAt: asDate(row.updated_at)
 });
+const mapWebauthnCredential = (row) => ({
+    id: String(row.id),
+    userId: String(row.user_id),
+    credentialId: String(row.credential_id),
+    publicKey: String(row.public_key),
+    signCount: Number(row.sign_count),
+    transports: parseStringArray(row.transports_json),
+    aaguid: row.aaguid ? String(row.aaguid) : undefined,
+    createdAt: asDate(row.created_at),
+    updatedAt: asDate(row.updated_at)
+});
 const mapAuthorizationCode = (row) => ({
     id: String(row.id),
     code: String(row.code),
@@ -697,6 +1013,7 @@ const mapApp = (row) => ({
     name: String(row.name),
     description: String(row.description),
     icon: row.icon ? String(row.icon) : undefined,
+    imageUrl: row.image_url ? String(row.image_url) : undefined,
     url: row.url ? String(row.url) : undefined,
     createdAt: asDate(row.created_at)
 });
@@ -725,6 +1042,9 @@ const mapInstanceSettings = (row) => {
         smtpSecure: typeof parsed.smtpSecure === "boolean" ? parsed.smtpSecure : false,
         smtpUser: typeof parsed.smtpUser === "string" && parsed.smtpUser.length > 0 ? parsed.smtpUser : undefined,
         smtpPass: typeof parsed.smtpPass === "string" && parsed.smtpPass.length > 0 ? parsed.smtpPass : undefined,
+        uiCustomizations: typeof parsed.uiCustomizations === "object" && parsed.uiCustomizations
+            ? parsed.uiCustomizations
+            : { defaultBySurface: {}, byClientId: {}, byAppId: {} },
         tokenSigningAlgorithm: "RS256",
         updatedAt: asDate(row.updated_at)
     };
@@ -900,6 +1220,30 @@ const mapAccessRequestApproval = (row) => ({
     rationale: row.rationale ? String(row.rationale) : undefined,
     createdAt: asDate(row.created_at)
 });
+const mapAccessReviewCampaign = (row) => ({
+    id: String(row.id),
+    name: String(row.name),
+    description: row.description ? String(row.description) : undefined,
+    status: String(row.status),
+    createdByUserId: String(row.created_by_user_id),
+    dueAt: maybeDate(row.due_at),
+    createdAt: asDate(row.created_at),
+    updatedAt: asDate(row.updated_at)
+});
+const mapAccessReviewItem = (row) => ({
+    id: String(row.id),
+    campaignId: String(row.campaign_id),
+    subjectUserId: String(row.subject_user_id),
+    entitlementType: String(row.entitlement_type),
+    entitlementValue: String(row.entitlement_value),
+    currentState: String(row.current_state),
+    decision: row.decision ? String(row.decision) : undefined,
+    decidedByUserId: row.decided_by_user_id ? String(row.decided_by_user_id) : undefined,
+    decisionRationale: row.decision_rationale ? String(row.decision_rationale) : undefined,
+    decidedAt: maybeDate(row.decided_at),
+    createdAt: asDate(row.created_at),
+    updatedAt: asDate(row.updated_at)
+});
 const mapEventHook = (row) => ({
     id: String(row.id),
     eventType: String(row.event_type),
@@ -1013,9 +1357,9 @@ export class SqliteUserRepository {
         const now = new Date();
         const user = { ...input, id: nanoid(), createdAt: now, updatedAt: now };
         this.db.prepare(`
-      INSERT INTO users (id, app_id, external_source, external_id, is_service_user, email, username, password_hash, given_name, family_name, custom_attributes_json, active, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(user.id, user.appId ?? null, user.externalSource ?? null, user.externalId ?? null, user.isServiceUser ? 1 : 0, user.email, user.username, user.passwordHash, user.givenName, user.familyName, JSON.stringify(user.customAttributes), user.active ? 1 : 0, user.createdAt.toISOString(), user.updatedAt.toISOString());
+      INSERT INTO users (id, app_id, external_source, external_id, is_service_user, avatar_url, email, username, password_hash, given_name, family_name, custom_attributes_json, active, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(user.id, user.appId ?? null, user.externalSource ?? null, user.externalId ?? null, user.isServiceUser ? 1 : 0, user.avatarUrl ?? null, user.email, user.username, user.passwordHash, user.givenName, user.familyName, JSON.stringify(user.customAttributes), user.active ? 1 : 0, user.createdAt.toISOString(), user.updatedAt.toISOString());
         return user;
     }
     list() {
@@ -1044,6 +1388,7 @@ export class SqliteUserRepository {
             externalSource: input.externalSource !== undefined ? input.externalSource : current.externalSource,
             externalId: input.externalId !== undefined ? input.externalId : current.externalId,
             isServiceUser: input.isServiceUser ?? current.isServiceUser,
+            avatarUrl: input.avatarUrl !== undefined ? input.avatarUrl : current.avatarUrl,
             email: input.email ?? current.email,
             username: input.username ?? current.username,
             givenName: input.givenName ?? current.givenName,
@@ -1052,9 +1397,9 @@ export class SqliteUserRepository {
         };
         this.db.prepare(`
       UPDATE users
-      SET app_id = ?, external_source = ?, external_id = ?, is_service_user = ?, email = ?, username = ?, given_name = ?, family_name = ?, updated_at = ?
+      SET app_id = ?, external_source = ?, external_id = ?, is_service_user = ?, avatar_url = ?, email = ?, username = ?, given_name = ?, family_name = ?, updated_at = ?
       WHERE id = ?
-    `).run(updated.appId ?? null, updated.externalSource ?? null, updated.externalId ?? null, updated.isServiceUser ? 1 : 0, updated.email, updated.username, updated.givenName, updated.familyName, updated.updatedAt.toISOString(), id);
+    `).run(updated.appId ?? null, updated.externalSource ?? null, updated.externalId ?? null, updated.isServiceUser ? 1 : 0, updated.avatarUrl ?? null, updated.email, updated.username, updated.givenName, updated.familyName, updated.updatedAt.toISOString(), id);
         return updated;
     }
     setPasswordHash(id, passwordHash) {
@@ -1195,6 +1540,51 @@ export class SqliteTotpCredentialRepository {
         this.db.prepare("DELETE FROM totp_credentials WHERE user_id = ?").run(userId);
     }
 }
+export class SqliteWebauthnCredentialRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    listByUserId(userId) {
+        const rows = this.db.prepare("SELECT * FROM webauthn_credentials WHERE user_id = ? ORDER BY created_at DESC").all(userId);
+        return rows.map(mapWebauthnCredential);
+    }
+    findByCredentialId(credentialId) {
+        const row = this.db.prepare("SELECT * FROM webauthn_credentials WHERE credential_id = ?").get(credentialId);
+        return row ? mapWebauthnCredential(row) : undefined;
+    }
+    upsert(input) {
+        const existing = this.findByCredentialId(input.credentialId);
+        const now = new Date();
+        const nextId = existing?.id ?? nanoid();
+        const createdAt = existing?.createdAt ?? now;
+        this.db.prepare(`
+      INSERT INTO webauthn_credentials (id, user_id, credential_id, public_key, sign_count, transports_json, aaguid, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(credential_id) DO UPDATE SET
+        user_id = excluded.user_id,
+        public_key = excluded.public_key,
+        sign_count = excluded.sign_count,
+        transports_json = excluded.transports_json,
+        aaguid = excluded.aaguid,
+        updated_at = excluded.updated_at
+    `).run(nextId, input.userId, input.credentialId, input.publicKey, input.signCount, JSON.stringify(input.transports), input.aaguid ?? null, createdAt.toISOString(), now.toISOString());
+        return {
+            id: nextId,
+            userId: input.userId,
+            credentialId: input.credentialId,
+            publicKey: input.publicKey,
+            signCount: input.signCount,
+            transports: input.transports,
+            aaguid: input.aaguid,
+            createdAt,
+            updatedAt: now
+        };
+    }
+    deleteByCredentialId(credentialId) {
+        this.db.prepare("DELETE FROM webauthn_credentials WHERE credential_id = ?").run(credentialId);
+    }
+}
 export class SqliteAuthorizationCodeRepository {
     db;
     constructor(db) {
@@ -1267,9 +1657,9 @@ export class SqliteAppRepository {
     create(input) {
         const app = { ...input, id: nanoid(), createdAt: new Date() };
         this.db.prepare(`
-      INSERT INTO apps (id, name, description, icon, url, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(app.id, app.name, app.description, app.icon ?? null, app.url ?? null, app.createdAt.toISOString());
+      INSERT INTO apps (id, name, description, icon, image_url, url, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(app.id, app.name, app.description, app.icon ?? null, app.imageUrl ?? null, app.url ?? null, app.createdAt.toISOString());
         return app;
     }
     list() {
@@ -1289,9 +1679,10 @@ export class SqliteAppRepository {
             name: input.name ?? existing.name,
             description: input.description ?? existing.description,
             icon: input.icon !== undefined ? input.icon : existing.icon,
+            imageUrl: input.imageUrl !== undefined ? input.imageUrl : existing.imageUrl,
             url: input.url !== undefined ? input.url : existing.url
         };
-        this.db.prepare("UPDATE apps SET name = ?, description = ?, icon = ?, url = ? WHERE id = ?").run(updated.name, updated.description, updated.icon ?? null, updated.url ?? null, id);
+        this.db.prepare("UPDATE apps SET name = ?, description = ?, icon = ?, image_url = ?, url = ? WHERE id = ?").run(updated.name, updated.description, updated.icon ?? null, updated.imageUrl ?? null, updated.url ?? null, id);
         return updated;
     }
     delete(id) {
@@ -1335,6 +1726,7 @@ export class SqliteInstanceSettingsRepository {
             smtpSecure: input.smtpSecure,
             smtpUser: input.smtpUser,
             smtpPass: input.smtpPass,
+            uiCustomizations: input.uiCustomizations,
             tokenSigningAlgorithm: input.tokenSigningAlgorithm
         }), updatedAt.toISOString());
         return {
@@ -2212,6 +2604,116 @@ export class SqliteAccessRequestApprovalRepository {
         return approval;
     }
 }
+export class SqliteAccessReviewCampaignRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    async list(input) {
+        const limit = Math.max(1, Math.min(200, input?.limit ?? 100));
+        if (input?.status) {
+            const rows = this.db.prepare("SELECT * FROM access_review_campaigns WHERE status = ? ORDER BY created_at DESC LIMIT ?").all(input.status, limit);
+            return rows.map(mapAccessReviewCampaign);
+        }
+        const rows = this.db.prepare("SELECT * FROM access_review_campaigns ORDER BY created_at DESC LIMIT ?").all(limit);
+        return rows.map(mapAccessReviewCampaign);
+    }
+    async findById(id) {
+        const row = this.db.prepare("SELECT * FROM access_review_campaigns WHERE id = ?").get(id);
+        return row ? mapAccessReviewCampaign(row) : undefined;
+    }
+    async create(input) {
+        const now = new Date();
+        const campaign = {
+            ...input,
+            id: nanoid(),
+            createdAt: now,
+            updatedAt: now
+        };
+        this.db.prepare(`
+      INSERT INTO access_review_campaigns (id, name, description, status, created_by_user_id, due_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(campaign.id, campaign.name, campaign.description ?? null, campaign.status, campaign.createdByUserId, campaign.dueAt ? campaign.dueAt.toISOString() : null, campaign.createdAt.toISOString(), campaign.updatedAt.toISOString());
+        return campaign;
+    }
+    async update(id, input) {
+        const existing = this.db.prepare("SELECT * FROM access_review_campaigns WHERE id = ?").get(id);
+        if (!existing) {
+            return undefined;
+        }
+        const current = mapAccessReviewCampaign(existing);
+        const updated = {
+            ...current,
+            ...input,
+            updatedAt: new Date()
+        };
+        this.db.prepare(`
+      UPDATE access_review_campaigns
+      SET name = ?, description = ?, status = ?, created_by_user_id = ?, due_at = ?, updated_at = ?
+      WHERE id = ?
+    `).run(updated.name, updated.description ?? null, updated.status, updated.createdByUserId, updated.dueAt ? updated.dueAt.toISOString() : null, updated.updatedAt.toISOString(), id);
+        return updated;
+    }
+}
+export class SqliteAccessReviewItemRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    async listByCampaignId(campaignId) {
+        const rows = this.db.prepare("SELECT * FROM access_review_items WHERE campaign_id = ? ORDER BY created_at ASC").all(campaignId);
+        return rows.map(mapAccessReviewItem);
+    }
+    async findById(id) {
+        const row = this.db.prepare("SELECT * FROM access_review_items WHERE id = ?").get(id);
+        return row ? mapAccessReviewItem(row) : undefined;
+    }
+    async create(input) {
+        const now = new Date();
+        const item = {
+            ...input,
+            id: nanoid(),
+            createdAt: now,
+            updatedAt: now
+        };
+        this.db.prepare(`
+      INSERT INTO access_review_items (
+        id,
+        campaign_id,
+        subject_user_id,
+        entitlement_type,
+        entitlement_value,
+        current_state,
+        decision,
+        decided_by_user_id,
+        decision_rationale,
+        decided_at,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(item.id, item.campaignId, item.subjectUserId, item.entitlementType, item.entitlementValue, item.currentState, item.decision ?? null, item.decidedByUserId ?? null, item.decisionRationale ?? null, item.decidedAt ? item.decidedAt.toISOString() : null, item.createdAt.toISOString(), item.updatedAt.toISOString());
+        return item;
+    }
+    async update(id, input) {
+        const existing = this.db.prepare("SELECT * FROM access_review_items WHERE id = ?").get(id);
+        if (!existing) {
+            return undefined;
+        }
+        const current = mapAccessReviewItem(existing);
+        const updated = {
+            ...current,
+            ...input,
+            updatedAt: new Date()
+        };
+        this.db.prepare(`
+      UPDATE access_review_items
+      SET campaign_id = ?, subject_user_id = ?, entitlement_type = ?, entitlement_value = ?, current_state = ?, decision = ?, decided_by_user_id = ?, decision_rationale = ?, decided_at = ?, updated_at = ?
+      WHERE id = ?
+    `).run(updated.campaignId, updated.subjectUserId, updated.entitlementType, updated.entitlementValue, updated.currentState, updated.decision ?? null, updated.decidedByUserId ?? null, updated.decisionRationale ?? null, updated.decidedAt ? updated.decidedAt.toISOString() : null, updated.updatedAt.toISOString(), id);
+        return updated;
+    }
+}
 export class SqliteEventHookRepository {
     db;
     constructor(db) {
@@ -2275,5 +2777,522 @@ export class SqliteEventNotificationRepository {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(notification.id, notification.eventType, notification.hookId ?? null, JSON.stringify(notification.payload), notification.status, notification.responseStatus ?? null, notification.responseBody ?? null, notification.error ?? null, notification.createdAt.toISOString());
         return notification;
+    }
+}
+const mapElevationRequest = (row) => ({
+    id: String(row.id),
+    correlationId: String(row.correlation_id ?? row.id),
+    requesterId: String(row.requester_id),
+    justification: String(row.justification),
+    resource: String(row.resource),
+    action: String(row.action),
+    status: row.status,
+    approvedByUserId: row.approved_by_user_id ? String(row.approved_by_user_id) : undefined,
+    approvedAt: maybeDate(row.approved_at),
+    activatedAt: maybeDate(row.activated_at),
+    expiresAt: maybeDate(row.expires_at),
+    revokedAt: maybeDate(row.revoked_at),
+    revokedByUserId: row.revoked_by_user_id ? String(row.revoked_by_user_id) : undefined,
+    createdAt: asDate(row.created_at),
+    updatedAt: asDate(row.updated_at)
+});
+const mapElevationSession = (row) => ({
+    id: String(row.id),
+    correlationId: String(row.correlation_id ?? row.elevation_request_id),
+    elevationRequestId: String(row.elevation_request_id),
+    requesterId: String(row.requester_id),
+    resource: String(row.resource),
+    action: String(row.action),
+    status: row.status,
+    startedAt: asDate(row.started_at),
+    expiresAt: asDate(row.expires_at),
+    endedAt: maybeDate(row.ended_at),
+    createdAt: asDate(row.created_at),
+    updatedAt: asDate(row.updated_at)
+});
+export class SqliteElevationRequestRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    list(input) {
+        const limit = input?.limit ?? 100;
+        const conditions = [];
+        const params = [];
+        if (input?.status) {
+            conditions.push("status = ?");
+            params.push(input.status);
+        }
+        if (input?.requesterId) {
+            conditions.push("requester_id = ?");
+            params.push(input.requesterId);
+        }
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+        params.push(limit);
+        const rows = this.db.prepare(`SELECT * FROM elevation_requests ${where} ORDER BY created_at DESC LIMIT ?`).all(...params);
+        return rows.map(mapElevationRequest);
+    }
+    findById(id) {
+        const row = this.db.prepare("SELECT * FROM elevation_requests WHERE id = ?").get(id);
+        return row ? mapElevationRequest(row) : undefined;
+    }
+    create(input) {
+        const now = new Date();
+        const request = {
+            id: nanoid(),
+            ...input,
+            createdAt: now,
+            updatedAt: now
+        };
+        this.db.prepare(`
+      INSERT INTO elevation_requests
+        (id, correlation_id, requester_id, justification, resource, action, status, approved_by_user_id, approved_at, activated_at, expires_at, revoked_at, revoked_by_user_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(request.id, request.correlationId, request.requesterId, request.justification, request.resource, request.action, request.status, request.approvedByUserId ?? null, request.approvedAt?.toISOString() ?? null, request.activatedAt?.toISOString() ?? null, request.expiresAt?.toISOString() ?? null, request.revokedAt?.toISOString() ?? null, request.revokedByUserId ?? null, request.createdAt.toISOString(), request.updatedAt.toISOString());
+        return request;
+    }
+    update(id, input) {
+        const existing = this.findById(id);
+        if (!existing)
+            return undefined;
+        const updated = { ...existing, ...input, updatedAt: new Date() };
+        this.db.prepare(`
+      UPDATE elevation_requests
+      SET correlation_id = ?, requester_id = ?, justification = ?, resource = ?, action = ?, status = ?,
+          approved_by_user_id = ?, approved_at = ?, activated_at = ?, expires_at = ?,
+          revoked_at = ?, revoked_by_user_id = ?, updated_at = ?
+      WHERE id = ?
+    `).run(updated.correlationId, updated.requesterId, updated.justification, updated.resource, updated.action, updated.status, updated.approvedByUserId ?? null, updated.approvedAt?.toISOString() ?? null, updated.activatedAt?.toISOString() ?? null, updated.expiresAt?.toISOString() ?? null, updated.revokedAt?.toISOString() ?? null, updated.revokedByUserId ?? null, updated.updatedAt.toISOString(), id);
+        return updated;
+    }
+}
+export class SqliteElevationSessionRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    list(input) {
+        const limit = input?.limit ?? 100;
+        const conditions = [];
+        const params = [];
+        if (input?.status) {
+            conditions.push("status = ?");
+            params.push(input.status);
+        }
+        if (input?.requesterId) {
+            conditions.push("requester_id = ?");
+            params.push(input.requesterId);
+        }
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+        params.push(limit);
+        const rows = this.db.prepare(`SELECT * FROM elevation_sessions ${where} ORDER BY created_at DESC LIMIT ?`).all(...params);
+        return rows.map(mapElevationSession);
+    }
+    create(input) {
+        const now = new Date();
+        const session = {
+            id: nanoid(),
+            ...input,
+            createdAt: now,
+            updatedAt: now
+        };
+        this.db.prepare(`
+      INSERT INTO elevation_sessions
+        (id, correlation_id, elevation_request_id, requester_id, resource, action, status, started_at, expires_at, ended_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(session.id, session.correlationId, session.elevationRequestId, session.requesterId, session.resource, session.action, session.status, session.startedAt.toISOString(), session.expiresAt.toISOString(), session.endedAt?.toISOString() ?? null, session.createdAt.toISOString(), session.updatedAt.toISOString());
+        return session;
+    }
+    findActive(input) {
+        const now = (input.now ?? new Date()).toISOString();
+        const row = this.db.prepare(`
+      SELECT * FROM elevation_sessions
+      WHERE requester_id = ? AND resource = ? AND action = ? AND status = 'active' AND expires_at > ?
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).get(input.requesterId, input.resource, input.action, now);
+        return row ? mapElevationSession(row) : undefined;
+    }
+    closeByElevationRequestId(input) {
+        const result = this.db.prepare(`
+      UPDATE elevation_sessions
+      SET status = ?, ended_at = ?, updated_at = ?
+      WHERE elevation_request_id = ? AND status = 'active'
+    `).run(input.status, input.closedAt.toISOString(), input.closedAt.toISOString(), input.elevationRequestId);
+        return result.changes;
+    }
+    closeExpired(now) {
+        const result = this.db.prepare(`
+      UPDATE elevation_sessions
+      SET status = 'expired', ended_at = ?, updated_at = ?
+      WHERE status = 'active' AND expires_at <= ?
+    `).run(now.toISOString(), now.toISOString(), now.toISOString());
+        return result.changes;
+    }
+    // SAML Service Provider Repository Implementation
+    samlServiceProviderList() {
+        const rows = this.db.prepare("SELECT * FROM saml_service_providers").all();
+        return rows.map((row) => ({
+            id: String(row.id),
+            appId: row.app_id ? String(row.app_id) : undefined,
+            entityId: String(row.entity_id),
+            metadata: row.metadata ? String(row.metadata) : undefined,
+            acsUrl: String(row.acs_url),
+            sloUrl: row.slo_url ? String(row.slo_url) : undefined,
+            signingCertificate: row.signing_certificate ? String(row.signing_certificate) : undefined,
+            encryptionCertificate: row.encryption_certificate ? String(row.encryption_certificate) : undefined,
+            nameIdFormat: String(row.name_id_format),
+            enabled: Boolean(row.enabled),
+            createdAt: new Date(String(row.created_at)),
+            updatedAt: new Date(String(row.updated_at))
+        }));
+    }
+    samlServiceProviderFindById(id) {
+        const row = this.db.prepare("SELECT * FROM saml_service_providers WHERE id = ?").get(id);
+        if (!row)
+            return undefined;
+        return {
+            id: String(row.id),
+            appId: row.app_id ? String(row.app_id) : undefined,
+            entityId: String(row.entity_id),
+            metadata: row.metadata ? String(row.metadata) : undefined,
+            acsUrl: String(row.acs_url),
+            sloUrl: row.slo_url ? String(row.slo_url) : undefined,
+            signingCertificate: row.signing_certificate ? String(row.signing_certificate) : undefined,
+            encryptionCertificate: row.encryption_certificate ? String(row.encryption_certificate) : undefined,
+            nameIdFormat: String(row.name_id_format),
+            enabled: Boolean(row.enabled),
+            createdAt: new Date(String(row.created_at)),
+            updatedAt: new Date(String(row.updated_at))
+        };
+    }
+    samlServiceProviderFindByEntityId(entityId) {
+        const row = this.db.prepare("SELECT * FROM saml_service_providers WHERE entity_id = ?").get(entityId);
+        if (!row)
+            return undefined;
+        return {
+            id: String(row.id),
+            appId: row.app_id ? String(row.app_id) : undefined,
+            entityId: String(row.entity_id),
+            metadata: row.metadata ? String(row.metadata) : undefined,
+            acsUrl: String(row.acs_url),
+            sloUrl: row.slo_url ? String(row.slo_url) : undefined,
+            signingCertificate: row.signing_certificate ? String(row.signing_certificate) : undefined,
+            encryptionCertificate: row.encryption_certificate ? String(row.encryption_certificate) : undefined,
+            nameIdFormat: String(row.name_id_format),
+            enabled: Boolean(row.enabled),
+            createdAt: new Date(String(row.created_at)),
+            updatedAt: new Date(String(row.updated_at))
+        };
+    }
+    samlServiceProviderCreate(input) {
+        const id = nanoid();
+        const now = new Date().toISOString();
+        this.db.prepare(`
+      INSERT INTO saml_service_providers (id, app_id, entity_id, metadata, acs_url, slo_url, signing_certificate, encryption_certificate, name_id_format, enabled, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, input.appId || null, input.entityId, input.metadata || null, input.acsUrl, input.sloUrl || null, input.signingCertificate || null, input.encryptionCertificate || null, input.nameIdFormat, input.enabled ? 1 : 0, now, now);
+        return {
+            id,
+            ...input,
+            createdAt: new Date(now),
+            updatedAt: new Date(now)
+        };
+    }
+    samlServiceProviderUpdate(id, input) {
+        const now = new Date().toISOString();
+        const existing = this.samlServiceProviderFindById(id);
+        if (!existing)
+            return undefined;
+        const updated = {
+            ...existing,
+            ...input,
+            updatedAt: new Date(now)
+        };
+        this.db.prepare(`
+      UPDATE saml_service_providers
+      SET app_id = ?, entity_id = ?, metadata = ?, acs_url = ?, slo_url = ?, signing_certificate = ?, encryption_certificate = ?, name_id_format = ?, enabled = ?, updated_at = ?
+      WHERE id = ?
+    `).run(updated.appId || null, updated.entityId, updated.metadata || null, updated.acsUrl, updated.sloUrl || null, updated.signingCertificate || null, updated.encryptionCertificate || null, updated.nameIdFormat, updated.enabled ? 1 : 0, now, id);
+        return updated;
+    }
+    samlServiceProviderDelete(id) {
+        this.db.prepare("DELETE FROM saml_service_providers WHERE id = ?").run(id);
+    }
+    // SAML Name ID Mapping Repository Implementation
+    samlNameIdMappingFindBySpId(spId) {
+        const rows = this.db.prepare("SELECT * FROM saml_name_id_mappings WHERE sp_id = ?").all(spId);
+        return rows.map((row) => ({
+            id: String(row.id),
+            spId: String(row.sp_id),
+            format: String(row.format),
+            sourceAttribute: String(row.source_attribute),
+            createdAt: new Date(String(row.created_at))
+        }));
+    }
+    samlNameIdMappingCreate(input) {
+        const id = nanoid();
+        const now = new Date().toISOString();
+        this.db.prepare(`
+      INSERT INTO saml_name_id_mappings (id, sp_id, format, source_attribute, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(id, input.spId, input.format, input.sourceAttribute, now);
+        return {
+            id,
+            ...input,
+            createdAt: new Date(now)
+        };
+    }
+    samlNameIdMappingDeleteBySpId(spId) {
+        const result = this.db.prepare("DELETE FROM saml_name_id_mappings WHERE sp_id = ?").run(spId);
+        return result.changes;
+    }
+    // SAML Assertion Audit Repository Implementation
+    samlAssertionAuditList(input) {
+        let query = "SELECT * FROM saml_assertion_audits";
+        const params = [];
+        if (input?.spId) {
+            query += " WHERE sp_id = ?";
+            params.push(input.spId);
+        }
+        query += " ORDER BY created_at DESC";
+        if (input?.limit) {
+            query += ` LIMIT ${input.limit}`;
+        }
+        const rows = this.db.prepare(query).all(...params);
+        return rows.map((row) => ({
+            id: String(row.id),
+            spId: String(row.sp_id),
+            requestId: String(row.request_id),
+            responseId: String(row.response_id),
+            subject: String(row.subject),
+            audience: String(row.audience),
+            assertionId: String(row.assertion_id),
+            issueInstant: new Date(String(row.issue_instant)),
+            notOnOrAfter: new Date(String(row.not_on_or_after)),
+            destinationUrl: String(row.destination_url),
+            statusCode: String(row.status_code),
+            createdAt: new Date(String(row.created_at))
+        }));
+    }
+    samlAssertionAuditFindById(id) {
+        const row = this.db.prepare("SELECT * FROM saml_assertion_audits WHERE id = ?").get(id);
+        if (!row)
+            return undefined;
+        return {
+            id: String(row.id),
+            spId: String(row.sp_id),
+            requestId: String(row.request_id),
+            responseId: String(row.response_id),
+            subject: String(row.subject),
+            audience: String(row.audience),
+            assertionId: String(row.assertion_id),
+            issueInstant: new Date(String(row.issue_instant)),
+            notOnOrAfter: new Date(String(row.not_on_or_after)),
+            destinationUrl: String(row.destination_url),
+            statusCode: String(row.status_code),
+            createdAt: new Date(String(row.created_at))
+        };
+    }
+    samlAssertionAuditCreate(input) {
+        const id = nanoid();
+        const now = new Date().toISOString();
+        this.db.prepare(`
+      INSERT INTO saml_assertion_audits (id, sp_id, request_id, response_id, subject, audience, assertion_id, issue_instant, not_on_or_after, destination_url, status_code, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, input.spId, input.requestId, input.responseId, input.subject, input.audience, input.assertionId, input.issueInstant.toISOString(), input.notOnOrAfter.toISOString(), input.destinationUrl, input.statusCode, now);
+        return {
+            id,
+            ...input,
+            createdAt: new Date(now)
+        };
+    }
+}
+export class SqliteSamlServiceProviderRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    list() {
+        const rows = this.db.prepare("SELECT * FROM saml_service_providers ORDER BY created_at ASC").all();
+        return rows.map((row) => ({
+            id: String(row.id),
+            appId: row.app_id ? String(row.app_id) : undefined,
+            entityId: String(row.entity_id),
+            metadata: row.metadata ? String(row.metadata) : undefined,
+            acsUrl: String(row.acs_url),
+            sloUrl: row.slo_url ? String(row.slo_url) : undefined,
+            signingCertificate: row.signing_certificate ? String(row.signing_certificate) : undefined,
+            encryptionCertificate: row.encryption_certificate ? String(row.encryption_certificate) : undefined,
+            nameIdFormat: String(row.name_id_format),
+            enabled: Boolean(row.enabled),
+            createdAt: new Date(String(row.created_at)),
+            updatedAt: new Date(String(row.updated_at))
+        }));
+    }
+    findById(id) {
+        const row = this.db.prepare("SELECT * FROM saml_service_providers WHERE id = ?").get(id);
+        if (!row)
+            return undefined;
+        return {
+            id: String(row.id),
+            appId: row.app_id ? String(row.app_id) : undefined,
+            entityId: String(row.entity_id),
+            metadata: row.metadata ? String(row.metadata) : undefined,
+            acsUrl: String(row.acs_url),
+            sloUrl: row.slo_url ? String(row.slo_url) : undefined,
+            signingCertificate: row.signing_certificate ? String(row.signing_certificate) : undefined,
+            encryptionCertificate: row.encryption_certificate ? String(row.encryption_certificate) : undefined,
+            nameIdFormat: String(row.name_id_format),
+            enabled: Boolean(row.enabled),
+            createdAt: new Date(String(row.created_at)),
+            updatedAt: new Date(String(row.updated_at))
+        };
+    }
+    findByEntityId(entityId) {
+        const row = this.db.prepare("SELECT * FROM saml_service_providers WHERE entity_id = ?").get(entityId);
+        if (!row)
+            return undefined;
+        return {
+            id: String(row.id),
+            appId: row.app_id ? String(row.app_id) : undefined,
+            entityId: String(row.entity_id),
+            metadata: row.metadata ? String(row.metadata) : undefined,
+            acsUrl: String(row.acs_url),
+            sloUrl: row.slo_url ? String(row.slo_url) : undefined,
+            signingCertificate: row.signing_certificate ? String(row.signing_certificate) : undefined,
+            encryptionCertificate: row.encryption_certificate ? String(row.encryption_certificate) : undefined,
+            nameIdFormat: String(row.name_id_format),
+            enabled: Boolean(row.enabled),
+            createdAt: new Date(String(row.created_at)),
+            updatedAt: new Date(String(row.updated_at))
+        };
+    }
+    create(input) {
+        const id = nanoid();
+        const now = new Date().toISOString();
+        this.db.prepare(`
+      INSERT INTO saml_service_providers (id, app_id, entity_id, metadata, acs_url, slo_url, signing_certificate, encryption_certificate, name_id_format, enabled, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, input.appId ?? null, input.entityId, input.metadata ?? null, input.acsUrl, input.sloUrl ?? null, input.signingCertificate ?? null, input.encryptionCertificate ?? null, input.nameIdFormat, input.enabled ? 1 : 0, now, now);
+        return {
+            id,
+            ...input,
+            createdAt: new Date(now),
+            updatedAt: new Date(now)
+        };
+    }
+    update(id, input) {
+        const existing = this.findById(id);
+        if (!existing)
+            return undefined;
+        const updated = { ...existing, ...input, updatedAt: new Date() };
+        this.db.prepare(`
+      UPDATE saml_service_providers
+      SET app_id = ?, entity_id = ?, metadata = ?, acs_url = ?, slo_url = ?, signing_certificate = ?, encryption_certificate = ?, name_id_format = ?, enabled = ?, updated_at = ?
+      WHERE id = ?
+    `).run(updated.appId ?? null, updated.entityId, updated.metadata ?? null, updated.acsUrl, updated.sloUrl ?? null, updated.signingCertificate ?? null, updated.encryptionCertificate ?? null, updated.nameIdFormat, updated.enabled ? 1 : 0, updated.updatedAt.toISOString(), id);
+        return updated;
+    }
+    delete(id) {
+        this.db.prepare("DELETE FROM saml_service_providers WHERE id = ?").run(id);
+    }
+}
+export class SqliteSamlNameIdMappingRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    findBySpId(spId) {
+        const rows = this.db.prepare("SELECT * FROM saml_name_id_mappings WHERE sp_id = ? ORDER BY created_at ASC").all(spId);
+        return rows.map((row) => ({
+            id: String(row.id),
+            spId: String(row.sp_id),
+            format: String(row.format),
+            sourceAttribute: String(row.source_attribute),
+            createdAt: new Date(String(row.created_at))
+        }));
+    }
+    create(input) {
+        const id = nanoid();
+        const now = new Date().toISOString();
+        this.db.prepare(`
+      INSERT INTO saml_name_id_mappings (id, sp_id, format, source_attribute, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(id, input.spId, input.format, input.sourceAttribute, now);
+        return {
+            id,
+            ...input,
+            createdAt: new Date(now)
+        };
+    }
+    deleteBySpId(spId) {
+        const result = this.db.prepare("DELETE FROM saml_name_id_mappings WHERE sp_id = ?").run(spId);
+        return result.changes;
+    }
+}
+export class SqliteSamlAssertionAuditRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    list(input) {
+        let query = "SELECT * FROM saml_assertion_audits";
+        const params = [];
+        if (input?.spId) {
+            query += " WHERE sp_id = ?";
+            params.push(input.spId);
+        }
+        query += " ORDER BY created_at DESC";
+        if (input?.limit) {
+            query += ` LIMIT ${input.limit}`;
+        }
+        const rows = this.db.prepare(query).all(...params);
+        return rows.map((row) => ({
+            id: String(row.id),
+            spId: String(row.sp_id),
+            requestId: String(row.request_id),
+            responseId: String(row.response_id),
+            subject: String(row.subject),
+            audience: String(row.audience),
+            assertionId: String(row.assertion_id),
+            issueInstant: new Date(String(row.issue_instant)),
+            notOnOrAfter: new Date(String(row.not_on_or_after)),
+            destinationUrl: String(row.destination_url),
+            statusCode: String(row.status_code),
+            createdAt: new Date(String(row.created_at))
+        }));
+    }
+    findById(id) {
+        const row = this.db.prepare("SELECT * FROM saml_assertion_audits WHERE id = ?").get(id);
+        if (!row)
+            return undefined;
+        return {
+            id: String(row.id),
+            spId: String(row.sp_id),
+            requestId: String(row.request_id),
+            responseId: String(row.response_id),
+            subject: String(row.subject),
+            audience: String(row.audience),
+            assertionId: String(row.assertion_id),
+            issueInstant: new Date(String(row.issue_instant)),
+            notOnOrAfter: new Date(String(row.not_on_or_after)),
+            destinationUrl: String(row.destination_url),
+            statusCode: String(row.status_code),
+            createdAt: new Date(String(row.created_at))
+        };
+    }
+    create(input) {
+        const id = nanoid();
+        const now = new Date().toISOString();
+        this.db.prepare(`
+      INSERT INTO saml_assertion_audits (id, sp_id, request_id, response_id, subject, audience, assertion_id, issue_instant, not_on_or_after, destination_url, status_code, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, input.spId, input.requestId, input.responseId, input.subject, input.audience, input.assertionId, input.issueInstant.toISOString(), input.notOnOrAfter.toISOString(), input.destinationUrl, input.statusCode, now);
+        return {
+            id,
+            ...input,
+            createdAt: new Date(now)
+        };
     }
 }

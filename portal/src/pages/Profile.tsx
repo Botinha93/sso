@@ -4,7 +4,9 @@ import { Link, useNavigate } from 'react-router-dom'
 import type { PortalUser } from '../hooks'
 import {
   usePortalChangePassword,
+  usePortalDefaultAvatars,
   usePortalDeleteAccount,
+  usePortalUploadAvatar,
   usePortalUpdateProfile,
   useTotpDisable,
   useTotpEnroll,
@@ -103,9 +105,11 @@ export default function Profile({ user }: Props) {
 
 function ProfileSection({ user }: { user: PortalUser }) {
   const update = usePortalUpdateProfile()
+  const uploadAvatar = usePortalUploadAvatar()
   const [form, setForm] = useState({
     givenName: user.givenName,
     familyName: user.familyName,
+    avatarUrl: user.avatarUrl ?? '',
     email: user.email,
     username: user.username,
   })
@@ -117,9 +121,12 @@ function ProfileSection({ user }: { user: PortalUser }) {
 
   // Sync if user data changes
   useEffect(() => {
-    setForm({ givenName: user.givenName, familyName: user.familyName, email: user.email, username: user.username })
+    setForm({ givenName: user.givenName, familyName: user.familyName, avatarUrl: user.avatarUrl ?? '', email: user.email, username: user.username })
     setCustomAttrs(Object.entries(user.customAttributes))
   }, [user])
+
+  const initials = `${form.givenName?.[0] ?? ''}${form.familyName?.[0] ?? ''}`.toUpperCase() || (form.username?.slice(0, 2).toUpperCase() ?? 'AB')
+  const { data: defaultAvatars } = usePortalDefaultAvatars(initials)
 
   const handleSave = async () => {
     setError('')
@@ -153,6 +160,45 @@ function ProfileSection({ user }: { user: PortalUser }) {
         <div>
           <label className={labelCls}>Last Name</label>
           <input className={fieldCls} value={form.familyName} onChange={e => setForm(p => ({ ...p, familyName: e.target.value }))} />
+        </div>
+      </div>
+
+      <div>
+        <label className={labelCls}>Profile Picture</label>
+        <div className="flex items-center gap-3 mb-2">
+          <div className="h-14 w-14 rounded-full bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center text-sm font-semibold text-slate-600">
+            {form.avatarUrl ? <img src={form.avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : initials}
+          </div>
+          <input
+            type="file"
+            accept="image/*"
+            className={`${fieldCls} pt-1.5`}
+            onChange={async (event) => {
+              const file = event.target.files?.[0]
+              if (!file) return
+              try {
+                const result = await uploadAvatar.mutateAsync(file) as { avatarUrl?: string }
+                if (result?.avatarUrl) {
+                  setForm((prev) => ({ ...prev, avatarUrl: result.avatarUrl ?? '' }))
+                }
+              } catch (e: any) {
+                setError(e.message ?? 'Avatar upload failed')
+              }
+            }}
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {((defaultAvatars as any)?.items ?? []).map((item: any) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setForm((prev) => ({ ...prev, avatarUrl: item.url }))}
+              className="h-10 w-10 rounded-full overflow-hidden border border-slate-200 hover:ring-2 hover:ring-slate-300"
+              title={item.label}
+            >
+              <img src={item.url} alt={item.label} className="h-full w-full object-cover" />
+            </button>
+          ))}
         </div>
       </div>
 

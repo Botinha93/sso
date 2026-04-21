@@ -16,6 +16,7 @@ export class UserService {
     externalSource?: string;
     externalId?: string;
     isServiceUser?: boolean;
+    avatarUrl?: string;
     email: string;
     username: string;
     password: string;
@@ -35,6 +36,7 @@ export class UserService {
       externalSource: input.externalSource,
       externalId: input.externalId,
       isServiceUser: input.isServiceUser ?? false,
+      avatarUrl: input.avatarUrl,
       email: input.email,
       username: input.username,
       passwordHash: hashPassword(input.password),
@@ -84,6 +86,7 @@ export class UserService {
     externalSource?: string;
     externalId?: string;
     isServiceUser?: boolean;
+    avatarUrl?: string;
     email?: string;
     username?: string;
     givenName?: string;

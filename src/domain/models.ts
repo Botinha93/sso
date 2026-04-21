@@ -44,6 +44,7 @@ export interface User {
   externalSource?: string;
   externalId?: string;
   isServiceUser: boolean;
+  avatarUrl?: string;
   email: string;
   username: string;
   passwordHash: string;
@@ -141,6 +142,7 @@ export interface App {
   name: string;
   description: string;
   icon?: string;
+  imageUrl?: string;
   url?: string;
   createdAt: Date;
 }
@@ -537,6 +539,9 @@ export type AuditEventType =
   | "connector_updated"
   | "connector_deleted"
   | "connector_sync_triggered"
+  | "connector_sync_succeeded"
+  | "connector_sync_retry_scheduled"
+  | "connector_sync_failed"
   | "plugin_runtime_load_failed"
   | "plugin_runtime_executed"
   | "plugin_runtime_failed"

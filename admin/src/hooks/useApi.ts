@@ -29,6 +29,31 @@ const jsonFetch = async (url: string, options?: RequestInit) => {
   return res.json()
 }
 
+const uploadFetch = async (url: string, file: File) => {
+  const headers: Record<string, string> = {}
+  if (url.startsWith(API_BASE)) {
+    headers['X-CSRF-Token'] = await getCsrfToken()
+  }
+
+  const form = new FormData()
+  form.set('file', file)
+
+  const res = await fetch(url, {
+    method: 'POST',
+    credentials: 'include',
+    headers,
+    body: form
+  })
+
+  if (!res.ok && res.status !== 204) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(err.message ?? err.error ?? 'Upload failed')
+  }
+
+  if (res.status === 204) return null
+  return res.json()
+}
+
 // --- Setup ---
 export function useSetupStatus() {
   return useQuery({
@@ -231,6 +256,7 @@ export function useUpdateUser() {
       id: string
       appId?: string
       isServiceUser?: boolean
+      avatarUrl?: string
       email?: string
       username?: string
       givenName?: string
@@ -258,7 +284,7 @@ export function useApps() {
 export function useCreateApp() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (app: { name: string; description: string; icon?: string; url?: string }) => jsonFetch(`${API_BASE}/apps`, {
+    mutationFn: (app: { name: string; description: string; icon?: string; imageUrl?: string; url?: string }) => jsonFetch(`${API_BASE}/apps`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(app)
@@ -270,7 +296,7 @@ export function useCreateApp() {
 export function useUpdateApp() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; name?: string; description?: string; icon?: string; url?: string | null }) => jsonFetch(`${API_BASE}/apps/${id}`, {
+    mutationFn: ({ id, ...data }: { id: string; name?: string; description?: string; icon?: string; imageUrl?: string; url?: string | null }) => jsonFetch(`${API_BASE}/apps/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -292,6 +318,36 @@ export function useDeleteUser() {
   return useMutation({
     mutationFn: (userId: string) => jsonFetch(`${API_BASE}/users/${userId}`, { method: 'DELETE' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] })
+  })
+}
+
+export function useUploadUserAvatar() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ userId, file }: { userId: string; file: File }) => uploadFetch(`${API_BASE}/users/${userId}/avatar`, file),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] })
+  })
+}
+
+export function useUploadAppImage() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ appId, file }: { appId: string; file: File }) => uploadFetch(`${API_BASE}/apps/${appId}/image`, file),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['apps'] })
+  })
+}
+
+export function useDefaultUserAvatars(initials: string) {
+  return useQuery({
+    queryKey: ['default-user-avatars', initials],
+    queryFn: () => jsonFetch(`/api/media/defaults/users?initials=${encodeURIComponent(initials)}`)
+  })
+}
+
+export function useDefaultAppImages() {
+  return useQuery({
+    queryKey: ['default-app-images'],
+    queryFn: () => jsonFetch('/api/media/defaults/apps')
   })
 }
 

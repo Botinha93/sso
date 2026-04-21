@@ -14,6 +14,8 @@ import { PolicyService } from "./services/policy-service.js";
 import { ProvisioningService } from "./services/provisioning-service.js";
 import { DeprovisioningService } from "./services/deprovisioning-service.js";
 import { AccessGovernanceService } from "./services/access-governance-service.js";
+import { AccessReviewService } from "./services/access-review-service.js";
+import { ElevationService } from "./services/elevation-service.js";
 import { EventHookService } from "./services/event-hook-service.js";
 import { EmailService } from "./services/email-service.js";
 import { InstanceSettingsService } from "./services/instance-settings-service.js";
@@ -23,14 +25,36 @@ import { SecurityService } from "./services/security-service.js";
 import { ScopeService } from "./services/scope-service.js";
 import { ScimService } from "./services/scim-service.js";
 import { ScimTokenService } from "./services/scim-token-service.js";
+import { SamlService } from "./services/saml-service.js";
+import { SamlReplayProtectionService } from "./services/saml-replay-protection-service.js";
+import { SamlSignatureService } from "./services/saml-signature-service.js";
 import { SetupService } from "./services/setup-service.js";
 import { TenantService } from "./services/tenant-service.js";
 import { TotpService } from "./services/totp-service.js";
+import { WebauthnService } from "./services/webauthn-service.js";
+import { RiskService } from "./services/risk-service.js";
+import { ServiceIdentityService } from "./services/service-identity-service.js";
+import { ConnectorService, AuthMetricsService } from "./services/connector-service.js";
+import { PluginService } from "./services/plugin-service.js";
+import { PluginRuntimeService } from "./services/plugin-runtime-service.js";
 import { UserAttributeService } from "./services/user-attribute-service.js";
 import { UserService } from "./services/user-service.js";
+import { MediaService } from "./services/media-service.js";
+import { dirname, resolve } from "node:path";
 export const bootstrap = async (config) => {
     const repositories = await createRepositoryBundle(config);
-    const { roleRepository, tenantRepository, appRepository, groupRepository, userGroupAssignmentRepository, groupRoleAssignmentRepository, assignmentRepository, userRepository, clientRepository, scopeRepository, sessionRepository, totpCredentialRepository, authorizationCodeRepository, consentRepository, refreshTokenRepository, accessTokenRepository, auditRepository, authenticationFlowRepository, federationProviderRepository, federatedIdentityRepository, federationTransactionRepository, userAttributeRepository, groupUserAttributeAssignmentRepository, policyDefinitionRepository, policyAssignmentRepository, policyDecisionLogRepository, scimTokenRepository, provisioningMappingRepository, provisioningJobRepository, deprovisioningQueueRepository, accessRequestRepository, accessRequestApprovalRepository, eventHookRepository, eventNotificationRepository, instanceSettingsRepository } = repositories;
+    const { roleRepository, tenantRepository, appRepository, groupRepository, userGroupAssignmentRepository, groupRoleAssignmentRepository, assignmentRepository, userRepository, clientRepository, scopeRepository, sessionRepository, totpCredentialRepository, webauthnCredentialRepository, authorizationCodeRepository, consentRepository, refreshTokenRepository, accessTokenRepository, auditRepository, authenticationFlowRepository, federationProviderRepository, federatedIdentityRepository, federationTransactionRepository, userAttributeRepository, groupUserAttributeAssignmentRepository, policyDefinitionRepository, policyAssignmentRepository, policyDecisionLogRepository, scimTokenRepository, provisioningMappingRepository, provisioningJobRepository, deprovisioningQueueRepository, accessRequestRepository, accessRequestApprovalRepository, accessReviewCampaignRepository, accessReviewItemRepository, elevationRequestRepository, elevationSessionRepository, eventHookRepository, eventNotificationRepository, instanceSettingsRepository, samlServiceProviderRepository, samlNameIdMappingRepository, samlAssertionAuditRepository } = repositories;
+    const riskService = new RiskService(repositories.riskEventRepository);
+    const eventHookService = new EventHookService(eventHookRepository, eventNotificationRepository);
+    const connectorService = new ConnectorService(repositories.connectorRepository, repositories.connectorRunRepository, repositories.connectorMappingRepository, auditRepository, eventHookService);
+    const authMetricsService = new AuthMetricsService(repositories.authMetricRepository);
+    const pluginStorageRoot = resolve(process.cwd(), dirname(config.databasePath), "plugins");
+    const mediaStorageRoot = resolve(process.cwd(), dirname(config.databasePath), "uploads");
+    const pluginService = new PluginService(pluginStorageRoot);
+    const mediaService = new MediaService(mediaStorageRoot);
+    const pluginRuntimeService = new PluginRuntimeService(pluginService, auditRepository);
+    eventHookService.setPluginRuntime(pluginRuntimeService);
+    const serviceIdentityService = new ServiceIdentityService(repositories.serviceIdentityRepository, repositories.serviceIdentityCredentialRepository);
     const roleService = new RoleService(roleRepository, assignmentRepository, tenantRepository, userGroupAssignmentRepository, groupRoleAssignmentRepository);
     const authenticationFlowService = new AuthenticationFlowService(authenticationFlowRepository);
     const groupService = new GroupService(groupRepository, groupRoleAssignmentRepository, userGroupAssignmentRepository, roleRepository, userRepository);
@@ -41,7 +65,6 @@ export const bootstrap = async (config) => {
     await policyService.ensureBuiltIns();
     const instanceSettingsService = new InstanceSettingsService(instanceSettingsRepository);
     await instanceSettingsService.ensureDefaults();
-    const eventHookService = new EventHookService(eventHookRepository, eventNotificationRepository);
     const securityService = new SecurityService(auditRepository, eventHookService, instanceSettingsService);
     const emailService = new EmailService(instanceSettingsService);
     const databaseMigrationService = new DatabaseMigrationService();
@@ -53,11 +76,17 @@ export const bootstrap = async (config) => {
     const appService = new AppService(appRepository);
     const scimService = new ScimService(userService, groupService);
     const scimTokenService = new ScimTokenService(scimTokenRepository);
+    const samlService = new SamlService(samlServiceProviderRepository, samlNameIdMappingRepository, samlAssertionAuditRepository, auditRepository);
+    const samlReplayProtectionService = new SamlReplayProtectionService();
+    const samlSignatureService = new SamlSignatureService();
     const provisioningService = new ProvisioningService(provisioningMappingRepository, provisioningJobRepository, userRepository, groupRepository);
     const deprovisioningService = new DeprovisioningService(deprovisioningQueueRepository);
     const accessGovernanceService = new AccessGovernanceService(accessRequestRepository, accessRequestApprovalRepository, userRepository, roleRepository, groupRepository, roleService, groupService);
+    const accessReviewService = new AccessReviewService(accessReviewCampaignRepository, accessReviewItemRepository, userRepository, assignmentRepository, userGroupAssignmentRepository, roleRepository, groupRepository, roleService, groupService);
+    const elevationService = new ElevationService(elevationRequestRepository, elevationSessionRepository, userRepository, auditRepository);
     const setupService = new SetupService(userService, roleService, groupService, policyService, scopeService, appService, instanceSettingsService);
     const totpService = new TotpService(config, totpCredentialRepository);
+    const webauthnService = new WebauthnService(config, webauthnCredentialRepository);
     // Keep sane defaults in place across upgrades and restarts.
     await setupService.ensureSaneDefaults();
     if (!await tenantRepository.findBySlug("default")) {
@@ -242,14 +271,30 @@ export const bootstrap = async (config) => {
         userService,
         scimService,
         scimTokenService,
+        samlService,
+        samlReplayProtectionService,
+        samlSignatureService,
+        samlServiceProviderRepository,
+        samlNameIdMappingRepository,
+        samlAssertionAuditRepository,
         provisioningService,
         deprovisioningService,
         accessGovernanceService,
+        accessReviewService,
+        elevationService,
         clientService,
         scopeService,
         appService,
         setupService,
         totpService,
+        webauthnService,
+        riskService,
+        serviceIdentityService,
+        connectorService,
+        authMetricsService,
+        pluginService,
+        pluginRuntimeService,
+        mediaService,
         authService,
         oidcService,
         auditRepository,

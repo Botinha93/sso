@@ -188,6 +188,7 @@ const mapUser = (row: PrismaRow): User => ({
   externalSource: readField(row, "externalSource", "external_source") ? String(readField(row, "externalSource", "external_source")) : undefined,
   externalId: readField(row, "externalId", "external_id") ? String(readField(row, "externalId", "external_id")) : undefined,
   isServiceUser: asBoolean(readField(row, "isServiceUser", "is_service_user")),
+  avatarUrl: readField(row, "avatarUrl", "avatar_url") ? String(readField(row, "avatarUrl", "avatar_url")) : undefined,
   email: String(readField(row, "email")),
   username: String(readField(row, "username")),
   passwordHash: String(readField(row, "passwordHash", "password_hash")),
@@ -285,6 +286,7 @@ const mapApp = (row: PrismaRow): App => ({
   name: String(row.name),
   description: String(row.description),
   icon: row.icon ? String(row.icon) : undefined,
+  imageUrl: row.imageUrl ? String(row.imageUrl) : (readField(row, "image_url") ? String(readField(row, "image_url")) : undefined),
   url: row.url ? String(row.url) : undefined,
   createdAt: asDate(row.createdAt)
 });
@@ -864,6 +866,7 @@ class PrismaUserRepository {
         externalSource: user.externalSource ?? null,
         externalId: user.externalId ?? null,
         isServiceUser: asBooleanInt(user.isServiceUser),
+        avatarUrl: user.avatarUrl ?? null,
         email: user.email,
         username: user.username,
         passwordHash: user.passwordHash,
@@ -902,7 +905,7 @@ class PrismaUserRepository {
     return row ? mapUser(row as PrismaRow) : undefined;
   }
 
-  async updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId" | "externalSource" | "externalId" | "isServiceUser">>): Promise<User | undefined> {
+  async updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId" | "externalSource" | "externalId" | "isServiceUser" | "avatarUrl">>): Promise<User | undefined> {
     const existing = await this.findById(id);
     if (!existing) {
       return undefined;
@@ -914,6 +917,7 @@ class PrismaUserRepository {
       externalSource: input.externalSource !== undefined ? input.externalSource : existing.externalSource,
       externalId: input.externalId !== undefined ? input.externalId : existing.externalId,
       isServiceUser: input.isServiceUser ?? existing.isServiceUser,
+      avatarUrl: input.avatarUrl !== undefined ? input.avatarUrl : existing.avatarUrl,
       email: input.email ?? existing.email,
       username: input.username ?? existing.username,
       givenName: input.givenName ?? existing.givenName,
@@ -928,6 +932,7 @@ class PrismaUserRepository {
         externalSource: updated.externalSource ?? null,
         externalId: updated.externalId ?? null,
         isServiceUser: asBooleanInt(updated.isServiceUser),
+        avatarUrl: updated.avatarUrl ?? null,
         email: updated.email,
         username: updated.username,
         givenName: updated.givenName,
@@ -1249,7 +1254,7 @@ class PrismaAppRepository {
 
   async create(input: Omit<App, "id" | "createdAt">): Promise<App> {
     const app: App = { ...input, id: nanoid(), createdAt: new Date() };
-    await this.prisma.app.create({ data: { id: app.id, name: app.name, description: app.description, icon: app.icon ?? null, url: app.url ?? null, createdAt: app.createdAt.toISOString() } });
+    await this.prisma.app.create({ data: { id: app.id, name: app.name, description: app.description, icon: app.icon ?? null, imageUrl: app.imageUrl ?? null, url: app.url ?? null, createdAt: app.createdAt.toISOString() } });
     return app;
   }
 
@@ -1269,8 +1274,8 @@ class PrismaAppRepository {
       return undefined;
     }
 
-    const updated: App = { ...existing, name: input.name ?? existing.name, description: input.description ?? existing.description, icon: input.icon !== undefined ? input.icon : existing.icon, url: input.url !== undefined ? input.url : existing.url };
-    await this.prisma.app.update({ where: { id }, data: { name: updated.name, description: updated.description, icon: updated.icon ?? null, url: updated.url ?? null } });
+    const updated: App = { ...existing, name: input.name ?? existing.name, description: input.description ?? existing.description, icon: input.icon !== undefined ? input.icon : existing.icon, imageUrl: input.imageUrl !== undefined ? input.imageUrl : existing.imageUrl, url: input.url !== undefined ? input.url : existing.url };
+    await this.prisma.app.update({ where: { id }, data: { name: updated.name, description: updated.description, icon: updated.icon ?? null, imageUrl: updated.imageUrl ?? null, url: updated.url ?? null } });
     return updated;
   }
 

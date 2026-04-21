@@ -144,6 +144,7 @@ export class SqliteDatabase {
         name TEXT NOT NULL UNIQUE,
         description TEXT NOT NULL,
         icon TEXT,
+        image_url TEXT,
         url TEXT,
         created_at TEXT NOT NULL
       );
@@ -170,6 +171,7 @@ export class SqliteDatabase {
         external_source TEXT,
         external_id TEXT,
         is_service_user INTEGER NOT NULL DEFAULT 0,
+        avatar_url TEXT,
         email TEXT NOT NULL UNIQUE,
         username TEXT NOT NULL UNIQUE,
         password_hash TEXT NOT NULL,
@@ -777,6 +779,10 @@ export class SqliteDatabase {
     if (!hasUserExternalIdColumn) {
       this.connection.exec("ALTER TABLE users ADD COLUMN external_id TEXT;");
     }
+    const hasUserAvatarUrlColumn = userColumns.some((column) => column.name === "avatar_url");
+    if (!hasUserAvatarUrlColumn) {
+      this.connection.exec("ALTER TABLE users ADD COLUMN avatar_url TEXT;");
+    }
 
     const clientColumns = this.connection.prepare("PRAGMA table_info(oauth_clients)").all() as Array<{ name: string }>;
     const hasResourcesColumn = clientColumns.some((column) => column.name === "resources_json");
@@ -820,6 +826,10 @@ export class SqliteDatabase {
     const hasAppUrlColumn = appColumns.some((column) => column.name === "url");
     if (!hasAppUrlColumn) {
       this.connection.exec("ALTER TABLE apps ADD COLUMN url TEXT;");
+    }
+    const hasAppImageUrlColumn = appColumns.some((column) => column.name === "image_url");
+    if (!hasAppImageUrlColumn) {
+      this.connection.exec("ALTER TABLE apps ADD COLUMN image_url TEXT;");
     }
 
     const authFlowColumns = this.connection.prepare("PRAGMA table_info(authentication_flows)").all() as Array<{ name: string }>;
@@ -1034,6 +1044,7 @@ const mapUser = (row: DbRow): User => ({
   externalSource: row.external_source ? String(row.external_source) : undefined,
   externalId: row.external_id ? String(row.external_id) : undefined,
   isServiceUser: Boolean(row.is_service_user),
+  avatarUrl: row.avatar_url ? String(row.avatar_url) : undefined,
   email: String(row.email),
   username: String(row.username),
   passwordHash: String(row.password_hash),
@@ -1131,6 +1142,7 @@ const mapApp = (row: DbRow): App => ({
   name: String(row.name),
   description: String(row.description),
   icon: row.icon ? String(row.icon) : undefined,
+  imageUrl: row.image_url ? String(row.image_url) : undefined,
   url: row.url ? String(row.url) : undefined,
   createdAt: asDate(row.created_at)
 });
@@ -1504,14 +1516,15 @@ export class SqliteUserRepository {
     const now = new Date();
     const user: User = { ...input, id: nanoid(), createdAt: now, updatedAt: now };
     this.db.prepare(`
-      INSERT INTO users (id, app_id, external_source, external_id, is_service_user, email, username, password_hash, given_name, family_name, custom_attributes_json, active, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO users (id, app_id, external_source, external_id, is_service_user, avatar_url, email, username, password_hash, given_name, family_name, custom_attributes_json, active, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       user.id,
       user.appId ?? null,
       user.externalSource ?? null,
       user.externalId ?? null,
       user.isServiceUser ? 1 : 0,
+      user.avatarUrl ?? null,
       user.email,
       user.username,
       user.passwordHash,
@@ -1545,7 +1558,7 @@ export class SqliteUserRepository {
     return row ? mapUser(row as DbRow) : undefined;
   }
 
-  updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId" | "externalSource" | "externalId" | "isServiceUser">>): User | undefined {
+  updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId" | "externalSource" | "externalId" | "isServiceUser" | "avatarUrl">>): User | undefined {
     const current = this.findById(id);
     if (!current) return undefined;
 
@@ -1555,6 +1568,7 @@ export class SqliteUserRepository {
       externalSource: input.externalSource !== undefined ? input.externalSource : current.externalSource,
       externalId: input.externalId !== undefined ? input.externalId : current.externalId,
       isServiceUser: input.isServiceUser ?? current.isServiceUser,
+      avatarUrl: input.avatarUrl !== undefined ? input.avatarUrl : current.avatarUrl,
       email: input.email ?? current.email,
       username: input.username ?? current.username,
       givenName: input.givenName ?? current.givenName,
@@ -1564,13 +1578,14 @@ export class SqliteUserRepository {
 
     this.db.prepare(`
       UPDATE users
-      SET app_id = ?, external_source = ?, external_id = ?, is_service_user = ?, email = ?, username = ?, given_name = ?, family_name = ?, updated_at = ?
+      SET app_id = ?, external_source = ?, external_id = ?, is_service_user = ?, avatar_url = ?, email = ?, username = ?, given_name = ?, family_name = ?, updated_at = ?
       WHERE id = ?
     `).run(
       updated.appId ?? null,
       updated.externalSource ?? null,
       updated.externalId ?? null,
       updated.isServiceUser ? 1 : 0,
+      updated.avatarUrl ?? null,
       updated.email,
       updated.username,
       updated.givenName,
@@ -1924,9 +1939,9 @@ export class SqliteAppRepository {
   create(input: Omit<App, "id" | "createdAt">): App {
     const app: App = { ...input, id: nanoid(), createdAt: new Date() };
     this.db.prepare(`
-      INSERT INTO apps (id, name, description, icon, url, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(app.id, app.name, app.description, app.icon ?? null, app.url ?? null, app.createdAt.toISOString());
+      INSERT INTO apps (id, name, description, icon, image_url, url, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(app.id, app.name, app.description, app.icon ?? null, app.imageUrl ?? null, app.url ?? null, app.createdAt.toISOString());
     return app;
   }
 
@@ -1949,10 +1964,11 @@ export class SqliteAppRepository {
       name: input.name ?? existing.name,
       description: input.description ?? existing.description,
       icon: input.icon !== undefined ? input.icon : existing.icon,
+      imageUrl: input.imageUrl !== undefined ? input.imageUrl : existing.imageUrl,
       url: input.url !== undefined ? input.url : existing.url
     };
 
-    this.db.prepare("UPDATE apps SET name = ?, description = ?, icon = ?, url = ? WHERE id = ?").run(updated.name, updated.description, updated.icon ?? null, updated.url ?? null, id);
+    this.db.prepare("UPDATE apps SET name = ?, description = ?, icon = ?, image_url = ?, url = ? WHERE id = ?").run(updated.name, updated.description, updated.icon ?? null, updated.imageUrl ?? null, updated.url ?? null, id);
     return updated;
   }
 

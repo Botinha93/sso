@@ -1,7 +1,7 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import type { AuthenticationStageType, FlowDesignation, GrantType, UiSurface, User } from "../domain/models.js";
-import { AppError, AuthenticationError } from "../core/errors.js";
+import { AppError, AuthenticationError, ValidationError } from "../core/errors.js";
 import { verifyPassword } from "../security/password.js";
 import { getAssetContentType, readFrontendAsset } from "./view-assets.js";
 import { hasAdminPermission, toAdminAction, toAdminResource } from "./admin-authorization.js";
@@ -117,6 +117,7 @@ import { RiskService } from "../services/risk-service.js";
 import { ConnectorService, AuthMetricsService } from "../services/connector-service.js";
 import { PluginService } from "../services/plugin-service.js";
 import { PluginRuntimeService } from "../services/plugin-runtime-service.js";
+import { MediaService } from "../services/media-service.js";
 import type {
   AuditRepository,
   PolicyDecisionLogRepository,
@@ -160,6 +161,7 @@ interface RouteDeps {
   authMetricsService: AuthMetricsService;
   pluginService: PluginService;
   pluginRuntimeService: PluginRuntimeService;
+  mediaService: MediaService;
   authorizationService: AuthorizationService;
   samlService: SamlService;
   samlReplayProtectionService: SamlReplayProtectionService;
@@ -173,6 +175,85 @@ interface RouteDeps {
 }
 
 export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
+  const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+  const allowedImageMimeTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"]);
+
+  const escapeXml = (value: string) => value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+
+  const normalizeInitials = (value: string | undefined) => {
+    if (!value) return "AB";
+    const cleaned = value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3);
+    return cleaned || "AB";
+  };
+
+  const renderUserDefaultSvg = (variant: string, initialsRaw: string | undefined) => {
+    const initials = escapeXml(normalizeInitials(initialsRaw));
+    const palette: Record<string, [string, string]> = {
+      initials: ["#334155", "#0f172a"],
+      sunset: ["#f97316", "#dc2626"],
+      forest: ["#10b981", "#065f46"],
+      ocean: ["#0ea5e9", "#1d4ed8"],
+      mono: ["#71717a", "#27272a"]
+    };
+    const [start, end] = palette[variant] ?? palette.initials;
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320" fill="none">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${start}" />
+      <stop offset="100%" stop-color="${end}" />
+    </linearGradient>
+  </defs>
+  <rect width="320" height="320" rx="160" fill="url(#g)" />
+  <text x="160" y="182" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="108" font-weight="700" fill="white">${initials}</text>
+</svg>`;
+  };
+
+  const renderAppDefaultSvg = (variant: string) => {
+    const templateByVariant: Record<string, string> = {
+      grid: `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320" fill="none"><rect width="320" height="320" rx="48" fill="#0f172a"/><rect x="48" y="48" width="92" height="92" rx="16" fill="#22d3ee"/><rect x="180" y="48" width="92" height="92" rx="16" fill="#38bdf8"/><rect x="48" y="180" width="92" height="92" rx="16" fill="#7dd3fc"/><rect x="180" y="180" width="92" height="92" rx="16" fill="#bae6fd"/></svg>`,
+      bolt: `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320" fill="none"><rect width="320" height="320" rx="48" fill="#0b1022"/><path d="M190 36L98 178h56l-22 106 92-142h-56l22-106z" fill="#facc15"/></svg>`,
+      shield: `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320" fill="none"><rect width="320" height="320" rx="48" fill="#0b1324"/><path d="M160 40l84 30v74c0 58-31 111-84 136-53-25-84-78-84-136V70l84-30z" fill="#22c55e"/><path d="M160 84l45 16v44c0 37-19 71-45 89-26-18-45-52-45-89v-44l45-16z" fill="#bbf7d0"/></svg>`,
+      orbit: `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320" fill="none"><rect width="320" height="320" rx="48" fill="#111827"/><circle cx="160" cy="160" r="38" fill="#f43f5e"/><ellipse cx="160" cy="160" rx="116" ry="52" stroke="#fb7185" stroke-width="16"/><ellipse cx="160" cy="160" rx="52" ry="116" stroke="#fda4af" stroke-width="16"/></svg>`
+    };
+
+    return templateByVariant[variant] ?? templateByVariant.grid;
+  };
+
+  const readImageUpload = async (request: any, reply: any) => {
+    const part = await request.file();
+    if (!part) {
+      reply.status(400).send({ error: "validation_error", message: "Image file is required" });
+      return null;
+    }
+
+    if (!allowedImageMimeTypes.has(part.mimetype)) {
+      reply.status(415).send({ error: "unsupported_media_type", message: "Only image uploads are supported" });
+      return null;
+    }
+
+    const chunks: Buffer[] = [];
+    let total = 0;
+    for await (const chunk of part.file) {
+      total += chunk.length;
+      if (total > MAX_IMAGE_BYTES) {
+        reply.status(413).send({ error: "payload_too_large", message: "Image must be 2MB or less" });
+        return null;
+      }
+      chunks.push(chunk);
+    }
+
+    return {
+      bytes: Buffer.concat(chunks),
+      mimeType: part.mimetype
+    };
+  };
 
   const sendFrontendIndex = async (reply: any, frontend: "admin" | "portal") => {
     const html = await readFrontendAsset(frontend, "index.html");
@@ -189,6 +270,72 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       return "/";
     }
     return value;
+  }
+
+  async function isAllowedPostLogoutRedirect(clientId: string | undefined, redirectUri: string) {
+    if (!clientId) {
+      return false;
+    }
+
+    const client = await deps.clientService.findClientById(clientId);
+    return Boolean(client?.redirectUris.includes(redirectUri));
+  }
+
+  async function resolveValidatedPostLogoutRedirect(input: {
+    clientId?: string;
+    redirectUri?: string;
+    state?: string;
+  }) {
+    if (!input.redirectUri) {
+      return undefined;
+    }
+
+    if (!await isAllowedPostLogoutRedirect(input.clientId, input.redirectUri)) {
+      throw new AuthenticationError("Unregistered post-logout redirect URI");
+    }
+
+    const url = new URL(input.redirectUri);
+    if (input.state) {
+      url.searchParams.set("state", input.state);
+    }
+
+    return url.toString();
+  }
+
+  function isSensitiveProtocolPath(path: string) {
+    return path.startsWith("/auth") || path.startsWith("/oauth") || path.startsWith("/saml");
+  }
+
+  function publicErrorMessageForPath(path: string, error: AppError) {
+    if (path === "/oauth/introspect" || path === "/oauth/userinfo") {
+      return "Token validation failed";
+    }
+
+    if (path === "/auth/login/mfa") {
+      return "MFA verification failed";
+    }
+
+    if (path === "/auth/login/webauthn/begin" || path === "/auth/login/webauthn/finish") {
+      return "Authentication failed";
+    }
+
+    if (path === "/auth/recovery/request") {
+      return "Recovery request could not be completed";
+    }
+
+    if (path === "/auth/recovery") {
+      return "Recovery verification failed";
+    }
+
+    if (path.startsWith("/auth") || path.startsWith("/oauth")) {
+      return error instanceof ValidationError ? "Invalid request" : "Authentication failed";
+    }
+
+    if (path.startsWith("/saml")) {
+      return "SAML request could not be completed";
+    }
+
+    return error.message;
   }
 
   async function getSession(request: any) {
@@ -222,6 +369,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     }
     if (path === "/auth/recovery/request") {
       configs.push({ endpointKey: "auth_recovery_request", limit: 5, windowMs: 15 * 60_000, actorKey: request.ip });
+    }
+    if (path === "/api/setup/initialize") {
+      configs.push({ endpointKey: "setup_initialize", limit: 5, windowMs: 15 * 60_000, actorKey: request.ip });
     }
     if (path === "/oauth/device/verify") {
       configs.push({ endpointKey: "oauth_device_verify", limit: 10, windowMs: 60_000, actorKey: request.ip });
@@ -411,7 +561,13 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   function verifyCsrf(request: any, reply: any): boolean {
     const cookieToken = request.cookies?.csrf_token;
     const headerToken = request.headers["x-csrf-token"];
-    if (!cookieToken || !headerToken || cookieToken !== headerToken) {
+    if (!cookieToken || !headerToken) {
+      reply.status(403).send({ error: "invalid_csrf_token" });
+      return false;
+    }
+    const cookieBuf = Buffer.from(cookieToken);
+    const headerBuf = Buffer.from(typeof headerToken === "string" ? headerToken : "");
+    if (cookieBuf.length !== headerBuf.length || !timingSafeEqual(cookieBuf, headerBuf)) {
       reply.status(403).send({ error: "invalid_csrf_token" });
       return false;
     }
@@ -434,7 +590,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
     const path = request.url.split("?")[0];
     const requiresCsrf = csrfProtectedMethods.has(request.method) && !csrfExemptPaths.has(path);
-    if (requiresCsrf && (path.startsWith("/api/admin") || path.startsWith("/api/account") || path === "/auth/logout")) {
+    if (requiresCsrf && (path.startsWith("/api/admin") || path.startsWith("/api/account") || path.startsWith("/api/portal") || path === "/auth/logout")) {
       if (!verifyCsrf(request, reply)) {
         return;
       }
@@ -513,6 +669,44 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     status: "ok",
     timestamp: new Date().toISOString()
   }));
+
+  app.get("/media/uploads/*", async (request, reply) => {
+    const relativePath = String((request.params as Record<string, string>)["*"] ?? "");
+    if (!relativePath) {
+      return reply.status(404).send({ error: "not_found" });
+    }
+
+    try {
+      const uploaded = await deps.mediaService.readUploaded(relativePath);
+      return reply.type(uploaded.mimeType).send(uploaded.data);
+    } catch {
+      return reply.status(404).send({ error: "not_found" });
+    }
+  });
+
+  app.get("/media/defaults/user/:variant.svg", async (request, reply) => {
+    const { variant } = request.params as { variant: string };
+    const text = typeof (request.query as Record<string, unknown>)?.text === "string"
+      ? String((request.query as Record<string, unknown>).text)
+      : undefined;
+    return reply.type("image/svg+xml").send(renderUserDefaultSvg(variant, text));
+  });
+
+  app.get("/media/defaults/app/:variant.svg", async (request, reply) => {
+    const { variant } = request.params as { variant: string };
+    return reply.type("image/svg+xml").send(renderAppDefaultSvg(variant));
+  });
+
+  app.get("/api/media/defaults/users", async (request) => {
+    const initials = typeof (request.query as Record<string, unknown>)?.initials === "string"
+      ? String((request.query as Record<string, unknown>).initials)
+      : "AB";
+    return { items: deps.mediaService.listDefaultUserAvatars(initials) };
+  });
+
+  app.get("/api/media/defaults/apps", async () => {
+    return { items: deps.mediaService.listDefaultAppImages() };
+  });
 
   app.get("/api/ui/customization", async (request, reply) => {
     const surfaceRaw = typeof (request.query as any)?.surface === "string" ? (request.query as any).surface : undefined;
@@ -823,7 +1017,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         });
       }
       if (err instanceof AppError) {
-        return reply.status(err.statusCode).send({ error: "invalid_grant", error_description: err.message });
+        return reply.status(err.statusCode).send({ error: "invalid_grant", error_description: publicErrorMessageForPath("/oauth/token", err) });
       }
       throw err;
     }
@@ -939,8 +1133,12 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
 
   app.post("/oauth/introspect", async (request) => {
-    const { token } = introspectSchema.parse(request.body);
-    return await deps.authService.introspectToken(token);
+    const input = introspectSchema.parse(request.body);
+    return await deps.authService.introspectToken({
+      token: input.token,
+      clientId: input.client_id,
+      clientSecret: input.client_secret
+    });
   });
 
   app.post("/oauth/token/revoke", async (request, reply) => {
@@ -989,7 +1187,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       return reply.type("application/jwt").send(signed);
     } catch (err) {
       if (err instanceof AppError) {
-        return reply.status(err.statusCode).send({ error: "invalid_token", error_description: err.message });
+        return reply.status(err.statusCode).send({ error: "invalid_token", error_description: publicErrorMessageForPath("/oauth/userinfo", err) });
       }
       throw err;
     }
@@ -1156,7 +1354,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
       return { session, ...tokens };
     } catch (err) {
-      return reply.status(401).send({ error: "invalid_grant", error_description: err instanceof Error ? err.message : "MFA failed" });
+      return reply.status(401).send({ error: "invalid_grant", error_description: "MFA verification failed" });
     }
   });
 
@@ -1179,7 +1377,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
       return reply.status(200).send(challenge);
     } catch (error) {
-      return reply.status(401).send({ error: "invalid_grant", error_description: error instanceof Error ? error.message : "WebAuthn login failed" });
+      return reply.status(401).send({ error: "invalid_grant", error_description: "Authentication failed" });
     }
   });
 
@@ -1235,7 +1433,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
       return { session, ...tokens };
     } catch (error) {
-      return reply.status(401).send({ error: "invalid_grant", error_description: error instanceof Error ? error.message : "WebAuthn login failed" });
+      return reply.status(401).send({ error: "invalid_grant", error_description: "Authentication failed" });
     }
   });
 
@@ -1260,6 +1458,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       username: user.username,
       givenName: user.givenName,
       familyName: user.familyName,
+      avatarUrl: user.avatarUrl,
       roles: await deps.roleService.resolveNamesForUser(user.id),
       groups: await deps.groupService.resolveGroupNamesForUser(user.id),
       permissions: await deps.roleService.resolvePermissionsForUser(user.id)
@@ -1782,43 +1981,46 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     }
     reply.clearCookie("sid", { path: "/" });
     if (post_logout_redirect_uri) {
-      const url = new URL(post_logout_redirect_uri);
-      if (state) url.searchParams.set("state", state);
-      return reply.redirect(url.toString());
+      if (!session) {
+        return reply.status(401).send({ error: "unauthorized" });
+      }
+
+      const redirectUrl = await resolveValidatedPostLogoutRedirect({
+        clientId: session.clientId,
+        redirectUri: post_logout_redirect_uri,
+        state
+      });
+      return reply.redirect(redirectUrl ?? "/login");
     }
     return reply.redirect("/login");
   });
 
   app.get("/oauth/frontchannel-logout", async (request, reply) => {
     const input = frontChannelLogoutSchema.parse(request.query);
-    const now = new Date();
+    const session = await getSession(request);
+    if (!session) {
+      return reply.status(401).send({ error: "unauthorized" });
+    }
 
-    const matchingSessions = (await deps.authService.sessionRepository.list()).filter((session) => {
-      if (input.sid && session.id === input.sid) {
-        return true;
-      }
-      if (input.sub && session.userId === input.sub) {
-        return true;
-      }
-      return false;
-    });
+    if ((input.sid && input.sid !== session.id) || (input.sub && input.sub !== session.userId)) {
+      return reply.status(403).send({ error: "forbidden" });
+    }
 
-    for (const session of matchingSessions) {
-      await enforceInvalidationForSession({ session, ip: request.ip });
-      deps.securityService.revokeSessionObservation(session.id);
-      if (!session.revokedAt) {
-        await deps.authService.sessionRepository.revoke(session.id, now);
-      }
+    await enforceInvalidationForSession({ session, ip: request.ip });
+    deps.securityService.revokeSessionObservation(session.id);
+    if (!session.revokedAt) {
+      await deps.authService.sessionRepository.revoke(session.id, new Date());
     }
 
     reply.clearCookie("sid", { path: "/" });
 
     if (input.post_logout_redirect_uri) {
-      const redirectUrl = new URL(input.post_logout_redirect_uri);
-      if (input.state) {
-        redirectUrl.searchParams.set("state", input.state);
-      }
-      return reply.redirect(redirectUrl.toString());
+      const redirectUrl = await resolveValidatedPostLogoutRedirect({
+        clientId: session.clientId,
+        redirectUri: input.post_logout_redirect_uri,
+        state: input.state
+      });
+      return reply.redirect(redirectUrl ?? "/login");
     }
 
     return reply.type("text/html; charset=utf-8").send("<!DOCTYPE html><html><body>Front-channel logout complete</body></html>");
@@ -1826,9 +2028,16 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
   app.post("/oauth/backchannel-logout", async (request, reply) => {
     const input = backChannelLogoutSchema.parse(request.body);
+    const client = await deps.authService.authenticateClient({
+      clientId: input.client_id,
+      clientSecret: input.client_secret
+    });
     const now = new Date();
 
     const matchingSessions = (await deps.authService.sessionRepository.list()).filter((session) => {
+      if (session.clientId !== client.id) {
+        return false;
+      }
       if (input.sid && session.id === input.sid) {
         return true;
       }
@@ -1899,7 +2108,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       return reply.status(200).send(response);
     } catch (err) {
       if (err instanceof AppError) {
-        return reply.status(err.statusCode).send({ error: "invalid_request", error_description: err.message });
+        return reply.status(err.statusCode).send({ error: "invalid_request", error_description: publicErrorMessageForPath("/auth/recovery/request", err) });
       }
       throw err;
     }
@@ -2004,7 +2213,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       return { session, ...tokens, recovery: true };
     } catch (err) {
       if (err instanceof AppError) {
-        return reply.status(err.statusCode).send({ error: "invalid_grant", error_description: err.message });
+        return reply.status(err.statusCode).send({ error: "invalid_grant", error_description: publicErrorMessageForPath("/auth/recovery", err) });
       }
       throw err;
     }
@@ -2026,9 +2235,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
   app.patch("/api/admin/users/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { appId, externalSource, externalId, isServiceUser, email, username, givenName, familyName, active, groupIds, customAttributes } = updateUserSchema.parse(request.body);
-    if (appId !== undefined || externalSource !== undefined || externalId !== undefined || isServiceUser !== undefined || email !== undefined || username !== undefined || givenName !== undefined || familyName !== undefined) {
-      await deps.userService.updateUserProfile(id, { appId, externalSource, externalId, isServiceUser, email, username, givenName, familyName });
+    const { appId, externalSource, externalId, isServiceUser, avatarUrl, email, username, givenName, familyName, active, groupIds, customAttributes } = updateUserSchema.parse(request.body);
+    if (appId !== undefined || externalSource !== undefined || externalId !== undefined || isServiceUser !== undefined || avatarUrl !== undefined || email !== undefined || username !== undefined || givenName !== undefined || familyName !== undefined) {
+      await deps.userService.updateUserProfile(id, { appId, externalSource, externalId, isServiceUser, avatarUrl, email, username, givenName, familyName });
     }
     if (active !== undefined) await deps.userService.setUserActive(id, active);
     if (customAttributes) await deps.userService.setCustomAttributes(id, customAttributes);
@@ -2051,6 +2260,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       externalSource,
       externalId,
       isServiceUser,
+      avatarUrl,
       active,
       email,
       username,
@@ -2059,7 +2269,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       updatedGroupIds: groupIds,
       updatedCustomAttributes: customAttributes ? Object.keys(customAttributes) : undefined
     });
-    return { id, appId, externalSource, externalId, isServiceUser, active, email, username, givenName, familyName };
+    return { id, appId, externalSource, externalId, isServiceUser, avatarUrl, active, email, username, givenName, familyName };
   });
   app.post("/api/admin/users/:id/reset-password", async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -2086,6 +2296,32 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     });
 
     return reply.status(204).send();
+  });
+
+  app.post("/api/admin/users/:id/avatar", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = await deps.userService.findUserById(id);
+    if (!user) {
+      return reply.status(404).send({ error: "not_found", message: "User not found" });
+    }
+
+    const uploaded = await readImageUpload(request, reply);
+    if (!uploaded) {
+      return;
+    }
+
+    const previousAvatarUrl = user.avatarUrl;
+    const saved = await deps.mediaService.saveUploadedImage({
+      bucket: "users",
+      ownerId: user.id,
+      bytes: uploaded.bytes,
+      mimeType: uploaded.mimeType
+    });
+
+    await deps.userService.updateUserProfile(user.id, { avatarUrl: saved.url });
+    await deps.mediaService.deleteByUrl(previousAvatarUrl);
+
+    return reply.status(200).send({ avatarUrl: saved.url });
   });
   app.delete("/api/admin/users/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -2211,6 +2447,31 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const { id } = request.params as { id: string };
     const input = updateAppSchema.parse(request.body);
     return deps.appService.updateApp(id, input);
+  });
+
+  app.post("/api/admin/apps/:id/image", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const existingApp = await deps.appService.findAppById(id);
+    if (!existingApp) {
+      return reply.status(404).send({ error: "not_found", message: "App not found" });
+    }
+
+    const uploaded = await readImageUpload(request, reply);
+    if (!uploaded) {
+      return;
+    }
+
+    const previousImageUrl = existingApp.imageUrl;
+    const saved = await deps.mediaService.saveUploadedImage({
+      bucket: "apps",
+      ownerId: id,
+      bytes: uploaded.bytes,
+      mimeType: uploaded.mimeType
+    });
+
+    const updated = await deps.appService.updateApp(id, { imageUrl: saved.url });
+    await deps.mediaService.deleteByUrl(previousImageUrl);
+    return reply.status(200).send({ imageUrl: updated.imageUrl });
   });
   app.delete("/api/admin/apps/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -2412,9 +2673,10 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       username: user.username,
       givenName: user.givenName,
       familyName: user.familyName,
+      avatarUrl: user.avatarUrl,
       customAttributes: user.customAttributes,
       appId: user.appId,
-      apps: userApps.map(a => ({ id: a.id, name: a.name, description: a.description, icon: a.icon, url: a.url }))
+      apps: userApps.map(a => ({ id: a.id, name: a.name, description: a.description, icon: a.icon, imageUrl: a.imageUrl, url: a.url }))
     };
   });
 
@@ -2423,10 +2685,11 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const session = await getPortalSession(request);
     if (!session) return reply.status(401).send({ error: "unauthorized" });
     const input = portalUpdateProfileSchema.parse(request.body);
-    if (input.givenName !== undefined || input.familyName !== undefined || input.email !== undefined || input.username !== undefined) {
+    if (input.givenName !== undefined || input.familyName !== undefined || input.avatarUrl !== undefined || input.email !== undefined || input.username !== undefined) {
       await deps.userService.updateUserProfile(session.userId, {
         givenName: input.givenName,
         familyName: input.familyName,
+        avatarUrl: input.avatarUrl,
         email: input.email,
         username: input.username
       });
@@ -2468,6 +2731,32 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return reply.status(204).send();
   });
 
+  app.post("/api/portal/avatar", async (request, reply) => {
+    const session = await getPortalSession(request);
+    if (!session) return reply.status(401).send({ error: "unauthorized" });
+
+    const user = await deps.userService.findUserById(session.userId);
+    if (!user) return reply.status(401).send({ error: "unauthorized" });
+
+    const uploaded = await readImageUpload(request, reply);
+    if (!uploaded) {
+      return;
+    }
+
+    const previousAvatarUrl = user.avatarUrl;
+    const saved = await deps.mediaService.saveUploadedImage({
+      bucket: "users",
+      ownerId: user.id,
+      bytes: uploaded.bytes,
+      mimeType: uploaded.mimeType
+    });
+
+    await deps.userService.updateUserProfile(user.id, { avatarUrl: saved.url });
+    await deps.mediaService.deleteByUrl(previousAvatarUrl);
+
+    return reply.status(200).send({ avatarUrl: saved.url });
+  });
+
   app.get("/portal", async (_request, reply) => {
     return sendFrontendIndex(reply, "portal");
   });
@@ -2498,6 +2787,13 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {
+      const path = request.url.split("?")[0];
+      if (isSensitiveProtocolPath(path)) {
+        return reply.status(error.statusCode).send({
+          error: error.name,
+          message: publicErrorMessageForPath(path, error)
+        });
+      }
       return reply.status(error.statusCode).send({ error: error.name, message: error.message });
     }
     if (typeof error === "object" && error !== null && "issues" in error) {

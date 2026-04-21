@@ -21,6 +21,8 @@ interface SamlRouteDeps {
   auditRepository: AuditRepository;
 }
 
+const publicSamlAdminError = () => ({ error: "invalid_request", message: "SAML request could not be completed" });
+
 export const registerSamlAdminRoutes = async (app: FastifyInstance, deps: SamlRouteDeps) => {
   // List all service providers
   app.get("/api/admin/saml/service-providers", {
@@ -45,7 +47,7 @@ export const registerSamlAdminRoutes = async (app: FastifyInstance, deps: SamlRo
         });
       } catch (error) {
         if (error instanceof Error) {
-          return reply.status(400).send({ error: error.message });
+          return reply.status(400).send(publicSamlAdminError());
         }
         throw error;
       }
@@ -71,7 +73,7 @@ export const registerSamlAdminRoutes = async (app: FastifyInstance, deps: SamlRo
         });
       } catch (error) {
         if (error instanceof Error) {
-          return reply.status(400).send({ error: error.message });
+          return reply.status(400).send(publicSamlAdminError());
         }
         throw error;
       }
@@ -110,7 +112,7 @@ export const registerSamlAdminRoutes = async (app: FastifyInstance, deps: SamlRo
         return reply.status(201).send(sp);
       } catch (error) {
         if (error instanceof Error) {
-          return reply.status(400).send({ error: error.message });
+          return reply.status(400).send(publicSamlAdminError());
         }
         throw error;
       }
@@ -155,7 +157,7 @@ export const registerSamlAdminRoutes = async (app: FastifyInstance, deps: SamlRo
         return reply.status(200).send(updated);
       } catch (error) {
         if (error instanceof Error) {
-          return reply.status(400).send({ error: error.message });
+          return reply.status(400).send(publicSamlAdminError());
         }
         throw error;
       }
@@ -201,7 +203,7 @@ export const registerSamlAdminRoutes = async (app: FastifyInstance, deps: SamlRo
         });
       } catch (error) {
         if (error instanceof Error) {
-          return reply.status(400).send({ error: error.message });
+          return reply.status(400).send(publicSamlAdminError());
         }
         throw error;
       }
@@ -235,7 +237,7 @@ export const registerSamlAdminRoutes = async (app: FastifyInstance, deps: SamlRo
         return reply.status(200).send(updated);
       } catch (error) {
         if (error instanceof Error) {
-          return reply.status(400).send({ error: error.message });
+          return reply.status(400).send(publicSamlAdminError());
         }
         throw error;
       }
@@ -270,7 +272,7 @@ export const registerSamlAdminRoutes = async (app: FastifyInstance, deps: SamlRo
         return reply.status(204).send();
       } catch (error) {
         if (error instanceof Error) {
-          return reply.status(400).send({ error: error.message });
+          return reply.status(400).send(publicSamlAdminError());
         }
         throw error;
       }
@@ -308,7 +310,7 @@ export const registerSamlAdminRoutes = async (app: FastifyInstance, deps: SamlRo
         });
       } catch (error) {
         if (error instanceof Error) {
-          return reply.status(400).send({ error: error.message });
+          return reply.status(400).send(publicSamlAdminError());
         }
         throw error;
       }

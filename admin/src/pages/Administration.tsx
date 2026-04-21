@@ -681,17 +681,17 @@ export default function Administration() {
           </div>
           <div className="mt-4 space-y-3">
             <p className="text-sm text-slate-600">
-              Customize login, consent, and portal surfaces globally, per client, or per app using JSON.
+              Manage login, consent, and portal branding in the dedicated Experience Customization workspace.
             </p>
-            <textarea
-              value={form.uiCustomizationsText}
-              onChange={(e) => setForm((v) => ({ ...v, uiCustomizationsText: e.target.value }))}
-              className="min-h-[240px] w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 font-mono"
-              placeholder='{"defaultBySurface":{"admin_login":{"title":"My Brand"}},"byClientId":{},"byAppId":{}}'
-            />
             <p className="text-xs text-slate-500">
-              Supported surfaces: admin_login, consent, portal_login, portal_launcher. Values can include title, subtitle, logoUrl, primaryColor, accentColor, backgroundCss.
+              The dedicated editor supports default, client, and app scopes with guided fields and preview.
             </p>
+            <Link
+              to="/experience-customization"
+              className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+            >
+              Open Experience Customization
+            </Link>
           </div>
         </section>
 

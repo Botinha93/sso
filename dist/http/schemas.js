@@ -18,6 +18,7 @@ export const createUserSchema = z.object({
     externalSource: z.string().min(1).optional(),
     externalId: z.string().min(1).optional(),
     isServiceUser: z.boolean().default(false),
+    avatarUrl: z.string().min(1).optional(),
     email: z.string().email(),
     username: z.string().min(3),
     password: z.string().min(8),
@@ -32,6 +33,7 @@ export const updateUserSchema = z.object({
     externalSource: z.string().min(1).optional(),
     externalId: z.string().min(1).optional(),
     isServiceUser: z.boolean().optional(),
+    avatarUrl: z.string().min(1).optional(),
     email: z.string().email().optional(),
     username: z.string().min(3).optional(),
     givenName: z.string().min(1).optional(),
@@ -46,6 +48,7 @@ export const resetUserPasswordSchema = z.object({
 export const portalUpdateProfileSchema = z.object({
     givenName: z.string().min(1).optional(),
     familyName: z.string().min(1).optional(),
+    avatarUrl: z.string().min(1).optional(),
     email: z.string().email().optional(),
     username: z.string().min(3).optional(),
     customAttributes: z.record(z.string(), z.string()).optional()
@@ -93,6 +96,28 @@ export const mfaLoginSchema = z.object({
 export const verifyTotpEnrollmentSchema = z.object({
     enrollmentId: z.string().min(8),
     code: z.string().min(6).max(8)
+});
+export const webauthnRegisterBeginSchema = z.object({
+    displayName: z.string().min(1).max(120).optional()
+});
+export const webauthnRegisterFinishSchema = z.object({
+    registrationId: z.string().min(8),
+    credentialId: z.string().min(16),
+    publicKey: z.string().min(16),
+    transports: z.array(z.string().min(2)).default([]),
+    aaguid: z.string().min(1).optional(),
+    signCount: z.number().int().min(0).default(0)
+});
+export const webauthnLoginBeginSchema = z.object({
+    identifier: z.string().min(1),
+    clientId: z.string().min(2).default("sso-admin-ui"),
+    tenantSlug: z.string().min(2).optional(),
+    scope: z.array(z.string()).default(["openid", "profile", "email"])
+});
+export const webauthnLoginFinishSchema = z.object({
+    loginId: z.string().min(8),
+    credentialId: z.string().min(16),
+    signCount: z.number().int().min(0).optional()
 });
 export const authorizeSchema = z.object({
     response_type: z.enum(["code", "token"]),
@@ -185,6 +210,8 @@ export const deviceVerificationSchema = z.object({
 });
 export const introspectSchema = z.object({
     token: z.string().min(2),
+    client_id: z.string().min(2),
+    client_secret: z.string().min(8),
     token_type_hint: z.enum(["access_token", "refresh_token"]).optional()
 });
 export const createTenantSchema = z.object({
@@ -240,12 +267,14 @@ export const createAppSchema = z.object({
     name: z.string().min(2),
     description: z.string().min(2),
     icon: z.string().optional(),
+    imageUrl: z.string().min(1).optional(),
     url: z.string().url().optional()
 });
 export const updateAppSchema = z.object({
     name: z.string().min(2).optional(),
     description: z.string().min(2).optional(),
     icon: z.string().optional(),
+    imageUrl: z.string().min(1).optional(),
     url: z.string().url().optional().nullable()
 });
 export const createFederationProviderSchema = z.object({
@@ -318,6 +347,8 @@ const authenticationStageTypeSchema = z.enum([
     "federation",
     "consent",
     "mfa_totp",
+    "mfa_webauthn",
+    "mfa_webauthn",
     "risk_check",
     "identification",
     "email_verification",
@@ -442,6 +473,29 @@ export const processExpiredAccessRequestsSchema = z.object({
     dryRun: z.boolean().default(false),
     now: z.string().datetime().optional()
 });
+export const createAccessReviewCampaignSchema = z.object({
+    name: z.string().min(3),
+    description: z.string().max(2000).optional(),
+    dueAt: z.string().datetime().optional()
+});
+export const decideAccessReviewItemSchema = z.object({
+    decision: z.enum(["certified", "revoked"]),
+    rationale: z.string().min(1).max(2000).optional()
+});
+const uiSurfaceSchema = z.enum(["admin_login", "consent", "portal_login", "portal_launcher"]);
+const uiSurfaceCustomizationSchema = z.object({
+    title: z.string().min(1).max(120).optional(),
+    subtitle: z.string().min(1).max(300).optional(),
+    logoUrl: z.string().url().optional(),
+    primaryColor: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/).optional(),
+    accentColor: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/).optional(),
+    backgroundCss: z.string().min(1).max(500).optional()
+});
+const uiCustomizationSettingsSchema = z.object({
+    defaultBySurface: z.record(uiSurfaceSchema, uiSurfaceCustomizationSchema).default({}),
+    byClientId: z.record(z.string().min(1), z.record(uiSurfaceSchema, uiSurfaceCustomizationSchema)).default({}),
+    byAppId: z.record(z.string().min(1), z.record(uiSurfaceSchema, uiSurfaceCustomizationSchema)).default({})
+});
 export const updateInstanceSettingsSchema = z.object({
     databaseProvider: z.enum(["sqlite", "postgresql", "mysql"]).optional(),
     databasePath: z.string().min(1).optional(),
@@ -463,7 +517,8 @@ export const updateInstanceSettingsSchema = z.object({
     smtpPort: z.number().int().min(1).max(65535).optional(),
     smtpSecure: z.boolean().optional(),
     smtpUser: z.string().optional(),
-    smtpPass: z.string().optional()
+    smtpPass: z.string().optional(),
+    uiCustomizations: uiCustomizationSettingsSchema.optional()
 });
 export const sendTestEmailSchema = z.object({
     to: z.string().email(),
@@ -495,8 +550,114 @@ export const frontChannelLogoutSchema = z.object({
     state: z.string().optional()
 });
 export const backChannelLogoutSchema = z.object({
+    client_id: z.string().min(2),
+    client_secret: z.string().min(8),
     sid: z.string().min(2).optional(),
     sub: z.string().min(2).optional()
 }).refine((data) => Boolean(data.sid || data.sub), {
     message: "Either sid or sub is required"
+});
+export const createElevationRequestSchema = z.object({
+    justification: z.string().min(1),
+    resource: z.string().min(1),
+    action: z.string().min(1),
+    durationMinutes: z.number().int().min(1).max(480).optional()
+});
+export const listElevationRequestsQuerySchema = z.object({
+    status: z.enum(["pending", "approved", "active", "revoked", "expired"]).optional(),
+    limit: z.coerce.number().int().min(1).max(500).optional()
+});
+export const approveElevationRequestSchema = z.object({
+    rationale: z.string().optional()
+});
+export const listElevationSessionsQuerySchema = z.object({
+    status: z.enum(["active", "revoked", "expired"]).optional(),
+    limit: z.coerce.number().int().min(1).max(500).optional()
+});
+export const checkElevationAccessSchema = z.object({
+    resource: z.string().min(1),
+    action: z.string().min(1)
+});
+export const createEmergencyBreakGlassSchema = z.object({
+    resource: z.string().min(1),
+    action: z.string().min(1),
+    reason: z.string().min(10),
+    requesterId: z.string().optional(),
+    durationMinutes: z.number().int().min(1).max(120).optional()
+});
+export const createServiceIdentitySchema = z.object({
+    name: z.string().min(3),
+    description: z.string().optional(),
+    ownerId: z.string().optional(),
+    appId: z.string().optional(),
+    status: z.enum(["active", "inactive", "suspended"]).default("active"),
+    allowedScopes: z.array(z.string()).default([]),
+    allowedAudiences: z.array(z.string()).default([]),
+    metadata: z.record(z.string(), z.unknown()).optional()
+});
+export const updateServiceIdentitySchema = z.object({
+    name: z.string().min(3).optional(),
+    description: z.string().optional(),
+    ownerId: z.string().optional(),
+    appId: z.string().optional(),
+    status: z.enum(["active", "inactive", "suspended"]).optional(),
+    allowedScopes: z.array(z.string()).optional(),
+    allowedAudiences: z.array(z.string()).optional(),
+    metadata: z.record(z.string(), z.unknown()).optional()
+});
+export const issueServiceIdentityCredentialSchema = z.object({
+    expiresInDays: z.number().int().min(1).max(3650).optional()
+});
+export const tokenExchangeSchema = z.object({
+    grant_type: z.literal("urn:ietf:params:oauth:grant-type:token-exchange"),
+    subject_token: z.string().min(1),
+    subject_token_type: z.string().min(1),
+    requested_token_type: z.string().optional(),
+    audience: z.string().optional(),
+    scope: z.string().optional(),
+    client_id: z.string().optional(),
+    client_secret: z.string().optional()
+});
+// ---------------------------------------------------------------------------
+// EPIC 8 – Connector Framework
+// ---------------------------------------------------------------------------
+export const createConnectorSchema = z.object({
+    name: z.string().min(2),
+    type: z.enum(["ldap", "scim", "csv", "sql", "custom"]),
+    config: z.record(z.string(), z.unknown()).default({}),
+    schedule: z.string().optional()
+});
+export const updateConnectorSchema = z.object({
+    name: z.string().min(2).optional(),
+    type: z.enum(["ldap", "scim", "csv", "sql", "custom"]).optional(),
+    status: z.enum(["active", "inactive", "error"]).optional(),
+    config: z.record(z.string(), z.unknown()).optional(),
+    schedule: z.string().optional()
+});
+export const createConnectorMappingSchema = z.object({
+    sourceField: z.string().min(1),
+    targetField: z.string().min(1),
+    transform: z.string().optional()
+});
+// ---------------------------------------------------------------------------
+// Plugin Management
+// ---------------------------------------------------------------------------
+export const pluginManifestSchema = z.object({
+    id: z.string().min(3).max(64),
+    name: z.string().min(2).max(120),
+    version: z.string().min(1).max(32),
+    description: z.string().max(500).optional(),
+    entrypoint: z.string().min(1).max(160),
+    permissions: z.array(z.string().min(2)).default([]),
+    hooks: z.array(z.string().min(2)).default([]),
+    homepage: z.string().url().optional()
+});
+export const validatePluginSchema = z.object({
+    manifest: pluginManifestSchema,
+    bundleBase64: z.string().min(8).optional()
+});
+export const uploadPluginSchema = z.object({
+    manifest: pluginManifestSchema,
+    bundleBase64: z.string().min(8),
+    activate: z.boolean().default(false)
 });

@@ -21,6 +21,7 @@ export const createUserSchema = z.object({
   externalSource: z.string().min(1).optional(),
   externalId: z.string().min(1).optional(),
   isServiceUser: z.boolean().default(false),
+  avatarUrl: z.string().min(1).optional(),
   email: z.string().email(),
   username: z.string().min(3),
   password: z.string().min(8),
@@ -36,6 +37,7 @@ export const updateUserSchema = z.object({
   externalSource: z.string().min(1).optional(),
   externalId: z.string().min(1).optional(),
   isServiceUser: z.boolean().optional(),
+  avatarUrl: z.string().min(1).optional(),
   email: z.string().email().optional(),
   username: z.string().min(3).optional(),
   givenName: z.string().min(1).optional(),
@@ -52,6 +54,7 @@ export const resetUserPasswordSchema = z.object({
 export const portalUpdateProfileSchema = z.object({
   givenName: z.string().min(1).optional(),
   familyName: z.string().min(1).optional(),
+  avatarUrl: z.string().min(1).optional(),
   email: z.string().email().optional(),
   username: z.string().min(3).optional(),
   customAttributes: z.record(z.string(), z.string()).optional()
@@ -237,6 +240,8 @@ export const deviceVerificationSchema = z.object({
 
 export const introspectSchema = z.object({
   token: z.string().min(2),
+  client_id: z.string().min(2),
+  client_secret: z.string().min(8),
   token_type_hint: z.enum(["access_token", "refresh_token"]).optional()
 });
 
@@ -301,6 +306,7 @@ export const createAppSchema = z.object({
   name: z.string().min(2),
   description: z.string().min(2),
   icon: z.string().optional(),
+  imageUrl: z.string().min(1).optional(),
   url: z.string().url().optional()
 });
 
@@ -308,6 +314,7 @@ export const updateAppSchema = z.object({
   name: z.string().min(2).optional(),
   description: z.string().min(2).optional(),
   icon: z.string().optional(),
+  imageUrl: z.string().min(1).optional(),
   url: z.string().url().optional().nullable()
 });
 
@@ -621,6 +628,8 @@ export const frontChannelLogoutSchema = z.object({
 });
 
 export const backChannelLogoutSchema = z.object({
+  client_id: z.string().min(2),
+  client_secret: z.string().min(8),
   sid: z.string().min(2).optional(),
   sub: z.string().min(2).optional()
 }).refine((data) => Boolean(data.sid || data.sub), {

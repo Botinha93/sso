@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { nanoid } from "nanoid";
 import { AuthenticationError, ValidationError } from "../core/errors.js";
 import type { User } from "../domain/models.js";
@@ -198,11 +198,10 @@ export class AuthService {
       throw new ValidationError("Authorization code has expired");
     }
 
-    const client = await this.requireClient(input.clientId);
-
-    if (client.secret !== input.clientSecret) {
-      throw new AuthenticationError("Invalid client credentials");
-    }
+    const client = await this.authenticateClient({
+      clientId: input.clientId,
+      clientSecret: input.clientSecret
+    });
 
     if (authorizationCode.clientId !== client.id || authorizationCode.redirectUri !== input.redirectUri) {
       throw new ValidationError("Authorization code does not match client request");
@@ -261,6 +260,18 @@ export class AuthService {
     return client;
   }
 
+  async authenticateClient(input: { clientId: string; clientSecret: string }) {
+    const client = await this.requireClient(input.clientId);
+    const provided = Buffer.from(input.clientSecret);
+    const actual = Buffer.from(client.secret);
+
+    if (provided.length !== actual.length || !timingSafeEqual(provided, actual)) {
+      throw new AuthenticationError("Invalid client credentials");
+    }
+
+    return client;
+  }
+
   private async assertClientSupportsActiveFlow(client: Awaited<ReturnType<AuthService["requireClient"]>>) {
     const activeFlow = await this.authenticationFlowService.getActiveFlow();
     if (!activeFlow) {
@@ -277,11 +288,10 @@ export class AuthService {
     clientId: string;
     clientSecret: string;
   }) {
-    const client = await this.requireClient(input.clientId);
-
-    if (client.secret !== input.clientSecret) {
-      throw new AuthenticationError("Invalid client credentials");
-    }
+    const client = await this.authenticateClient({
+      clientId: input.clientId,
+      clientSecret: input.clientSecret
+    });
 
     const payload = await this.jwtService.verifyAccessToken(input.refreshToken);
 
@@ -324,11 +334,10 @@ export class AuthService {
     clientSecret: string;
     scope?: string;
   }) {
-    const client = await this.requireClient(input.clientId);
-
-    if (client.secret !== input.clientSecret) {
-      throw new AuthenticationError("Invalid client credentials");
-    }
+    const client = await this.authenticateClient({
+      clientId: input.clientId,
+      clientSecret: input.clientSecret
+    });
 
     if (!client.grants.includes("client_credentials")) {
       throw new AuthenticationError("Client does not support client_credentials grant");
@@ -366,12 +375,11 @@ export class AuthService {
   }) {
     await this.authenticationFlowService.assertGrantSupported("password");
     await this.authenticationFlowService.assertStageEnabled("password");
-    const client = await this.requireClient(input.clientId);
+    const client = await this.authenticateClient({
+      clientId: input.clientId,
+      clientSecret: input.clientSecret
+    });
     await this.assertClientSupportsActiveFlow(client);
-
-    if (client.secret !== input.clientSecret) {
-      throw new AuthenticationError("Invalid client credentials");
-    }
 
     const identifier = input.username.trim();
     await this.securityService.assertLoginAllowed(identifier);
@@ -431,12 +439,11 @@ export class AuthService {
     scope?: string;
   }) {
     this.authenticationFlowService.assertGrantSupported("device_code");
-    const client = await this.requireClient(input.clientId);
+    const client = await this.authenticateClient({
+      clientId: input.clientId,
+      clientSecret: input.clientSecret
+    });
     await this.assertClientSupportsActiveFlow(client);
-
-    if (client.secret !== input.clientSecret) {
-      throw new AuthenticationError("Invalid client credentials");
-    }
 
     if (!client.grants.includes("device_code")) {
       throw new AuthenticationError("Client does not support device_code grant");
@@ -512,11 +519,10 @@ export class AuthService {
     ip?: string;
     userAgent?: string;
   }) {
-    const client = await this.requireClient(input.clientId);
-
-    if (client.secret !== input.clientSecret) {
-      throw new AuthenticationError("Invalid client credentials");
-    }
+    const client = await this.authenticateClient({
+      clientId: input.clientId,
+      clientSecret: input.clientSecret
+    });
 
     const record = this.deviceAuthorizations.get(input.deviceCode);
     if (!record) {
@@ -686,9 +692,14 @@ export class AuthService {
     };
   }
 
-  async introspectToken(token: string) {
+  async introspectToken(input: { token: string; clientId: string; clientSecret: string }) {
+    await this.authenticateClient({
+      clientId: input.clientId,
+      clientSecret: input.clientSecret
+    });
+
     try {
-      const payload = await this.jwtService.verifyAccessToken(token);
+      const payload = await this.jwtService.verifyAccessToken(input.token);
       const tokenId = payload.jti;
       if (!tokenId || await this.accessTokenRepository.isRevoked(String(tokenId))) {
         return { active: false };

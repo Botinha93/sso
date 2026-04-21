@@ -23,6 +23,10 @@ RUN npm run prisma:generate \
 
 FROM node:22-bookworm-slim AS runtime
 
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates openssl \
+  && rm -rf /var/lib/apt/lists/*
+
 ENV NODE_ENV=production \
   HOST=0.0.0.0 \
   PORT=4000 \
@@ -37,6 +41,8 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 
 RUN mkdir -p /app/data \
+  && mkdir -p /app/src/generated \
+  && ln -s /app/dist/generated/prisma /app/src/generated/prisma \
   && chown -R node:node /app
 
 USER node

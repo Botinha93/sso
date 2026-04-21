@@ -4,6 +4,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
 import {
   useApps, useCreateApp, useDeleteApp, useUpdateApp,
+  useUploadAppImage, useDefaultAppImages,
   useUsers, useUpdateUser,
   useGroups, useUpdateGroup,
   useRoles, useUpdateRole,
@@ -20,11 +21,12 @@ interface AppItem {
   name: string
   description: string
   icon?: string
+  imageUrl?: string
   url?: string
   createdAt: string
 }
 
-const EMPTY_FORM = { name: '', description: '', icon: '', url: '' }
+const EMPTY_FORM = { name: '', description: '', icon: '', imageUrl: '', url: '' }
 
 type ComponentTab = 'clients' | 'users' | 'groups' | 'roles'
 
@@ -115,6 +117,8 @@ const Apps = () => {
   const createApp = useCreateApp()
   const updateApp = useUpdateApp()
   const deleteApp = useDeleteApp()
+  const uploadAppImage = useUploadAppImage()
+  const { data: defaultAppImages } = useDefaultAppImages()
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
@@ -130,7 +134,7 @@ const Apps = () => {
 
   const openEdit = (app: AppItem) => {
     setAppToEdit(app)
-    setFormData({ name: app.name, description: app.description, icon: app.icon ?? '', url: app.url ?? '' })
+    setFormData({ name: app.name, description: app.description, icon: app.icon ?? '', imageUrl: app.imageUrl ?? '', url: app.url ?? '' })
     setEditTab('details')
     setEditOpen(true)
   }
@@ -141,6 +145,7 @@ const Apps = () => {
       name: formData.name,
       description: formData.description,
       icon: formData.icon || undefined,
+      imageUrl: formData.imageUrl || undefined,
       url: formData.url || undefined,
     })
     setCreateOpen(false)
@@ -153,6 +158,7 @@ const Apps = () => {
       name: formData.name,
       description: formData.description,
       icon: formData.icon || undefined,
+      imageUrl: formData.imageUrl || undefined,
       url: formData.url || null,
     })
     setEditOpen(false)
@@ -169,12 +175,12 @@ const Apps = () => {
     <div className="space-y-4">
       <div className="grid grid-cols-[80px_1fr] gap-3 items-end">
         <div>
-          <label className={labelCls}>Icon</label>
+          <label className={labelCls}>Preview</label>
           <div
             className="h-12 w-full rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center text-2xl cursor-text hover:border-slate-400 transition-colors"
             title="Click emoji suggestions to pick"
           >
-            {formData.icon || <Boxes size={20} className="text-slate-300" />}
+            {formData.imageUrl ? <img src={formData.imageUrl} alt="app" className="h-full w-full object-cover rounded-xl" /> : (formData.icon || <Boxes size={20} className="text-slate-300" />)}
           </div>
         </div>
         <div>
@@ -186,6 +192,60 @@ const Apps = () => {
             className={fieldCls}
             placeholder="Internal Portal"
           />
+        </div>
+      </div>
+
+      <div>
+        <label className={labelCls}>Image URL (optional)</label>
+        <input
+          type="url"
+          value={formData.imageUrl}
+          onChange={e => setFormData(p => ({ ...p, imageUrl: e.target.value }))}
+          className={fieldCls}
+          placeholder="/media/defaults/app/grid.svg"
+        />
+      </div>
+
+      {appToEdit && (
+        <div>
+          <label className={labelCls}>Upload Image</label>
+          <input
+            type="file"
+            accept="image/*"
+            className={`${fieldCls} pt-1.5`}
+            onChange={async (event) => {
+              const file = event.target.files?.[0]
+              if (!file || !appToEdit) return
+              const result = await uploadAppImage.mutateAsync({ appId: appToEdit.id, file }) as { imageUrl?: string }
+              if (result?.imageUrl) {
+                setFormData((prev) => ({ ...prev, imageUrl: result.imageUrl }))
+              }
+            }}
+          />
+        </div>
+      )}
+
+      <div>
+        <label className={labelCls}>Default Images</label>
+        <div className="flex flex-wrap gap-2">
+          {((defaultAppImages as any)?.items ?? []).map((item: any) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setFormData((prev) => ({ ...prev, imageUrl: item.url }))}
+              className="h-10 w-10 rounded-lg overflow-hidden border border-slate-200 hover:ring-2 hover:ring-slate-300"
+              title={item.label}
+            >
+              <img src={item.url} alt={item.label} className="h-full w-full object-cover" />
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setFormData((prev) => ({ ...prev, imageUrl: '' }))}
+            className="h-10 px-3 rounded-lg border border-slate-200 text-xs text-slate-600 hover:bg-slate-50"
+          >
+            clear image
+          </button>
         </div>
       </div>
 
@@ -284,7 +344,7 @@ const Apps = () => {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-0.5">
                     <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-lg shrink-0">
-                      {app.icon ? app.icon : <Boxes size={16} className="text-slate-400" />}
+                      {app.imageUrl ? <img src={app.imageUrl} alt={app.name} className="h-full w-full rounded-xl object-cover" /> : (app.icon ? app.icon : <Boxes size={16} className="text-slate-400" />)}
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">

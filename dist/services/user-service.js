@@ -18,6 +18,7 @@ export class UserService {
             externalSource: input.externalSource,
             externalId: input.externalId,
             isServiceUser: input.isServiceUser ?? false,
+            avatarUrl: input.avatarUrl,
             email: input.email,
             username: input.username,
             passwordHash: hashPassword(input.password),
