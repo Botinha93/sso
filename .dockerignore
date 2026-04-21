@@ -7,4 +7,5 @@ data
 npm-debug.log
 tests
 docs
+bundle
 .codex
