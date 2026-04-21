@@ -61,6 +61,7 @@ const matchesSearch = (needle: string, values: Array<string | undefined>) => {
 
 const API_ROUTES: ApiRoute[] = [
   { method: 'GET', path: '/health', auth: 'public', description: 'Health probe for service status and timestamp.' },
+  { method: 'GET', path: '/api/ui/customization', auth: 'public', description: 'Resolves merged UI customization for a target surface, with optional clientId/appId override context.' },
   { method: 'GET', path: '/api/setup/status', auth: 'public', description: 'Reports initialization status and whether setup is required.' },
   { method: 'POST', path: '/api/setup/initialize', auth: 'public', description: 'Bootstraps first admin account and platform defaults.' },
   { method: 'GET', path: '/api/csrf-token', auth: 'session', description: 'Issues CSRF token cookie and response payload for admin mutations.' },
@@ -2327,6 +2328,7 @@ const ADMIN_VIEW_CATALOG = [
       'Manage SCIM provisioning tokens, mappings, and reconciliation operations.',
       'Operate access governance workflows: access requests, approvals, recertification campaigns, and reviewer decisions.',
       'Run PAM-lite controls for elevation requests, activation/revocation, and emergency break-glass flows.',
+      'Customize login, consent, and portal surfaces globally or with client/app-specific overrides.',
       'Require HTTPS and secure cookies for browser and admin traffic.',
       'Manage CORS allowlist behavior for cross-origin browser requests.',
       'Enforce stricter OAuth settings such as HTTPS redirect URIs and S256-only PKCE.',
@@ -3791,6 +3793,23 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
     return {
       parameters: params,
       expectedResponse: prettyJson({ deleted: true })
+    }
+  }
+
+  if (route.path === '/api/ui/customization' && route.method === 'GET') {
+    return {
+      parameters: [...params, 'Query: surface (required), clientId?, appId?'],
+      expectedResponse: prettyJson({
+        surface: 'admin_login',
+        customization: {
+          title: 'Contoso Identity',
+          subtitle: 'Sign in to continue',
+          logoUrl: 'https://cdn.example.com/brand/logo.svg',
+          primaryColor: '#0b1220',
+          accentColor: '#1d4ed8',
+          backgroundCss: 'linear-gradient(180deg,#f8fafc 0%,#e2e8f0 100%)'
+        }
+      })
     }
   }
 

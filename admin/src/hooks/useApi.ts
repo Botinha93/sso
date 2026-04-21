@@ -1331,6 +1331,32 @@ export function useUpdateInstanceSettings() {
       smtpSecure?: boolean
       smtpUser?: string
       smtpPass?: string
+      uiCustomizations?: {
+        defaultBySurface?: Record<string, {
+          title?: string
+          subtitle?: string
+          logoUrl?: string
+          primaryColor?: string
+          accentColor?: string
+          backgroundCss?: string
+        }>
+        byClientId?: Record<string, Record<string, {
+          title?: string
+          subtitle?: string
+          logoUrl?: string
+          primaryColor?: string
+          accentColor?: string
+          backgroundCss?: string
+        }>>
+        byAppId?: Record<string, Record<string, {
+          title?: string
+          subtitle?: string
+          logoUrl?: string
+          primaryColor?: string
+          accentColor?: string
+          backgroundCss?: string
+        }>>
+      }
     }) => jsonFetch(`${API_BASE}/settings`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },

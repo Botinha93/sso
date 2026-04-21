@@ -35,6 +35,7 @@ interface SettingsForm {
   smtpUser: string
   smtpPass: string
   testEmailTo: string
+  uiCustomizationsText: string
 }
 
 const checkboxCls = 'h-4 w-4 rounded border-slate-300 text-slate-900 accent-slate-900'
@@ -64,6 +65,11 @@ const defaultForm: SettingsForm = {
   smtpUser: '',
   smtpPass: '',
   testEmailTo: '',
+  uiCustomizationsText: JSON.stringify({
+    defaultBySurface: {},
+    byClientId: {},
+    byAppId: {}
+  }, null, 2),
 }
 
 export default function Administration() {
@@ -135,6 +141,11 @@ export default function Administration() {
       smtpUser: String((data as any).smtpUser ?? ''),
       smtpPass: String((data as any).smtpPass ?? ''),
       testEmailTo: String((data as any).emailFrom ?? ''),
+      uiCustomizationsText: JSON.stringify((data as any).uiCustomizations ?? {
+        defaultBySurface: {},
+        byClientId: {},
+        byAppId: {}
+      }, null, 2)
     })
   }, [data])
 
@@ -142,6 +153,13 @@ export default function Administration() {
     try {
       setSaveMessage(null)
       setSaveError(null)
+      let uiCustomizations: any
+      try {
+        uiCustomizations = JSON.parse(form.uiCustomizationsText)
+      } catch {
+        setSaveError('UI customizations must be valid JSON')
+        return
+      }
       await updateSettings.mutateAsync({
         databaseProvider: form.databaseProvider,
         databasePath: form.databaseProvider === 'sqlite' ? form.databasePath : undefined,
@@ -164,6 +182,7 @@ export default function Administration() {
         smtpSecure: form.smtpSecure,
         smtpUser: form.smtpUser || undefined,
         smtpPass: form.smtpPass || undefined,
+        uiCustomizations,
       })
       setSaveMessage('Instance settings saved. Some changes affect the next request immediately.')
     } catch (error) {
@@ -652,6 +671,27 @@ export default function Administration() {
                 </button>
               </div>
             </div>
+          </div>
+        </section>
+
+        <section className={sectionCls}>
+          <div className="flex items-center gap-2">
+            <ShieldCheck size={16} className="text-slate-500" />
+            <h2 className="text-base font-semibold text-slate-900">Experience Customization</h2>
+          </div>
+          <div className="mt-4 space-y-3">
+            <p className="text-sm text-slate-600">
+              Customize login, consent, and portal surfaces globally, per client, or per app using JSON.
+            </p>
+            <textarea
+              value={form.uiCustomizationsText}
+              onChange={(e) => setForm((v) => ({ ...v, uiCustomizationsText: e.target.value }))}
+              className="min-h-[240px] w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 font-mono"
+              placeholder='{"defaultBySurface":{"admin_login":{"title":"My Brand"}},"byClientId":{},"byAppId":{}}'
+            />
+            <p className="text-xs text-slate-500">
+              Supported surfaces: admin_login, consent, portal_login, portal_launcher. Values can include title, subtitle, logoUrl, primaryColor, accentColor, backgroundCss.
+            </p>
           </div>
         </section>
 

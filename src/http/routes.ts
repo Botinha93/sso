@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { FastifyInstance } from "fastify";
-import type { AuthenticationStageType, FlowDesignation, GrantType, User } from "../domain/models.js";
+import type { AuthenticationStageType, FlowDesignation, GrantType, UiSurface, User } from "../domain/models.js";
 import { AppError, AuthenticationError } from "../core/errors.js";
 import { verifyPassword } from "../security/password.js";
 import { getAssetContentType, readFrontendAsset } from "./view-assets.js";
@@ -513,6 +513,29 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     status: "ok",
     timestamp: new Date().toISOString()
   }));
+
+  app.get("/api/ui/customization", async (request, reply) => {
+    const surfaceRaw = typeof (request.query as any)?.surface === "string" ? (request.query as any).surface : undefined;
+    const clientId = typeof (request.query as any)?.clientId === "string" ? (request.query as any).clientId : undefined;
+    const appId = typeof (request.query as any)?.appId === "string" ? (request.query as any).appId : undefined;
+    const allowed: UiSurface[] = ["admin_login", "consent", "portal_login", "portal_launcher"];
+    const surface = allowed.find((item) => item === surfaceRaw);
+
+    if (!surface) {
+      return reply.status(400).send({ error: "validation_error", message: "surface query parameter is required" });
+    }
+
+    const customization = await deps.instanceSettingsService.resolveUiCustomization({
+      surface,
+      clientId,
+      appId
+    });
+
+    return {
+      surface,
+      customization
+    };
+  });
 
   await registerScimRoutes(app, {
     scimService: deps.scimService,

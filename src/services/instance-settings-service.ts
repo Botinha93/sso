@@ -1,5 +1,5 @@
 import { ValidationError } from "../core/errors.js";
-import type { InstanceSettings } from "../domain/models.js";
+import type { InstanceSettings, UiCustomizationSettings, UiSurface, UiSurfaceCustomization } from "../domain/models.js";
 import type { InstanceSettingsRepository } from "../repositories/contracts.js";
 
 const parseCorsOrigins = (raw: string | undefined): string[] => {
@@ -35,6 +35,86 @@ export class InstanceSettingsService {
     return process.env.NODE_ENV === "production" ? "disabled" : "log";
   }
 
+  private defaultUiCustomizations(): UiCustomizationSettings {
+    return {
+      defaultBySurface: {
+        admin_login: {
+          title: "NexusID",
+          subtitle: "Sign in to the identity administration workspace."
+        },
+        consent: {
+          title: "Authorization Request",
+          subtitle: "Review requested permissions before approving access."
+        },
+        portal_login: {
+          title: "Account Portal",
+          subtitle: "Sign in to access your account"
+        },
+        portal_launcher: {
+          title: "Account Portal",
+          subtitle: "Launch your assigned applications"
+        }
+      },
+      byClientId: {},
+      byAppId: {}
+    };
+  }
+
+  private normalizeUiCustomizations(input: unknown): UiCustomizationSettings {
+    const defaults = this.defaultUiCustomizations();
+    if (!input || typeof input !== "object") {
+      return defaults;
+    }
+
+    const data = input as Partial<UiCustomizationSettings>;
+
+    const normalizeSurfaceMap = (value: unknown): Partial<Record<UiSurface, UiSurfaceCustomization>> => {
+      if (!value || typeof value !== "object") {
+        return {};
+      }
+
+      const source = value as Record<string, unknown>;
+      const result: Partial<Record<UiSurface, UiSurfaceCustomization>> = {};
+      const surfaces: UiSurface[] = ["admin_login", "consent", "portal_login", "portal_launcher"];
+
+      for (const surface of surfaces) {
+        const entry = source[surface];
+        if (!entry || typeof entry !== "object") continue;
+        const raw = entry as Record<string, unknown>;
+        result[surface] = {
+          title: typeof raw.title === "string" && raw.title.trim() ? raw.title.trim() : undefined,
+          subtitle: typeof raw.subtitle === "string" && raw.subtitle.trim() ? raw.subtitle.trim() : undefined,
+          logoUrl: typeof raw.logoUrl === "string" && raw.logoUrl.trim() ? raw.logoUrl.trim() : undefined,
+          primaryColor: typeof raw.primaryColor === "string" && raw.primaryColor.trim() ? raw.primaryColor.trim() : undefined,
+          accentColor: typeof raw.accentColor === "string" && raw.accentColor.trim() ? raw.accentColor.trim() : undefined,
+          backgroundCss: typeof raw.backgroundCss === "string" && raw.backgroundCss.trim() ? raw.backgroundCss.trim() : undefined
+        };
+      }
+
+      return result;
+    };
+
+    const normalizeScoped = (value: unknown): Record<string, Partial<Record<UiSurface, UiSurfaceCustomization>>> => {
+      if (!value || typeof value !== "object") return {};
+      const source = value as Record<string, unknown>;
+      const mapped: Record<string, Partial<Record<UiSurface, UiSurfaceCustomization>>> = {};
+      for (const [key, val] of Object.entries(source)) {
+        if (!key.trim()) continue;
+        mapped[key] = normalizeSurfaceMap(val);
+      }
+      return mapped;
+    };
+
+    return {
+      defaultBySurface: {
+        ...defaults.defaultBySurface,
+        ...normalizeSurfaceMap(data.defaultBySurface)
+      },
+      byClientId: normalizeScoped(data.byClientId),
+      byAppId: normalizeScoped(data.byAppId)
+    };
+  }
+
   private defaultSettings(): InstanceSettings {
     const configuredCors = parseCorsOrigins(process.env.CORS_ORIGIN);
 
@@ -61,6 +141,7 @@ export class InstanceSettingsService {
       smtpSecure: process.env.SMTP_SECURE === "true",
       smtpUser: process.env.SMTP_USER,
       smtpPass: process.env.SMTP_PASS,
+      uiCustomizations: this.defaultUiCustomizations(),
       tokenSigningAlgorithm: "RS256",
       updatedAt: new Date()
     };
@@ -77,10 +158,18 @@ export class InstanceSettingsService {
   }
 
   async getSettings() {
-    return (await this.repository.get()) ?? this.ensureDefaults();
+    const existing = await this.repository.get();
+    if (!existing) {
+      return this.ensureDefaults();
+    }
+
+    return {
+      ...existing,
+      uiCustomizations: this.normalizeUiCustomizations(existing.uiCustomizations)
+    };
   }
 
-  async updateSettings(input: Partial<Pick<InstanceSettings, "databaseProvider" | "databasePath" | "externalDatabaseUrl" | "requireHttps" | "secureCookies" | "allowAnyCorsOrigin" | "corsAllowedOrigins" | "requireHttpsRedirectUris" | "requireS256Pkce" | "allowImplicitFlow" | "loginFailureWindowMs" | "loginLockoutThreshold" | "loginLockoutDurationMs" | "sessionAnomalyConcurrencyThreshold" | "emailTransport" | "emailFrom" | "smtpHost" | "smtpPort" | "smtpSecure" | "smtpUser" | "smtpPass">>) {
+  async updateSettings(input: Partial<Pick<InstanceSettings, "databaseProvider" | "databasePath" | "externalDatabaseUrl" | "requireHttps" | "secureCookies" | "allowAnyCorsOrigin" | "corsAllowedOrigins" | "requireHttpsRedirectUris" | "requireS256Pkce" | "allowImplicitFlow" | "loginFailureWindowMs" | "loginLockoutThreshold" | "loginLockoutDurationMs" | "sessionAnomalyConcurrencyThreshold" | "emailTransport" | "emailFrom" | "smtpHost" | "smtpPort" | "smtpSecure" | "smtpUser" | "smtpPass" | "uiCustomizations">>) {
     const current = await this.getSettings();
 
     const next: Omit<InstanceSettings, "updatedAt"> = {
@@ -106,6 +195,7 @@ export class InstanceSettingsService {
       smtpSecure: input.smtpSecure ?? current.smtpSecure,
       smtpUser: input.smtpUser ?? current.smtpUser,
       smtpPass: input.smtpPass ?? current.smtpPass,
+      uiCustomizations: input.uiCustomizations ? this.normalizeUiCustomizations(input.uiCustomizations) : current.uiCustomizations,
       tokenSigningAlgorithm: "RS256"
     };
 
@@ -161,6 +251,27 @@ export class InstanceSettingsService {
     }
 
     return this.repository.upsert(next);
+  }
+
+  async resolveUiCustomization(input: {
+    surface: UiSurface;
+    clientId?: string;
+    appId?: string;
+  }): Promise<UiSurfaceCustomization> {
+    const settings = await this.getSettings();
+    const defaults = settings.uiCustomizations.defaultBySurface[input.surface] ?? {};
+    const byClient = input.clientId
+      ? settings.uiCustomizations.byClientId[input.clientId]?.[input.surface] ?? {}
+      : {};
+    const byApp = input.appId
+      ? settings.uiCustomizations.byAppId[input.appId]?.[input.surface] ?? {}
+      : {};
+
+    return {
+      ...defaults,
+      ...byClient,
+      ...byApp
+    };
   }
 
   async isCorsOriginAllowed(origin: string | undefined) {

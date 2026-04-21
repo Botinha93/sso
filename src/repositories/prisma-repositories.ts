@@ -315,6 +315,9 @@ const mapInstanceSettings = (row: PrismaRow): InstanceSettings => {
     smtpSecure: typeof parsed.smtpSecure === "boolean" ? parsed.smtpSecure : false,
     smtpUser: typeof parsed.smtpUser === "string" && parsed.smtpUser.length > 0 ? parsed.smtpUser : undefined,
     smtpPass: typeof parsed.smtpPass === "string" && parsed.smtpPass.length > 0 ? parsed.smtpPass : undefined,
+    uiCustomizations: typeof parsed.uiCustomizations === "object" && parsed.uiCustomizations
+      ? (parsed.uiCustomizations as InstanceSettings["uiCustomizations"])
+      : { defaultBySurface: {}, byClientId: {}, byAppId: {} },
     tokenSigningAlgorithm: "RS256",
     updatedAt: asDate(row.updatedAt)
   };
@@ -1308,6 +1311,7 @@ class PrismaInstanceSettingsRepository {
       smtpSecure: input.smtpSecure,
       smtpUser: input.smtpUser,
       smtpPass: input.smtpPass,
+      uiCustomizations: input.uiCustomizations,
       tokenSigningAlgorithm: input.tokenSigningAlgorithm
     });
     await this.prisma.instanceSetting.upsert({ where: { id: input.id }, create: { id: input.id, settingsJson, updatedAt: updatedAt.toISOString() }, update: { settingsJson, updatedAt: updatedAt.toISOString() } });

@@ -10,10 +10,20 @@ const SCOPE_LABELS: Record<string, string> = {
   roles: "Read your assigned roles",
 };
 
+interface UiCustomization {
+  title?: string;
+  subtitle?: string;
+  logoUrl?: string;
+  primaryColor?: string;
+  accentColor?: string;
+  backgroundCss?: string;
+}
+
 export default function Consent() {
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ui, setUi] = useState<UiCustomization | null>(null);
 
   const clientId = searchParams.get("client_id") || "Unknown App";
   const scope = searchParams.get("scope") || "openid";
@@ -22,6 +32,21 @@ export default function Consent() {
   const state = searchParams.get("state");
   const responseType = searchParams.get("response_type");
   const responseMode = searchParams.get("response_mode") || (responseType === "token" ? "fragment" : "query");
+
+  React.useEffect(() => {
+    void (async () => {
+      try {
+        const query = new URLSearchParams({ surface: "consent" });
+        if (clientId) query.set("clientId", clientId);
+        const res = await fetch(`/api/ui/customization?${query.toString()}`, { credentials: "include" });
+        if (!res.ok) return;
+        const json = await res.json();
+        setUi(json?.customization ?? null);
+      } catch {
+        // Optional customization.
+      }
+    })();
+  }, [clientId]);
 
   const handleApprove = () => {
     setLoading(true);
@@ -67,18 +92,27 @@ export default function Consent() {
   };
 
   return (
-    <div className="min-w-screen min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_28%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] p-4 font-sans">
+    <div
+      className="min-w-screen min-h-screen flex items-center justify-center p-4 font-sans"
+      style={{
+        background: ui?.backgroundCss ?? 'radial-gradient(circle at top left, rgba(14,165,233,0.14), transparent 28%),linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)'
+      }}
+    >
       <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         {/* Dark header */}
-        <div className="bg-[linear-gradient(180deg,_#020617_0%,_#0f172a_100%)] px-8 py-7">
+        <div className="px-8 py-7" style={{ background: `linear-gradient(180deg, ${ui?.primaryColor ?? '#020617'} 0%, ${ui?.accentColor ?? '#0f172a'} 100%)` }}>
           <div className="flex items-center gap-3 mb-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/20 ring-1 ring-sky-400/30">
-              <span className="text-xs font-extrabold tracking-widest text-sky-300">NS</span>
-            </div>
-            <div className="text-xl font-semibold text-slate-50 tracking-tight">Authorization Request</div>
+            {ui?.logoUrl ? (
+              <img src={ui.logoUrl} alt="Logo" className="h-9 w-9 rounded-xl ring-1 ring-sky-400/30" />
+            ) : (
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/20 ring-1 ring-sky-400/30">
+                <span className="text-xs font-extrabold tracking-widest text-sky-300">NS</span>
+              </div>
+            )}
+            <div className="text-xl font-semibold text-slate-50 tracking-tight">{ui?.title ?? 'Authorization Request'}</div>
           </div>
           <p className="text-slate-400 text-sm">
-            <strong className="text-slate-200">{clientId}</strong> is requesting access to your account.
+            {ui?.subtitle ?? (<><strong className="text-slate-200">{clientId}</strong> is requesting access to your account.</>)}
           </p>
         </div>
 

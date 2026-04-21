@@ -145,6 +145,23 @@ export interface App {
   createdAt: Date;
 }
 
+export type UiSurface = "admin_login" | "consent" | "portal_login" | "portal_launcher";
+
+export interface UiSurfaceCustomization {
+  title?: string;
+  subtitle?: string;
+  logoUrl?: string;
+  primaryColor?: string;
+  accentColor?: string;
+  backgroundCss?: string;
+}
+
+export interface UiCustomizationSettings {
+  defaultBySurface: Partial<Record<UiSurface, UiSurfaceCustomization>>;
+  byClientId: Record<string, Partial<Record<UiSurface, UiSurfaceCustomization>>>;
+  byAppId: Record<string, Partial<Record<UiSurface, UiSurfaceCustomization>>>;
+}
+
 export interface InstanceSettings {
   id: string;
   databaseProvider: "sqlite" | "postgresql" | "mysql";
@@ -168,6 +185,7 @@ export interface InstanceSettings {
   smtpSecure?: boolean;
   smtpUser?: string;
   smtpPass?: string;
+  uiCustomizations: UiCustomizationSettings;
   tokenSigningAlgorithm: "RS256";
   updatedAt: Date;
 }

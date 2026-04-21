@@ -544,6 +544,23 @@ export const decideAccessReviewItemSchema = z.object({
   rationale: z.string().min(1).max(2000).optional()
 });
 
+const uiSurfaceSchema = z.enum(["admin_login", "consent", "portal_login", "portal_launcher"]);
+
+const uiSurfaceCustomizationSchema = z.object({
+  title: z.string().min(1).max(120).optional(),
+  subtitle: z.string().min(1).max(300).optional(),
+  logoUrl: z.string().url().optional(),
+  primaryColor: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/).optional(),
+  accentColor: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/).optional(),
+  backgroundCss: z.string().min(1).max(500).optional()
+});
+
+const uiCustomizationSettingsSchema = z.object({
+  defaultBySurface: z.record(uiSurfaceSchema, uiSurfaceCustomizationSchema).default({}),
+  byClientId: z.record(z.string().min(1), z.record(uiSurfaceSchema, uiSurfaceCustomizationSchema)).default({}),
+  byAppId: z.record(z.string().min(1), z.record(uiSurfaceSchema, uiSurfaceCustomizationSchema)).default({})
+});
+
 export const updateInstanceSettingsSchema = z.object({
   databaseProvider: z.enum(["sqlite", "postgresql", "mysql"]).optional(),
   databasePath: z.string().min(1).optional(),
@@ -565,7 +582,8 @@ export const updateInstanceSettingsSchema = z.object({
   smtpPort: z.number().int().min(1).max(65535).optional(),
   smtpSecure: z.boolean().optional(),
   smtpUser: z.string().optional(),
-  smtpPass: z.string().optional()
+  smtpPass: z.string().optional(),
+  uiCustomizations: uiCustomizationSettingsSchema.optional()
 });
 
 export const sendTestEmailSchema = z.object({

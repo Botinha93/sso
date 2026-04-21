@@ -6,6 +6,15 @@ interface FederationProvider {
   label: string;
 }
 
+interface UiCustomization {
+  title?: string;
+  subtitle?: string;
+  logoUrl?: string;
+  primaryColor?: string;
+  accentColor?: string;
+  backgroundCss?: string;
+}
+
 export default function Login() {
   const [email, setEmail] = useState(() => new URLSearchParams(window.location.search).get('identifier') ?? "");
   const [password, setPassword] = useState("");
@@ -14,6 +23,7 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [providers, setProviders] = useState<FederationProvider[]>([]);
+  const [ui, setUi] = useState<UiCustomization | null>(null);
 
   React.useEffect(() => {
     void (async () => {
@@ -24,6 +34,23 @@ export default function Login() {
         setProviders(Array.isArray(json) ? json : []);
       } catch {
         // Federation providers are optional.
+      }
+    })();
+  }, []);
+
+  React.useEffect(() => {
+    void (async () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const clientId = params.get("client_id");
+        const query = new URLSearchParams({ surface: "admin_login" });
+        if (clientId) query.set("clientId", clientId);
+        const res = await fetch(`/api/ui/customization?${query.toString()}`, { credentials: "include" });
+        if (!res.ok) return;
+        const json = await res.json();
+        setUi(json?.customization ?? null);
+      } catch {
+        // Customization is optional.
       }
     })();
   }, []);
@@ -78,16 +105,21 @@ export default function Login() {
   };
 
   return (
-    <div className="min-w-screen min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_28%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] p-4 font-sans">
+    <div
+      className="min-w-screen min-h-screen flex items-center justify-center p-4 font-sans"
+      style={{
+        background: ui?.backgroundCss ?? 'radial-gradient(circle at top left, rgba(14,165,233,0.14), transparent 28%),linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)'
+      }}
+    >
       <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         {/* Dark header */}
-        <div className="bg-[linear-gradient(180deg,_#020617_0%,_#0f172a_100%)] px-8 py-7">
+        <div className="px-8 py-7" style={{ background: `linear-gradient(180deg, ${ui?.primaryColor ?? '#020617'} 0%, ${ui?.accentColor ?? '#0f172a'} 100%)` }}>
           <div className="flex items-center gap-3 mb-2">
-            <img src="/logo.svg" alt="NexusID" className="h-9 w-9 rounded-xl ring-1 ring-sky-400/30" />
-            <div className="text-xl font-semibold text-slate-50 tracking-tight">NexusID</div>
+            <img src={ui?.logoUrl ?? "/logo.svg"} alt="NexusID" className="h-9 w-9 rounded-xl ring-1 ring-sky-400/30" />
+            <div className="text-xl font-semibold text-slate-50 tracking-tight">{ui?.title ?? 'NexusID'}</div>
           </div>
           <p className="text-slate-400 text-sm">
-            Sign in to the identity administration workspace.
+            {ui?.subtitle ?? 'Sign in to the identity administration workspace.'}
           </p>
         </div>
 

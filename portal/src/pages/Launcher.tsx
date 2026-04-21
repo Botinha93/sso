@@ -1,29 +1,57 @@
 import { ExternalLink, LogOut, Settings, User } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import type { PortalUser } from '../hooks'
 
 interface Props {
   user: PortalUser
 }
 
+interface UiCustomization {
+  title?: string
+  subtitle?: string
+  logoUrl?: string
+  primaryColor?: string
+  accentColor?: string
+  backgroundCss?: string
+}
+
 const portalHome = import.meta.env.BASE_URL
 
 export default function Launcher({ user }: Props) {
+  const [ui, setUi] = useState<UiCustomization | null>(null)
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const defaultAppId = user.apps[0]?.id
+        const query = new URLSearchParams({ surface: 'portal_launcher' })
+        if (defaultAppId) query.set('appId', defaultAppId)
+        const res = await fetch(`/api/ui/customization?${query.toString()}`, { credentials: 'include' })
+        if (!res.ok) return
+        const json = await res.json()
+        setUi(json?.customization ?? null)
+      } catch {
+        // Customization is optional.
+      }
+    })()
+  }, [user.apps])
+
   const handleLogout = async () => {
     await fetch('/auth/logout', { method: 'POST', credentials: 'include' })
     window.location.href = portalHome
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen" style={{ background: ui?.backgroundCss ?? '#f8fafc' }}>
       {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-slate-900 flex items-center justify-center text-white text-sm">
-              👤
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-sm overflow-hidden" style={{ backgroundColor: ui?.primaryColor ?? '#0f172a' }}>
+              {ui?.logoUrl ? <img src={ui.logoUrl} alt="Logo" className="h-full w-full object-cover" /> : '👤'}
             </div>
-            <span className="text-sm font-semibold text-slate-900">Account Portal</span>
+            <span className="text-sm font-semibold text-slate-900">{ui?.title ?? 'Account Portal'}</span>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2">
             <Link
@@ -55,7 +83,7 @@ export default function Launcher({ user }: Props) {
               <h1 className="text-xl font-bold text-slate-900">
                 Welcome back, {user.givenName}!
               </h1>
-              <p className="text-sm text-slate-500">{user.email}</p>
+              <p className="text-sm text-slate-500">{ui?.subtitle ?? user.email}</p>
             </div>
           </div>
         </div>

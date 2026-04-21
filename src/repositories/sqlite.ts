@@ -1161,6 +1161,9 @@ const mapInstanceSettings = (row: DbRow): InstanceSettings => {
     smtpSecure: typeof parsed.smtpSecure === "boolean" ? parsed.smtpSecure : false,
     smtpUser: typeof parsed.smtpUser === "string" && parsed.smtpUser.length > 0 ? parsed.smtpUser : undefined,
     smtpPass: typeof parsed.smtpPass === "string" && parsed.smtpPass.length > 0 ? parsed.smtpPass : undefined,
+    uiCustomizations: typeof parsed.uiCustomizations === "object" && parsed.uiCustomizations
+      ? (parsed.uiCustomizations as InstanceSettings["uiCustomizations"])
+      : { defaultBySurface: {}, byClientId: {}, byAppId: {} },
     tokenSigningAlgorithm: "RS256",
     updatedAt: asDate(row.updated_at)
   };
@@ -1996,6 +1999,7 @@ export class SqliteInstanceSettingsRepository {
         smtpSecure: input.smtpSecure,
         smtpUser: input.smtpUser,
         smtpPass: input.smtpPass,
+        uiCustomizations: input.uiCustomizations,
         tokenSigningAlgorithm: input.tokenSigningAlgorithm
       }),
       updatedAt.toISOString()
