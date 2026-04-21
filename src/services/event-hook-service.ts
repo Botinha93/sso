@@ -36,11 +36,21 @@ const SYSTEM_EVENT_TYPES = [
 
 const ALL_EVENTS_TOKEN = "*";
 
+type PluginRuntimeLike = {
+  dispatch: (eventType: string, payload: Record<string, unknown>) => Promise<void>;
+};
+
 export class EventHookService {
+  private pluginRuntime?: PluginRuntimeLike;
+
   constructor(
     private readonly eventHookRepository: EventHookRepository,
     private readonly eventNotificationRepository: EventNotificationRepository
   ) {}
+
+  setPluginRuntime(runtime: PluginRuntimeLike) {
+    this.pluginRuntime = runtime;
+  }
 
   async listHooks() {
     return this.eventHookRepository.list();
@@ -103,6 +113,10 @@ export class EventHookService {
   }
 
   async emit(eventType: string, payload: Record<string, unknown>) {
+    if (this.pluginRuntime) {
+      await this.pluginRuntime.dispatch(eventType, payload);
+    }
+
     const exactHooks = await this.eventHookRepository.listByEventType(eventType);
     const wildcardHooks = await this.eventHookRepository.listByEventType("*");
     const hooks = [...exactHooks, ...wildcardHooks].filter((hook) => hook.enabled);

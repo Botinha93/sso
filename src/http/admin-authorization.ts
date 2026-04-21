@@ -28,7 +28,8 @@ const ADMIN_RESOURCE_MAP: Record<string, string> = {
   "user-groups": "groups",
   "service-identities": "service_identities",
   "connectors": "connectors",
-  "metrics": "connectors"
+  "metrics": "connectors",
+  "plugins": "administration"
 };
 
 export function toAdminResource(path: string): string | undefined {

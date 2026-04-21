@@ -705,3 +705,29 @@ export const createConnectorMappingSchema = z.object({
   transform: z.string().optional()
 });
 
+// ---------------------------------------------------------------------------
+// Plugin Management
+// ---------------------------------------------------------------------------
+
+export const pluginManifestSchema = z.object({
+  id: z.string().min(3).max(64),
+  name: z.string().min(2).max(120),
+  version: z.string().min(1).max(32),
+  description: z.string().max(500).optional(),
+  entrypoint: z.string().min(1).max(160),
+  permissions: z.array(z.string().min(2)).default([]),
+  hooks: z.array(z.string().min(2)).default([]),
+  homepage: z.string().url().optional()
+});
+
+export const validatePluginSchema = z.object({
+  manifest: pluginManifestSchema,
+  bundleBase64: z.string().min(8).optional()
+});
+
+export const uploadPluginSchema = z.object({
+  manifest: pluginManifestSchema,
+  bundleBase64: z.string().min(8),
+  activate: z.boolean().default(false)
+});
+

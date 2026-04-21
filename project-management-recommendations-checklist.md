@@ -53,6 +53,8 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 - [x] EPIC 7 coverage slice delivered: integration tests added for service identity lifecycle and token exchange success/failure paths.
 - [x] EPIC 7 quality follow-up: unit coverage added for service identity credential rotation behavior and expired/revoked credential validation.
 - [x] EPIC 5 adaptive-auth follow-up: login pre-credential enforcement now evaluates risk scoring during `risk_check`, records risk events, and requires explicit acknowledgement on challenged risk outcomes.
+- [x] EPIC 8 extensibility slice delivered: admin plugin management foundation (`/api/admin/plugins*`) with manifest validation, bundle upload/cataloging, and admin UI operations for upload/list/delete.
+- [x] EPIC 8 extensibility runtime slice delivered: active plugins now execute in sandboxed runtime on declared hooks with audit visibility, hot-reload after plugin changes, and developer documentation with manifest + handler contract examples.
 
 ## Planning assumptions
 
@@ -399,6 +401,10 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 - [x] `POST /api/admin/connectors/:id/sync`
 - [x] `GET /api/admin/connectors/:id/runs`
 - [x] `GET /api/admin/metrics/auth`
+- [x] `GET /api/admin/plugins`
+- [x] `POST /api/admin/plugins/validate`
+- [x] `POST /api/admin/plugins`
+- [x] `DELETE /api/admin/plugins/:id`
 
 ### Schema and model backlog
 

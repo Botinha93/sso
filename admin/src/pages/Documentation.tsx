@@ -265,6 +265,12 @@ const API_ROUTES: ApiRoute[] = [
   // Auth Metrics (EPIC 8)
   { method: 'GET', path: '/api/admin/metrics/auth', auth: 'session', description: 'Returns bucketed auth event metric rollups. Accepts startHour, endHour, and event filter query params.' },
 
+  // Plugin Management
+  { method: 'GET', path: '/api/admin/plugins', auth: 'session', description: 'Lists uploaded plugin bundles and validated manifest metadata.' },
+  { method: 'POST', path: '/api/admin/plugins/validate', auth: 'session+csrf', description: 'Validates plugin manifest contract and optional bundle payload without persisting.' },
+  { method: 'POST', path: '/api/admin/plugins', auth: 'session+csrf', description: 'Uploads a plugin bundle ZIP (base64 payload), stores manifest metadata, and records checksum.' },
+  { method: 'DELETE', path: '/api/admin/plugins/:id', auth: 'session+csrf', description: 'Removes an uploaded plugin bundle and metadata record.' },
+
   // Token Exchange
   { method: 'POST', path: '/oauth/token/exchange', auth: 'token', description: 'RFC 8693 Token Exchange: validates a subject_token and issues a new scoped access token. Supports access_token and JWT subject token types.' },
 
@@ -2393,6 +2399,16 @@ const ADMIN_VIEW_CATALOG = [
       'Define source→target field mappings with optional transform expressions.',
       'View auth metric rollups (login success/failure, tokens issued, policy denials) aggregated by hour.'
     ]
+  },
+  {
+    view: 'Plugins',
+    route: '/plugins',
+    purpose: 'Validate and upload extension bundles for governed platform extensibility.',
+    functions: [
+      'Validate plugin manifests before upload and inspect warnings/errors.',
+      'Upload ZIP bundles, compute checksums, and catalog metadata for review.',
+      'Review registered hooks/permissions and remove bundles when no longer needed.'
+    ]
   }
 ]
 
@@ -2426,6 +2442,11 @@ const DEV_EXTENSION_POINTS = [
     name: 'Front-End Navigation',
     where: 'Admin sidebar and route map',
     guidance: 'Add new sections under existing domain groups and gate routes with explicit permissions through the shared route guard wrapper.'
+  },
+  {
+    name: 'Plugin Runtime',
+    where: 'Admin: Plugins page, Backend: plugin service and plugin routes',
+    guidance: 'Treat plugin uploads as untrusted artifacts: validate manifest IDs/versions, cap bundle size, checksum every upload, and keep execution behind a dedicated feature flag and security review gate.'
   }
 ]
 
@@ -3690,6 +3711,89 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
     }
   }
 
+  if (route.path === '/api/admin/plugins' && route.method === 'GET') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({
+        data: [
+          {
+            id: 'acme.audit-enricher',
+            name: 'ACME Audit Enricher',
+            version: '1.0.0',
+            status: 'uploaded',
+            entrypoint: 'dist/index.js',
+            hooks: ['user.created', 'auth.login.success'],
+            permissions: ['events:emit'],
+            bundleChecksum: '4c8fa2...d13a',
+            bundleBytes: 81402,
+            uploadedAt: '2026-04-21T10:00:00.000Z',
+            updatedAt: '2026-04-21T10:00:00.000Z'
+          }
+        ]
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/plugins/validate' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        manifest: {
+          id: 'acme.audit-enricher',
+          name: 'ACME Audit Enricher',
+          version: '1.0.0',
+          entrypoint: 'dist/index.js',
+          permissions: ['events:emit'],
+          hooks: ['user.created']
+        },
+        bundleBase64: 'data:application/zip;base64,UEsDB...'
+      }),
+      expectedResponse: prettyJson({
+        valid: true,
+        errors: [],
+        warnings: []
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/plugins' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        manifest: {
+          id: 'acme.audit-enricher',
+          name: 'ACME Audit Enricher',
+          version: '1.0.0',
+          entrypoint: 'dist/index.js',
+          permissions: ['events:emit'],
+          hooks: ['user.created']
+        },
+        bundleBase64: 'data:application/zip;base64,UEsDB...',
+        activate: false
+      }),
+      expectedResponse: prettyJson({
+        id: 'acme.audit-enricher',
+        name: 'ACME Audit Enricher',
+        version: '1.0.0',
+        status: 'uploaded',
+        entrypoint: 'dist/index.js',
+        permissions: ['events:emit'],
+        hooks: ['user.created'],
+        bundleChecksum: '4c8fa2...d13a',
+        bundleBytes: 81402,
+        uploadedAt: '2026-04-21T10:00:00.000Z',
+        updatedAt: '2026-04-21T10:00:00.000Z'
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/plugins/:id' && route.method === 'DELETE') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({ deleted: true })
+    }
+  }
+
   if (!isMutation) {
     return {
       parameters: params,
@@ -4238,11 +4342,73 @@ function AdminDocs() {
 }
 
 function DevDocs() {
+  const pluginManifestExample = prettyJson({
+    id: 'acme.audit-enricher',
+    name: 'ACME Audit Enricher',
+    version: '1.0.0',
+    description: 'Adds custom risk metadata to selected lifecycle events.',
+    entrypoint: 'dist/index.js',
+    permissions: ['events:emit', 'users:read'],
+    hooks: ['user.created', 'auth.login.succeeded'],
+    homepage: 'https://plugins.example.com/acme-audit-enricher'
+  })
+
+  const pluginRuntimeExample = `module.exports.onEvent = async function onEvent(event, api) {
+  if (event.type === 'user.created') {
+    const userId = event.payload?.userId || 'unknown'
+    api.log('Plugin observed user creation', { userId })
+  }
+
+  if (event.type === 'auth.login.succeeded') {
+    const ip = event.payload?.ip || 'n/a'
+    api.log('Login success observed by plugin', { ip })
+  }
+}`
+
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-sky-200 bg-sky-50 p-5 text-sm text-sky-900 shadow-sm">
         Extension is supported through explicit service and admin modules. Keep security invariants intact: permission checks,
         CSRF enforcement on admin mutations, and audit/event emission for state-changing operations.
+      </div>
+
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+        <h3 className="text-base font-semibold text-emerald-900">Plugin Runtime Development Guide</h3>
+        <p className="mt-2 text-sm text-emerald-800">
+          Plugins run in a sandboxed runtime and are invoked on declared hook events. Upload as ZIP with an entrypoint file that exports
+          <span className="font-mono"> onEvent(event, api)</span>.
+        </p>
+        <ul className="mt-3 space-y-1 text-sm text-emerald-900">
+          <li>- Runtime hook invocation uses manifest.hooks exact event names.</li>
+          <li>- Keep handlers deterministic and fast; execution uses strict timeout bounds.</li>
+          <li>- Use <span className="font-mono">api.log(message, metadata)</span> for plugin diagnostics (captured in audit telemetry).</li>
+          <li>- Avoid side effects outside declared integration behavior.</li>
+        </ul>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Manifest Example</p>
+            <pre className="mt-2 overflow-auto rounded-lg border border-emerald-200 bg-white p-3 text-[11px] text-slate-700">{pluginManifestExample}</pre>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Entrypoint Example</p>
+            <pre className="mt-2 overflow-auto rounded-lg border border-emerald-200 bg-white p-3 text-[11px] text-slate-700">{pluginRuntimeExample}</pre>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 className="text-base font-semibold text-slate-900">Plugin Lifecycle</h3>
+        <p className="mt-2 text-sm text-slate-600">
+          See <span className="font-mono">docs/PLUGIN_DEVELOPMENT.md</span> for the full plugin packaging and runtime reference.
+        </p>
+        <ol className="mt-2 space-y-1 text-sm text-slate-700">
+          <li>1. Build plugin bundle as ZIP with entrypoint path matching manifest.entrypoint.</li>
+          <li>2. Validate bundle and manifest in Admin Plugins.</li>
+          <li>3. Upload and optionally activate plugin.</li>
+          <li>4. Runtime hot-reloads active plugins after upload/delete.</li>
+          <li>5. Verify behavior by triggering matching events and reviewing audit logs for plugin_runtime_* events.</li>
+        </ol>
       </div>
 
       {DEV_TUTORIALS.map((tutorial) => (

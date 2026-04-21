@@ -1659,6 +1659,31 @@ export interface AuthMetricDto {
   createdAt: string
 }
 
+export interface PluginManifestDto {
+  id: string
+  name: string
+  version: string
+  description?: string
+  entrypoint: string
+  permissions: string[]
+  hooks: string[]
+  homepage?: string
+}
+
+export interface PluginRecordDto extends PluginManifestDto {
+  status: 'uploaded' | 'active'
+  uploadedAt: string
+  updatedAt: string
+  bundleChecksum: string
+  bundleBytes: number
+}
+
+export interface PluginValidationDto {
+  valid: boolean
+  errors: string[]
+  warnings: string[]
+}
+
 export function useConnectors() {
   return useQuery({
     queryKey: ['connectors'],
@@ -1768,6 +1793,45 @@ export function useAuthMetrics(params?: { startHour?: string; endHour?: string; 
   return useQuery({
     queryKey: ['auth-metrics', params],
     queryFn: () => jsonFetch(`${API_BASE}/metrics/auth` + (query ? '?' + query : '')) as Promise<{ data: AuthMetricDto[] }>
+  })
+}
+
+export function usePlugins() {
+  return useQuery({
+    queryKey: ['plugins'],
+    queryFn: () => jsonFetch(`${API_BASE}/plugins`) as Promise<{ data: PluginRecordDto[] }>
+  })
+}
+
+export function useValidatePlugin() {
+  return useMutation({
+    mutationFn: (payload: { manifest: PluginManifestDto; bundleBase64?: string }) =>
+      jsonFetch(`${API_BASE}/plugins/validate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }) as Promise<PluginValidationDto>
+  })
+}
+
+export function useUploadPlugin() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: { manifest: PluginManifestDto; bundleBase64: string; activate?: boolean }) =>
+      jsonFetch(`${API_BASE}/plugins`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }) as Promise<PluginRecordDto>,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['plugins'] })
+  })
+}
+
+export function useDeletePlugin() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => jsonFetch(`${API_BASE}/plugins/${id}`, { method: 'DELETE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['plugins'] })
   })
 }
 

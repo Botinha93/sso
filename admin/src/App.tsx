@@ -26,6 +26,7 @@ import Elevations from './pages/Elevations'
 import ElevationSessions from './pages/ElevationSessions'
 import ServiceIdentities from './pages/ServiceIdentities'
 import Connectors from './pages/Connectors'
+import Plugins from './pages/Plugins'
 import ConnectorDetail from './pages/ConnectorDetail'
 import Metrics from './pages/Metrics'
 import Documentation from './pages/Documentation'
@@ -153,6 +154,7 @@ function AppContent() {
                       <Route path="/administration" element={require('administration:view', <Administration />)} />
                       <Route path="/service-identities" element={require('service_identities:view', <ServiceIdentities />)} />
                       <Route path="/connectors" element={require('connectors:view', <Connectors />)} />
+                      <Route path="/plugins" element={require('administration:view', <Plugins />)} />
                       <Route path="/connectors/:id" element={require('connectors:view', <ConnectorDetail />)} />
                       <Route path="/metrics" element={require('connectors:view', <Metrics />)} />
                       <Route path="/documentation" element={require('users:view', <Documentation />)} />

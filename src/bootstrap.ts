@@ -36,8 +36,11 @@ import { WebauthnService } from "./services/webauthn-service.js";
 import { RiskService } from "./services/risk-service.js";
 import { ServiceIdentityService } from "./services/service-identity-service.js";
 import { ConnectorService, AuthMetricsService } from "./services/connector-service.js";
+import { PluginService } from "./services/plugin-service.js";
+import { PluginRuntimeService } from "./services/plugin-runtime-service.js";
 import { UserAttributeService } from "./services/user-attribute-service.js";
 import { UserService } from "./services/user-service.js";
+import { dirname, resolve } from "node:path";
 
 export const bootstrap = async (config: AppConfig) => {
   const repositories = await createRepositoryBundle(config);
@@ -97,6 +100,10 @@ export const bootstrap = async (config: AppConfig) => {
     eventHookService
   );
   const authMetricsService = new AuthMetricsService(repositories.authMetricRepository);
+  const pluginStorageRoot = resolve(process.cwd(), dirname(config.databasePath), "plugins");
+  const pluginService = new PluginService(pluginStorageRoot);
+  const pluginRuntimeService = new PluginRuntimeService(pluginService, auditRepository);
+  eventHookService.setPluginRuntime(pluginRuntimeService);
   const serviceIdentityService = new ServiceIdentityService(
     repositories.serviceIdentityRepository,
     repositories.serviceIdentityCredentialRepository
@@ -438,6 +445,8 @@ export const bootstrap = async (config: AppConfig) => {
     serviceIdentityService,
     connectorService,
     authMetricsService,
+    pluginService,
+    pluginRuntimeService,
     authService,
     oidcService,
     auditRepository,

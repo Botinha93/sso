@@ -518,7 +518,12 @@ export type AuditEventType =
   | "connector_created"
   | "connector_updated"
   | "connector_deleted"
-  | "connector_sync_triggered";
+  | "connector_sync_triggered"
+  | "plugin_runtime_load_failed"
+  | "plugin_runtime_executed"
+  | "plugin_runtime_failed"
+  | "plugin_runtime_console"
+  | "plugin_runtime_log";
 
 export type ElevationStatus = "pending" | "approved" | "active" | "revoked" | "expired";
 export type ElevationSessionStatus = "active" | "revoked" | "expired";

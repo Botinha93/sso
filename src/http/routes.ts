@@ -14,6 +14,7 @@ import { registerElevationRoutes } from "./routes/elevations.js";
 import { registerServiceIdentityRoutes } from "./routes/service-identities.js";
 import { deriveRiskEventsFromAudit } from "./routes/security-risk-events.js";
 import { registerConnectorRoutes } from "./routes/connectors.js";
+import { registerPluginRoutes } from "./routes/plugins.js";
 import {
   assignGroupRoleSchema,
   assignRoleSchema,
@@ -114,6 +115,8 @@ import { SamlReplayProtectionService } from "../services/saml-replay-protection-
 import { SamlSignatureService } from "../services/saml-signature-service.js";
 import { RiskService } from "../services/risk-service.js";
 import { ConnectorService, AuthMetricsService } from "../services/connector-service.js";
+import { PluginService } from "../services/plugin-service.js";
+import { PluginRuntimeService } from "../services/plugin-runtime-service.js";
 import type {
   AuditRepository,
   PolicyDecisionLogRepository,
@@ -155,6 +158,8 @@ interface RouteDeps {
   riskService: RiskService;
   connectorService: ConnectorService;
   authMetricsService: AuthMetricsService;
+  pluginService: PluginService;
+  pluginRuntimeService: PluginRuntimeService;
   authorizationService: AuthorizationService;
   samlService: SamlService;
   samlReplayProtectionService: SamlReplayProtectionService;
@@ -1357,6 +1362,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
   registerServiceIdentityRoutes(app, deps.serviceIdentityService);
   registerConnectorRoutes(app, deps.connectorService, deps.authMetricsService);
+  registerPluginRoutes(app, deps.pluginService, deps.pluginRuntimeService);
 
   app.put("/api/admin/settings", async (request) => {
     const input = updateInstanceSettingsSchema.parse(request.body);
