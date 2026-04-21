@@ -1,6 +1,7 @@
-import { ReactElement } from 'react'
+import { ReactElement, useEffect, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Routes, Route, useLocation, Navigate } from 'react-router-dom'
+import { Menu } from 'lucide-react'
 import Sidebar from './components/Sidebar'
 import Dashboard from './pages/Dashboard'
 import Clients from './pages/Clients'
@@ -46,8 +47,13 @@ function App() {
 
 function AppContent() {
   const location = useLocation()
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const { data: setupStatus, isLoading: setupLoading } = useSetupStatus()
   const { data: adminMe, isLoading: meLoading, error: meError } = useAdminMe()
+
+  useEffect(() => {
+    setMobileNavOpen(false)
+  }, [location.pathname])
 
   const permissions: string[] = (adminMe as any)?.permissions ?? []
   const hasPermission = (perm: string) => permissions.includes('*:*') || permissions.includes(perm)
@@ -89,10 +95,39 @@ function AppContent() {
           path="*"
           element={
             isAuthed ? (
-              <div className="flex h-screen w-full overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_28%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] text-slate-700 font-sans">
-                <Sidebar permissions={permissions} />
-                <main className="flex-1 overflow-auto p-7">
-                  <div className="max-w-7xl mx-auto">
+              <div className="flex min-h-screen w-full overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_28%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] text-slate-700 font-sans">
+                <div className="hidden md:flex">
+                  <Sidebar permissions={permissions} />
+                </div>
+
+                <div className={`fixed inset-0 z-40 md:hidden ${mobileNavOpen ? '' : 'pointer-events-none'}`}>
+                  <button
+                    type="button"
+                    aria-label="Close navigation menu"
+                    onClick={() => setMobileNavOpen(false)}
+                    className={`absolute inset-0 bg-slate-900/45 transition-opacity ${mobileNavOpen ? 'opacity-100' : 'opacity-0'}`}
+                  />
+                  <div className={`relative h-full w-[88%] max-w-[320px] transition-transform ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                    <Sidebar permissions={permissions} onNavigate={() => setMobileNavOpen(false)} />
+                  </div>
+                </div>
+
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur md:hidden">
+                    <button
+                      type="button"
+                      aria-label="Open navigation menu"
+                      onClick={() => setMobileNavOpen(true)}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700"
+                    >
+                      <Menu size={18} />
+                    </button>
+                    <p className="text-sm font-semibold text-slate-900">NexusID Admin</p>
+                    <div className="h-9 w-9" />
+                  </header>
+
+                <main className="min-w-0 flex-1 overflow-auto p-4 sm:p-5 lg:p-7">
+                  <div className="mx-auto max-w-7xl">
                     <Routes location={location}>
                       <Route path="/" element={require('users:view', <Dashboard />)} />
                       <Route path="/dashboard" element={require('users:view', <Dashboard />)} />
@@ -124,6 +159,7 @@ function AppContent() {
                     </Routes>
                   </div>
                 </main>
+                </div>
               </div>
             ) : (
               <Navigate to="/login" replace />

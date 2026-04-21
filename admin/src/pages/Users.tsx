@@ -407,7 +407,7 @@ const Users = () => {
 
       <Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Create New User">
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelCls}>App</label>
               <select value={formData.appId} onChange={e => setFormData(f => ({ ...f, appId: e.target.value }))} className={fieldCls}>
@@ -491,7 +491,7 @@ const Users = () => {
 
       <Modal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} title={`Edit User${userToEdit ? `: ${userToEdit.email}` : ''}`}>
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelCls}>App</label>
               <select value={editFormData.appId} onChange={e => setEditFormData(f => ({ ...f, appId: e.target.value }))} className={fieldCls}>

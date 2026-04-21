@@ -3707,15 +3707,17 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
 function ApiDocs() {
   const [query, setQuery] = useState('')
   const [expandedRoute, setExpandedRoute] = useState<string | null>(null)
+  const deferredQuery = useDeferredValue(query)
   const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase()
+    const needle = deferredQuery.trim().toLowerCase()
     if (!needle) return API_ROUTES
     return API_ROUTES.filter((route) =>
       route.path.toLowerCase().includes(needle) ||
       route.method.toLowerCase().includes(needle) ||
+      route.auth.toLowerCase().includes(needle) ||
       route.description.toLowerCase().includes(needle)
     )
-  }, [query])
+  }, [deferredQuery])
 
   return (
     <div className="space-y-4">
@@ -3750,15 +3752,32 @@ function ApiDocs() {
           This catalog reflects all accessible endpoints currently exposed by the platform, including OAuth2/OIDC protocol routes,
           admin APIs, portal APIs, and compatibility routes.
         </p>
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Filter by method, path, or description"
-          className="mt-3 h-9 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
-        />
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Filter by method, path, auth, or description"
+            className="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+          />
+          {query.trim() ? (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              className="h-9 shrink-0 rounded-lg border border-slate-200 px-3 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            >
+              Clear
+            </button>
+          ) : null}
+        </div>
+        <p className="mt-2 text-xs text-slate-500">
+          Showing {filtered.length} of {API_ROUTES.length} endpoints.
+        </p>
       </div>
 
       <div className="overflow-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 px-4 py-2 text-xs text-slate-500">
+          Tip: swipe horizontally on small screens to view all columns.
+        </div>
         <table className="min-w-[980px] w-full text-left text-sm">
           <thead className="bg-slate-50 text-slate-600">
             <tr>
@@ -3833,6 +3852,7 @@ function ApiDocs() {
 function AdminDocs() {
   const conceptById = new Map(ADMIN_CONCEPT_GUIDES.map((item) => [item.id, item]))
   const [search, setSearch] = useState('')
+  const [menuOpen, setMenuOpen] = useState(false)
   const deferredSearch = useDeferredValue(search)
   const searchNeedle = deferredSearch.trim().toLowerCase()
 
@@ -3927,7 +3947,16 @@ function AdminDocs() {
     <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
       <aside className="lg:sticky lg:top-0 lg:self-start">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Documentation Menu</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Documentation Menu</p>
+            <button
+              type="button"
+              onClick={() => setMenuOpen((open) => !open)}
+              className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 lg:hidden"
+            >
+              {menuOpen ? 'Hide' : 'Show'}
+            </button>
+          </div>
           <div className="relative mt-3">
             <Search size={14} className="pointer-events-none absolute left-3 top-2.5 text-slate-400" />
             <input
@@ -3939,7 +3968,7 @@ function AdminDocs() {
             />
           </div>
 
-          <div className="mt-4 space-y-4 text-sm">
+          <div className={`mt-4 space-y-4 text-sm ${menuOpen ? 'block' : 'hidden lg:block'}`}>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Overview</p>
               <div className="mt-2 space-y-1">
@@ -3977,6 +4006,12 @@ function AdminDocs() {
       </aside>
 
       <div className="space-y-4">
+        {searchNeedle ? (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+            Search results: {pageGuides.length} page guide sections, {visibleConcepts.length} concept entries, {coreConcepts.length} core concepts.
+          </div>
+        ) : null}
+
         <div id="admin-guide-start" className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
           <h3 className="text-base font-semibold text-amber-900">How To Use This Admin Guide</h3>
           <p className="mt-2 text-sm text-amber-800">
@@ -4131,6 +4166,9 @@ function AdminDocs() {
                       })}
                     </div>
                     <div className="mt-4 overflow-auto rounded-xl border border-slate-200 bg-white">
+                      <div className="border-b border-slate-200 px-4 py-2 text-xs text-slate-500">
+                        Tip: swipe horizontally on small screens to view all field columns.
+                      </div>
                       <table className="min-w-[760px] w-full text-left text-sm">
                         <thead className="bg-slate-50 text-slate-600">
                           <tr>
@@ -4180,7 +4218,7 @@ function AdminDocs() {
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Where in Admin</p>
               <ul className="mt-1 space-y-1 text-sm text-slate-700">
                 {concept.whereInAdmin.map((where) => (
-                  <li style={{marginLeft:15, listStyle:'circle'}} key={where}>{where}</li>
+                  <li className="ml-4 list-disc" key={where}>{where}</li>
                 ))}
               </ul>
             </div>
@@ -4188,7 +4226,7 @@ function AdminDocs() {
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Details</p>
               <ul className="mt-1 space-y-1 text-sm text-slate-700">
                 {concept.details.map((detail) => (
-                  <li style={{paddingLeft:5}} key={detail}>{detail}</li>
+                  <li className="pl-1" key={detail}>{detail}</li>
                 ))}
               </ul>
             </div>

@@ -25,20 +25,20 @@ export default function Launcher({ user }: Props) {
             </div>
             <span className="text-sm font-semibold text-slate-900">Account Portal</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <Link
               to="/profile"
-              className="h-8 px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-1.5 transition-colors"
+              className="h-8 px-2 sm:px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-1.5 transition-colors"
             >
               <Settings size={14} />
-              Settings
+              <span className="hidden sm:inline">Settings</span>
             </Link>
             <button
               onClick={handleLogout}
-              className="h-8 px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-1.5 transition-colors"
+              className="h-8 px-2 sm:px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-1.5 transition-colors"
             >
               <LogOut size={14} />
-              Sign out
+              <span className="hidden sm:inline">Sign out</span>
             </button>
           </div>
         </div>
@@ -69,7 +69,7 @@ export default function Launcher({ user }: Props) {
               <p className="text-slate-400 text-xs mt-1">Contact your administrator to get access.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4">
               {user.apps.map(app => (
                 <AppTile key={app.id} app={app} />
               ))}

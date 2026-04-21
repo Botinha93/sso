@@ -318,7 +318,7 @@ function AttributeForm({
 }) {
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label className={labelCls}>Attribute Key</label>
           <input className={`${fieldCls} font-mono`} value={form.key} onChange={(e) => setForm((prev) => ({ ...prev, key: e.target.value }))} placeholder="department" />

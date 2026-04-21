@@ -186,7 +186,7 @@ function TemplatePicker({ onSelect }: { onSelect: (t: ProviderTemplate) => void 
         {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </button>
       {open && (
-        <div className="grid grid-cols-4 gap-2 p-3">
+        <div className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2 xl:grid-cols-4">
           {PROVIDER_TEMPLATES.map((t) => (
             <button
               key={t.id}
@@ -842,7 +842,7 @@ function ProviderForm({
         <label className={labelCls}>UserInfo Endpoint</label>
         <input className={`${fieldCls} font-mono`} value={form.userInfoEndpoint} onChange={(e) => setForm((p) => ({ ...p, userInfoEndpoint: e.target.value }))} placeholder="https://openidconnect.googleapis.com/v1/userinfo" />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label className={labelCls}>Client ID</label>
           <input className={`${fieldCls} font-mono`} value={form.clientId} onChange={(e) => setForm((p) => ({ ...p, clientId: e.target.value }))} />

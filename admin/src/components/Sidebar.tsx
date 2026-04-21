@@ -79,7 +79,13 @@ const navGroups = [
   },
 ]
 
-const Sidebar = ({ permissions = [] }: { permissions?: string[] }) => {
+const Sidebar = ({
+  permissions = [],
+  onNavigate,
+}: {
+  permissions?: string[]
+  onNavigate?: () => void
+}) => {
   const can = (permission: string) => permissions.includes('*:*') || permissions.includes(permission)
 
   const handleLogout = async () => {
@@ -88,7 +94,7 @@ const Sidebar = ({ permissions = [] }: { permissions?: string[] }) => {
   };
 
   return (
-    <aside className="flex h-full w-[260px] shrink-0 flex-col overflow-hidden border-r border-slate-800 bg-[linear-gradient(180deg,_#020617_0%,_#0f172a_100%)] text-slate-400">
+    <aside className="flex h-full w-[280px] shrink-0 flex-col overflow-hidden border-r border-slate-800 bg-[linear-gradient(180deg,_#020617_0%,_#0f172a_100%)] text-slate-400 sm:w-[300px] md:w-[260px]">
       {/* Header */}
       <div className="border-b border-slate-800/80 px-6 py-5">
         <div className="flex items-center gap-3 text-slate-50">
@@ -117,6 +123,7 @@ const Sidebar = ({ permissions = [] }: { permissions?: string[] }) => {
                     <NavLink
                       key={item.path}
                       to={item.path}
+                      onClick={onNavigate}
                       className={({ isActive }) =>
                         `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all ${
                           isActive

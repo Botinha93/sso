@@ -136,7 +136,7 @@ const ServiceIdentityDetail = ({
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 text-sm">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 text-sm">
 
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
                 <h3 className="text-sm font-semibold text-slate-900">Identity Settings</h3>
@@ -149,7 +149,7 @@ const ServiceIdentityDetail = ({
                     placeholder="Optional description"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className={labelCls}>Status</label>
                     <select

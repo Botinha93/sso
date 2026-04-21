@@ -313,7 +313,7 @@ const Clients = () => {
 
       <Modal isOpen={createModalOpen || !!editClient} onClose={closeClientModal} title={editClient ? `Edit OAuth Client: ${editClient.name}` : 'Create OAuth Client'}>
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelCls}>App</label>
               <select value={formData.appId} onChange={e => setFormData(f => ({ ...f, appId: e.target.value }))} className={fieldCls}>
@@ -372,7 +372,7 @@ const Clients = () => {
               placeholder="https://app.example.com/callback"
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelCls}>Allowed Scopes</label>
               <div className="rounded-lg border border-slate-200 p-2 max-h-[140px] overflow-auto bg-slate-50/40 space-y-1.5">
@@ -428,7 +428,7 @@ const Clients = () => {
           </div>
           <div className="rounded-lg border border-slate-200 p-3 bg-slate-50/40 space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Create Scope</p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <input
                 type="text"
                 value={newScopeName}

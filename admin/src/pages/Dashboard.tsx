@@ -572,7 +572,7 @@ const Dashboard = () => {
 
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="text-base font-semibold text-slate-900">Platform Inventory</h3>
-        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
             <p className="text-[11px] uppercase tracking-wider text-slate-500">Tenants</p>
             <p className="mt-1 text-xl font-semibold text-slate-900">{tenants.length}</p>

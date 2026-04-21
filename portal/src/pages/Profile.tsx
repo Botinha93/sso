@@ -54,15 +54,16 @@ export default function Profile({ user }: Props) {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
+      <main className="max-w-4xl mx-auto px-4 py-6 sm:px-6 sm:py-10">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-slate-900">Account Settings</h1>
           <p className="text-sm text-slate-500 mt-1">Manage your profile and security settings</p>
         </div>
 
-        <div className="flex gap-6">
+        <div className="flex flex-col gap-6 lg:flex-row">
           {/* Sidebar nav */}
-          <nav className="w-44 shrink-0 space-y-1">
+          <nav className="w-full shrink-0 lg:w-44">
+            <div className="flex gap-2 overflow-x-auto pb-1 lg:block lg:space-y-1 lg:overflow-visible lg:pb-0">
             {([
               { key: 'profile', label: 'Profile', icon: <User size={14} /> },
               { key: 'password', label: 'Password', icon: <KeyRound size={14} /> },
@@ -72,7 +73,7 @@ export default function Profile({ user }: Props) {
               <button
                 key={item.key}
                 onClick={() => setSection(item.key)}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
+                className={`flex shrink-0 items-center gap-2.5 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-medium transition-colors lg:w-full ${
                   section === item.key
                     ? 'bg-slate-900 text-white'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -82,6 +83,7 @@ export default function Profile({ user }: Props) {
                 {item.label}
               </button>
             ))}
+            </div>
           </nav>
 
           {/* Content */}
@@ -143,7 +145,7 @@ function ProfileSection({ user }: { user: PortalUser }) {
     <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
       <h2 className="text-base font-semibold text-slate-900">Personal Information</h2>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className={labelCls}>First Name</label>
           <input className={fieldCls} value={form.givenName} onChange={e => setForm(p => ({ ...p, givenName: e.target.value }))} />
@@ -180,7 +182,7 @@ function ProfileSection({ user }: { user: PortalUser }) {
         ) : (
           <div className="space-y-2">
             {customAttrs.map(([key, val], i) => (
-              <div key={i} className="flex gap-2 items-center">
+              <div key={i} className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
                 <input
                   className={`${fieldCls} font-mono`}
                   value={key}
@@ -193,7 +195,7 @@ function ProfileSection({ user }: { user: PortalUser }) {
                   onChange={e => setAttrVal(i, e.target.value)}
                   placeholder="value"
                 />
-                <button onClick={() => removeAttr(i)} className="text-slate-400 hover:text-red-500 transition-colors shrink-0">
+                <button onClick={() => removeAttr(i)} className="self-end text-slate-400 hover:text-red-500 transition-colors shrink-0 sm:self-center">
                   <X size={14} />
                 </button>
               </div>
@@ -393,7 +395,7 @@ function TotpSection() {
 
               <div>
                 <label className={labelCls}>Secret</label>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <input readOnly value={enrollment.secret} className={`${fieldCls} font-mono`} />
                   <button
                     onClick={() => copy(enrollment.secret)}
@@ -406,7 +408,7 @@ function TotpSection() {
 
               <div>
                 <label className={labelCls}>OTP Auth URI</label>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <input readOnly value={enrollment.otpauthUri} className={`${fieldCls} font-mono text-xs`} />
                   <button
                     onClick={() => copy(enrollment.otpauthUri)}
@@ -422,12 +424,12 @@ function TotpSection() {
                 <p className="text-xs text-slate-500 mt-1">Enter the 6-digit code from your authenticator app.</p>
               </div>
 
-              <div className="flex gap-2 items-center">
+              <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
                 <input
                   value={verificationCode}
                   onChange={(e) => setVerificationCode(e.target.value.replace(/\D+/g, '').slice(0, 8))}
                   placeholder="123456"
-                  className={`${fieldCls} max-w-[220px] tracking-[0.18em] font-mono`}
+                  className={`${fieldCls} tracking-[0.18em] font-mono sm:max-w-[220px]`}
                 />
                 <button
                   onClick={handleVerify}
@@ -467,9 +469,9 @@ function TotpSection() {
         </button>
 
         {passkeys && passkeys.length > 0 ? (
-          <div className="space-y-2">
+            <div className="space-y-2">
             {passkeys.map((credential) => (
-              <div key={credential.credentialId} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 flex items-center justify-between gap-3">
+              <div key={credential.credentialId} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <p className="text-xs font-mono text-slate-700 truncate">{credential.credentialId}</p>
                   <p className="text-xs text-slate-500">signCount {credential.signCount} {credential.transports.length > 0 ? `• ${credential.transports.join(', ')}` : ''}</p>
@@ -618,17 +620,17 @@ function DangerSection({ user, onDeleted }: { user: PortalUser; onDeleted: () =>
         <h2 className="text-base font-semibold text-slate-900 mb-1">Account Information</h2>
         <p className="text-sm text-slate-500 mb-4">Your account details</p>
         <div className="space-y-2 text-sm">
-          <div className="flex justify-between py-2 border-b border-slate-100">
+          <div className="flex flex-col gap-1 py-2 border-b border-slate-100 sm:flex-row sm:justify-between">
             <span className="text-slate-500">User ID</span>
-            <span className="font-mono text-slate-700 text-xs">{user.id}</span>
+            <span className="font-mono text-slate-700 text-xs break-all sm:text-right">{user.id}</span>
           </div>
-          <div className="flex justify-between py-2 border-b border-slate-100">
+          <div className="flex flex-col gap-1 py-2 border-b border-slate-100 sm:flex-row sm:justify-between">
             <span className="text-slate-500">Username</span>
-            <span className="text-slate-800 font-medium">{user.username}</span>
+            <span className="text-slate-800 font-medium sm:text-right">{user.username}</span>
           </div>
-          <div className="flex justify-between py-2">
+          <div className="flex flex-col gap-1 py-2 sm:flex-row sm:justify-between">
             <span className="text-slate-500">Email</span>
-            <span className="text-slate-800">{user.email}</span>
+            <span className="text-slate-800 break-all sm:text-right">{user.email}</span>
           </div>
         </div>
       </div>
