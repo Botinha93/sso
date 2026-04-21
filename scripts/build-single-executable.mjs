@@ -1,6 +1,7 @@
+import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -8,8 +9,8 @@ const __dirname = dirname(__filename);
 const projectRoot = resolve(__dirname, "..");
 const bundleRoot = join(projectRoot, "bundle", "node");
 const executableDir = join(projectRoot, "bundle", "executable");
-const buildTempDir = join(projectRoot, "bundle", ".sea-build");
-const seaConfigPath = join(buildTempDir, "sea-config.json");
+const buildTempDir = join(projectRoot, "bundle", ".exe-build");
+const archivePath = join(buildTempDir, "payload.tar.gz");
 const outputBinaryPath = join(executableDir, "sso-platform");
 const nodeBinaryPath = process.execPath;
 
@@ -17,23 +18,6 @@ const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
 const run = (command, args, cwd = projectRoot, env = process.env) => {
   execFileSync(command, args, { cwd, stdio: "inherit", env });
-};
-
-const collectFiles = (rootDir) => {
-  const files = [];
-  const walk = (current) => {
-    for (const entry of readdirSync(current, { withFileTypes: true })) {
-      const fullPath = join(current, entry.name);
-      if (entry.isDirectory()) {
-        walk(fullPath);
-      } else if (entry.isFile()) {
-        files.push(relative(rootDir, fullPath).replaceAll("\\", "/"));
-      }
-    }
-  };
-
-  walk(rootDir);
-  return files;
 };
 
 const copyIfExists = (source, destination) => {
@@ -63,6 +47,10 @@ const prepareNodeBundleFromCurrentBuild = () => {
 
   run(npmCommand, ["ci", "--omit=dev"], bundleRoot);
 
+  const bundledNodePath = join(bundleRoot, "bin", "node");
+  mkdirSync(dirname(bundledNodePath), { recursive: true });
+  cpSync(nodeBinaryPath, bundledNodePath);
+
   const generatedDir = join(bundleRoot, "src", "generated");
   const linkPath = join(generatedDir, "prisma");
   const targetPath = join(bundleRoot, "dist", "generated", "prisma");
@@ -75,40 +63,35 @@ const prepareNodeBundleFromCurrentBuild = () => {
   }
 };
 
-const buildSeaConfig = (files) => {
-  const manifest = {
-    entrypoint: "dist/container/entrypoint.js",
-    files: files.map((file) => ({
-      path: file,
-      key: file
-    }))
-  };
+const buildSelfExtractingExecutable = () => {
+  console.log("[bundle:exe] Creating payload archive");
+  run("tar", ["-czf", archivePath, "-C", bundleRoot, "."]);
 
-  const assets = {
-    "__manifest.json": join(buildTempDir, "manifest.json")
-  };
+  const digest = createHash("sha256").update(readFileSync(archivePath)).digest("hex").slice(0, 16);
+  const launcherTemplate = `#!/bin/sh
+set -e
 
-  for (const file of files) {
-    assets[file] = join(bundleRoot, file);
-  }
+SELF=\"$0\"
+CACHE_ROOT=\"\${XDG_CACHE_HOME:-$HOME/.cache}/sso-platform\"
+RUNTIME_DIR=\"$CACHE_ROOT/runtime-${digest}\"
+MARKER=\"$RUNTIME_DIR/.ready\"
 
-  writeFileSync(join(buildTempDir, "manifest.json"), JSON.stringify(manifest, null, 2), "utf8");
-  writeFileSync(
-    seaConfigPath,
-    JSON.stringify(
-      {
-        executable: nodeBinaryPath,
-        main: "scripts/sea-bootstrap.mjs",
-        mainFormat: "module",
-        output: outputBinaryPath,
-        disableExperimentalSEAWarning: true,
-        assets
-      },
-      null,
-      2
-    ),
-    "utf8"
-  );
+if [ ! -f \"$MARKER\" ]; then
+  mkdir -p \"$RUNTIME_DIR\"
+  ARCHIVE_LINE=__ARCHIVE_LINE__
+  tail -n +\"$ARCHIVE_LINE\" \"$SELF\" | tar -xz -C \"$RUNTIME_DIR\"
+  touch \"$MARKER\"
+fi
+
+cd \"$RUNTIME_DIR\"
+exec \"$RUNTIME_DIR/bin/node\" \"$RUNTIME_DIR/dist/container/entrypoint.js\" \"$@\"
+`;
+
+  const archiveLine = launcherTemplate.split("\n").length;
+  const launcher = launcherTemplate.replace("__ARCHIVE_LINE__", String(archiveLine));
+
+  writeFileSync(outputBinaryPath, launcher, "utf8");
+  appendFileSync(outputBinaryPath, readFileSync(archivePath));
 };
 
 if (process.env.EXE_REBUILD === "true") {
@@ -122,20 +105,11 @@ if (!statSync(bundleRoot, { throwIfNoEntry: false })?.isDirectory()) {
   throw new Error("Node bundle directory was not created. Run npm run bundle:node and retry.");
 }
 
-console.log("[bundle:exe] Collecting runtime files");
-const files = collectFiles(bundleRoot);
-if (!files.length) {
-  throw new Error("No files found in bundle/node to embed in executable.");
-}
-
 rmSync(buildTempDir, { recursive: true, force: true });
 mkdirSync(buildTempDir, { recursive: true });
 mkdirSync(executableDir, { recursive: true });
 
-buildSeaConfig(files);
-
-console.log("[bundle:exe] Generating SEA blob");
-run(nodeBinaryPath, ["--build-sea", seaConfigPath]);
+buildSelfExtractingExecutable();
 
 if (process.platform !== "win32") {
   run("chmod", ["+x", outputBinaryPath]);

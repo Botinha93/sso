@@ -99,7 +99,7 @@ npm run bundle:node:start
 
 ## Single Executable
 
-Build a single executable for the current platform using Node SEA:
+Build a single-file executable for the current platform:
 
 ```bash
 npm run bundle:exe
@@ -117,7 +117,7 @@ Run it directly:
 
 Notes:
 
-- The executable extracts its embedded runtime into `~/.cache/sso-platform` on first launch.
+- The executable embeds the Node runtime and your app bundle, then extracts into `~/.cache/sso-platform` on first launch.
 - Rebuild on each target OS/CPU architecture (Linux/macOS/Windows, x64/arm64).
 - Set `EXE_REBUILD=true` when running `npm run bundle:exe` if you want the executable build to force a fresh TypeScript/frontend rebuild first.
 
