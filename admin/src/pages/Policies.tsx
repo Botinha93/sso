@@ -7,6 +7,7 @@ import {
   useRemovePolicyAssignment,
   useSetPolicyAssignment,
   useUpdatePolicy,
+  usePolicyDecisions,
 } from '../hooks/useApi'
 import { PolicyDecisionSimulator } from '../components/policies/PolicyDecisionSimulator'
 import {
@@ -60,12 +61,14 @@ function PolicyCodeEditor({
 
 export default function Policies() {
   const { data: policies = [], isLoading } = usePolicies()
+  const { data: decisions = [], isLoading: decisionsLoading } = usePolicyDecisions(100)
   const createPolicy = useCreatePolicy()
   const updatePolicy = useUpdatePolicy()
   const deletePolicy = useDeletePolicy()
   const setAssignment = useSetPolicyAssignment()
   const removeAssignment = useRemovePolicyAssignment()
 
+  const [activeTab, setActiveTab] = useState<'policies' | 'decisions'>('policies')
   const [newPolicy, setNewPolicy] = useState({
     key: '',
     name: '',
@@ -93,24 +96,45 @@ export default function Policies() {
         </p>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
-        <h2 className="text-sm font-semibold text-slate-900">Create Policy</h2>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <input className="rounded border px-3 py-2" placeholder="key" value={newPolicy.key} onChange={(e) => setNewPolicy((v) => ({ ...v, key: e.target.value }))} />
-          <input className="rounded border px-3 py-2" placeholder="name" value={newPolicy.name} onChange={(e) => setNewPolicy((v) => ({ ...v, name: e.target.value }))} />
-          <input className="rounded border px-3 py-2" placeholder="description" value={newPolicy.description} onChange={(e) => setNewPolicy((v) => ({ ...v, description: e.target.value }))} />
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <select
-            className="rounded border px-3 py-2"
-            value={newPolicy.category}
-            onChange={(e) => setNewPolicy((v) => ({
-              ...v,
-              category: e.target.value as PolicyCategory,
-              stageBindings: e.target.value === 'authorization' ? [] : v.stageBindings
-            }))}
+      <div className="flex gap-2 border-b border-slate-200">
+        {[
+          { key: 'policies', label: 'Policies' },
+          { key: 'decisions', label: 'Decision History' }
+        ].map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key as typeof activeTab)}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === tab.key
+                ? 'border-b-2 border-slate-900 text-slate-900'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
           >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'policies' ? (
+        <div className="space-y-6">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
+            <h2 className="text-sm font-semibold text-slate-900">Create Policy</h2>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <input className="rounded border px-3 py-2" placeholder="key" value={newPolicy.key} onChange={(e) => setNewPolicy((v) => ({ ...v, key: e.target.value }))} />
+              <input className="rounded border px-3 py-2" placeholder="name" value={newPolicy.name} onChange={(e) => setNewPolicy((v) => ({ ...v, name: e.target.value }))} />
+              <input className="rounded border px-3 py-2" placeholder="description" value={newPolicy.description} onChange={(e) => setNewPolicy((v) => ({ ...v, description: e.target.value }))} />
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <select
+                className="rounded border px-3 py-2"
+                value={newPolicy.category}
+                onChange={(e) => setNewPolicy((v) => ({
+                  ...v,
+                  category: e.target.value as PolicyCategory,
+                  stageBindings: e.target.value === 'authorization' ? [] : v.stageBindings
+                }))}
+              >
             <option value="authentication">authentication</option>
             <option value="authorization">authorization</option>
           </select>
@@ -165,13 +189,13 @@ export default function Policies() {
           >
             Add
           </button>
-        </div>
-      </div>
+            </div>
+          </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-slate-900">JavaScript Policy Interface</h2>
-        <p className="mt-1 text-sm text-slate-600">Available objects/functions in server-side policy scripts:</p>
-        <pre className="mt-3 overflow-x-auto rounded bg-slate-900 p-3 text-xs text-slate-100">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="text-sm font-semibold text-slate-900">JavaScript Policy Interface</h2>
+            <p className="mt-1 text-sm text-slate-600">Available objects/functions in server-side policy scripts:</p>
+            <pre className="mt-3 overflow-x-auto rounded bg-slate-900 p-3 text-xs text-slate-100">
 {`policy.key
 policy.name
 policy.stage
@@ -371,7 +395,62 @@ now() // returns current ISO timestamp
             </div>
           )
         })}
-      </div>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="text-base font-semibold text-slate-900">Authorization Decision History</h2>
+            <p className="mt-1 text-sm text-slate-600">View recent policy evaluation decisions for audit and debugging purposes.</p>
+          </div>
+
+          {decisionsLoading ? (
+            <div className="text-center text-slate-500 py-8">Loading decisions...</div>
+          ) : decisions.length === 0 ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-slate-600">
+              <p>No authorization decisions recorded yet.</p>
+              <p className="mt-1 text-sm">Run policy evaluations or access protected resources to generate decision logs.</p>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-slate-200 bg-slate-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-medium text-slate-700">Timestamp</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-700">Subject</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-700">Resource</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-700">Action</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-700">Decision</th>
+                    <th className="px-4 py-3 text-left font-medium text-slate-700">Policy Applied</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {decisions.map((decision: any, idx: number) => (
+                    <tr key={idx} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 text-xs text-slate-500 font-mono">
+                        {new Date(decision.evaluatedAt ?? decision.createdAt).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-slate-600">{decision.userId?.slice(0, 12)}…</td>
+                      <td className="px-4 py-3 truncate text-slate-700">{decision.resource || '—'}</td>
+                      <td className="px-4 py-3"><code className="bg-slate-100 px-2 py-1 rounded text-xs">{decision.action}</code></td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${
+                          decision.decision === 'allow' || decision.allowed
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-red-50 text-red-700 border-red-200'
+                        }`}>
+                          {decision.decision === 'allow' || decision.allowed ? 'ALLOW' : 'DENY'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-600">{decision.policyId || decision.policyKey || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

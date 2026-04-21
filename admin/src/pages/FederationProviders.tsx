@@ -11,7 +11,12 @@ import {
   useSamlServiceProviders,
   useUploadSamlServiceProviderMetadata,
   useUpdateFederationProvider,
+  useCreateSamlServiceProvider,
+  useUpdateSamlServiceProvider,
+  useDeleteSamlServiceProvider,
+  useSamlAssertions,
   type SamlServiceProviderDto,
+  type SamlAssertionAuditDto,
 } from '../hooks/useApi'
 
 interface FederationProvider {
@@ -229,11 +234,15 @@ const blankForm = {
 const FederationProviders = () => {
   const { data, isLoading, refetch } = useFederationProviders()
   const { data: samlData, isLoading: samlLoading, refetch: refetchSamlProviders } = useSamlServiceProviders({ limit: 100, offset: 0 })
+  const { data: assertionsData, isLoading: assertionsLoading, refetch: refetchAssertions } = useSamlAssertions({ limit: 50 })
   const createProvider = useCreateFederationProvider()
   const updateProvider = useUpdateFederationProvider()
   const deleteProvider = useDeleteFederationProvider()
   const uploadSamlMetadata = useUploadSamlServiceProviderMetadata()
   const rotateSamlCertificate = useRotateSamlServiceProviderCertificate()
+  const createSamlSp = useCreateSamlServiceProvider()
+  const updateSamlSp = useUpdateSamlServiceProvider()
+  const deleteSamlSp = useDeleteSamlServiceProvider()
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
@@ -249,8 +258,26 @@ const FederationProviders = () => {
   const [editingId, setEditingId] = useState<string>('')
   const [templatePicked, setTemplatePicked] = useState(false)
 
+  // SAML SP CRUD state
+  const [samlSpCreateOpen, setSamlSpCreateOpen] = useState(false)
+  const [samlSpEditTarget, setSamlSpEditTarget] = useState<SamlServiceProviderDto | null>(null)
+  const [samlSpDeleteTarget, setSamlSpDeleteTarget] = useState<SamlServiceProviderDto | null>(null)
+  const [samlSpForm, setSamlSpForm] = useState<{
+    entityId: string; acsUrl: string; sloUrl: string;
+    nameIdFormat: 'persistent' | 'transient' | 'emailAddress'; enabled: boolean
+  }>({ entityId: '', acsUrl: '', sloUrl: '', nameIdFormat: 'persistent', enabled: true })
+  const [samlSpError, setSamlSpError] = useState<string | null>(null)
+
+  // Assertions tab
+  const [assertionsSpFilter, setAssertionsSpFilter] = useState('')
+
   const providers = useMemo(() => (data ?? []) as FederationProvider[], [data])
   const samlProviders = useMemo(() => samlData?.items ?? [], [samlData])
+  const assertions = useMemo(() => {
+    const items = (assertionsData as any)?.items ?? []
+    if (!assertionsSpFilter) return items as SamlAssertionAuditDto[]
+    return (items as SamlAssertionAuditDto[]).filter(a => a.spId === assertionsSpFilter)
+  }, [assertionsData, assertionsSpFilter])
 
   const openCreate = () => {
     setForm(blankForm)
@@ -375,6 +402,69 @@ const FederationProviders = () => {
     await refetchSamlProviders()
   }
 
+  const openSamlSpCreate = () => {
+    setSamlSpForm({ entityId: '', acsUrl: '', sloUrl: '', nameIdFormat: 'persistent', enabled: true })
+    setSamlSpError(null)
+    setSamlSpCreateOpen(true)
+  }
+
+  const submitSamlSpCreate = async () => {
+    setSamlSpError(null)
+    try {
+      await createSamlSp.mutateAsync({
+        entityId: samlSpForm.entityId,
+        acsUrl: samlSpForm.acsUrl,
+        sloUrl: samlSpForm.sloUrl || undefined,
+        nameIdFormat: samlSpForm.nameIdFormat,
+      })
+      setSamlSpCreateOpen(false)
+      setSamlActionMessage('SAML service provider created.')
+    } catch (err: unknown) {
+      setSamlSpError(err instanceof Error ? err.message : 'Failed to create service provider')
+    }
+  }
+
+  const openSamlSpEdit = (sp: SamlServiceProviderDto) => {
+    setSamlSpForm({
+      entityId: sp.entityId,
+      acsUrl: sp.acsUrl,
+      sloUrl: sp.sloUrl ?? '',
+      nameIdFormat: sp.nameIdFormat,
+      enabled: sp.enabled,
+    })
+    setSamlSpError(null)
+    setSamlSpEditTarget(sp)
+  }
+
+  const submitSamlSpEdit = async () => {
+    if (!samlSpEditTarget) return
+    setSamlSpError(null)
+    try {
+      await updateSamlSp.mutateAsync({
+        id: samlSpEditTarget.id,
+        entityId: samlSpForm.entityId,
+        acsUrl: samlSpForm.acsUrl,
+        sloUrl: samlSpForm.sloUrl || undefined,
+        nameIdFormat: samlSpForm.nameIdFormat,
+        enabled: samlSpForm.enabled,
+      })
+      setSamlSpEditTarget(null)
+      setSamlActionMessage('SAML service provider updated.')
+    } catch (err: unknown) {
+      setSamlSpError(err instanceof Error ? err.message : 'Failed to update service provider')
+    }
+  }
+
+  const confirmSamlSpDelete = () => {
+    if (!samlSpDeleteTarget) return
+    deleteSamlSp.mutate(samlSpDeleteTarget.id, {
+      onSuccess: () => {
+        setSamlSpDeleteTarget(null)
+        setSamlActionMessage('SAML service provider deleted.')
+      }
+    })
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
@@ -459,12 +549,18 @@ const FederationProviders = () => {
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <div>
             <h4 className="text-sm font-semibold text-slate-700">SAML Service Providers</h4>
-            <p className="text-xs text-slate-500 mt-0.5">Manage metadata imports and certificate rotation without full provider updates.</p>
+            <p className="text-xs text-slate-500 mt-0.5">Manage SAML 2.0 service provider registrations, metadata, and certificates.</p>
           </div>
-          <button onClick={() => refetchSamlProviders()} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors">
-            <RefreshCw size={12} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => refetchSamlProviders()} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors">
+              <RefreshCw size={12} />
+              Refresh
+            </button>
+            <button onClick={openSamlSpCreate} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-slate-900 px-3 text-xs font-medium text-white hover:bg-slate-800 transition-colors">
+              <Plus size={12} />
+              Add SP
+            </button>
+          </div>
         </div>
 
         {samlActionMessage ? (
@@ -520,8 +616,73 @@ const FederationProviders = () => {
                         >
                           <Shield size={12} /> Rotate Encryption
                         </button>
+                        <button
+                          onClick={() => openSamlSpEdit(provider)}
+                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                        >
+                          <Pencil size={12} /> Edit
+                        </button>
+                        <button
+                          onClick={() => setSamlSpDeleteTarget(provider)}
+                          className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-white px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                        >
+                          <Trash2 size={12} /> Delete
+                        </button>
                       </div>
                     </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* SAML Assertions Audit Log */}
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden mt-8">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
+          <div>
+            <h4 className="text-sm font-semibold text-slate-700">SAML Assertion Audit Log</h4>
+            <p className="text-xs text-slate-500 mt-0.5">Recent assertion activity across all service providers.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={assertionsSpFilter}
+              onChange={e => setAssertionsSpFilter(e.target.value)}
+              className="h-7 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none"
+            >
+              <option value="">All SPs</option>
+              {samlProviders.map(sp => (
+                <option key={sp.id} value={sp.id}>{sp.entityId}</option>
+              ))}
+            </select>
+            <button onClick={() => refetchAssertions()} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors">
+              <RefreshCw size={12} /> Refresh
+            </button>
+          </div>
+        </div>
+        {assertionsLoading ? (
+          <div className="p-8 text-center text-slate-400 text-sm">Loading assertions…</div>
+        ) : assertions.length === 0 ? (
+          <div className="p-8 text-center text-slate-400 text-sm">No assertion records found</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead className="border-b border-slate-100 bg-slate-50">
+                <tr>
+                  {['SP', 'Subject', 'Assertion ID', 'Session Index', 'Time'].map(h => (
+                    <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {assertions.map(a => (
+                  <tr key={a.id} className="hover:bg-slate-50/40">
+                    <td className="px-4 py-2.5 font-mono text-xs text-slate-600 break-all max-w-[160px] truncate">{samlProviders.find(sp => sp.id === a.spId)?.entityId ?? a.spId}</td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-slate-700 break-all max-w-[160px] truncate">{a.subject ?? '—'}</td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-slate-500 break-all max-w-[160px] truncate">{a.assertionId}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-500">{a.sessionIndex ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-400 whitespace-nowrap">{new Date(a.createdAt).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
@@ -538,6 +699,26 @@ const FederationProviders = () => {
       <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title="Edit Federation Provider">
         <ProviderForm form={form} setForm={setForm} onSubmit={onEdit} submitLabel={updateProvider.isPending ? 'Saving…' : 'Save Changes'} pending={updateProvider.isPending} />
       </Modal>
+
+      {/* SAML SP Create Modal */}
+      <Modal isOpen={samlSpCreateOpen} onClose={() => setSamlSpCreateOpen(false)} title="Add SAML Service Provider">
+        <SamlSpForm form={samlSpForm} setForm={setSamlSpForm} error={samlSpError} onSubmit={submitSamlSpCreate} submitLabel={createSamlSp.isPending ? 'Creating…' : 'Create SP'} pending={createSamlSp.isPending} />
+      </Modal>
+
+      {/* SAML SP Edit Modal */}
+      <Modal isOpen={!!samlSpEditTarget} onClose={() => setSamlSpEditTarget(null)} title="Edit SAML Service Provider">
+        <SamlSpForm form={samlSpForm} setForm={setSamlSpForm} error={samlSpError} onSubmit={submitSamlSpEdit} submitLabel={updateSamlSp.isPending ? 'Saving…' : 'Save Changes'} pending={updateSamlSp.isPending} />
+      </Modal>
+
+      <ConfirmDialog
+        isOpen={!!samlSpDeleteTarget}
+        title="Delete SAML Service Provider"
+        message={`Delete service provider "${samlSpDeleteTarget?.entityId ?? ''}"? This cannot be undone.`}
+        confirmLabel="Delete SP"
+        pending={deleteSamlSp.isPending}
+        onConfirm={confirmSamlSpDelete}
+        onCancel={() => setSamlSpDeleteTarget(null)}
+      />
 
       <Modal isOpen={!!metadataTarget} onClose={() => setMetadataTarget(null)} title="Upload SAML Metadata">
         <div className="space-y-3">
@@ -678,6 +859,57 @@ function ProviderForm({
       <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
         <input type="checkbox" className="rounded border-slate-300" checked={form.enabled} onChange={(e) => setForm((p) => ({ ...p, enabled: e.target.checked }))} />
         Provider is enabled
+      </label>
+      <div className="flex justify-end">
+        <button onClick={onSubmit} disabled={pending} className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors">
+          {submitLabel}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function SamlSpForm({
+  form,
+  setForm,
+  error,
+  onSubmit,
+  submitLabel,
+  pending,
+}: {
+  form: { entityId: string; acsUrl: string; sloUrl: string; nameIdFormat: 'persistent' | 'transient' | 'emailAddress'; enabled: boolean }
+  setForm: Dispatch<SetStateAction<{ entityId: string; acsUrl: string; sloUrl: string; nameIdFormat: 'persistent' | 'transient' | 'emailAddress'; enabled: boolean }>>
+  error: string | null
+  onSubmit: () => void
+  submitLabel: string
+  pending: boolean
+}) {
+  return (
+    <div className="space-y-4">
+      {error ? <p className="rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-xs text-rose-700">{error}</p> : null}
+      <div>
+        <label className={labelCls}>Entity ID</label>
+        <input className={`${fieldCls} font-mono`} value={form.entityId} onChange={e => setForm(p => ({ ...p, entityId: e.target.value }))} placeholder="https://sp.example.com/saml/metadata" required />
+      </div>
+      <div>
+        <label className={labelCls}>ACS URL</label>
+        <input className={`${fieldCls} font-mono`} value={form.acsUrl} onChange={e => setForm(p => ({ ...p, acsUrl: e.target.value }))} placeholder="https://sp.example.com/saml/acs" required />
+      </div>
+      <div>
+        <label className={labelCls}>SLO URL (optional)</label>
+        <input className={`${fieldCls} font-mono`} value={form.sloUrl} onChange={e => setForm(p => ({ ...p, sloUrl: e.target.value }))} placeholder="https://sp.example.com/saml/slo" />
+      </div>
+      <div>
+        <label className={labelCls}>Name ID Format</label>
+        <select className={fieldCls} value={form.nameIdFormat} onChange={e => setForm(p => ({ ...p, nameIdFormat: e.target.value as typeof form.nameIdFormat }))}>
+          <option value="persistent">Persistent</option>
+          <option value="transient">Transient</option>
+          <option value="emailAddress">Email Address</option>
+        </select>
+      </div>
+      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+        <input type="checkbox" className="rounded border-slate-300" checked={form.enabled} onChange={e => setForm(p => ({ ...p, enabled: e.target.checked }))} />
+        Service provider is enabled
       </label>
       <div className="flex justify-end">
         <button onClick={onSubmit} disabled={pending} className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors">

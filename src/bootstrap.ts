@@ -88,11 +88,13 @@ export const bootstrap = async (config: AppConfig) => {
   } = repositories;
 
   const riskService = new RiskService(repositories.riskEventRepository);
+  const eventHookService = new EventHookService(eventHookRepository, eventNotificationRepository);
   const connectorService = new ConnectorService(
     repositories.connectorRepository,
     repositories.connectorRunRepository,
     repositories.connectorMappingRepository,
-    auditRepository
+    auditRepository,
+    eventHookService
   );
   const authMetricsService = new AuthMetricsService(repositories.authMetricRepository);
   const serviceIdentityService = new ServiceIdentityService(
@@ -130,7 +132,6 @@ export const bootstrap = async (config: AppConfig) => {
   await policyService.ensureBuiltIns();
   const instanceSettingsService = new InstanceSettingsService(instanceSettingsRepository);
   await instanceSettingsService.ensureDefaults();
-  const eventHookService = new EventHookService(eventHookRepository, eventNotificationRepository);
   const securityService = new SecurityService(auditRepository, eventHookService, instanceSettingsService);
   const emailService = new EmailService(instanceSettingsService);
   const databaseMigrationService = new DatabaseMigrationService();

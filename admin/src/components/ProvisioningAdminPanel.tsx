@@ -1,13 +1,16 @@
 import { useMemo, useState } from 'react'
+import { AlertCircle, CheckCircle2, Clock, XCircle } from 'lucide-react'
 import {
   useCreateProvisioningMapping,
   useCreateProvisioningToken,
   useDeleteProvisioningMapping,
   useDeleteProvisioningToken,
+  useDeprovisioningQueue,
   useProvisioningJobs,
   useProvisioningMappings,
   useProvisioningTokens,
-  useRunProvisioningReconcile
+  useRunProvisioningReconcile,
+  type DeprovisioningQueueItemDto
 } from '../hooks/useApi'
 
 const sectionCls = 'rounded-xl border border-slate-200 bg-white p-5 shadow-sm'
@@ -16,6 +19,7 @@ export default function ProvisioningAdminPanel() {
   const { data: tokens = [] } = useProvisioningTokens()
   const { data: mappings = [] } = useProvisioningMappings()
   const { data: jobs = [] } = useProvisioningJobs(15)
+  const { data: deprovisioningQueue = [] } = useDeprovisioningQueue(20)
   const createToken = useCreateProvisioningToken()
   const deleteToken = useDeleteProvisioningToken()
   const createMapping = useCreateProvisioningMapping()
@@ -31,6 +35,32 @@ export default function ProvisioningAdminPanel() {
   const [transformExpression, setTransformExpression] = useState('')
 
   const latestJob = useMemo(() => jobs[0], [jobs])
+
+  const getStatusIcon = (status: DeprovisioningQueueItemDto['status']) => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle2 size={16} className="text-emerald-600" />
+      case 'failed':
+        return <XCircle size={16} className="text-red-600" />
+      case 'in_progress':
+        return <Clock size={16} className="text-blue-600 animate-spin" />
+      default:
+        return <AlertCircle size={16} className="text-amber-600" />
+    }
+  }
+
+  const getStatusColor = (status: DeprovisioningQueueItemDto['status']) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      case 'failed':
+        return 'bg-red-50 text-red-700 border-red-200'
+      case 'in_progress':
+        return 'bg-blue-50 text-blue-700 border-blue-200'
+      default:
+        return 'bg-amber-50 text-amber-700 border-amber-200'
+    }
+  }
 
   const createNewToken = async () => {
     setIssuedToken(null)
@@ -195,6 +225,63 @@ export default function ProvisioningAdminPanel() {
             <p className="mt-2 text-xs text-slate-500">No reconcile jobs yet.</p>
           )}
         </div>
+      </section>
+
+      <section className={`${sectionCls} xl:col-span-2`}>
+        <h2 className="text-base font-semibold text-slate-900">Deprovisioning Queue</h2>
+        <p className="mt-1 text-sm text-slate-600">Monitor pending revocation and deactivation tasks from provisioning sync operations.</p>
+
+        {deprovisioningQueue.length === 0 ? (
+          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-600">
+            No pending deprovisioning tasks.
+          </div>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-slate-200 bg-slate-50">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium text-slate-700">Status</th>
+                  <th className="px-3 py-2 text-left font-medium text-slate-700">User</th>
+                  <th className="px-3 py-2 text-left font-medium text-slate-700">Action</th>
+                  <th className="px-3 py-2 text-left font-medium text-slate-700">Resource</th>
+                  <th className="px-3 py-2 text-left font-medium text-slate-700">Reason</th>
+                  <th className="px-3 py-2 text-left font-medium text-slate-700">Created</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {deprovisioningQueue.map((item) => (
+                  <tr key={item.id} className="hover:bg-slate-50">
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        {getStatusIcon(item.status)}
+                        <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${getStatusColor(item.status)}`}>
+                          {item.status}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 font-mono text-xs text-slate-600">{item.userId.slice(0, 12)}…</td>
+                    <td className="px-3 py-2">
+                      <code className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">{item.action}</code>
+                    </td>
+                    <td className="px-3 py-2 truncate text-slate-700">{item.resourceName}</td>
+                    <td className="px-3 py-2 text-xs text-slate-600">{item.reason || '—'}</td>
+                    <td className="px-3 py-2 text-xs text-slate-500">{new Date(item.createdAt).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {deprovisioningQueue.length > 10 && (
+              <p className="mt-2 text-xs text-slate-500">Showing {deprovisioningQueue.length} tasks. Older tasks are automatically cleaned after completion.</p>
+            )}
+          </div>
+        )}
+
+        {deprovisioningQueue.some(item => item.status === 'failed') && (
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+            <p className="font-medium">⚠️ Failed deprovisioning tasks detected</p>
+            <p className="mt-1 text-xs">Some deprovisioning operations have failed and may require manual intervention.</p>
+          </div>
+        )}
       </section>
     </div>
   )

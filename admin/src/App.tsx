@@ -20,8 +20,13 @@ import UserAttributes from './pages/UserAttributes'
 import Policies from './pages/Policies'
 import EventHooks from './pages/EventHooks'
 import Administration from './pages/Administration'
+import AccessGovernance from './pages/AccessGovernance'
+import Elevations from './pages/Elevations'
+import ElevationSessions from './pages/ElevationSessions'
 import ServiceIdentities from './pages/ServiceIdentities'
 import Connectors from './pages/Connectors'
+import ConnectorDetail from './pages/ConnectorDetail'
+import Metrics from './pages/Metrics'
 import Documentation from './pages/Documentation'
 import Login from './pages/Login'
 import Consent from './pages/Consent'
@@ -76,7 +81,7 @@ function AppContent() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Routes location={location} key={location.pathname}>
+      <Routes location={location}>
         <Route path="/login" element={<Login />} />
         <Route path="/consent" element={<Consent />} />
         <Route path="/oauth/device/verify" element={<DeviceVerification />} />
@@ -88,7 +93,7 @@ function AppContent() {
                 <Sidebar permissions={permissions} />
                 <main className="flex-1 overflow-auto p-7">
                   <div className="max-w-7xl mx-auto">
-                    <Routes location={location} key={location.pathname}>
+                    <Routes location={location}>
                       <Route path="/" element={require('users:view', <Dashboard />)} />
                       <Route path="/dashboard" element={require('users:view', <Dashboard />)} />
                       <Route path="/clients" element={require('clients:view', <Clients />)} />
@@ -106,10 +111,15 @@ function AppContent() {
                       <Route path="/interaction-views" element={require('authentication_flows:view', <InteractionViews />)} />
                       <Route path="/user-attributes" element={require('user_attributes:view', <UserAttributes />)} />
                       <Route path="/policies" element={require('policies:view', <Policies />)} />
+                      <Route path="/access-governance" element={require('administration:view', <AccessGovernance />)} />
+                      <Route path="/elevations" element={require('administration:view', <Elevations />)} />
+                      <Route path="/elevation-sessions" element={require('administration:view', <ElevationSessions />)} />
                       <Route path="/events" element={require('events:view', <EventHooks />)} />
                       <Route path="/administration" element={require('administration:view', <Administration />)} />
                       <Route path="/service-identities" element={require('service_identities:view', <ServiceIdentities />)} />
                       <Route path="/connectors" element={require('connectors:view', <Connectors />)} />
+                      <Route path="/connectors/:id" element={require('connectors:view', <ConnectorDetail />)} />
+                      <Route path="/metrics" element={require('connectors:view', <Metrics />)} />
                       <Route path="/documentation" element={require('users:view', <Documentation />)} />
                     </Routes>
                   </div>

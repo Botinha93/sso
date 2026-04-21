@@ -17,7 +17,8 @@
     "test": "npm run test:unit && npm run test:integration && npm run test:e2e",
     "test:unit": "node --import tsx --test tests/unit/**/*.test.ts",
     "test:integration": "node --import tsx --test tests/integration/**/*.test.ts",
-    "test:e2e": "node --import tsx --test tests/e2e/**/*.test.ts"
+    "test:e2e": "node --import tsx --test tests/e2e/**/*.test.ts",
+    "test:non-functional": "node --import tsx --test tests/non-functional/**/*.test.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

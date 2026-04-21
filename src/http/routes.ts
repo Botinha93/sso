@@ -822,15 +822,33 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       return reply.status(401).send({ error: "invalid_token", error_description: "Subject token validation failed" });
     }
 
-    // Optionally validate client presenting the exchange request
-    if (client_id && client_secret) {
+    let exchangeActor: { type: "client"; id: string } | { type: "service_identity"; id: string; clientId: string } | undefined;
+
+    // Optionally validate the caller presenting the exchange request.
+    // Accept either a registered OAuth client or a service identity credential.
+    if (client_id || client_secret) {
+      if (!client_id || !client_secret) {
+        return reply.status(400).send({ error: "invalid_request", error_description: "client_id and client_secret must be provided together" });
+      }
+
+      let matchedClient = false;
+
       try {
         const client = await deps.clientService.findClientById(client_id);
-        if (!client || client.secret !== client_secret) {
-          return reply.status(401).send({ error: "invalid_client" });
+        if (client && client.secret === client_secret) {
+          matchedClient = true;
+          exchangeActor = { type: "client", id: client.id };
         }
       } catch {
-        return reply.status(401).send({ error: "invalid_client" });
+        // Fallback to service identity verification below.
+      }
+
+      if (!matchedClient) {
+        const serviceIdentity = await deps.serviceIdentityService.verifyCredential(client_id, client_secret);
+        if (!serviceIdentity) {
+          return reply.status(401).send({ error: "invalid_client" });
+        }
+        exchangeActor = { type: "service_identity", id: serviceIdentity.id, clientId: client_id };
       }
     }
 
@@ -849,9 +867,17 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     await deps.auditRepository.log({
       type: "token_issued",
       actorType: "client",
-      clientId: client_id,
+      clientId: exchangeActor?.type === "client" ? exchangeActor.id : client_id,
       ip: request.ip,
-      metadata: { grant: "token_exchange", sub: subjectSub, scopes: requestedScopes }
+      metadata: {
+        grant: "token_exchange",
+        sub: subjectSub,
+        scopes: requestedScopes,
+        accessTokenId,
+        exchangeActorType: exchangeActor?.type,
+        serviceIdentityId: exchangeActor?.type === "service_identity" ? exchangeActor.id : undefined,
+        serviceIdentityClientId: exchangeActor?.type === "service_identity" ? exchangeActor.clientId : undefined
+      }
     });
 
     return reply.status(200).send({

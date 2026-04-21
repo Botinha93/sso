@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import Database from "better-sqlite3";
 import { createTestContext, extractCookie } from "../helpers/test-app.js";
 
 test("service identity CRUD and credential lifecycle", async (t) => {
@@ -154,4 +155,157 @@ test("service identity CRUD and credential lifecycle", async (t) => {
   });
 
   assert.equal(goneResp.statusCode, 404);
+});
+
+test("service identity usage telemetry updates on token exchange and rejects revoked/expired credentials", async (t) => {
+  const { app, admin } = await createTestContext("integration-service-identities-usage");
+
+  t.after(async () => {
+    await app.close();
+  });
+
+  const login = await app.inject({
+    method: "POST",
+    url: "/auth/login",
+    payload: {
+      email: admin.email,
+      password: admin.password,
+      clientId: "sso-admin-ui",
+      scope: ["openid", "profile", "email"],
+    },
+  });
+
+  assert.equal(login.statusCode, 200);
+  const sid = extractCookie(login.headers["set-cookie"], "sid");
+
+  const csrfResponse = await app.inject({ method: "GET", url: "/api/csrf-token", headers: { cookie: sid } });
+  assert.equal(csrfResponse.statusCode, 200);
+  const csrfCookie = extractCookie(csrfResponse.headers["set-cookie"], "csrf_token");
+  const csrfToken = String(csrfResponse.json().csrf_token);
+  const authHeaders = {
+    cookie: `${sid}; ${csrfCookie}`,
+    "x-csrf-token": csrfToken,
+  };
+
+  const createResp = await app.inject({
+    method: "POST",
+    url: "/api/admin/service-identities",
+    payload: {
+      name: "usage-worker",
+      description: "Service identity usage linkage test",
+      status: "active",
+      allowedScopes: ["openid", "profile"],
+      allowedAudiences: ["api.example.com"]
+    },
+    headers: authHeaders
+  });
+  assert.equal(createResp.statusCode, 201);
+  const identity = createResp.json();
+
+  const issueResp = await app.inject({
+    method: "POST",
+    url: `/api/admin/service-identities/${identity.id}/credentials`,
+    payload: { expiresInDays: 30 },
+    headers: authHeaders
+  });
+  assert.equal(issueResp.statusCode, 201);
+  const issued = issueResp.json();
+
+  const subjectLogin = await app.inject({
+    method: "POST",
+    url: "/auth/login",
+    payload: {
+      email: admin.username,
+      password: admin.password,
+      clientId: "sso-admin-ui",
+      scope: ["openid", "profile", "email"]
+    }
+  });
+  assert.equal(subjectLogin.statusCode, 200);
+  const subjectPayload = subjectLogin.json() as { accessToken?: string; access_token?: string };
+  const subjectToken = subjectPayload.accessToken ?? subjectPayload.access_token;
+  assert.ok(typeof subjectToken === "string" && subjectToken.length > 0);
+
+  const exchangeOk = await app.inject({
+    method: "POST",
+    url: "/oauth/token/exchange",
+    headers: { "content-type": "application/json" },
+    payload: {
+      grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
+      subject_token: subjectToken,
+      subject_token_type: "urn:ietf:params:oauth:token-type:access_token",
+      requested_token_type: "urn:ietf:params:oauth:token-type:access_token",
+      scope: "openid profile",
+      client_id: issued.credential.clientId,
+      client_secret: issued.plainClientSecret
+    }
+  });
+  assert.equal(exchangeOk.statusCode, 200);
+
+  const usageAfterExchange = await app.inject({
+    method: "GET",
+    url: `/api/admin/service-identities/${identity.id}/usage`,
+    headers: { cookie: authHeaders.cookie }
+  });
+  assert.equal(usageAfterExchange.statusCode, 200);
+  const usagePayload = usageAfterExchange.json() as { data: Array<{ credentialId: string; status: string; lastUsedAt?: string }> };
+  const activeRow = usagePayload.data.find((row) => row.credentialId === issued.credential.id);
+  assert.ok(activeRow);
+  assert.equal(activeRow?.status, "active");
+  assert.ok(Boolean(activeRow?.lastUsedAt), "Expected lastUsedAt to be set after token exchange using service identity credential");
+
+  const revokeResp = await app.inject({
+    method: "DELETE",
+    url: `/api/admin/service-identities/${identity.id}/credentials/${issued.credential.id}`,
+    headers: authHeaders
+  });
+  assert.equal(revokeResp.statusCode, 204);
+
+  const exchangeRevoked = await app.inject({
+    method: "POST",
+    url: "/oauth/token/exchange",
+    headers: { "content-type": "application/json" },
+    payload: {
+      grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
+      subject_token: subjectToken,
+      subject_token_type: "urn:ietf:params:oauth:token-type:access_token",
+      requested_token_type: "urn:ietf:params:oauth:token-type:access_token",
+      scope: "openid profile",
+      client_id: issued.credential.clientId,
+      client_secret: issued.plainClientSecret
+    }
+  });
+  assert.equal(exchangeRevoked.statusCode, 401);
+
+  const issueExpiredResp = await app.inject({
+    method: "POST",
+    url: `/api/admin/service-identities/${identity.id}/credentials`,
+    payload: { expiresInDays: 1 },
+    headers: authHeaders
+  });
+  assert.equal(issueExpiredResp.statusCode, 201);
+  const expiredIssued = issueExpiredResp.json();
+
+  const db = new Database(String(process.env.DATABASE_PATH));
+  try {
+    db.prepare("UPDATE service_identity_credentials SET expires_at = ? WHERE id = ?").run(new Date(Date.now() - 60_000).toISOString(), expiredIssued.credential.id);
+  } finally {
+    db.close();
+  }
+
+  const exchangeExpired = await app.inject({
+    method: "POST",
+    url: "/oauth/token/exchange",
+    headers: { "content-type": "application/json" },
+    payload: {
+      grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
+      subject_token: subjectToken,
+      subject_token_type: "urn:ietf:params:oauth:token-type:access_token",
+      requested_token_type: "urn:ietf:params:oauth:token-type:access_token",
+      scope: "openid profile",
+      client_id: expiredIssued.credential.clientId,
+      client_secret: expiredIssued.plainClientSecret
+    }
+  });
+  assert.equal(exchangeExpired.statusCode, 401);
 });

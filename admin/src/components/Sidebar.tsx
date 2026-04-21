@@ -15,7 +15,10 @@ import {
   ScanFace,
   Fingerprint,
   Gavel,
+  CheckCircle2,
+  ShieldAlert,
   BellRing,
+  BarChart3,
   Settings2,
   BookText,
   LogOut,
@@ -31,15 +34,26 @@ const navGroups = [
     ]
   },
   {
+    label: 'Operations',
+    items: [
+      { path: '/access-governance', label: 'Access Governance', icon: CheckCircle2, permission: 'administration:view' },
+      { path: '/elevations', label: 'Elevation Operations', icon: ShieldAlert, permission: 'administration:view' },
+      { path: '/elevation-sessions', label: 'Elevation Sessions', icon: ShieldAlert, permission: 'administration:view' },
+      { path: '/sessions', label: 'Sessions', icon: MonitorSmartphone, permission: 'sessions:view' },
+      { path: '/devices', label: 'Devices', icon: MonitorSmartphone, permission: 'sessions:view' },
+      { path: '/events', label: 'Events', icon: BellRing, permission: 'events:view' },
+      { path: '/audit', label: 'Audit Log', icon: FileText, permission: 'audit_log:view' },
+    ]
+  },
+  {
     label: 'Identity & Access',
     items: [
       { path: '/users', label: 'Users', icon: Users, permission: 'users:view' },
       { path: '/groups', label: 'Groups', icon: UsersRound, permission: 'groups:view' },
       { path: '/roles', label: 'Roles', icon: Shield, permission: 'roles:view' },
       { path: '/clients', label: 'Clients', icon: AppWindow, permission: 'clients:view' },
+      { path: '/apps', label: 'Apps', icon: Boxes, permission: 'apps:view' },
       { path: '/consents', label: 'Consents', icon: CheckSquare, permission: 'consents:view' },
-      { path: '/sessions', label: 'Sessions', icon: MonitorSmartphone, permission: 'sessions:view' },
-      { path: '/devices', label: 'Devices', icon: MonitorSmartphone, permission: 'sessions:view' },
     ]
   },
   {
@@ -55,13 +69,11 @@ const navGroups = [
   {
     label: 'Platform',
     items: [
-      { path: '/apps', label: 'Apps', icon: Boxes, permission: 'apps:view' },
+      { path: '/connectors', label: 'Connectors', icon: GitMerge, permission: 'connectors:view' },
+      { path: '/metrics', label: 'Auth Metrics', icon: BarChart3, permission: 'connectors:view' },
       { path: '/tenants', label: 'Tenants', icon: Building2, permission: 'tenants:view' },
       { path: '/service-identities', label: 'Service Identities', icon: Bot, permission: 'service_identities:view' },
-      { path: '/connectors', label: 'Connectors', icon: GitMerge, permission: 'connectors:view' },
-      { path: '/events', label: 'Events', icon: BellRing, permission: 'events:view' },
       { path: '/administration', label: 'Administration', icon: Settings2, permission: 'administration:view' },
-      { path: '/audit', label: 'Audit Log', icon: FileText, permission: 'audit_log:view' },
       { path: '/documentation', label: 'Documentation', icon: BookText, permission: 'users:view' },
     ]
   },

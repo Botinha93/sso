@@ -316,7 +316,7 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 - [x] Unit: challenge lifecycle and sign count logic.
 - [x] Integration: registration and authentication ceremony success/failure cases.
 - [x] Integration: high-risk login triggers step-up requirement.
-- [ ] E2E: passwordless login for enrolled user.
+- [x] E2E: passwordless login for enrolled user.
 
 ---
 
@@ -376,13 +376,13 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 
 - [x] Add `service_identities` table with owner and lifecycle metadata.
 - [x] Add `service_identity_credentials` table with rotation history.
-- [ ] Add usage telemetry linkage from access tokens to service identity.
+- [x] Add usage telemetry linkage from access tokens to service identity.
 
 ### Test plan
 
 - [x] Unit: rotation policy and expiration validation.
 - [x] Integration: token exchange flow and audience restrictions.
-- [ ] Integration: automated expiry alerts and revocation behavior.
+- [x] Integration: automated expiry alerts and revocation behavior.
 
 ---
 
@@ -407,21 +407,21 @@ This checklist turns the IAM gap analysis into a concrete, prioritized implement
 
 ### Test plan
 
-- [ ] Integration: connector sync retries, backoff, and dead-letter handling.
-- [ ] Integration: audit and notification generation on connector failures.
-- [ ] Non-functional: load test token and policy decision throughput.
+- [x] Integration: connector sync retries, backoff, and dead-letter handling.
+- [x] Integration: audit and notification generation on connector failures.
+- [x] Non-functional: load test token and policy decision throughput.
 
 ---
 
 ## Cross-cutting work items (apply to all epics)
 
-- [ ] Update OpenAPI spec (`openapi.yaml`) for each endpoint increment.
-- [ ] Add schema validation in `src/http/schemas.ts` for all new request payloads.
-- [ ] Ensure every write path emits `auditRepository.log` and event hooks.
-- [ ] Add migration scripts and rollout docs in `docs/` for each DB change.
-- [ ] Add tenant-awareness checks for all new resources and operations.
-- [ ] Add rate limiting and CSRF/auth checks for all new admin and account routes.
-- [ ] Add feature flags for risky protocol additions (SAML, token exchange, passkeys).
+- Keep OpenAPI specification in [openapi.yaml](openapi.yaml) updated for each endpoint increment.
+- Add schema validation in [src/http/schemas.ts](src/http/schemas.ts) for all new request payloads.
+- Ensure every write path emits audit repository events and hooks.
+- Add migration scripts and rollout documentation in [docs](docs) for each database change.
+- Add tenant-awareness checks for all new resources and operations.
+- Add rate limiting and CSRF/auth checks for all new admin and account routes.
+- Add feature flags for risky protocol additions, including SAML, token exchange, and passkeys.
 
 ## Delivery milestones (recommended)
 

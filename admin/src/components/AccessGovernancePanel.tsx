@@ -7,7 +7,8 @@ import {
   useProcessExpiredAccessRequests,
   useRejectAccessRequest,
   useRoles,
-  useUsers
+  useUsers,
+  useStalledAccessRequests
 } from '../hooks/useApi'
 
 const sectionCls = 'rounded-xl border border-slate-200 bg-white p-5 shadow-sm'
@@ -22,6 +23,7 @@ export default function AccessGovernancePanel() {
   const [justification, setJustification] = useState('')
   const [expiresAt, setExpiresAt] = useState('')
   const [sweepMessage, setSweepMessage] = useState<string | null>(null)
+  const [stalledAfterMinutes, setStalledAfterMinutes] = useState(60)
 
   const { data: users = [] } = useUsers() as { data: Array<{ id: string; username: string; email: string }> }
   const { data: roles = [] } = useRoles() as { data: Array<{ id: string; name: string }> }
@@ -41,6 +43,8 @@ export default function AccessGovernancePanel() {
     }
     return map
   }, [users])
+
+  const { data: stalledRequests = [] } = useStalledAccessRequests(stalledAfterMinutes)
 
   const submitRequest = async () => {
     setSweepMessage(null)
@@ -216,6 +220,50 @@ export default function AccessGovernancePanel() {
             )
           })}
         </div>
+      </section>
+
+      {/* Stalled Requests */}
+      <section className={`${sectionCls} xl:col-span-2`}>
+        <div className="flex items-center justify-between gap-2 mb-4">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Stalled Access Requests</h2>
+            <p className="mt-0.5 text-sm text-slate-600">Pending requests that have not been acted on within the threshold — may need escalation.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-slate-500">Stalled after</label>
+            <select
+              value={stalledAfterMinutes}
+              onChange={e => setStalledAfterMinutes(Number(e.target.value))}
+              className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none"
+            >
+              <option value={30}>30 min</option>
+              <option value={60}>1 hr</option>
+              <option value={240}>4 hrs</option>
+              <option value={1440}>24 hrs</option>
+              <option value={10080}>7 days</option>
+            </select>
+          </div>
+        </div>
+        {stalledRequests.length === 0 ? (
+          <p className="text-sm text-slate-400">No stalled requests in this window.</p>
+        ) : (
+          <div className="space-y-2">
+            {stalledRequests.map((request: any) => {
+              const subject = usersById.get(request.subjectUserId)
+              return (
+                <div key={request.id} className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-medium text-slate-900">{request.entitlementType}: {request.entitlementValue}</p>
+                    <span className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">stalled</span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-600">Subject: {subject ? `${subject.username} (${subject.email})` : request.subjectUserId}</p>
+                  <p className="mt-1 text-xs text-slate-600">Justification: {request.justification}</p>
+                  <p className="mt-1 text-xs text-slate-500">Created: {new Date(request.createdAt).toLocaleString()}</p>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </section>
     </div>
   )

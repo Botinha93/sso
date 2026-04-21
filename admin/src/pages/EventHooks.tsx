@@ -9,6 +9,9 @@ import {
   useUpdateEventHook,
 } from '../hooks/useApi'
 
+const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
+const compactSelectCls = 'h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-700 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
+
 export default function EventHooks() {
   const { data: hooks = [], isLoading } = useEventHooks()
   const { data: systemEventTypes = [] } = useSystemEventTypes()
@@ -55,7 +58,7 @@ export default function EventHooks() {
         <p className="mt-1 text-xs text-slate-500">Choose one of the supported system events. Use <span className="font-mono">*</span> to receive all events.</p>
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-5">
           <select
-            className="rounded border px-3 py-2"
+            className={fieldCls}
             value={form.eventType}
             onChange={(e) => setForm((v) => ({ ...v, eventType: e.target.value }))}
           >
@@ -63,14 +66,14 @@ export default function EventHooks() {
               <option key={eventType} value={eventType}>{eventType}</option>
             ))}
           </select>
-          <input className="rounded border px-3 py-2" value={form.targetUrl} onChange={(e) => setForm((v) => ({ ...v, targetUrl: e.target.value }))} placeholder="target url" />
-          <select className="rounded border px-3 py-2" value={form.method} onChange={(e) => setForm((v) => ({ ...v, method: e.target.value }))}>
+          <input className={fieldCls} value={form.targetUrl} onChange={(e) => setForm((v) => ({ ...v, targetUrl: e.target.value }))} placeholder="https://hooks.example.com/identity" />
+          <select className={fieldCls} value={form.method} onChange={(e) => setForm((v) => ({ ...v, method: e.target.value }))}>
             <option value="POST">POST</option>
             <option value="PUT">PUT</option>
           </select>
-          <input className="rounded border px-3 py-2 font-mono text-xs" value={form.headers} onChange={(e) => setForm((v) => ({ ...v, headers: e.target.value }))} placeholder='headers json e.g. {"x-key":"123"}' />
+          <input className={`${fieldCls} font-mono text-xs`} value={form.headers} onChange={(e) => setForm((v) => ({ ...v, headers: e.target.value }))} placeholder='{"x-key":"123"}' />
           <button
-            className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+            className="inline-flex h-9 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition-colors hover:bg-slate-800"
             onClick={async () => {
               try {
                 setFormError(null)
@@ -102,19 +105,19 @@ export default function EventHooks() {
               <span>{hook.method}</span>
               <span className="truncate">{hook.targetUrl}</span>
               <button
-                className={`rounded px-2 py-1 ${hook.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}`}
+                className={`rounded-md border px-2 py-1 transition-colors ${hook.enabled ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
                 onClick={() => updateHook.mutate({ id: hook.id, enabled: !hook.enabled })}
               >
                 {hook.enabled ? 'Enabled' : 'Disabled'}
               </button>
               <button
-                className="rounded bg-sky-100 px-2 py-1 text-sky-700 disabled:opacity-60"
+                className="rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-sky-700 transition-colors hover:bg-sky-100 disabled:opacity-60"
                 disabled={testHook.isPending}
                 onClick={() => testHook.mutate({ id: hook.id })}
               >
                 Send Test
               </button>
-              <button className="ml-auto rounded bg-rose-100 px-2 py-1 text-rose-700" onClick={() => deleteHook.mutate(hook.id)}>
+              <button className="ml-auto rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-rose-700 transition-colors hover:bg-rose-100" onClick={() => deleteHook.mutate(hook.id)}>
                 Delete
               </button>
             </div>
@@ -127,7 +130,7 @@ export default function EventHooks() {
           <h2 className="text-sm font-semibold text-slate-900">Notification Log</h2>
           <div className="flex flex-wrap items-center gap-2">
             <select
-              className="rounded border px-2 py-1 text-xs"
+              className={compactSelectCls}
               value={notificationFilter}
               onChange={(e) => setNotificationFilter(e.target.value)}
             >
@@ -136,7 +139,7 @@ export default function EventHooks() {
               <option value="failed">Failed</option>
             </select>
             <select
-              className="rounded border px-2 py-1 text-xs"
+              className={compactSelectCls}
               value={eventFilter}
               onChange={(e) => setEventFilter(e.target.value)}
             >

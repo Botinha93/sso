@@ -610,6 +610,117 @@ export function useRotateSamlServiceProviderCertificate() {
   })
 }
 
+export function useCreateSamlServiceProvider() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: {
+      entityId: string
+      acsUrl: string
+      sloUrl?: string
+      signingCertificate?: string
+      encryptionCertificate?: string
+      nameIdFormat?: 'persistent' | 'transient' | 'emailAddress'
+    }) =>
+      jsonFetch(`${API_BASE}/saml/service-providers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }) as Promise<SamlServiceProviderDto>,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['saml-service-providers'] })
+  })
+}
+
+export function useUpdateSamlServiceProvider() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...payload }: {
+      id: string
+      entityId?: string
+      acsUrl?: string
+      sloUrl?: string
+      signingCertificate?: string
+      encryptionCertificate?: string
+      nameIdFormat?: 'persistent' | 'transient' | 'emailAddress'
+      enabled?: boolean
+    }) =>
+      jsonFetch(`${API_BASE}/saml/service-providers/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }) as Promise<SamlServiceProviderDto>,
+    onSuccess: (_data, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['saml-service-providers'] })
+      queryClient.invalidateQueries({ queryKey: ['saml-service-provider', id] })
+    }
+  })
+}
+
+export function useDeleteSamlServiceProvider() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      jsonFetch(`${API_BASE}/saml/service-providers/${id}`, { method: 'DELETE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['saml-service-providers'] })
+  })
+}
+
+export interface SamlAssertionAuditDto {
+  id: string
+  spId: string
+  assertionId: string
+  subject?: string
+  audience?: string
+  sessionIndex?: string
+  createdAt: string
+}
+
+export function useSamlAssertions(params?: { spId?: string; limit?: number; offset?: number }) {
+  const qs = new URLSearchParams()
+  if (params?.spId) qs.set('spId', params.spId)
+  if (typeof params?.limit === 'number') qs.set('limit', String(params.limit))
+  if (typeof params?.offset === 'number') qs.set('offset', String(params.offset))
+  const query = qs.toString()
+  return useQuery({
+    queryKey: ['saml-assertions', params],
+    queryFn: () => jsonFetch(`${API_BASE}/saml/assertions` + (query ? `?${query}` : '')) as Promise<{
+      items: SamlAssertionAuditDto[]
+      total: number
+      limit: number
+      offset: number
+    }>
+  })
+}
+
+export function useBreakGlassElevation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: {
+      resource: string
+      action: string
+      reason: string
+      requesterId?: string
+      durationMinutes?: number
+    }) =>
+      jsonFetch(`${API_BASE}/elevations/break-glass`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['elevation-requests'] })
+      queryClient.invalidateQueries({ queryKey: ['elevation-sessions'] })
+    }
+  })
+}
+
+export function useStalledAccessRequests(stalledAfterMinutes = 60) {
+  return useQuery({
+    queryKey: ['access-requests-stalled', stalledAfterMinutes],
+    queryFn: () => jsonFetch(`${API_BASE}/access-requests/stalled?stalledAfterMinutes=${stalledAfterMinutes}`),
+    select: (data: any) => data?.stalledRequests ?? []
+  })
+}
+
 // --- Authentication Flows ---
 export function useAuthenticationFlows() {
   return useQuery({
@@ -1049,6 +1160,27 @@ export function useRunProvisioningReconcile() {
       queryClient.invalidateQueries({ queryKey: ['provisioning-jobs'] })
       queryClient.invalidateQueries({ queryKey: ['provisioning-mappings'] })
     }
+  })
+}
+
+export interface DeprovisioningQueueItemDto {
+  id: string
+  userId: string
+  action: 'revoke_role' | 'revoke_group' | 'deactivate_user'
+  resourceId: string
+  resourceName: string
+  status: 'pending' | 'in_progress' | 'completed' | 'failed'
+  reason?: string
+  initiatedByUserId?: string
+  completedAt?: string
+  errorMessage?: string
+  createdAt: string
+}
+
+export function useDeprovisioningQueue(limit = 50) {
+  return useQuery({
+    queryKey: ['deprovisioning-queue', limit],
+    queryFn: () => jsonFetch(`${API_BASE}/provisioning/deprovisioning-queue?limit=${limit}`) as Promise<DeprovisioningQueueItemDto[]>
   })
 }
 

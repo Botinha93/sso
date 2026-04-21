@@ -74,6 +74,78 @@ test("Connector API: CRUD, sync, runs, mappings, and auth metrics", async (t) =>
     assert.ok(["succeeded", "running", "pending"].includes(body.status));
   });
 
+  await t.test("retries failed sync and dead-letters after max attempts", async () => {
+    const failingConnectorResp = await app.inject({
+      method: "POST",
+      url: "/api/admin/connectors",
+      headers: { ...authHeaders, "content-type": "application/json" },
+      payload: {
+        name: "Failing Connector",
+        type: "custom",
+        config: {
+          retryMaxAttempts: 3,
+          retryBackoffMs: 1,
+          simulateFailureCount: 10,
+          deadLetterQueue: "connector-dlq"
+        }
+      }
+    });
+
+    assert.equal(failingConnectorResp.statusCode, 201);
+    const failingConnector = failingConnectorResp.json() as any;
+
+    const hookResp = await app.inject({
+      method: "POST",
+      url: "/api/admin/events/hooks",
+      headers: { ...authHeaders, "content-type": "application/json" },
+      payload: {
+        eventType: "connector.sync.failed",
+        targetUrl: "http://127.0.0.1:1/fail",
+        method: "POST"
+      }
+    });
+    assert.equal(hookResp.statusCode, 201);
+
+    const syncResp = await app.inject({
+      method: "POST",
+      url: `/api/admin/connectors/${failingConnector.id}/sync`,
+      headers: authHeaders
+    });
+
+    assert.equal(syncResp.statusCode, 202);
+    const failedRun = syncResp.json() as any;
+    assert.equal(failedRun.status, "failed");
+    assert.equal(failedRun.recordsFailed, 3);
+    assert.match(String(failedRun.errorMessage ?? ""), /dead-lettered/i);
+
+    const runsResp = await app.inject({
+      method: "GET",
+      url: `/api/admin/connectors/${failingConnector.id}/runs`,
+      headers: { cookie: authHeaders.cookie }
+    });
+    assert.equal(runsResp.statusCode, 200);
+    const runsBody = runsResp.json() as any;
+    assert.ok(Array.isArray(runsBody.data));
+    assert.equal(runsBody.data[0]?.status, "failed");
+
+    const connectorDetailResp = await app.inject({
+      method: "GET",
+      url: `/api/admin/connectors/${failingConnector.id}`,
+      headers: { cookie: authHeaders.cookie }
+    });
+    assert.equal(connectorDetailResp.statusCode, 200);
+    assert.equal((connectorDetailResp.json() as any).status, "error");
+
+    const notificationsResp = await app.inject({
+      method: "GET",
+      url: "/api/admin/events/notifications?limit=20",
+      headers: { cookie: authHeaders.cookie }
+    });
+    assert.equal(notificationsResp.statusCode, 200);
+    const notifications = notificationsResp.json() as any[];
+    assert.ok(notifications.some((item) => item.eventType === "connector.sync.failed"));
+  });
+
   await t.test("lists runs for connector", async () => {
     const resp = await app.inject({ method: "GET", url: `/api/admin/connectors/${connectorId}/runs`, headers: { cookie: authHeaders.cookie } });
     assert.equal(resp.statusCode, 200);

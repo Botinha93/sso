@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, Lock, Mail, Network, RefreshCw, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Lock, Mail, Network, RefreshCw, ShieldCheck } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import {
+  useAdminMe,
   useAdminRiskEvents,
   useInstanceSettings,
   useMigrateDatabaseFromSqlite,
@@ -9,9 +11,6 @@ import {
   useUpdateInstanceSettings
 } from '../hooks/useApi'
 import ProvisioningAdminPanel from '../components/ProvisioningAdminPanel'
-import AccessGovernancePanel from '../components/AccessGovernancePanel'
-import AccessReviewCampaignPanel from '../components/AccessReviewCampaignPanel'
-import ElevationPanel from '../components/ElevationPanel'
 
 interface SettingsForm {
   databaseProvider: 'sqlite' | 'postgresql' | 'mysql'
@@ -68,6 +67,7 @@ const defaultForm: SettingsForm = {
 }
 
 export default function Administration() {
+  const { data: adminMe } = useAdminMe()
   const { data, isLoading, refetch } = useInstanceSettings()
   const { data: riskEvents, refetch: refetchRiskEvents } = useAdminRiskEvents(15)
   const updateSettings = useUpdateInstanceSettings()
@@ -77,6 +77,35 @@ export default function Administration() {
   const [form, setForm] = useState<SettingsForm>(defaultForm)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const permissions: string[] = (adminMe as any)?.permissions ?? []
+  const can = (permission: string) => permissions.includes('*:*') || permissions.includes(permission)
+
+  const operationLinks = [
+    {
+      to: '/access-governance',
+      title: 'Access Governance',
+      description: 'Requests, approvals, stalled queue, and review campaigns.',
+      permission: 'administration:view'
+    },
+    {
+      to: '/elevations',
+      title: 'Elevation Operations',
+      description: 'Request, approve, activate, revoke, and break-glass elevation.',
+      permission: 'administration:view'
+    },
+    {
+      to: '/elevation-sessions',
+      title: 'Elevation Sessions',
+      description: 'Track active, revoked, and expired privileged sessions.',
+      permission: 'administration:view'
+    },
+    {
+      to: '/metrics',
+      title: 'Auth Metrics',
+      description: 'Authentication throughput trends and event distribution.',
+      permission: 'connectors:view'
+    }
+  ].filter((item) => can(item.permission))
 
   useEffect(() => {
     if (!data) {
@@ -262,9 +291,36 @@ export default function Administration() {
       </section>
 
       <ProvisioningAdminPanel />
-      <AccessGovernancePanel />
-      <AccessReviewCampaignPanel />
-      <ElevationPanel />
+
+      <section className={sectionCls}>
+        <div className="flex items-center gap-2">
+          <ShieldCheck size={16} className="text-slate-500" />
+          <h2 className="text-base font-semibold text-slate-900">Dedicated Operations Views</h2>
+        </div>
+        <p className="mt-2 text-xs text-slate-500">
+          Governance, elevation tracking, and auth metrics now have dedicated pages for focused workflows.
+        </p>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          {operationLinks.map((item) => (
+            <Link
+              key={item.to}
+              to={item.to}
+              className="group rounded-lg border border-slate-200 bg-white p-4 text-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
+            >
+              <p className="font-semibold text-slate-900">{item.title}</p>
+              <p className="mt-1 text-xs text-slate-600">{item.description}</p>
+              <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-slate-700">
+                Open view <ArrowRight size={12} className="transition-transform group-hover:translate-x-0.5" />
+              </span>
+            </Link>
+          ))}
+          {operationLinks.length === 0 ? (
+            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+              You do not currently have permission to access these dedicated operations views.
+            </p>
+          ) : null}
+        </div>
+      </section>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <section className={sectionCls}>

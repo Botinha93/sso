@@ -30,6 +30,7 @@ const SYSTEM_EVENT_TYPES = [
   "consent.revoked",
   "device.request.revoked",
   "device.session.revoked",
+  "connector.sync.failed",
   "events.hook.test"
 ] as const;
 

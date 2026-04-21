@@ -1,8 +1,8 @@
-import { Plus, RefreshCw, Trash2, Shield, ChevronRight, X } from 'lucide-react'
+import { Plus, RefreshCw, Trash2, Shield, ChevronRight, X, Pencil } from 'lucide-react'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
-import { useClients, useCreateClient, useDeleteClient, useUpdateClient, useScopes, useCreateScope, useAuthenticationFlows, useApps } from '../hooks/useApi'
+import { useClients, useCreateClient, useDeleteClient, useUpdateClient, useScopes, useCreateScope, useDeleteScope, useAuthenticationFlows, useApps } from '../hooks/useApi'
 
 interface OAuthClient {
   id: string
@@ -28,11 +28,17 @@ const GRANT_OPTIONS: Array<{ value: GrantType; label: string }> = [
   { value: 'device_code', label: 'Device Code' },
 ]
 
+const generateClientSecret = () => {
+  const bytes = new Uint8Array(24)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
 const defaultForm = () => ({
   appId: '',
   id: '',
   name: '',
-  secret: '',
+  secret: generateClientSecret(),
   redirectUris: '',
   allowedScopes: ['openid', 'profile', 'email'] as string[],
   grants: ['authorization_code', 'refresh_token'] as GrantType[],
@@ -40,11 +46,24 @@ const defaultForm = () => ({
   flowIds: [] as string[]
 })
 
+const formFromClient = (client: OAuthClient) => ({
+  appId: client.appId ?? '',
+  id: client.id,
+  name: client.name,
+  secret: '',
+  redirectUris: client.redirectUris.join('\n'),
+  allowedScopes: [...client.allowedScopes],
+  grants: [...client.grants] as GrantType[],
+  requirePkce: client.requirePkce,
+  flowIds: [...(client.flowIds ?? [])]
+})
+
 const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
 const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
 
 const Clients = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [editClient, setEditClient] = useState<OAuthClient | null>(null)
   const [clientToDelete, setClientToDelete] = useState<string | null>(null)
   const [resourcesClient, setResourcesClient] = useState<OAuthClient | null>(null)
   const [newResource, setNewResource] = useState('')
@@ -57,6 +76,7 @@ const Clients = () => {
   const { data: flows = [] } = useAuthenticationFlows()
   const createClient = useCreateClient()
   const createScope = useCreateScope()
+  const deleteScope = useDeleteScope()
   const deleteClient = useDeleteClient()
   const updateClient = useUpdateClient()
   const [formData, setFormData] = useState(defaultForm)
@@ -86,6 +106,17 @@ const Clients = () => {
 
   const handleDelete = (id: string) => {
     setClientToDelete(id)
+  }
+
+  const handleEdit = (client: OAuthClient) => {
+    setFormData(formFromClient(client))
+    setEditClient(client)
+  }
+
+  const closeClientModal = () => {
+    setCreateModalOpen(false)
+    setEditClient(null)
+    setFormData(defaultForm())
   }
 
   const confirmDeleteClient = () => {
@@ -132,6 +163,12 @@ const Clients = () => {
     setNewScopeDescription('')
   }
 
+  const handleDeleteScope = async (scope: { id: string; name: string }) => {
+    if (!window.confirm(`Delete scope "${scope.name}"?`)) return
+    await deleteScope.mutateAsync(scope.id)
+    setFormData((f) => ({ ...f, allowedScopes: f.allowedScopes.filter((s) => s !== scope.name) }))
+  }
+
   const toggleFlow = (flowId: string) => {
     setFormData(f => {
       const has = f.flowIds.includes(flowId)
@@ -152,6 +189,22 @@ const Clients = () => {
     })
   }
 
+  const handleUpdate = async () => {
+    if (!editClient || !formData.name || formData.allowedScopes.length === 0 || formData.grants.length === 0) return
+    await updateClient.mutateAsync({
+      id: editClient.id,
+      appId: formData.appId || undefined,
+      name: formData.name,
+      secret: formData.secret.trim() ? formData.secret : undefined,
+      redirectUris: formData.redirectUris.split('\n').map(s => s.trim()).filter(Boolean),
+      allowedScopes: formData.allowedScopes,
+      grants: formData.grants,
+      requirePkce: formData.requirePkce,
+      flowIds: formData.flowIds
+    })
+    closeClientModal()
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
@@ -160,7 +213,7 @@ const Clients = () => {
           <h2 className="text-2xl font-bold tracking-tight text-slate-900">Registered Applications</h2>
         </div>
         <button
-          onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }}
+          onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true); setEditClient(null) }}
           className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 transition-colors"
         >
           <Plus size={14} />
@@ -230,6 +283,13 @@ const Clients = () => {
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <button
+                    onClick={() => handleEdit(client)}
+                    className="p-1.5 rounded-lg hover:bg-sky-50 text-slate-400 hover:text-sky-600 transition-colors opacity-0 group-hover:opacity-100"
+                    title="Edit client"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
                     onClick={() => { setResourcesClient(client); setNewResource('') }}
                     className="p-1.5 rounded-lg hover:bg-violet-50 text-slate-400 hover:text-violet-600 transition-colors opacity-0 group-hover:opacity-100"
                     title="Manage resources"
@@ -251,7 +311,7 @@ const Clients = () => {
         )}
       </div>
 
-      <Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Create OAuth Client">
+      <Modal isOpen={createModalOpen || !!editClient} onClose={closeClientModal} title={editClient ? `Edit OAuth Client: ${editClient.name}` : 'Create OAuth Client'}>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -265,11 +325,38 @@ const Clients = () => {
             </div>
             <div>
               <label className={labelCls}>Client ID</label>
-              <input type="text" value={formData.id} onChange={e => setFormData(f => ({ ...f, id: e.target.value }))} className={`${fieldCls} font-mono`} placeholder="my-app" />
+              <input
+                type="text"
+                value={formData.id}
+                onChange={e => setFormData(f => ({ ...f, id: e.target.value }))}
+                disabled={!!editClient}
+                className={`${fieldCls} font-mono ${editClient ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
+                placeholder="my-app"
+              />
             </div>
             <div>
-              <label className={labelCls}>Client Secret</label>
-              <input type="text" value={formData.secret} onChange={e => setFormData(f => ({ ...f, secret: e.target.value }))} className={`${fieldCls} font-mono`} placeholder="min 16 chars" />
+              <label className={labelCls}>{editClient ? 'Rotate Client Secret' : 'Client Secret'}</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={formData.secret}
+                  onChange={e => setFormData(f => ({ ...f, secret: e.target.value }))}
+                  className={`${fieldCls} font-mono`}
+                  placeholder={editClient ? 'Leave blank to keep current secret' : 'Auto-generated secret'}
+                />
+                {!editClient ? (
+                  <button
+                    type="button"
+                    onClick={() => setFormData((f) => ({ ...f, secret: generateClientSecret() }))}
+                    className="h-9 shrink-0 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    Regenerate
+                  </button>
+                ) : null}
+              </div>
+              {!editClient ? (
+                <p className="mt-1 text-xs text-slate-500">A strong secret is generated automatically for new confidential clients.</p>
+              ) : null}
             </div>
           </div>
           <div>
@@ -366,6 +453,28 @@ const Clients = () => {
                 {createScope.isPending ? 'Adding…' : 'Add Scope'}
               </button>
             </div>
+            <div className="space-y-1.5">
+              {scopes.length === 0 ? (
+                <p className="text-xs text-slate-400">No scopes available.</p>
+              ) : (
+                scopes.map((scope: any) => (
+                  <div key={scope.id} className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-2.5 py-1.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-mono text-slate-700">{scope.name}</p>
+                      <p className="truncate text-[11px] text-slate-500">{scope.description || 'No description'}</p>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteScope(scope)}
+                      disabled={deleteScope.isPending}
+                      className="ml-2 rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                      title="Delete scope"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
           <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
             <input
@@ -377,15 +486,19 @@ const Clients = () => {
             Require PKCE (recommended for public clients)
           </label>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setCreateModalOpen(false)} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+            <button onClick={closeClientModal} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
               Cancel
             </button>
             <button
-              onClick={handleCreate}
-              disabled={createClient.isPending || !formData.id || !formData.name || !formData.secret || formData.allowedScopes.length === 0 || formData.grants.length === 0}
+              onClick={editClient ? handleUpdate : handleCreate}
+              disabled={
+                editClient
+                  ? updateClient.isPending || !formData.name || formData.allowedScopes.length === 0 || formData.grants.length === 0
+                  : createClient.isPending || !formData.id || !formData.name || !formData.secret || formData.allowedScopes.length === 0 || formData.grants.length === 0
+              }
               className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
             >
-              {createClient.isPending ? 'Creating…' : 'Create Client'}
+              {editClient ? (updateClient.isPending ? 'Saving…' : 'Save Changes') : (createClient.isPending ? 'Creating…' : 'Create Client')}
             </button>
           </div>
         </div>

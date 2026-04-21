@@ -1,16 +1,27 @@
 import {
   Activity,
+  AlertTriangle,
   AppWindow,
+  ArrowRight,
   Building2,
   CheckSquare,
   Fingerprint,
+  GitMerge,
   Shield,
+  ShieldAlert,
   Users
 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import {
+  useAccessRequests,
   useAuditLog,
+  useAdminMe,
+  useAdminRiskEvents,
   useClients,
+  useConnectors,
   useConsents,
+  useElevationRequests,
+  useElevationSessions,
   useEventNotifications,
   useGroups,
   useRoles,
@@ -55,6 +66,32 @@ interface AuditEvent {
 interface EventNotification {
   id: string
   status: 'pending' | 'success' | 'failed'
+}
+
+interface AccessRequestItem {
+  id: string
+  status: 'pending' | 'approved' | 'rejected' | 'expired' | 'cancelled'
+}
+
+interface ElevationRequestItem {
+  id: string
+  status: 'pending' | 'approved' | 'active' | 'revoked' | 'expired'
+}
+
+interface ElevationSessionItem {
+  id: string
+  status: 'active' | 'revoked' | 'expired'
+}
+
+interface ConnectorItem {
+  id: string
+  type: 'ldap' | 'scim' | 'csv' | 'sql' | 'custom'
+  status: 'active' | 'inactive' | 'error'
+}
+
+interface RiskEventItem {
+  id: string
+  severity: 'medium' | 'high' | 'critical'
 }
 
 type SeriesPoint = {
@@ -157,6 +194,7 @@ function HorizontalBars({ data, emptyLabel }: { data: SeriesPoint[]; emptyLabel:
 }
 
 const Dashboard = () => {
+  const { data: adminMe } = useAdminMe()
   const { data: users = [], isLoading: loadingUsers } = useUsers()
   const { data: roles = [], isLoading: loadingRoles } = useRoles()
   const { data: groups = [], isLoading: loadingGroups } = useGroups()
@@ -166,6 +204,11 @@ const Dashboard = () => {
   const { data: consents = [], isLoading: loadingConsents } = useConsents()
   const { data: events = [], isLoading: loadingAudit } = useAuditLog(300)
   const { data: notifications = [], isLoading: loadingNotifications } = useEventNotifications(200)
+  const { data: accessRequests = [], isLoading: loadingAccessRequests } = useAccessRequests(undefined, 200)
+  const { data: elevationRequests = [], isLoading: loadingElevationRequests } = useElevationRequests()
+  const { data: elevationSessions = [], isLoading: loadingElevationSessions } = useElevationSessions()
+  const { data: connectorsData, isLoading: loadingConnectors } = useConnectors()
+  const { data: riskEvents = [], isLoading: loadingRiskEvents } = useAdminRiskEvents(200)
 
   const now = Date.now()
 
@@ -175,6 +218,11 @@ const Dashboard = () => {
   const consentItems = consents as ConsentItem[]
   const auditItems = events as AuditEvent[]
   const notificationItems = notifications as EventNotification[]
+  const accessRequestItems = accessRequests as AccessRequestItem[]
+  const elevationRequestItems = elevationRequests as ElevationRequestItem[]
+  const elevationSessionItems = elevationSessions as ElevationSessionItem[]
+  const connectorItems = (connectorsData?.data ?? []) as ConnectorItem[]
+  const riskEventItems = riskEvents as RiskEventItem[]
 
   const activeUsers = userItems.filter((u) => u.active).length
   const inactiveUsers = userItems.length - activeUsers
@@ -182,6 +230,14 @@ const Dashboard = () => {
   const revokedSessions = sessionItems.filter((s) => !!s.revokedAt).length
   const pkceClients = clientItems.filter((c) => c.requirePkce).length
   const clientResourcesCount = clientItems.reduce((sum, c) => sum + (c.resources?.length ?? 0), 0)
+  const pendingAccessRequests = accessRequestItems.filter((r) => r.status === 'pending').length
+  const approvedAccessRequests = accessRequestItems.filter((r) => r.status === 'approved').length
+  const activeElevationSessions = elevationSessionItems.filter((s) => s.status === 'active').length
+  const pendingElevationRequests = elevationRequestItems.filter((r) => r.status === 'pending').length
+  const failedConnectors = connectorItems.filter((c) => c.status === 'error').length
+  const activeConnectors = connectorItems.filter((c) => c.status === 'active').length
+  const criticalRiskEvents = riskEventItems.filter((r) => r.severity === 'critical').length
+  const highRiskEvents = riskEventItems.filter((r) => r.severity === 'high').length
 
   const allLoading = [
     loadingUsers,
@@ -192,7 +248,12 @@ const Dashboard = () => {
     loadingSessions,
     loadingConsents,
     loadingAudit,
-    loadingNotifications
+    loadingNotifications,
+    loadingAccessRequests,
+    loadingElevationRequests,
+    loadingElevationSessions,
+    loadingConnectors,
+    loadingRiskEvents
   ].every(Boolean)
 
   const timelineDays = 14
@@ -240,9 +301,75 @@ const Dashboard = () => {
     .slice(0, 7)
     .map(([label, value]) => ({ label, value }))
 
+  const accessRequestStatusDistribution = Object.entries(
+    accessRequestItems.reduce<Record<string, number>>((acc, item) => {
+      acc[item.status] = (acc[item.status] ?? 0) + 1
+      return acc
+    }, {})
+  )
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, value]) => ({ label: label.replace('_', ' '), value }))
+
+  const elevationRequestStatusDistribution = Object.entries(
+    elevationRequestItems.reduce<Record<string, number>>((acc, item) => {
+      acc[item.status] = (acc[item.status] ?? 0) + 1
+      return acc
+    }, {})
+  )
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, value]) => ({ label: label.replace('_', ' '), value }))
+
+  const connectorTypeDistribution = Object.entries(
+    connectorItems.reduce<Record<string, number>>((acc, item) => {
+      acc[item.type] = (acc[item.type] ?? 0) + 1
+      return acc
+    }, {})
+  )
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, value]) => ({ label: label.toUpperCase(), value }))
+
+  const riskSeverityDistribution = Object.entries(
+    riskEventItems.reduce<Record<string, number>>((acc, item) => {
+      acc[item.severity] = (acc[item.severity] ?? 0) + 1
+      return acc
+    }, {})
+  )
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, value]) => ({ label, value }))
+
   const notificationSuccessRate = notificationItems.length === 0
     ? 0
     : notificationItems.filter((n) => n.status === 'success').length / notificationItems.length
+
+  const permissions: string[] = (adminMe as any)?.permissions ?? []
+  const can = (permission: string) => permissions.includes('*:*') || permissions.includes(permission)
+
+  const operationLinks = [
+    {
+      to: '/access-governance',
+      title: 'Access Governance',
+      description: 'Open request approvals, stalled queue, and recertification campaigns.',
+      permission: 'administration:view'
+    },
+    {
+      to: '/elevations',
+      title: 'Elevation Operations',
+      description: 'Request, approve, activate, revoke, and emergency break-glass access.',
+      permission: 'administration:view'
+    },
+    {
+      to: '/elevation-sessions',
+      title: 'Elevation Sessions',
+      description: 'Inspect active, revoked, and expired privileged access sessions.',
+      permission: 'administration:view'
+    },
+    {
+      to: '/metrics',
+      title: 'Auth Metrics',
+      description: 'Review authentication throughput and event breakdown metrics.',
+      permission: 'connectors:view'
+    }
+  ].filter((item) => can(item.permission))
 
   const permissionDensity = roles.length === 0
     ? 0
@@ -262,6 +389,27 @@ const Dashboard = () => {
         <p className="mt-2 max-w-3xl text-sm text-slate-600">
           Live view of account growth, authentication activity, consent behavior, and client-level traffic distribution.
         </p>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        {operationLinks.map((item) => (
+          <Link
+            key={item.to}
+            to={item.to}
+            className="group rounded-xl border border-slate-200 bg-white p-4 text-sm shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
+          >
+            <p className="font-semibold text-slate-900">{item.title}</p>
+            <p className="mt-1 text-xs text-slate-600">{item.description}</p>
+            <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-slate-700">
+              Open view <ArrowRight size={12} className="transition-transform group-hover:translate-x-0.5" />
+            </span>
+          </Link>
+        ))}
+        {operationLinks.length === 0 ? (
+          <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+            You do not currently have permission to access the operations views.
+          </p>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -361,6 +509,64 @@ const Dashboard = () => {
           <h3 className="text-base font-semibold text-slate-900">Most Requested Scopes</h3>
           <p className="mb-4 text-xs text-slate-500">Popularity derived from consent grants</p>
           <HorizontalBars data={scopePopularity} emptyLabel="No consent scopes recorded yet." />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500"><ShieldAlert size={14} /> Pending Access Requests</div>
+          <div className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{pendingAccessRequests}</div>
+          <p className="mt-1 text-xs text-slate-500">{approvedAccessRequests} approved · {accessRequestItems.length} total</p>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500"><Shield size={14} /> Elevation Sessions</div>
+          <div className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{activeElevationSessions}</div>
+          <p className="mt-1 text-xs text-slate-500">{pendingElevationRequests} pending requests</p>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500"><GitMerge size={14} /> Connectors</div>
+          <div className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{connectorItems.length}</div>
+          <p className="mt-1 text-xs text-slate-500">{activeConnectors} active · {failedConnectors} in error</p>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500"><AlertTriangle size={14} /> Risk Events</div>
+          <div className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{riskEventItems.length}</div>
+          <p className="mt-1 text-xs text-slate-500">{criticalRiskEvents} critical · {highRiskEvents} high</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="text-base font-semibold text-slate-900">Governance And Elevation Activity</h3>
+          <p className="mb-4 text-xs text-slate-500">Operational status of access requests and privileged elevation lifecycle.</p>
+          <div className="grid gap-5 md:grid-cols-2">
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Access Requests</p>
+              <HorizontalBars data={accessRequestStatusDistribution} emptyLabel="No access request data available yet." />
+            </div>
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Elevation Requests</p>
+              <HorizontalBars data={elevationRequestStatusDistribution} emptyLabel="No elevation request data available yet." />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 className="text-base font-semibold text-slate-900">Connector And Risk Distribution</h3>
+          <p className="mb-4 text-xs text-slate-500">Integration footprint and current security event severity mix.</p>
+          <div className="grid gap-5 md:grid-cols-2">
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Connector Types</p>
+              <HorizontalBars data={connectorTypeDistribution} emptyLabel="No connector data available yet." />
+            </div>
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Risk Severity</p>
+              <HorizontalBars data={riskSeverityDistribution} emptyLabel="No risk events recorded yet." />
+            </div>
+          </div>
         </div>
       </div>
 

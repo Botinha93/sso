@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { ShieldAlert, Plus, CheckCircle, PlayCircle, XCircle, Clock } from 'lucide-react'
+import { ShieldAlert, Plus, CheckCircle, PlayCircle, XCircle, Clock, Zap } from 'lucide-react'
 import {
   useElevationRequests,
   useCreateElevationRequest,
   useApproveElevationRequest,
   useActivateElevationRequest,
   useRevokeElevationRequest,
+  useBreakGlassElevation,
   type ElevationRequestDto
 } from '../hooks/useApi'
 import ElevationSessionList from './ElevationSessionList'
@@ -50,11 +51,16 @@ export default function ElevationPanel() {
   const [form, setForm] = useState<CreateFormState>(defaultForm)
   const [error, setError] = useState<string | null>(null)
 
+  const [bgForm, setBgForm] = useState({ resource: '', action: '', reason: '', durationMinutes: '60' })
+  const [bgSuccess, setBgSuccess] = useState<string | null>(null)
+  const [bgError, setBgError] = useState<string | null>(null)
+
   const { data: requests = [], isLoading } = useElevationRequests(statusFilter)
   const createRequest = useCreateElevationRequest()
   const approveRequest = useApproveElevationRequest()
   const activateRequest = useActivateElevationRequest()
   const revokeRequest = useRevokeElevationRequest()
+  const breakGlass = useBreakGlassElevation()
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -69,6 +75,24 @@ export default function ElevationPanel() {
       setForm(defaultForm)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to create elevation request')
+    }
+  }
+
+  const handleBreakGlass = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBgError(null)
+    setBgSuccess(null)
+    try {
+      await breakGlass.mutateAsync({
+        resource: bgForm.resource,
+        action: bgForm.action,
+        reason: bgForm.reason,
+        durationMinutes: bgForm.durationMinutes ? Number(bgForm.durationMinutes) : undefined
+      })
+      setBgForm({ resource: '', action: '', reason: '', durationMinutes: '60' })
+      setBgSuccess('Emergency break-glass elevation granted and audited.')
+    } catch (err: unknown) {
+      setBgError(err instanceof Error ? err.message : 'Break-glass failed')
     }
   }
 
@@ -224,6 +248,41 @@ export default function ElevationPanel() {
 
         <ElevationSessionList />
       </div>
+
+      {/* Break-Glass Section */}
+      <section className="rounded-xl border border-rose-200 bg-rose-50/40 p-5 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <Zap size={16} className="text-rose-500" />
+          <h3 className="text-sm font-semibold text-rose-800">Emergency Break-Glass</h3>
+        </div>
+        <p className="text-xs text-rose-700 mb-4">Grants immediate elevation without approval. All break-glass activations are permanently audited and require justification.</p>
+        <form onSubmit={handleBreakGlass} className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className={labelCls}>Resource</label>
+              <input value={bgForm.resource} onChange={e => setBgForm(v => ({ ...v, resource: e.target.value }))} required placeholder="admin:users" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Action</label>
+              <input value={bgForm.action} onChange={e => setBgForm(v => ({ ...v, action: e.target.value }))} required placeholder="delete" className={inputCls} />
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Reason (required)</label>
+            <textarea value={bgForm.reason} onChange={e => setBgForm(v => ({ ...v, reason: e.target.value }))} rows={2} required placeholder="Describe the emergency requiring break-glass access" className="w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-rose-400 focus:ring-2 focus:ring-rose-400/20" />
+          </div>
+          <div>
+            <label className={labelCls}>Duration (minutes)</label>
+            <input type="number" min={1} max={480} value={bgForm.durationMinutes} onChange={e => setBgForm(v => ({ ...v, durationMinutes: e.target.value }))} className={inputCls} />
+          </div>
+          {bgError ? <p className="text-sm text-rose-600">{bgError}</p> : null}
+          {bgSuccess ? <p className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs text-emerald-700">{bgSuccess}</p> : null}
+          <button type="submit" disabled={breakGlass.isPending} className="inline-flex h-9 items-center rounded-lg bg-rose-600 px-4 text-sm font-medium text-white transition-colors hover:bg-rose-700 disabled:opacity-50">
+            <Zap size={14} className="mr-1.5" />
+            {breakGlass.isPending ? 'Activating…' : 'Activate Break-Glass'}
+          </button>
+        </form>
+      </section>
     </div>
   )
 }
