@@ -104,6 +104,12 @@ export class MediaService {
     const encodedInitials = encodeURIComponent(initials.slice(0, 3) || "AB");
     return [
       { key: "initials", label: "Initials", url: `/media/defaults/user/initials.svg?text=${encodedInitials}` },
+      { key: "male", label: "Male Outline", url: "/media/defaults/user/male.svg" },
+      { key: "female", label: "Female Outline", url: "/media/defaults/user/female.svg" },
+      { key: "rocket", label: "Rocket", url: "/media/defaults/user/rocket.svg" },
+      { key: "house", label: "House", url: "/media/defaults/user/house.svg" },
+      { key: "dog", label: "Dog", url: "/media/defaults/user/dog.svg" },
+      { key: "cat", label: "Cat", url: "/media/defaults/user/cat.svg" },
       { key: "sunset", label: "Sunset", url: "/media/defaults/user/sunset.svg" },
       { key: "forest", label: "Forest", url: "/media/defaults/user/forest.svg" },
       { key: "ocean", label: "Ocean", url: "/media/defaults/user/ocean.svg" },

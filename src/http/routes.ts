@@ -195,12 +195,56 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const initials = escapeXml(normalizeInitials(initialsRaw));
     const palette: Record<string, [string, string]> = {
       initials: ["#334155", "#0f172a"],
+      male: ["#2563eb", "#0f172a"],
+      female: ["#db2777", "#4c1d95"],
+      rocket: ["#f97316", "#7c2d12"],
+      house: ["#22c55e", "#065f46"],
+      dog: ["#14b8a6", "#134e4a"],
+      cat: ["#a855f7", "#4c1d95"],
       sunset: ["#f97316", "#dc2626"],
       forest: ["#10b981", "#065f46"],
       ocean: ["#0ea5e9", "#1d4ed8"],
       mono: ["#71717a", "#27272a"]
     };
     const [start, end] = palette[variant] ?? palette.initials;
+
+    const iconByVariant: Record<string, string> = {
+      male: `
+  <circle cx="160" cy="118" r="42" stroke="white" stroke-width="12" fill="none" />
+  <path d="M84 246c8-43 38-68 76-68s68 25 76 68" stroke="white" stroke-width="12" fill="none" stroke-linecap="round" />`,
+      female: `
+  <circle cx="160" cy="112" r="38" stroke="white" stroke-width="12" fill="none" />
+  <path d="M106 248c8-35 28-58 54-58s46 23 54 58" stroke="white" stroke-width="12" fill="none" stroke-linecap="round" />
+  <path d="M112 138c8 16 22 24 48 24s40-8 48-24" stroke="white" stroke-width="10" fill="none" stroke-linecap="round" opacity="0.9" />`,
+      rocket: `
+  <path d="M160 68c38 18 57 62 57 99l-57 34-57-34c0-37 19-81 57-99Z" stroke="white" stroke-width="12" fill="none" stroke-linejoin="round" />
+  <circle cx="160" cy="136" r="14" stroke="white" stroke-width="10" fill="none" />
+  <path d="M132 205 116 236M188 205 204 236" stroke="white" stroke-width="12" stroke-linecap="round" />
+  <path d="M160 201v43" stroke="white" stroke-width="12" stroke-linecap="round" />`,
+      house: `
+  <path d="M88 150 160 92l72 58" stroke="white" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+  <rect x="102" y="150" width="116" height="96" rx="10" stroke="white" stroke-width="12" fill="none" />
+  <rect x="146" y="186" width="28" height="60" rx="8" stroke="white" stroke-width="10" fill="none" />`,
+      dog: `
+  <path d="M118 116 88 144M202 116l30 28" stroke="white" stroke-width="12" stroke-linecap="round" />
+  <circle cx="160" cy="170" r="58" stroke="white" stroke-width="12" fill="none" />
+  <circle cx="138" cy="164" r="6" fill="white" />
+  <circle cx="182" cy="164" r="6" fill="white" />
+  <path d="M148 190h24" stroke="white" stroke-width="10" stroke-linecap="round" />
+  <path d="M144 214c10 10 22 10 32 0" stroke="white" stroke-width="10" fill="none" stroke-linecap="round" />`,
+      cat: `
+  <path d="M124 116 102 86l-6 44M196 116l22-30 6 44" stroke="white" stroke-width="12" fill="none" stroke-linejoin="round" />
+  <circle cx="160" cy="172" r="58" stroke="white" stroke-width="12" fill="none" />
+  <circle cx="140" cy="168" r="6" fill="white" />
+  <circle cx="180" cy="168" r="6" fill="white" />
+  <path d="M160 178 152 190h16Z" fill="white" />
+  <path d="M128 192h-26M128 204h-26M192 192h26M192 204h26" stroke="white" stroke-width="8" stroke-linecap="round" />`
+    };
+
+    const icon = iconByVariant[variant];
+    const content = icon
+      ? `<g>${icon}\n  </g>`
+      : `<text x="160" y="182" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="108" font-weight="700" fill="white">${initials}</text>`;
 
     return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320" fill="none">
@@ -211,7 +255,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     </linearGradient>
   </defs>
   <rect width="320" height="320" rx="160" fill="url(#g)" />
-  <text x="160" y="182" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="108" font-weight="700" fill="white">${initials}</text>
+  ${content}
 </svg>`;
   };
 
@@ -2765,7 +2809,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.get("/portal", async (request, reply) => {
     const queryIndex = request.url.indexOf("?");
     const query = queryIndex >= 0 ? request.url.slice(queryIndex) : "";
-    return reply.redirect(308, `/portal/${query}`);
+    return reply.redirect(`/portal/${query}`, 308);
   });
 
   app.get("/portal/*", async (request, reply) => {
