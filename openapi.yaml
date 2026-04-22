@@ -1397,7 +1397,75 @@ paths:
       summary: Current portal user profile
       responses:
         '200':
-          description: User profile and apps
+          description: User profile, apps, roles, groups, and effective permissions
+  /api/portal/profile:
+    patch:
+      summary: Update current portal user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                givenName:
+                  type: string
+                familyName:
+                  type: string
+                avatarUrl:
+                  type: string
+                email:
+                  type: string
+                username:
+                  type: string
+                customAttributes:
+                  type: object
+                  additionalProperties:
+                    type: string
+      responses:
+        '204':
+          description: Profile updated
+  /api/portal/change-password:
+    post:
+      summary: Change current portal user password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword:
+                  type: string
+                newPassword:
+                  type: string
+      responses:
+        '204':
+          description: Password changed
+  /api/portal/account:
+    delete:
+      summary: Delete current portal user account
+      responses:
+        '204':
+          description: Account deleted
+  /api/portal/avatar:
+    post:
+      summary: Upload current portal user avatar
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Avatar uploaded
   /auth/login/webauthn/begin:
     post:
       summary: Start WebAuthn login challenge

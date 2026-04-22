@@ -1,0 +1,31 @@
+{
+  "name": "@nexusid/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc --noEmit -p tsconfig.json && npm --prefix .. run check:sdk:openapi-drift",
+    "check:openapi-drift": "npm --prefix .. run check:sdk:openapi-drift",
+    "docs:api-reference": "npm --prefix .. run docs:sdk:api-reference",
+    "docs": "npm run docs:api-reference",
+    "release:prepare": "npm --prefix .. run release:sdk:prepare",
+    "test:contract": "vitest run tests/contract",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.9"
+  }
+}

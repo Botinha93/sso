@@ -6,7 +6,7 @@ type DocArea = 'api' | 'admin' | 'dev'
 interface ApiRoute {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   path: string
-  auth: 'public' | 'session' | 'bearer' | 'client' | 'session+csrf'
+  auth: 'public' | 'session' | 'bearer' | 'client' | 'session+csrf' | 'token'
   description: string
 }
 
@@ -231,10 +231,11 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'DELETE', path: '/api/admin/events/hooks/:id', auth: 'session+csrf', description: 'Deletes event hook.' },
   { method: 'GET', path: '/api/admin/events/notifications', auth: 'session', description: 'Lists event delivery notifications.' },
 
-  { method: 'GET', path: '/api/portal/me', auth: 'session', description: 'Returns portal user profile and assigned apps.' },
-  { method: 'PATCH', path: '/api/portal/profile', auth: 'session+csrf', description: 'Updates profile and custom attributes for current portal user.' },
-  { method: 'POST', path: '/api/portal/change-password', auth: 'session+csrf', description: 'Changes password for current portal user.' },
-  { method: 'DELETE', path: '/api/portal/account', auth: 'session+csrf', description: 'Deletes current portal account and revokes sessions.' },
+  { method: 'GET', path: '/api/portal/me', auth: 'session', description: 'Returns current portal identity context: profile, groups, roles, permissions, rolePermission matrix, and assigned apps.' },
+  { method: 'PATCH', path: '/api/portal/profile', auth: 'session+csrf', description: 'Updates editable fields for current portal user (name and custom attributes).' },
+  { method: 'POST', path: '/api/portal/change-password', auth: 'session+csrf', description: 'Changes current portal user password after verifying currentPassword.' },
+  { method: 'DELETE', path: '/api/portal/account', auth: 'session+csrf', description: 'Deletes current portal account and revokes active sessions/tokens.' },
+  { method: 'POST', path: '/api/portal/avatar', auth: 'session+csrf', description: 'Uploads current user avatar (multipart image file) and returns the resolved avatar URL.' },
   { method: 'GET', path: '/api/account/mfa/webauthn/credentials', auth: 'session', description: 'Lists passkey credentials enrolled by the current account.' },
   { method: 'POST', path: '/api/account/mfa/webauthn/register/begin', auth: 'session+csrf', description: 'Starts passkey enrollment and returns challenge + relying party metadata.' },
   { method: 'POST', path: '/api/account/mfa/webauthn/register/finish', auth: 'session+csrf', description: 'Completes passkey enrollment and stores credential material/signature counter.' },
@@ -2684,6 +2685,27 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
     }
   }
 
+  if (route.path === '/api/setup/status') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({ setupRequired: false, initialized: true })
+    }
+  }
+
+  if (route.path === '/api/csrf-token') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({ csrf_token: 'csrf_xxx' })
+    }
+  }
+
+  if (route.path === '/health') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({ status: 'ok', timestamp: '2026-04-20T12:34:56.000Z' })
+    }
+  }
+
   if (route.path === '/connect/register') {
     return {
       parameters: params,
@@ -2727,6 +2749,35 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
     }
   }
 
+  if (route.path === '/oauth/introspect') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        token: 'eyJ_access_or_refresh_token',
+        client_id: 'client_id',
+        client_secret: 'client_secret'
+      }),
+      expectedResponse: prettyJson({
+        active: true,
+        sub: 'user_xxx',
+        client_id: 'client_id',
+        scope: 'openid profile email',
+        exp: 1776694496
+      })
+    }
+  }
+
+  if (route.path === '/oauth/token/revoke') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        token: 'eyJ_access_or_refresh_token',
+        token_type_hint: 'refresh_token'
+      }),
+      expectedResponse: prettyJson({})
+    }
+  }
+
   if (route.path === '/oauth/device/authorize') {
     return {
       parameters: params,
@@ -2740,6 +2791,32 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
       parameters: params,
       requestJson: prettyJson({ user_code: 'ABCD1234', username: 'admin', password: 'change-me-now', approve: true }),
       expectedResponse: prettyJson({ status: 'approved' })
+    }
+  }
+
+  if (route.path === '/oauth/logout') {
+    return {
+      parameters: [...params, 'Query: post_logout_redirect_uri?, state?'],
+      expectedResponse: '302 redirect to the validated post-logout URI or `/login` after clearing the session cookie.'
+    }
+  }
+
+  if (route.path === '/oauth/frontchannel-logout') {
+    return {
+      parameters: params,
+      expectedResponse: '200 HTML logout confirmation, or 302 redirect when `post_logout_redirect_uri` is supplied and validated.'
+    }
+  }
+
+  if (route.path === '/oauth/backchannel-logout') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        client_id: 'client_id',
+        client_secret: 'client_secret',
+        sid: 'sid_xxx'
+      }),
+      expectedResponse: prettyJson({ revoked: 1 })
     }
   }
 
@@ -2855,6 +2932,44 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
       parameters: params,
       requestJson: prettyJson({ email: 'admin@example.com', password: 'change-me-now', clientId: 'sso-admin-ui', scope: ['openid', 'profile', 'email'] }),
       expectedResponse: prettyJson({ session: { id: 'sid_xxx', userId: 'user_xxx' }, accessToken: 'eyJ...', refreshToken: 'r_xxx' })
+    }
+  }
+
+  if (route.path === '/auth/login/webauthn/begin') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        identifier: 'admin@example.com',
+        clientId: 'sso-admin-ui',
+        scope: ['openid', 'profile', 'email']
+      }),
+      expectedResponse: prettyJson({
+        loginId: 'webauthn_login_xxx',
+        challenge: 'base64url_challenge_xxx',
+        rpId: 'localhost',
+        allowCredentials: [
+          {
+            id: 'credential_xxx',
+            transports: ['internal']
+          }
+        ]
+      })
+    }
+  }
+
+  if (route.path === '/auth/login/webauthn/finish') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        loginId: 'webauthn_login_xxx',
+        credentialId: 'credential_xxx',
+        signCount: 42
+      }),
+      expectedResponse: prettyJson({
+        session: { id: 'sid_xxx', userId: 'user_xxx', clientId: 'sso-admin-ui' },
+        accessToken: 'eyJ...',
+        refreshToken: 'r_xxx'
+      })
     }
   }
 
@@ -3813,6 +3928,173 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
     }
   }
 
+  if (route.path === '/api/portal/me' && route.method === 'GET') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({
+        id: 'user_xxx',
+        email: 'user@example.com',
+        username: 'portal.user',
+        givenName: 'Portal',
+        familyName: 'User',
+        avatarUrl: 'https://cdn.example.com/users/user_xxx/avatar.png',
+        customAttributes: { department: 'Finance' },
+        appId: 'app_portal',
+        roles: ['employee'],
+        groups: ['finance-team'],
+        permissions: ['portal:read'],
+        rolePermissions: [
+          {
+            id: 'role_xxx',
+            name: 'employee',
+            scope: 'platform',
+            permissions: ['portal:read']
+          }
+        ],
+        apps: [
+          {
+            id: 'app_portal',
+            name: 'Employee Portal',
+            description: 'Self-service access hub',
+            imageUrl: 'https://cdn.example.com/apps/portal.png',
+            url: 'https://portal.example.com'
+          }
+        ]
+      }),
+      notes: [
+        'Use this endpoint as the single source of truth for portal self state after login or profile changes.',
+        'roles/groups/permissions arrays represent effective access for the current user session.',
+        'rolePermissions provides role-by-role permission expansion useful for explaining UI access decisions.'
+      ]
+    }
+  }
+
+  if (route.path === '/api/portal/profile' && route.method === 'PATCH') {
+    return {
+      parameters: [...params, 'CSRF: provide x-csrf-token header from GET /api/csrf-token when cookies are used'],
+      requestJson: prettyJson({
+        givenName: 'Updated',
+        familyName: 'User',
+        customAttributes: { department: 'Operations' }
+      }),
+      expectedResponse: '204 No Content',
+      notes: [
+        'Only supplied fields are updated; omitted fields remain unchanged.',
+        'customAttributes should contain keys already defined in your platform attribute schema.'
+      ]
+    }
+  }
+
+  if (route.path === '/api/portal/change-password' && route.method === 'POST') {
+    return {
+      parameters: [...params, 'CSRF: provide x-csrf-token header from GET /api/csrf-token when cookies are used'],
+      requestJson: prettyJson({
+        currentPassword: 'OldPassword123!',
+        newPassword: 'NewPassword123!'
+      }),
+      expectedResponse: '204 No Content',
+      notes: [
+        'currentPassword must match the active credential for the logged-in account.',
+        'After password change, rotate/re-authenticate other device sessions according to your security policy.'
+      ]
+    }
+  }
+
+  if (route.path === '/api/portal/account' && route.method === 'DELETE') {
+    return {
+      parameters: [...params, 'CSRF: provide x-csrf-token header from GET /api/csrf-token when cookies are used'],
+      expectedResponse: '204 No Content',
+      notes: [
+        'This is destructive and irreversible for the local account record.',
+        'Expect current browser session to become invalid immediately after successful deletion.'
+      ]
+    }
+  }
+
+  if (route.path === '/api/portal/avatar' && route.method === 'POST') {
+    return {
+      parameters: [
+        ...params,
+        'CSRF: provide x-csrf-token header from GET /api/csrf-token when cookies are used',
+        'Body: multipart/form-data with file image field'
+      ],
+      expectedResponse: prettyJson({
+        avatarUrl: '/media/uploads/users/user_xxx/avatar_20260420.png'
+      }),
+      notes: [
+        'Use image/png, image/jpeg, image/webp, or image/gif upload types.',
+        'The returned avatarUrl should be persisted client-side and refreshed in profile UI immediately.'
+      ]
+    }
+  }
+
+  if (route.path === '/api/account/mfa/webauthn/credentials' && route.method === 'GET') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson([
+        {
+          credentialId: 'credential_xxx',
+          transports: ['internal'],
+          aaguid: 'adce0002-35bc-c60a-648b-0b25f1f05503',
+          signCount: 42,
+          createdAt: '2026-04-20T12:00:00.000Z'
+        }
+      ])
+    }
+  }
+
+  if (route.path === '/api/account/mfa/webauthn/register/begin' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({ displayName: 'Work Laptop Passkey' }),
+      expectedResponse: prettyJson({
+        registrationId: 'reg_xxx',
+        challenge: 'base64url_challenge_xxx',
+        rp: { id: 'localhost', name: 'SSO' },
+        user: { id: 'user_xxx', name: 'user@example.com', displayName: 'Work Laptop Passkey' }
+      })
+    }
+  }
+
+  if (route.path === '/api/account/mfa/webauthn/register/finish' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        registrationId: 'reg_xxx',
+        credentialId: 'credential_xxx',
+        publicKey: 'base64_public_key_xxx',
+        transports: ['internal'],
+        aaguid: 'adce0002-35bc-c60a-648b-0b25f1f05503',
+        signCount: 0
+      }),
+      expectedResponse: prettyJson({
+        credentialId: 'credential_xxx',
+        transports: ['internal'],
+        aaguid: 'adce0002-35bc-c60a-648b-0b25f1f05503',
+        signCount: 0,
+        createdAt: '2026-04-20T12:00:00.000Z'
+      })
+    }
+  }
+
+  if (route.path === '/api/account/mfa/webauthn/credentials/:credentialId' && route.method === 'DELETE') {
+    return {
+      parameters: params,
+      expectedResponse: '204 No Content'
+    }
+  }
+
+  if (route.path === '/oauth/revoke' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        tokenType: 'refresh',
+        tokenId: 'jti_refresh_xxx'
+      }),
+      expectedResponse: prettyJson({ revoked: true })
+    }
+  }
+
   if (!isMutation) {
     return {
       parameters: params,
@@ -3958,6 +4240,16 @@ function ApiDocs() {
                             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Expected Response</p>
                             <pre className="mt-2 overflow-auto rounded-lg border border-slate-200 bg-white p-3 text-[11px] text-slate-700">{docs.expectedResponse}</pre>
                           </div>
+                          {docs.notes?.length ? (
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Notes</p>
+                              <ul className="mt-2 space-y-1 text-xs text-slate-700">
+                                {docs.notes.map((note) => (
+                                  <li key={note}>{note}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : null}
                         </div>
                       </td>
                     </tr>

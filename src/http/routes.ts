@@ -2663,6 +2663,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     if (!session) return reply.status(401).send({ error: "unauthorized" });
     const user = await deps.userService.findUserById(session.userId);
     if (!user) return reply.status(401).send({ error: "unauthorized" });
+    const roleDetails = await deps.roleService.resolveRolePermissionDetailsForUser(user.id);
     const userApps = (await deps.appService.listApps()).filter(a => {
       // app directly assigned to user, or user has no appId restriction
       return !user.appId || a.id === user.appId;
@@ -2676,6 +2677,10 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       avatarUrl: user.avatarUrl,
       customAttributes: user.customAttributes,
       appId: user.appId,
+      roles: roleDetails.map((role) => role.name),
+      groups: await deps.groupService.resolveGroupNamesForUser(user.id),
+      permissions: Array.from(new Set(roleDetails.flatMap((role) => role.permissions))),
+      rolePermissions: roleDetails,
       apps: userApps.map(a => ({ id: a.id, name: a.name, description: a.description, icon: a.icon, imageUrl: a.imageUrl, url: a.url }))
     };
   });

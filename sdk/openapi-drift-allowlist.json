@@ -1,0 +1,31 @@
+{
+  "missingInOpenApi": [
+    "delete /api/admin/apps/{param}",
+    "delete /api/admin/clients/{param}",
+    "delete /api/admin/group-role-assignments",
+    "delete /api/admin/groups/{param}",
+    "delete /api/admin/roles/{param}",
+    "delete /api/admin/scopes/{param}",
+    "delete /api/admin/user-groups",
+    "delete /api/admin/users/{param}",
+    "get /api/admin/access-reviews/campaigns",
+    "get /api/admin/apps",
+    "get /api/admin/groups",
+    "get /api/admin/roles",
+    "get /api/admin/scopes",
+    "patch /api/admin/users/{param}",
+    "post /api/admin/apps",
+    "post /api/admin/group-role-assignments",
+    "post /api/admin/groups",
+    "post /api/admin/role-assignments",
+    "post /api/admin/roles",
+    "post /api/admin/scopes",
+    "post /api/admin/user-groups",
+    "post /api/admin/users",
+    "post /api/admin/users/{param}/reset-password",
+    "put /api/admin/apps/{param}",
+    "put /api/admin/clients/{param}",
+    "put /api/admin/groups/{param}",
+    "put /api/admin/roles/{param}"
+  ]
+}

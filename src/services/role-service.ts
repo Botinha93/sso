@@ -78,6 +78,29 @@ export class RoleService {
     return Array.from(new Set(permissions));
   }
 
+  async resolveRolePermissionDetailsForUser(userId: string, tenantId?: string) {
+    const assignments = await this.assignmentRepository.listByUser(userId);
+    const matchingRoleIds = assignments
+      .filter((assignment) => !assignment.tenantId || assignment.tenantId === tenantId)
+      .map((assignment) => assignment.roleId);
+
+    const userGroups = (await this.userGroupAssignmentRepository.listByUser(userId)).map((assignment) => assignment.groupId);
+    const groupRoleIds = (await this.groupRoleAssignmentRepository
+      .listByGroups(userGroups))
+      .map((assignment) => assignment.roleId);
+
+    const effectiveRoleIds = Array.from(new Set([...matchingRoleIds, ...groupRoleIds]));
+    const roles = await this.roleRepository.findByIds(effectiveRoleIds);
+
+    return roles.map((role) => ({
+      id: role.id,
+      name: role.name,
+      scope: role.scope,
+      appId: role.appId,
+      permissions: role.permissions
+    }));
+  }
+
   async listAssignmentsForUser(userId: string) {
     return this.assignmentRepository.listByUser(userId);
   }
