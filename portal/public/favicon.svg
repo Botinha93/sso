@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="NexusID Portal">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0ea5e9" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="16" fill="url(#bg)" />
+  <path d="M22 43V21h8.5c8 0 13.5 4.5 13.5 11s-5.5 11-13.5 11H22Zm7-6h1.8c4.2 0 6.7-2 6.7-5s-2.5-5-6.7-5H29v10Z" fill="#ffffff" />
+</svg>

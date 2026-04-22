@@ -300,12 +300,18 @@ export class SetupService {
 
     // Ensure a default "Account Portal" app exists.
     const existingApps = await this.appService.listApps();
-    if (!existingApps.some((app) => app.name === "Account Portal")) {
+    const portalApp = existingApps.find((app) => app.name === "Account Portal");
+    if (!portalApp) {
       await this.appService.createApp({
         name: "Account Portal",
         description: "Default self-service user portal",
         icon: "👤",
-        url: "/portal"
+        url: "/portal/"
+      });
+    } else if (portalApp.url === "/portal") {
+      // Normalize legacy default URL to canonical portal base path.
+      await this.appService.updateApp(portalApp.id, {
+        url: "/portal/"
       });
     }
   }

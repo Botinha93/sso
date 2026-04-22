@@ -2762,8 +2762,10 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return reply.status(200).send({ avatarUrl: saved.url });
   });
 
-  app.get("/portal", async (_request, reply) => {
-    return sendFrontendIndex(reply, "portal");
+  app.get("/portal", async (request, reply) => {
+    const queryIndex = request.url.indexOf("?");
+    const query = queryIndex >= 0 ? request.url.slice(queryIndex) : "";
+    return reply.redirect(308, `/portal/${query}`);
   });
 
   app.get("/portal/*", async (request, reply) => {
