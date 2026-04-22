@@ -26,7 +26,7 @@ This example demonstrates the full flow you asked for:
 ```bash
 BACKEND_OAUTH_CLIENT_ID=backend-api \
 BACKEND_OAUTH_CLIENT_SECRET=replace-me \
-node examples/fullstack-rbac/backend.js
+node sdk/examples/fullstack-rbac/backend.js
 ```
 
 Then open:

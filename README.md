@@ -172,7 +172,7 @@ Flow payload fields:
 - SPA example (Authorization Code + PKCE): `examples/spa/index.html`
 - Server example (Client Credentials): `examples/server/client-credentials.js`
 - Mobile helper example (PKCE utilities): `examples/mobile/pkce.js`
-- Fullstack example (frontend login -> backend OAuth check -> role/permission route guard): `examples/fullstack-rbac/README.md`
+- Fullstack example (frontend login -> backend OAuth check -> role/permission route guard): `sdk/examples/fullstack-rbac/README.md`
 
 ## Seeded admin
 
