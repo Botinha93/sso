@@ -1,36 +1,31 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useEffect, useRef } from 'react'
 import { usePortalMe, usePortalUpdateProfile } from './hooks'
-import { type Language, useI18n } from './i18n'
+import { useI18n } from './i18n'
 import Launcher from './pages/Launcher'
 import Login from './pages/Login'
 import Profile from './pages/Profile'
 
 export default function App() {
-  const { language, setLanguage } = useI18n()
+  const { language } = useI18n()
   const { data: user, isLoading, error } = usePortalMe()
   const { mutateAsync: updateProfile } = usePortalUpdateProfile()
-  const lastSyncedLanguage = useRef<string | null>(null)
+  const inFlightSyncKey = useRef<string | null>(null)
+  const lastSyncedKey = useRef<string | null>(null)
 
   useEffect(() => {
     if (!user) return
-    const preferred = user.customAttributes?.preferredLanguage
-    if (!preferred) return
-    if (preferred === language) return
+    const syncKey = `${user.id}:${language}`
 
-    const supported = new Set<Language>(['en', 'es', 'fr', 'de', 'it', 'pt', 'ja', 'zh', 'ko', 'ru'])
-    if (supported.has(preferred as Language)) {
-      setLanguage(preferred as Language)
-    }
-  }, [language, setLanguage, user])
-
-  useEffect(() => {
-    if (!user) return
     if (user.customAttributes?.preferredLanguage === language) {
-      lastSyncedLanguage.current = language
+      lastSyncedKey.current = syncKey
       return
     }
-    if (lastSyncedLanguage.current === language) return
+
+    if (lastSyncedKey.current === syncKey) return
+    if (inFlightSyncKey.current === syncKey) return
+
+    inFlightSyncKey.current = syncKey
 
     void updateProfile({
       customAttributes: {
@@ -38,9 +33,13 @@ export default function App() {
         preferredLanguage: language
       }
     }).then(() => {
-      lastSyncedLanguage.current = language
+      lastSyncedKey.current = syncKey
     }).catch(() => {
       // Keep local selection even if profile sync fails.
+    }).finally(() => {
+      if (inFlightSyncKey.current === syncKey) {
+        inFlightSyncKey.current = null
+      }
     })
   }, [language, updateProfile, user])
 
