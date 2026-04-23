@@ -19,6 +19,10 @@ export const buildApp = async () => {
   });
 
   app.addHook("onRequest", async (request, reply) => {
+    if (request.url === "/health") {
+      return;
+    }
+
     if (!await services.instanceSettingsService.shouldRequireHttps()) {
       return;
     }

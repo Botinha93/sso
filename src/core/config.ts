@@ -30,6 +30,16 @@ const asBoolean = (name: string, fallback: boolean): boolean => {
   throw new Error(`Invalid boolean environment variable: ${name}`);
 };
 
+const asHost = (): string => {
+  const raw = process.env.HOST;
+  if (!raw) {
+    return "0.0.0.0";
+  }
+
+  const normalized = raw.trim();
+  return normalized.length > 0 ? normalized : "0.0.0.0";
+};
+
 const resolveCookieSecret = (): string => {
   const configured = process.env.COOKIE_SECRET?.trim();
   if (configured) {
@@ -106,7 +116,7 @@ export interface AppConfig {
 
 export const loadConfig = (): AppConfig => ({
   port: asNumber("PORT", 4000),
-  host: process.env.HOST ?? "127.0.0.1",
+  host: asHost(),
   trustProxy: asBoolean("TRUST_PROXY", false),
   cookieSecret: resolveCookieSecret(),
   databaseProvider: (() => {
