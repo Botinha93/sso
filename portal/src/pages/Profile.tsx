@@ -2,6 +2,8 @@ import { AlertTriangle, ArrowLeft, Check, Eye, EyeOff, KeyRound, Loader2, Plus, 
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { PortalUser } from '../hooks'
+import LanguageSelector from '../components/LanguageSelector'
+import { useI18n } from '../i18n'
 import {
   usePortalChangePassword,
   usePortalDefaultAvatars,
@@ -30,6 +32,7 @@ interface Props {
 type Section = 'profile' | 'password' | 'totp' | 'danger'
 
 export default function Profile({ user }: Props) {
+  const { t } = useI18n()
   const navigate = useNavigate()
   const [section, setSection] = useState<Section>('profile')
 
@@ -45,21 +48,27 @@ export default function Profile({ user }: Props) {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 transition-colors">
             <ArrowLeft size={15} />
-            Back to Apps
+            {t('profile.backToApps')}
           </Link>
-          <button
-            onClick={handleLogout}
-            className="h-8 px-3 rounded-lg text-sm font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-          >
-            Sign out
-          </button>
+          <div className="flex items-center gap-2">
+            <LanguageSelector className="hidden sm:inline-flex" />
+            <button
+              onClick={handleLogout}
+              className="h-8 px-3 rounded-lg text-sm font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+            >
+              {t('common.signOut')}
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 sm:px-6 sm:py-10">
+        <div className="mb-4 sm:hidden">
+          <LanguageSelector />
+        </div>
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-slate-900">Account Settings</h1>
-          <p className="text-sm text-slate-500 mt-1">Manage your profile and security settings</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t('profile.accountSettings')}</h1>
+          <p className="text-sm text-slate-500 mt-1">{t('profile.manageSettings')}</p>
         </div>
 
         <div className="flex flex-col gap-6 lg:flex-row">
@@ -67,10 +76,10 @@ export default function Profile({ user }: Props) {
           <nav className="w-full shrink-0 lg:w-44">
             <div className="flex gap-2 overflow-x-auto pb-1 lg:block lg:space-y-1 lg:overflow-visible lg:pb-0">
             {([
-              { key: 'profile', label: 'Profile', icon: <User size={14} /> },
-              { key: 'password', label: 'Password', icon: <KeyRound size={14} /> },
-              { key: 'totp', label: 'Two-Factor', icon: <ShieldCheck size={14} /> },
-              { key: 'danger', label: 'Account', icon: <AlertTriangle size={14} /> },
+              { key: 'profile', label: t('profile.nav.profile'), icon: <User size={14} /> },
+              { key: 'password', label: t('profile.nav.password'), icon: <KeyRound size={14} /> },
+              { key: 'totp', label: t('profile.nav.twoFactor'), icon: <ShieldCheck size={14} /> },
+              { key: 'danger', label: t('profile.nav.account'), icon: <AlertTriangle size={14} /> },
             ] as { key: Section; label: string; icon: React.ReactNode }[]).map(item => (
               <button
                 key={item.key}
@@ -104,6 +113,7 @@ export default function Profile({ user }: Props) {
 // ─── Profile Section ──────────────────────────────────────────────────────────
 
 function ProfileSection({ user }: { user: PortalUser }) {
+  const { t } = useI18n()
   const update = usePortalUpdateProfile()
   const uploadAvatar = usePortalUploadAvatar()
   const [form, setForm] = useState({
@@ -139,7 +149,7 @@ function ProfileSection({ user }: { user: PortalUser }) {
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
     } catch (e: any) {
-      setError(e.message ?? 'Failed to save')
+      setError(e.message ?? t('profile.profileSection.errors.saveFailed'))
     }
   }
 
@@ -150,21 +160,21 @@ function ProfileSection({ user }: { user: PortalUser }) {
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
-      <h2 className="text-base font-semibold text-slate-900">Personal Information</h2>
+      <h2 className="text-base font-semibold text-slate-900">{t('profile.profileSection.title')}</h2>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label className={labelCls}>First Name</label>
+          <label className={labelCls}>{t('profile.profileSection.firstName')}</label>
           <input className={fieldCls} value={form.givenName} onChange={e => setForm(p => ({ ...p, givenName: e.target.value }))} />
         </div>
         <div>
-          <label className={labelCls}>Last Name</label>
+          <label className={labelCls}>{t('profile.profileSection.lastName')}</label>
           <input className={fieldCls} value={form.familyName} onChange={e => setForm(p => ({ ...p, familyName: e.target.value }))} />
         </div>
       </div>
 
       <div>
-        <label className={labelCls}>Profile Picture</label>
+        <label className={labelCls}>{t('profile.profileSection.profilePicture')}</label>
         <div className="flex items-center gap-3 mb-2">
           <div className="h-14 w-14 rounded-full bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center text-sm font-semibold text-slate-600">
             {form.avatarUrl ? <img src={form.avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : initials}
@@ -182,7 +192,7 @@ function ProfileSection({ user }: { user: PortalUser }) {
                   setForm((prev) => ({ ...prev, avatarUrl: result.avatarUrl ?? '' }))
                 }
               } catch (e: any) {
-                setError(e.message ?? 'Avatar upload failed')
+                setError(e.message ?? t('profile.profileSection.errors.avatarUploadFailed'))
               }
             }}
           />
@@ -203,28 +213,28 @@ function ProfileSection({ user }: { user: PortalUser }) {
       </div>
 
       <div>
-        <label className={labelCls}>Email Address</label>
+        <label className={labelCls}>{t('profile.profileSection.emailAddress')}</label>
         <input type="email" className={fieldCls} value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
       </div>
 
       <div>
-        <label className={labelCls}>Username</label>
+        <label className={labelCls}>{t('profile.profileSection.username')}</label>
         <input className={fieldCls} value={form.username} onChange={e => setForm(p => ({ ...p, username: e.target.value }))} />
       </div>
 
       {/* Custom Attributes */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <label className={labelCls}>Custom Attributes</label>
+          <label className={labelCls}>{t('profile.profileSection.customAttributes')}</label>
           <button
             onClick={addAttr}
             className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-900 transition-colors"
           >
-            <Plus size={12} /> Add
+            <Plus size={12} /> {t('profile.profileSection.add')}
           </button>
         </div>
         {customAttrs.length === 0 ? (
-          <p className="text-xs text-slate-400 italic">No custom attributes</p>
+          <p className="text-xs text-slate-400 italic">{t('profile.profileSection.noCustomAttributes')}</p>
         ) : (
           <div className="space-y-2">
             {customAttrs.map(([key, val], i) => (
@@ -233,13 +243,13 @@ function ProfileSection({ user }: { user: PortalUser }) {
                   className={`${fieldCls} font-mono`}
                   value={key}
                   onChange={e => setAttrKey(i, e.target.value)}
-                  placeholder="key"
+                  placeholder={t('profile.profileSection.keyPlaceholder')}
                 />
                 <input
                   className={fieldCls}
                   value={val}
                   onChange={e => setAttrVal(i, e.target.value)}
-                  placeholder="value"
+                  placeholder={t('profile.profileSection.valuePlaceholder')}
                 />
                 <button onClick={() => removeAttr(i)} className="self-end text-slate-400 hover:text-red-500 transition-colors shrink-0 sm:self-center">
                   <X size={14} />
@@ -257,7 +267,7 @@ function ProfileSection({ user }: { user: PortalUser }) {
       <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
         {saved && (
           <span className="text-sm text-green-600 flex items-center gap-1">
-            <Check size={14} /> Saved
+            <Check size={14} /> {t('profile.profileSection.saved')}
           </span>
         )}
         <button
@@ -266,7 +276,7 @@ function ProfileSection({ user }: { user: PortalUser }) {
           className="h-9 px-4 rounded-xl bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 disabled:opacity-60 transition-colors"
         >
           {update.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-          Save Changes
+          {t('profile.profileSection.saveChanges')}
         </button>
       </div>
     </div>
@@ -276,6 +286,7 @@ function ProfileSection({ user }: { user: PortalUser }) {
 // ─── Two-Factor Section ─────────────────────────────────────────────────────
 
 function TotpSection() {
+  const { t } = useI18n()
   const { data: status, isLoading: statusLoading } = useTotpStatus()
   const { data: passkeys } = useWebauthnCredentials()
   const enroll = useTotpEnroll()
@@ -295,10 +306,10 @@ function TotpSection() {
   const copy = async (value: string) => {
     try {
       await navigator.clipboard.writeText(value)
-      setSuccess('Copied to clipboard')
+      setSuccess(t('profile.totp.messages.copied'))
       setTimeout(() => setSuccess(''), 1800)
     } catch {
-      setError('Could not copy to clipboard')
+      setError(t('profile.totp.errors.copyFailed'))
     }
   }
 
@@ -316,7 +327,7 @@ function TotpSection() {
     setError('')
     setSuccess('')
     try {
-      const begin = await passkeyBegin.mutateAsync()
+      const begin = await passkeyBegin.mutateAsync(undefined)
       await passkeyFinish.mutateAsync({
         registrationId: begin.registrationId,
         credentialId: generateBase64Url(32),
@@ -324,9 +335,9 @@ function TotpSection() {
         transports: ['internal'],
         signCount: 0
       })
-      setSuccess('Passkey registered')
+      setSuccess(t('profile.totp.messages.passkeyRegistered'))
     } catch (e: any) {
-      setError(e.message ?? 'Failed to register passkey')
+      setError(e.message ?? t('profile.totp.errors.passkeyRegisterFailed'))
     }
   }
 
@@ -335,9 +346,9 @@ function TotpSection() {
     setSuccess('')
     try {
       await passkeyDelete.mutateAsync(credentialId)
-      setSuccess('Passkey removed')
+      setSuccess(t('profile.totp.messages.passkeyRemoved'))
     } catch (e: any) {
-      setError(e.message ?? 'Failed to remove passkey')
+      setError(e.message ?? t('profile.totp.errors.passkeyRemoveFailed'))
     }
   }
 
@@ -349,7 +360,7 @@ function TotpSection() {
       setEnrollment(payload)
       setVerificationCode('')
     } catch (e: any) {
-      setError(e.message ?? 'Failed to start 2FA enrollment')
+      setError(e.message ?? t('profile.totp.errors.startEnrollmentFailed'))
     }
   }
 
@@ -364,9 +375,9 @@ function TotpSection() {
       })
       setEnrollment(null)
       setVerificationCode('')
-      setSuccess('Two-factor authentication enabled')
+      setSuccess(t('profile.totp.messages.enabled'))
     } catch (e: any) {
-      setError(e.message ?? 'Invalid authenticator code')
+      setError(e.message ?? t('profile.totp.errors.invalidCode'))
     }
   }
 
@@ -377,16 +388,16 @@ function TotpSection() {
       await disable.mutateAsync()
       setEnrollment(null)
       setVerificationCode('')
-      setSuccess('Two-factor authentication disabled')
+      setSuccess(t('profile.totp.messages.disabled'))
     } catch (e: any) {
-      setError(e.message ?? 'Failed to disable two-factor authentication')
+      setError(e.message ?? t('profile.totp.errors.disableFailed'))
     }
   }
 
   if (statusLoading) {
     return (
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <p className="text-sm text-slate-500">Loading two-factor settings...</p>
+        <p className="text-sm text-slate-500">{t('profile.totp.loading')}</p>
       </div>
     )
   }
@@ -394,14 +405,14 @@ function TotpSection() {
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
       <div>
-        <h2 className="text-base font-semibold text-slate-900">Two-Factor Authentication (TOTP)</h2>
+        <h2 className="text-base font-semibold text-slate-900">{t('profile.totp.title')}</h2>
         <p className="text-sm text-slate-500 mt-1">
-          Use an authenticator app to protect your account with a one-time verification code at sign-in.
+          {t('profile.totp.subtitle')}
         </p>
       </div>
 
       <div className={`rounded-xl border px-4 py-3 text-sm ${mfaEnabled ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
-        {mfaEnabled ? '2FA is currently enabled on this account.' : '2FA is currently disabled on this account.'}
+        {mfaEnabled ? t('profile.totp.status.enabled') : t('profile.totp.status.disabled')}
       </div>
 
       {error && (
@@ -413,13 +424,13 @@ function TotpSection() {
 
       {mfaEnabled ? (
         <div className="space-y-3">
-          <p className="text-sm text-slate-600">If you lost access to your authenticator, you can disable 2FA and enroll again.</p>
+          <p className="text-sm text-slate-600">{t('profile.totp.disableHint')}</p>
           <button
             onClick={handleDisable}
             disabled={disable.isPending}
             className="h-9 px-4 rounded-xl border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 disabled:opacity-60 transition-colors"
           >
-            {disable.isPending ? 'Disabling...' : 'Disable 2FA'}
+            {disable.isPending ? t('profile.totp.disabling') : t('profile.totp.disable')}
           </button>
         </div>
       ) : (
@@ -430,51 +441,51 @@ function TotpSection() {
               disabled={enroll.isPending}
               className="h-9 px-4 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-60 transition-colors"
             >
-              {enroll.isPending ? 'Starting...' : 'Start 2FA setup'}
+              {enroll.isPending ? t('profile.totp.starting') : t('profile.totp.startSetup')}
             </button>
           ) : (
             <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div>
-                <p className="text-sm font-medium text-slate-900">Step 1: Add account to your authenticator app</p>
-                <p className="text-xs text-slate-500 mt-1">Use the secret below or the full OTP auth URI.</p>
+                <p className="text-sm font-medium text-slate-900">{t('profile.totp.step1Title')}</p>
+                <p className="text-xs text-slate-500 mt-1">{t('profile.totp.step1Subtitle')}</p>
               </div>
 
               <div>
-                <label className={labelCls}>Secret</label>
+                <label className={labelCls}>{t('profile.totp.secret')}</label>
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <input readOnly value={enrollment.secret} className={`${fieldCls} font-mono`} />
                   <button
                     onClick={() => copy(enrollment.secret)}
                     className="h-9 px-3 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-100 transition-colors"
                   >
-                    Copy
+                    {t('profile.totp.copy')}
                   </button>
                 </div>
               </div>
 
               <div>
-                <label className={labelCls}>OTP Auth URI</label>
+                <label className={labelCls}>{t('profile.totp.otpAuthUri')}</label>
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <input readOnly value={enrollment.otpauthUri} className={`${fieldCls} font-mono text-xs`} />
                   <button
                     onClick={() => copy(enrollment.otpauthUri)}
                     className="h-9 px-3 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-100 transition-colors"
                   >
-                    Copy
+                    {t('profile.totp.copy')}
                   </button>
                 </div>
               </div>
 
               <div>
-                <p className="text-sm font-medium text-slate-900">Step 2: Verify one-time code</p>
-                <p className="text-xs text-slate-500 mt-1">Enter the 6-digit code from your authenticator app.</p>
+                <p className="text-sm font-medium text-slate-900">{t('profile.totp.step2Title')}</p>
+                <p className="text-xs text-slate-500 mt-1">{t('profile.totp.step2Subtitle')}</p>
               </div>
 
               <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
                 <input
                   value={verificationCode}
                   onChange={(e) => setVerificationCode(e.target.value.replace(/\D+/g, '').slice(0, 8))}
-                  placeholder="123456"
+                  placeholder={t('profile.totp.codePlaceholder')}
                   className={`${fieldCls} tracking-[0.18em] font-mono sm:max-w-[220px]`}
                 />
                 <button
@@ -482,7 +493,7 @@ function TotpSection() {
                   disabled={verify.isPending || verificationCode.trim().length < 6}
                   className="h-9 px-4 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-60 transition-colors"
                 >
-                  {verify.isPending ? 'Verifying...' : 'Enable 2FA'}
+                  {verify.isPending ? t('profile.totp.verifying') : t('profile.totp.enable')}
                 </button>
                 <button
                   onClick={() => {
@@ -492,7 +503,7 @@ function TotpSection() {
                   }}
                   className="h-9 px-3 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-100 transition-colors"
                 >
-                  Cancel
+                  {t('profile.common.cancel')}
                 </button>
               </div>
             </div>
@@ -502,8 +513,8 @@ function TotpSection() {
 
       <div className="pt-2 border-t border-slate-100 space-y-3">
         <div>
-          <h3 className="text-sm font-semibold text-slate-900">Passkeys (WebAuthn)</h3>
-          <p className="text-xs text-slate-500 mt-1">Register platform passkeys for phishing-resistant MFA and passwordless sign-in flows.</p>
+          <h3 className="text-sm font-semibold text-slate-900">{t('profile.passkeys.title')}</h3>
+          <p className="text-xs text-slate-500 mt-1">{t('profile.passkeys.subtitle')}</p>
         </div>
 
         <button
@@ -511,7 +522,7 @@ function TotpSection() {
           disabled={passkeyBegin.isPending || passkeyFinish.isPending}
           className="h-9 px-4 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-60 transition-colors"
         >
-          {passkeyBegin.isPending || passkeyFinish.isPending ? 'Registering...' : 'Register passkey'}
+          {passkeyBegin.isPending || passkeyFinish.isPending ? t('profile.passkeys.registering') : t('profile.passkeys.register')}
         </button>
 
         {passkeys && passkeys.length > 0 ? (
@@ -520,20 +531,20 @@ function TotpSection() {
               <div key={credential.credentialId} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <p className="text-xs font-mono text-slate-700 truncate">{credential.credentialId}</p>
-                  <p className="text-xs text-slate-500">signCount {credential.signCount} {credential.transports.length > 0 ? `• ${credential.transports.join(', ')}` : ''}</p>
+                  <p className="text-xs text-slate-500">{t('profile.passkeys.signCount', { count: String(credential.signCount) })} {credential.transports.length > 0 ? `• ${credential.transports.join(', ')}` : ''}</p>
                 </div>
                 <button
                   onClick={() => handleDeletePasskey(credential.credentialId)}
                   disabled={passkeyDelete.isPending}
                   className="h-8 px-3 rounded-lg border border-red-200 text-red-600 text-xs font-medium hover:bg-red-50 disabled:opacity-60 transition-colors"
                 >
-                  Remove
+                  {t('profile.common.remove')}
                 </button>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-xs text-slate-500">No registered passkeys yet.</p>
+          <p className="text-xs text-slate-500">{t('profile.passkeys.none')}</p>
         )}
       </div>
     </div>
@@ -543,6 +554,7 @@ function TotpSection() {
 // ─── Password Section ─────────────────────────────────────────────────────────
 
 function PasswordSection() {
+  const { t } = useI18n()
   const change = usePortalChangePassword()
   const [form, setForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
   const [showCur, setShowCur] = useState(false)
@@ -554,7 +566,7 @@ function PasswordSection() {
     e.preventDefault()
     setError('')
     if (form.newPassword !== form.confirmPassword) {
-      setError('New passwords do not match')
+      setError(t('profile.password.errors.mismatch'))
       return
     }
     try {
@@ -563,16 +575,16 @@ function PasswordSection() {
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
     } catch (e: any) {
-      setError(e.message ?? 'Failed to change password')
+      setError(e.message ?? t('profile.password.errors.changeFailed'))
     }
   }
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-6">
-      <h2 className="text-base font-semibold text-slate-900 mb-5">Change Password</h2>
+      <h2 className="text-base font-semibold text-slate-900 mb-5">{t('profile.password.title')}</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className={labelCls}>Current Password</label>
+          <label className={labelCls}>{t('profile.password.currentPassword')}</label>
           <div className="relative">
             <input
               type={showCur ? 'text' : 'password'}
@@ -587,7 +599,7 @@ function PasswordSection() {
           </div>
         </div>
         <div>
-          <label className={labelCls}>New Password</label>
+          <label className={labelCls}>{t('profile.password.newPassword')}</label>
           <div className="relative">
             <input
               type={showNew ? 'text' : 'password'}
@@ -603,7 +615,7 @@ function PasswordSection() {
           </div>
         </div>
         <div>
-          <label className={labelCls}>Confirm New Password</label>
+          <label className={labelCls}>{t('profile.password.confirmNewPassword')}</label>
           <input
             type="password"
             className={fieldCls}
@@ -619,7 +631,7 @@ function PasswordSection() {
         )}
         {success && (
           <p className="text-sm text-green-600 bg-green-50 border border-green-100 rounded-lg px-3 py-2 flex items-center gap-1.5">
-            <Check size={14} /> Password changed successfully
+            <Check size={14} /> {t('profile.password.success')}
           </p>
         )}
 
@@ -630,7 +642,7 @@ function PasswordSection() {
             className="h-9 px-4 rounded-xl bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 disabled:opacity-60 transition-colors"
           >
             {change.isPending ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} />}
-            Update Password
+            {t('profile.password.updateButton')}
           </button>
         </div>
       </form>
@@ -641,6 +653,7 @@ function PasswordSection() {
 // ─── Danger Section ───────────────────────────────────────────────────────────
 
 function DangerSection({ user, onDeleted }: { user: PortalUser; onDeleted: () => void }) {
+  const { t } = useI18n()
   const deleteAccount = usePortalDeleteAccount()
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmText, setConfirmText] = useState('')
@@ -648,7 +661,7 @@ function DangerSection({ user, onDeleted }: { user: PortalUser; onDeleted: () =>
 
   const handleDelete = async () => {
     if (confirmText !== user.username) {
-      setError(`Please type your username "${user.username}" to confirm`)
+      setError(t('profile.danger.confirmPrompt', { username: user.username }))
       return
     }
     try {
@@ -656,26 +669,26 @@ function DangerSection({ user, onDeleted }: { user: PortalUser; onDeleted: () =>
       onDeleted()
       window.location.href = portalHome
     } catch (e: any) {
-      setError(e.message ?? 'Failed to delete account')
+      setError(e.message ?? t('profile.danger.errors.deleteFailed'))
     }
   }
 
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <h2 className="text-base font-semibold text-slate-900 mb-1">Account Information</h2>
-        <p className="text-sm text-slate-500 mb-4">Your account details</p>
+        <h2 className="text-base font-semibold text-slate-900 mb-1">{t('profile.danger.accountInformation')}</h2>
+        <p className="text-sm text-slate-500 mb-4">{t('profile.danger.accountDetails')}</p>
         <div className="space-y-2 text-sm">
           <div className="flex flex-col gap-1 py-2 border-b border-slate-100 sm:flex-row sm:justify-between">
-            <span className="text-slate-500">User ID</span>
+            <span className="text-slate-500">{t('profile.danger.userId')}</span>
             <span className="font-mono text-slate-700 text-xs break-all sm:text-right">{user.id}</span>
           </div>
           <div className="flex flex-col gap-1 py-2 border-b border-slate-100 sm:flex-row sm:justify-between">
-            <span className="text-slate-500">Username</span>
+            <span className="text-slate-500">{t('profile.profileSection.username')}</span>
             <span className="text-slate-800 font-medium sm:text-right">{user.username}</span>
           </div>
           <div className="flex flex-col gap-1 py-2 sm:flex-row sm:justify-between">
-            <span className="text-slate-500">Email</span>
+            <span className="text-slate-500">{t('profile.profileSection.emailAddress')}</span>
             <span className="text-slate-800 break-all sm:text-right">{user.email}</span>
           </div>
         </div>
@@ -685,9 +698,9 @@ function DangerSection({ user, onDeleted }: { user: PortalUser; onDeleted: () =>
         <div className="flex items-start gap-3 mb-4">
           <AlertTriangle size={18} className="text-red-500 mt-0.5 shrink-0" />
           <div>
-            <h2 className="text-base font-semibold text-slate-900">Delete Account</h2>
+            <h2 className="text-base font-semibold text-slate-900">{t('profile.danger.deleteTitle')}</h2>
             <p className="text-sm text-slate-500 mt-0.5">
-              Permanently delete your account and all associated data. This action cannot be undone.
+              {t('profile.danger.deleteDescription')}
             </p>
           </div>
         </div>
@@ -698,12 +711,12 @@ function DangerSection({ user, onDeleted }: { user: PortalUser; onDeleted: () =>
             className="h-9 px-4 rounded-xl border border-red-200 text-red-600 text-sm font-medium flex items-center gap-2 hover:bg-red-50 transition-colors"
           >
             <Trash2 size={14} />
-            Delete My Account
+            {t('profile.danger.deleteMyAccount')}
           </button>
         ) : (
           <div className="space-y-3">
             <p className="text-sm text-slate-700">
-              Type your username <span className="font-mono font-semibold text-slate-900">{user.username}</span> to confirm:
+              {t('profile.danger.typeUsernameToConfirm')} <span className="font-mono font-semibold text-slate-900">{user.username}</span>:
             </p>
             <input
               className={fieldCls}
@@ -719,7 +732,7 @@ function DangerSection({ user, onDeleted }: { user: PortalUser; onDeleted: () =>
                 onClick={() => { setConfirmOpen(false); setConfirmText(''); setError('') }}
                 className="h-9 px-4 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
               >
-                Cancel
+                {t('profile.common.cancel')}
               </button>
               <button
                 onClick={handleDelete}
@@ -727,7 +740,7 @@ function DangerSection({ user, onDeleted }: { user: PortalUser; onDeleted: () =>
                 className="h-9 px-4 rounded-xl bg-red-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-red-700 disabled:opacity-60 transition-colors"
               >
                 {deleteAccount.isPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                Delete Account
+                {t('profile.danger.deleteAccount')}
               </button>
             </div>
           </div>

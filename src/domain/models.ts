@@ -1,3 +1,4 @@
+export type Language = "en" | "es" | "fr" | "de" | "it" | "pt" | "ja" | "zh" | "ko" | "ru";
 export type RoleScope = "platform" | "tenant";
 export type GrantType = "authorization_code" | "client_credentials" | "refresh_token" | "password" | "device_code";
 export type AuthenticationStageType =
@@ -48,6 +49,7 @@ export interface User {
   email: string;
   username: string;
   passwordHash: string;
+  preferredLanguage?: Language;
   givenName: string;
   familyName: string;
   customAttributes: Record<string, string>;

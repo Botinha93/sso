@@ -35,7 +35,7 @@ export const buildApp = async () => {
 
     return reply.status(426).send({
       error: "https_required",
-      message: "HTTPS is required in production"
+      message: "HTTPS is required by instance settings"
     });
   });
 

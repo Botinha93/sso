@@ -58,8 +58,7 @@ Run it with the default SQLite configuration and a persisted data directory:
 ```bash
 docker run --rm -p 4000:4000 \
    -e ISSUER=http://localhost:4000 \
-   -e ADMIN_EMAIL=admin@example.com \
-   -e ADMIN_PASSWORD=change-me-now \
+   -e COOKIE_SECRET="$(openssl rand -hex 32)" \
    -v sso-data:/app/data \
    sso-platform
 ```
@@ -71,7 +70,8 @@ Notes:
 - The admin frontend is served from `/` and the account portal is served from `/portal`.
 - Set `DATABASE_PROVIDER=postgresql` or `DATABASE_PROVIDER=mysql` together with `DATABASE_URL` to use an external database.
 - The container healthcheck targets `GET /health`.
-- On first boot, the container can auto-run setup using `ADMIN_NAME`, `ADMIN_USERNAME`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD`.
+- On first boot, the image defaults to the first-run installer (`AUTO_SETUP=false`).
+- To auto-run setup instead, set `AUTO_SETUP=true` and provide `ADMIN_NAME`, `ADMIN_USERNAME`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD`.
 - For PostgreSQL/MySQL, the entrypoint runs `prisma db push` by default before the server starts. Set `RUN_PRISMA_DB_PUSH=false` to disable that.
 - To perform a one-time SQLite import into PostgreSQL/MySQL at startup, set `MIGRATE_FROM_SQLITE_PATH` and keep `INIT_SENTINEL_PATH` on persistent storage so the import is not repeated on restart.
 - Set `COOKIE_SECRET` for every deployment. In production, startup now fails if it is missing.

@@ -118,6 +118,8 @@ import { ConnectorService, AuthMetricsService } from "../services/connector-serv
 import { PluginService } from "../services/plugin-service.js";
 import { PluginRuntimeService } from "../services/plugin-runtime-service.js";
 import { MediaService } from "../services/media-service.js";
+import { GeolocationService } from "../services/geolocation-service.js";
+import { TranslationService } from "../services/translation-service.js";
 import type {
   AuditRepository,
   PolicyDecisionLogRepository,
@@ -177,6 +179,8 @@ interface RouteDeps {
 export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
   const allowedImageMimeTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"]);
+  const translationService = new TranslationService();
+  const geolocationService = new GeolocationService();
 
   const escapeXml = (value: string) => value
     .replaceAll("&", "&amp;")
@@ -2700,6 +2704,39 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     if (!session || session.expiresAt.getTime() < Date.now() || session.revokedAt) return null;
     return session;
   }
+
+  app.get("/api/portal/language/default", async (request) => {
+    const countryHeaders = ["cf-ipcountry", "x-vercel-ip-country", "x-country-code"] as const;
+    let countryCode: string | null = null;
+
+    for (const header of countryHeaders) {
+      const value = request.headers[header];
+      if (typeof value === "string" && value.trim().length === 2) {
+        countryCode = value.trim().toUpperCase();
+        break;
+      }
+    }
+
+    const fromCountry = countryCode
+      ? geolocationService.getLanguageFromCountryCode(countryCode)
+      : null;
+
+    const fromIp = fromCountry
+      ? null
+      : await geolocationService.detectLanguageFromIp(request.ip);
+
+    const acceptLanguage = typeof request.headers["accept-language"] === "string"
+      ? request.headers["accept-language"]
+      : "";
+
+    const fallback = translationService.detectLanguageFromHeader(acceptLanguage);
+    const language = fromCountry ?? fromIp ?? fallback;
+
+    return {
+      language,
+      supportedLanguages: translationService.getAvailableLanguages()
+    };
+  });
 
   // GET /api/portal/me — current user profile + apps + custom attributes
   app.get("/api/portal/me", async (request, reply) => {

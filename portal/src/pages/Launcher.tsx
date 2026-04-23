@@ -2,6 +2,8 @@ import { ExternalLink, LogOut, Settings, User } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import type { PortalUser } from '../hooks'
+import LanguageSelector from '../components/LanguageSelector'
+import { useI18n } from '../i18n'
 
 interface Props {
   user: PortalUser
@@ -19,6 +21,7 @@ interface UiCustomization {
 const portalHome = import.meta.env.BASE_URL
 
 export default function Launcher({ user }: Props) {
+  const { t } = useI18n()
   const [ui, setUi] = useState<UiCustomization | null>(null)
 
   useEffect(() => {
@@ -59,20 +62,24 @@ export default function Launcher({ user }: Props) {
               className="h-8 px-2 sm:px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-1.5 transition-colors"
             >
               <Settings size={14} />
-              <span className="hidden sm:inline">Settings</span>
+              <span className="hidden sm:inline">{t('launcher.settings')}</span>
             </Link>
+            <LanguageSelector className="hidden sm:inline-flex" />
             <button
               onClick={handleLogout}
               className="h-8 px-2 sm:px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-1.5 transition-colors"
             >
               <LogOut size={14} />
-              <span className="hidden sm:inline">Sign out</span>
+              <span className="hidden sm:inline">{t('common.signOut')}</span>
             </button>
           </div>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
+        <div className="mb-4 sm:hidden">
+          <LanguageSelector />
+        </div>
         {/* Welcome */}
         <div className="mb-10">
           <div className="flex items-center gap-3 mb-1">
@@ -81,7 +88,7 @@ export default function Launcher({ user }: Props) {
             </div>
             <div>
               <h1 className="text-xl font-bold text-slate-900">
-                Welcome back, {user.givenName}!
+                {t('launcher.welcomeBack', { name: user.givenName })}
               </h1>
               <p className="text-sm text-slate-500">{ui?.subtitle ?? user.email}</p>
             </div>
@@ -90,11 +97,11 @@ export default function Launcher({ user }: Props) {
 
         {/* App Grid */}
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-4">Your Apps</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-4">{t('launcher.yourApps')}</h2>
           {user.apps.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-300 p-12 text-center">
-              <p className="text-slate-400 text-sm">No apps have been assigned to your account yet.</p>
-              <p className="text-slate-400 text-xs mt-1">Contact your administrator to get access.</p>
+              <p className="text-slate-400 text-sm">{t('launcher.noAppsTitle')}</p>
+              <p className="text-slate-400 text-xs mt-1">{t('launcher.noAppsHint')}</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4">
