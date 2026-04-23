@@ -23,12 +23,14 @@ RUN npm run prisma:generate \
 FROM node:22-bookworm-slim AS runtime
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates openssl \
+  && apt-get install -y --no-install-recommends ca-certificates openssl nginx \
+  && rm -f /etc/nginx/sites-enabled/default \
   && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production \
   HOST=0.0.0.0 \
-  PORT=4000 \
+  PORT=4001 \
+  APP_INTERNAL_PORT=4001 \
   DATABASE_PROVIDER=sqlite \
   DATABASE_PATH=/app/data/sso.sqlite \
   AUTO_SETUP=false
@@ -39,17 +41,17 @@ COPY --from=build /app/package.json /app/package-lock.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
+COPY docker/nginx/default.conf /etc/nginx/nginx.conf
+COPY docker/start-with-nginx.sh /usr/local/bin/start-with-nginx.sh
 
 RUN mkdir -p /app/data \
   && mkdir -p /app/src/generated \
   && ln -s /app/dist/generated/prisma /app/src/generated/prisma \
-  && chown -R node:node /app
-
-USER node
+  && chmod +x /usr/local/bin/start-with-nginx.sh
 
 EXPOSE 4000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD node -e "const port = process.env.PORT || 4000; fetch('http://127.0.0.1:' + port + '/health').then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1));"
+  CMD node -e "const port = process.env.APP_INTERNAL_PORT || 4001; fetch('http://127.0.0.1:' + port + '/health').then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1));"
 
-CMD ["node", "dist/container/entrypoint.js"]
+CMD ["/usr/local/bin/start-with-nginx.sh"]
