@@ -16,9 +16,9 @@ RUN npm run prisma:generate \
   && npm run build \
   && npm run build:admin \
   && npm run build:portal \
-  && cp src/generated/prisma/sqlite/*.so.node dist/generated/prisma/sqlite/ \
-  && cp src/generated/prisma/postgresql/*.so.node dist/generated/prisma/postgresql/ \
-  && cp src/generated/prisma/mysql/*.so.node dist/generated/prisma/mysql/ \
+  && (ls src/generated/prisma/sqlite/*.so.node 2>/dev/null && cp src/generated/prisma/sqlite/*.so.node dist/generated/prisma/sqlite/ || true) \
+  && (ls src/generated/prisma/postgresql/*.so.node 2>/dev/null && cp src/generated/prisma/postgresql/*.so.node dist/generated/prisma/postgresql/ || true) \
+  && (ls src/generated/prisma/mysql/*.so.node 2>/dev/null && cp src/generated/prisma/mysql/*.so.node dist/generated/prisma/mysql/ || true) \
   && npm prune --omit=dev
 
 FROM node:22-bookworm-slim AS runtime
