@@ -17,6 +17,9 @@ import {
 interface User {
   id: string
   appId?: string
+  appIds?: string[]
+  directAppIds?: string[]
+  inheritedAppIds?: string[]
   isServiceUser?: boolean
   email: string
   username: string
@@ -40,7 +43,7 @@ interface AppItem {
 }
 
 const defaultForm = () => ({
-  appId: '',
+  appIds: [] as string[],
   isServiceUser: false,
   email: '',
   username: '',
@@ -52,7 +55,7 @@ const defaultForm = () => ({
 })
 
 const defaultEditForm = () => ({
-  appId: '',
+  appIds: [] as string[],
   isServiceUser: false,
   email: '',
   username: '',
@@ -97,7 +100,8 @@ const Users = () => {
 
   const appNameById = new Map((apps as AppItem[]).map((a) => [a.id, a.name]))
   const filteredUsers = (users as User[] | undefined)?.filter((user) => {
-    const appMatches = appFilterId === 'all' ? true : appFilterId === 'none' ? !user.appId : user.appId === appFilterId
+    const userAppIds = user.appIds ?? (user.appId ? [user.appId] : [])
+    const appMatches = appFilterId === 'all' ? true : appFilterId === 'none' ? userAppIds.length === 0 : userAppIds.includes(appFilterId)
     const typeMatches = userTypeFilter === 'all'
       ? true
       : userTypeFilter === 'service'
@@ -106,6 +110,25 @@ const Users = () => {
 
     return appMatches && typeMatches
   })
+
+  const toggleAppId = (appId: string, target: 'create' | 'edit') => {
+    if (target === 'create') {
+      setFormData((prev) => ({
+        ...prev,
+        appIds: prev.appIds.includes(appId)
+          ? prev.appIds.filter((id) => id !== appId)
+          : [...prev.appIds, appId]
+      }))
+      return
+    }
+
+    setEditFormData((prev) => ({
+      ...prev,
+      appIds: prev.appIds.includes(appId)
+        ? prev.appIds.filter((id) => id !== appId)
+        : [...prev.appIds, appId]
+    }))
+  }
 
   const handleCreate = async () => {
     if (!formData.email || !formData.username || !formData.password) return
@@ -126,7 +149,7 @@ const Users = () => {
     setCreateFormError('')
 
     await createUser.mutateAsync({
-      appId: formData.appId || undefined,
+      appIds: formData.appIds,
       isServiceUser: formData.isServiceUser,
       email: formData.email,
       username: formData.username,
@@ -149,7 +172,7 @@ const Users = () => {
     setUserToEdit(user)
     setEditFormError('')
     setEditFormData({
-      appId: user.appId ?? '',
+      appIds: user.directAppIds ?? user.appIds ?? (user.appId ? [user.appId] : []),
       isServiceUser: Boolean(user.isServiceUser),
       email: user.email,
       username: user.username,
@@ -180,7 +203,7 @@ const Users = () => {
     setEditFormError('')
     await updateUser.mutateAsync({
       id: userToEdit.id,
-      appId: editFormData.appId || undefined,
+      appIds: editFormData.appIds,
       isServiceUser: editFormData.isServiceUser,
       email: editFormData.email,
       username: editFormData.username,
@@ -298,9 +321,18 @@ const Users = () => {
                 <div className="space-y-0.5 flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium text-slate-900">{user.givenName} {user.familyName}</p>
-                    <span className="text-xs px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
-                      {user.appId ? appNameById.get(user.appId) ?? 'App' : 'No App'}
-                    </span>
+                    {(user.appIds ?? (user.appId ? [user.appId] : [])).length === 0 ? (
+                      <span className="text-xs px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
+                        No Apps
+                      </span>
+                    ) : (
+                      (user.appIds ?? (user.appId ? [user.appId] : [])).map((assignedAppId) => (
+                        <span key={assignedAppId} className="text-xs px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
+                          {appNameById.get(assignedAppId) ?? 'App'}
+                          {(user.inheritedAppIds ?? []).includes(assignedAppId) && !(user.directAppIds ?? []).includes(assignedAppId) ? ' via group' : ''}
+                        </span>
+                      ))
+                    )}
                     {user.isServiceUser ? (
                       <span className="text-xs px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100">Service User</span>
                     ) : null}
@@ -409,13 +441,21 @@ const Users = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className={labelCls}>App</label>
-              <select value={formData.appId} onChange={e => setFormData(f => ({ ...f, appId: e.target.value }))} className={fieldCls}>
-                <option value="">No app</option>
+              <label className={labelCls}>Apps</label>
+              <div className="border border-slate-200 rounded-lg p-2 max-h-40 overflow-auto space-y-1">
+                {(apps as AppItem[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No apps available</p>}
                 {(apps as AppItem[]).map((app) => (
-                  <option key={app.id} value={app.id}>{app.name}</option>
+                  <label key={app.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 text-sm text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.appIds.includes(app.id)}
+                      onChange={() => toggleAppId(app.id, 'create')}
+                      className="rounded border-slate-300"
+                    />
+                    {app.name}
+                  </label>
                 ))}
-              </select>
+              </div>
             </div>
             <div>
               <label className={labelCls}>First Name</label>
@@ -493,13 +533,26 @@ const Users = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className={labelCls}>App</label>
-              <select value={editFormData.appId} onChange={e => setEditFormData(f => ({ ...f, appId: e.target.value }))} className={fieldCls}>
-                <option value="">No app</option>
+              <label className={labelCls}>Direct Apps</label>
+              <div className="border border-slate-200 rounded-lg p-2 max-h-40 overflow-auto space-y-1">
+                {(apps as AppItem[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No apps available</p>}
                 {(apps as AppItem[]).map((app) => (
-                  <option key={app.id} value={app.id}>{app.name}</option>
+                  <label key={app.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 text-sm text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editFormData.appIds.includes(app.id)}
+                      onChange={() => toggleAppId(app.id, 'edit')}
+                      className="rounded border-slate-300"
+                    />
+                    {app.name}
+                  </label>
                 ))}
-              </select>
+              </div>
+              {userToEdit && (userToEdit.inheritedAppIds ?? []).length > 0 && (
+                <p className="mt-2 text-xs text-slate-500">
+                  Inherited from groups: {(userToEdit.inheritedAppIds ?? []).map((appId) => appNameById.get(appId) ?? appId).join(', ')}
+                </p>
+              )}
             </div>
             <div>
               <label className={labelCls}>First Name</label>

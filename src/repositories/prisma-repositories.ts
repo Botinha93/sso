@@ -19,6 +19,7 @@ import type {
   FederationProvider,
   FederationTransaction,
   Group,
+  GroupAppAssignment,
   GroupRoleAssignment,
   GroupUserAttributeAssignment,
   InstanceSettings,
@@ -41,13 +42,14 @@ import type {
   TotpCredential,
   WebauthnCredential,
   User,
+  UserAppAssignment,
   UserAttributeDefinition,
   UserGroupAssignment,
   UserRoleAssignment
 } from "../domain/models.js";
 import type { RepositoryBundle } from "./factory.js";
 import type { RiskEvent, RiskDecision, RiskReason, ServiceIdentity, ServiceIdentityCredential, ServiceIdentityStatus, Connector, ConnectorRun, ConnectorMapping, AuthMetricRollup } from "../domain/models.js";
-import type { RiskEventRepository, ServiceIdentityRepository, ServiceIdentityCredentialRepository, ConnectorRepository, ConnectorRunRepository, ConnectorMappingRepository, AuthMetricRepository } from "./contracts.js";
+import type { GroupAppAssignmentRepository, RiskEventRepository, ServiceIdentityRepository, ServiceIdentityCredentialRepository, UserAppAssignmentRepository, ConnectorRepository, ConnectorRunRepository, ConnectorMappingRepository, AuthMetricRepository } from "./contracts.js";
 
 type PrismaRow = Record<string, unknown>;
 
@@ -331,6 +333,20 @@ const mapUserGroupAssignment = (row: PrismaRow): UserGroupAssignment => ({
   userId: String(row.userId),
   groupId: String(row.groupId),
   createdAt: asDate(row.createdAt)
+});
+
+const mapUserAppAssignment = (row: PrismaRow): UserAppAssignment => ({
+  id: String(readField(row, "id")),
+  userId: String(readField(row, "userId", "user_id")),
+  appId: String(readField(row, "appId", "app_id")),
+  createdAt: asDate(readField(row, "createdAt", "created_at"))
+});
+
+const mapGroupAppAssignment = (row: PrismaRow): GroupAppAssignment => ({
+  id: String(readField(row, "id")),
+  groupId: String(readField(row, "groupId", "group_id")),
+  appId: String(readField(row, "appId", "app_id")),
+  createdAt: asDate(readField(row, "createdAt", "created_at"))
 });
 
 const mapGroupRoleAssignment = (row: PrismaRow): GroupRoleAssignment => ({
@@ -1435,6 +1451,81 @@ class PrismaUserGroupAssignmentRepository {
 
   async remove(userId: string, groupId: string): Promise<void> {
     await this.prisma.userGroupAssignment.deleteMany({ where: { userId, groupId } });
+  }
+}
+
+class PrismaUserAppAssignmentRepository implements UserAppAssignmentRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+
+  async assign(input: Omit<UserAppAssignment, "id" | "createdAt">): Promise<UserAppAssignment> {
+    const existing = await this.listByUser(input.userId);
+    const matched = existing.find((assignment) => assignment.appId === input.appId);
+    if (matched) {
+      return matched;
+    }
+
+    const assignment: UserAppAssignment = { ...input, id: nanoid(), createdAt: new Date() };
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      INSERT INTO user_app_assignments (id, user_id, app_id, created_at)
+      VALUES (${assignment.id}, ${assignment.userId}, ${assignment.appId}, ${assignment.createdAt.toISOString()})
+      RETURNING *
+    `;
+    return mapUserAppAssignment(rows[0]);
+  }
+
+  async listByUser(userId: string): Promise<UserAppAssignment[]> {
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      SELECT * FROM user_app_assignments WHERE user_id = ${userId} ORDER BY created_at ASC
+    `;
+    return rows.map((row) => mapUserAppAssignment(row));
+  }
+
+  async remove(userId: string, appId: string): Promise<void> {
+    await this.prisma.$queryRaw`
+      DELETE FROM user_app_assignments WHERE user_id = ${userId} AND app_id = ${appId}
+    `;
+  }
+}
+
+class PrismaGroupAppAssignmentRepository implements GroupAppAssignmentRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+
+  async assign(input: Omit<GroupAppAssignment, "id" | "createdAt">): Promise<GroupAppAssignment> {
+    const existing = await this.listByGroup(input.groupId);
+    const matched = existing.find((assignment) => assignment.appId === input.appId);
+    if (matched) {
+      return matched;
+    }
+
+    const assignment: GroupAppAssignment = { ...input, id: nanoid(), createdAt: new Date() };
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      INSERT INTO group_app_assignments (id, group_id, app_id, created_at)
+      VALUES (${assignment.id}, ${assignment.groupId}, ${assignment.appId}, ${assignment.createdAt.toISOString()})
+      RETURNING *
+    `;
+    return mapGroupAppAssignment(rows[0]);
+  }
+
+  async listByGroup(groupId: string): Promise<GroupAppAssignment[]> {
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      SELECT * FROM group_app_assignments WHERE group_id = ${groupId} ORDER BY created_at ASC
+    `;
+    return rows.map((row) => mapGroupAppAssignment(row));
+  }
+
+  async listByGroups(groupIds: string[]): Promise<GroupAppAssignment[]> {
+    if (groupIds.length === 0) {
+      return [];
+    }
+
+    const groups = await Promise.all(groupIds.map((groupId) => this.listByGroup(groupId)));
+    return groups.flat();
+  }
+
+  async remove(groupId: string, appId: string): Promise<void> {
+    await this.prisma.$queryRaw`
+      DELETE FROM group_app_assignments WHERE group_id = ${groupId} AND app_id = ${appId}
+    `;
   }
 }
 
@@ -2971,6 +3062,8 @@ export const createPrismaRepositories = (prisma: PrismaClientLike): RepositoryBu
   appRepository: new PrismaAppRepository(prisma),
   groupRepository: new PrismaGroupRepository(prisma),
   userGroupAssignmentRepository: new PrismaUserGroupAssignmentRepository(prisma),
+  userAppAssignmentRepository: new PrismaUserAppAssignmentRepository(prisma),
+  groupAppAssignmentRepository: new PrismaGroupAppAssignmentRepository(prisma),
   groupRoleAssignmentRepository: new PrismaGroupRoleAssignmentRepository(prisma),
   assignmentRepository: new PrismaUserRoleAssignmentRepository(prisma),
   userRepository: new PrismaUserRepository(prisma),

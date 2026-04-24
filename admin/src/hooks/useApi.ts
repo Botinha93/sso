@@ -240,7 +240,19 @@ export function useUsers() {
 export function useCreateUser() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (user: any) => jsonFetch(`${API_BASE}/users`, {
+    mutationFn: (user: {
+      appId?: string
+      appIds?: string[]
+      isServiceUser?: boolean
+      email: string
+      username: string
+      givenName: string
+      familyName: string
+      password: string
+      customAttributes?: Record<string, string>
+      roleIds: string[]
+      groupIds?: string[]
+    }) => jsonFetch(`${API_BASE}/users`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(user)
@@ -255,6 +267,7 @@ export function useUpdateUser() {
     mutationFn: ({ id, ...data }: {
       id: string
       appId?: string
+      appIds?: string[]
       isServiceUser?: boolean
       avatarUrl?: string
       email?: string
@@ -413,7 +426,13 @@ export function useGroups() {
 export function useCreateGroup() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (group: any) => jsonFetch(`${API_BASE}/groups`, {
+    mutationFn: (group: {
+      appId?: string
+      appIds?: string[]
+      name: string
+      description: string
+      roleIds: string[]
+    }) => jsonFetch(`${API_BASE}/groups`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(group)
@@ -439,7 +458,7 @@ export function useDeleteGroup() {
 export function useUpdateGroup() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; appId?: string; name?: string; description?: string }) =>
+    mutationFn: ({ id, ...data }: { id: string; appId?: string; appIds?: string[]; name?: string; description?: string }) =>
       jsonFetch(`${API_BASE}/groups/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },

@@ -51,6 +51,8 @@ export const bootstrap = async (config: AppConfig) => {
     appRepository,
     groupRepository,
     userGroupAssignmentRepository,
+    userAppAssignmentRepository,
+    groupAppAssignmentRepository,
     groupRoleAssignmentRepository,
     assignmentRepository,
     userRepository,
@@ -122,12 +124,20 @@ export const bootstrap = async (config: AppConfig) => {
   const authenticationFlowService = new AuthenticationFlowService(authenticationFlowRepository);
   const groupService = new GroupService(
     groupRepository,
+    appRepository,
+    groupAppAssignmentRepository,
     groupRoleAssignmentRepository,
     userGroupAssignmentRepository,
     roleRepository,
     userRepository
   );
-  const userService = new UserService(userRepository, roleService, groupService);
+  const userService = new UserService(
+    userRepository,
+    appRepository,
+    userAppAssignmentRepository,
+    roleService,
+    groupService
+  );
   const userAttributeService = new UserAttributeService(
     userAttributeRepository,
     groupUserAttributeAssignmentRepository,

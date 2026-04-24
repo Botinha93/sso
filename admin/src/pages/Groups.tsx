@@ -16,6 +16,7 @@ import {
 interface GroupItem {
   id: string
   appId?: string
+  appIds?: string[]
   name: string
   description: string
   roleIds: string[]
@@ -43,10 +44,10 @@ const Groups = () => {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [groupName, setGroupName] = useState('')
   const [groupDescription, setGroupDescription] = useState('')
-  const [groupAppId, setGroupAppId] = useState('')
+  const [groupAppIds, setGroupAppIds] = useState<string[]>([])
   const [editGroupName, setEditGroupName] = useState('')
   const [editGroupDescription, setEditGroupDescription] = useState('')
-  const [editGroupAppId, setEditGroupAppId] = useState('')
+  const [editGroupAppIds, setEditGroupAppIds] = useState<string[]>([])
   const [appFilterId, setAppFilterId] = useState<string>('all')
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([])
   const [rolePickerByGroup, setRolePickerByGroup] = useState<Record<string, string>>({})
@@ -65,8 +66,8 @@ const Groups = () => {
   const filteredGroups = (groups as GroupItem[]).filter((group) => appFilterId === 'all'
     ? true
     : appFilterId === 'none'
-      ? !group.appId
-      : group.appId === appFilterId)
+      ? (group.appIds ?? (group.appId ? [group.appId] : [])).length === 0
+      : (group.appIds ?? (group.appId ? [group.appId] : [])).includes(appFilterId))
   const roleNameById = useMemo(() => {
     const map = new Map<string, string>()
     for (const role of roleOptions) {
@@ -78,8 +79,21 @@ const Groups = () => {
   const resetModal = () => {
     setGroupName('')
     setGroupDescription('')
-    setGroupAppId('')
+    setGroupAppIds([])
     setSelectedRoleIds([])
+  }
+
+  const toggleGroupAppId = (appId: string, target: 'create' | 'edit') => {
+    const update = (current: string[]) => current.includes(appId)
+      ? current.filter((id) => id !== appId)
+      : [...current, appId]
+
+    if (target === 'create') {
+      setGroupAppIds((prev) => update(prev))
+      return
+    }
+
+    setEditGroupAppIds((prev) => update(prev))
   }
 
   const toggleCreateRole = (roleId: string) => {
@@ -89,7 +103,7 @@ const Groups = () => {
   const onCreateGroup = async () => {
     if (!groupName || !groupDescription) return
     await createGroup.mutateAsync({
-      appId: groupAppId || undefined,
+      appIds: groupAppIds,
       name: groupName,
       description: groupDescription,
       roleIds: selectedRoleIds
@@ -106,7 +120,7 @@ const Groups = () => {
     setGroupToEdit(group)
     setEditGroupName(group.name)
     setEditGroupDescription(group.description)
-    setEditGroupAppId((group as any).appId ?? '')
+    setEditGroupAppIds(group.appIds ?? ((group as any).appId ? [(group as any).appId] : []))
     setEditModalOpen(true)
   }
 
@@ -114,7 +128,7 @@ const Groups = () => {
     if (!groupToEdit || !editGroupName || !editGroupDescription) return
     await updateGroup.mutateAsync({
       id: groupToEdit.id,
-      appId: editGroupAppId || undefined,
+      appIds: editGroupAppIds,
       name: editGroupName,
       description: editGroupDescription
     })
@@ -187,9 +201,17 @@ const Groups = () => {
                           <Users size={14} className="text-slate-500" />
                         </div>
                         <h5 className="text-sm font-medium text-slate-900">{group.name}</h5>
-                        <span className="text-xs px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
-                          {group.appId ? appNameById.get(group.appId) ?? 'App' : 'No App'}
-                        </span>
+                        {(group.appIds ?? (group.appId ? [group.appId] : [])).length === 0 ? (
+                          <span className="text-xs px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
+                            No Apps
+                          </span>
+                        ) : (
+                          (group.appIds ?? (group.appId ? [group.appId] : [])).map((assignedAppId) => (
+                            <span key={assignedAppId} className="text-xs px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
+                              {appNameById.get(assignedAppId) ?? 'App'}
+                            </span>
+                          ))
+                        )}
                       </div>
                       <p className="text-xs text-slate-500">{group.description}</p>
                       <div className="mt-2 flex flex-wrap gap-1.5">
@@ -261,13 +283,21 @@ const Groups = () => {
       <Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Create New Group">
         <div className="space-y-4">
           <div>
-            <label className={labelCls}>App</label>
-            <select value={groupAppId} onChange={(e) => setGroupAppId(e.target.value)} className={fieldCls}>
-              <option value="">No app</option>
+            <label className={labelCls}>Apps</label>
+            <div className="border border-slate-200 rounded-lg p-2 max-h-40 overflow-auto space-y-1">
+              {(apps as AppItem[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No apps available</p>}
               {(apps as AppItem[]).map((app) => (
-                <option key={app.id} value={app.id}>{app.name}</option>
+                <label key={app.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 text-sm text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={groupAppIds.includes(app.id)}
+                    onChange={() => toggleGroupAppId(app.id, 'create')}
+                    className="rounded border-slate-300"
+                  />
+                  {app.name}
+                </label>
               ))}
-            </select>
+            </div>
           </div>
           <div>
             <label className={labelCls}>Group Name</label>
@@ -327,13 +357,21 @@ const Groups = () => {
       <Modal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} title={`Edit Group${groupToEdit ? `: ${groupToEdit.name}` : ''}`}>
         <div className="space-y-4">
           <div>
-            <label className={labelCls}>App</label>
-            <select value={editGroupAppId} onChange={(e) => setEditGroupAppId(e.target.value)} className={fieldCls}>
-              <option value="">No app</option>
+            <label className={labelCls}>Apps</label>
+            <div className="border border-slate-200 rounded-lg p-2 max-h-40 overflow-auto space-y-1">
+              {(apps as AppItem[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No apps available</p>}
               {(apps as AppItem[]).map((app) => (
-                <option key={app.id} value={app.id}>{app.name}</option>
+                <label key={app.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 text-sm text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editGroupAppIds.includes(app.id)}
+                    onChange={() => toggleGroupAppId(app.id, 'edit')}
+                    className="rounded border-slate-300"
+                  />
+                  {app.name}
+                </label>
               ))}
-            </select>
+            </div>
           </div>
           <div>
             <label className={labelCls}>Group Name</label>

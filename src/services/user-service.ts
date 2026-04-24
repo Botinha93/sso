@@ -1,18 +1,48 @@
 import { ValidationError } from "../core/errors.js";
 import { hashPassword } from "../security/password.js";
-import type { UserRepository } from "../repositories/contracts.js";
+import type { AppRepository, UserAppAssignmentRepository, UserRepository } from "../repositories/contracts.js";
 import { RoleService } from "./role-service.js";
 import { GroupService } from "./group-service.js";
 
 export class UserService {
   constructor(
     private readonly userRepository: UserRepository,
+    private readonly appRepository: AppRepository,
+    private readonly userAppAssignmentRepository: UserAppAssignmentRepository,
     private readonly roleService: RoleService,
     private readonly groupService: GroupService
   ) {}
 
+  private normalizeAppIds(input: { appId?: string; appIds?: string[] }) {
+    return Array.from(new Set(input.appIds ?? (input.appId ? [input.appId] : [])));
+  }
+
+  private async validateAppIds(appIds: string[]) {
+    const apps = await this.appRepository.list();
+    const known = new Set(apps.map((app) => app.id));
+    if (appIds.some((appId) => !known.has(appId))) {
+      throw new ValidationError("One or more appIds are invalid");
+    }
+  }
+
+  private async setUserAppAssignments(userId: string, appIds: string[]) {
+    const existingAssignments = await this.userAppAssignmentRepository.listByUser(userId);
+    const next = new Set(appIds);
+
+    for (const assignment of existingAssignments) {
+      if (!next.has(assignment.appId)) {
+        await this.userAppAssignmentRepository.remove(userId, assignment.appId);
+      }
+    }
+
+    for (const appId of appIds) {
+      await this.userAppAssignmentRepository.assign({ userId, appId });
+    }
+  }
+
   async createUser(input: {
     appId?: string;
+    appIds?: string[];
     externalSource?: string;
     externalId?: string;
     isServiceUser?: boolean;
@@ -27,12 +57,19 @@ export class UserService {
     groupIds?: string[];
     active?: boolean;
   }) {
+    const appIds = this.normalizeAppIds(input);
+
     if (await this.userRepository.findByEmail(input.email)) {
       throw new ValidationError("A user with this email already exists");
     }
 
+    await this.validateAppIds(appIds);
+
     const user = await this.userRepository.create({
-      appId: input.appId,
+      appId: appIds[0],
+      appIds,
+      directAppIds: appIds,
+      inheritedAppIds: [],
       externalSource: input.externalSource,
       externalId: input.externalId,
       isServiceUser: input.isServiceUser ?? false,
@@ -45,6 +82,8 @@ export class UserService {
       customAttributes: input.customAttributes ?? {},
       active: input.active ?? true
     });
+
+    await this.setUserAppAssignments(user.id, appIds);
 
     for (const roleId of input.roleIds) {
       await this.roleService.assignRole({
@@ -64,6 +103,7 @@ export class UserService {
     const users = await this.userRepository.list();
     return Promise.all(users.map(async ({ passwordHash, ...user }) => ({
       ...user,
+      ...(await this.resolveAppAccessForUser(user.id)),
       roles: await this.roleService.resolveNamesForUser(user.id),
       groups: await this.groupService.resolveGroupNamesForUser(user.id)
     })));
@@ -83,6 +123,7 @@ export class UserService {
 
   async updateUserProfile(id: string, input: {
     appId?: string;
+    appIds?: string[];
     externalSource?: string;
     externalId?: string;
     isServiceUser?: boolean;
@@ -111,7 +152,34 @@ export class UserService {
       }
     }
 
-    return this.userRepository.updateProfile(id, input);
+    const appIds = input.appId !== undefined || input.appIds !== undefined
+      ? this.normalizeAppIds(input)
+      : undefined;
+
+    if (appIds) {
+      await this.validateAppIds(appIds);
+    }
+
+    const updated = await this.userRepository.updateProfile(id, {
+      ...input,
+      appId: appIds ? appIds[0] : input.appId
+    });
+
+    if (!updated) {
+      return updated;
+    }
+
+    if (appIds) {
+      await this.setUserAppAssignments(id, appIds);
+      return {
+        ...updated,
+        appId: appIds[0],
+        appIds,
+        directAppIds: appIds
+      };
+    }
+
+    return updated;
   }
 
   async resetPassword(id: string, password: string) {
@@ -137,6 +205,29 @@ export class UserService {
       await this.groupService.removeUserFromGroup({ userId: id, groupId });
     }
 
+    const appAssignments = await this.userAppAssignmentRepository.listByUser(id);
+    for (const assignment of appAssignments) {
+      await this.userAppAssignmentRepository.remove(id, assignment.appId);
+    }
+
     await this.userRepository.delete(id);
+  }
+
+  async resolveAppAccessForUser(userId: string) {
+    const user = await this.userRepository.findById(userId);
+    const assignedDirectAppIds = (await this.userAppAssignmentRepository.listByUser(userId)).map((assignment) => assignment.appId);
+    const directAppIds = assignedDirectAppIds.length > 0 ? assignedDirectAppIds : (user?.appId ? [user.appId] : []);
+    const groupIds = await this.groupService.listGroupIdsForUser(userId);
+    const inheritedAppIds = groupIds.length === 0
+      ? []
+      : await this.groupService.resolveAppIdsForGroups(groupIds);
+    const appIds = Array.from(new Set([...directAppIds, ...inheritedAppIds]));
+
+    return {
+      appId: appIds[0],
+      appIds,
+      directAppIds,
+      inheritedAppIds
+    };
   }
 }

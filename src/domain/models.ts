@@ -42,6 +42,9 @@ export interface Role {
 export interface User {
   id: string;
   appId?: string;
+  appIds?: string[];
+  directAppIds?: string[];
+  inheritedAppIds?: string[];
   externalSource?: string;
   externalId?: string;
   isServiceUser: boolean;
@@ -132,6 +135,7 @@ export interface Tenant {
 export interface Group {
   id: string;
   appId?: string;
+  appIds?: string[];
   externalSource?: string;
   externalId?: string;
   name: string;
@@ -199,6 +203,20 @@ export interface UserGroupAssignment {
   id: string;
   userId: string;
   groupId: string;
+  createdAt: Date;
+}
+
+export interface UserAppAssignment {
+  id: string;
+  userId: string;
+  appId: string;
+  createdAt: Date;
+}
+
+export interface GroupAppAssignment {
+  id: string;
+  groupId: string;
+  appId: string;
   createdAt: Date;
 }
 

@@ -18,6 +18,7 @@ import type {
   FederationProvider,
   FederationTransaction,
   Group,
+  GroupAppAssignment,
   App,
   GroupRoleAssignment,
   OAuthClient,
@@ -39,6 +40,7 @@ import type {
   UserAttributeDefinition,
   GroupUserAttributeAssignment,
   UserGroupAssignment,
+  UserAppAssignment,
   UserRoleAssignment,
   SamlServiceProvider,
   SamlNameIdMapping,
@@ -152,6 +154,19 @@ export interface UserGroupAssignmentRepository {
   assign(input: Omit<UserGroupAssignment, "id" | "createdAt">): Awaitable<UserGroupAssignment>;
   listByUser(userId: string): Awaitable<UserGroupAssignment[]>;
   remove(userId: string, groupId: string): Awaitable<void>;
+}
+
+export interface UserAppAssignmentRepository {
+  assign(input: Omit<UserAppAssignment, "id" | "createdAt">): Awaitable<UserAppAssignment>;
+  listByUser(userId: string): Awaitable<UserAppAssignment[]>;
+  remove(userId: string, appId: string): Awaitable<void>;
+}
+
+export interface GroupAppAssignmentRepository {
+  assign(input: Omit<GroupAppAssignment, "id" | "createdAt">): Awaitable<GroupAppAssignment>;
+  listByGroup(groupId: string): Awaitable<GroupAppAssignment[]>;
+  listByGroups(groupIds: string[]): Awaitable<GroupAppAssignment[]>;
+  remove(groupId: string, appId: string): Awaitable<void>;
 }
 
 export interface GroupRoleAssignmentRepository {

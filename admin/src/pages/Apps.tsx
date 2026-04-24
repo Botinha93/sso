@@ -53,7 +53,7 @@ const ComponentsManager = ({ appId }: ComponentsManagerProps) => {
     { key: 'roles', label: 'Roles', icon: <Key size={13} /> },
   ]
 
-  type AnyItem = { id: string; name?: string; email?: string; appId?: string }
+  type AnyItem = { id: string; name?: string; email?: string; appId?: string; appIds?: string[] }
 
   const getItems = (): AnyItem[] => {
     if (tab === 'clients') return (clients as AnyItem[])
@@ -63,15 +63,19 @@ const ComponentsManager = ({ appId }: ComponentsManagerProps) => {
   }
 
   const toggleAssign = async (item: AnyItem) => {
-    const newAppId = item.appId === appId ? undefined : appId
-    if (tab === 'clients') await updateClient.mutateAsync({ id: item.id, appId: newAppId })
-    else if (tab === 'users') await updateUser.mutateAsync({ id: item.id, appId: newAppId })
-    else if (tab === 'groups') await updateGroup.mutateAsync({ id: item.id, appId: newAppId })
-    else await updateRole.mutateAsync({ id: item.id, appId: newAppId })
+    const currentAppIds = item.appIds ?? (item.appId ? [item.appId] : [])
+    const nextAppIds = currentAppIds.includes(appId)
+      ? currentAppIds.filter((id) => id !== appId)
+      : [...currentAppIds, appId]
+
+    if (tab === 'clients') await updateClient.mutateAsync({ id: item.id, appId: item.appId === appId ? undefined : appId })
+    else if (tab === 'users') await updateUser.mutateAsync({ id: item.id, appIds: nextAppIds })
+    else if (tab === 'groups') await updateGroup.mutateAsync({ id: item.id, appIds: nextAppIds })
+    else await updateRole.mutateAsync({ id: item.id, appId: item.appId === appId ? undefined : appId })
   }
 
   const items = getItems()
-  const assignedIds = new Set(items.filter(i => i.appId === appId).map(i => i.id))
+  const assignedIds = new Set(items.filter((item) => (item.appIds ?? (item.appId ? [item.appId] : [])).includes(appId)).map((item) => item.id))
 
   return (
     <div>

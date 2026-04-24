@@ -288,6 +288,26 @@ export class SqliteDatabase {
         FOREIGN KEY (group_id) REFERENCES groups(id)
       );
 
+      CREATE TABLE IF NOT EXISTS user_app_assignments (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        app_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE (user_id, app_id),
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (app_id) REFERENCES apps(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS group_app_assignments (
+        id TEXT PRIMARY KEY,
+        group_id TEXT NOT NULL,
+        app_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE (group_id, app_id),
+        FOREIGN KEY (group_id) REFERENCES groups(id),
+        FOREIGN KEY (app_id) REFERENCES apps(id)
+      );
+
       CREATE TABLE IF NOT EXISTS group_role_assignments (
         id TEXT PRIMARY KEY,
         group_id TEXT NOT NULL,

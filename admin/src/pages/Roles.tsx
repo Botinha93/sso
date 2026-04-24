@@ -2,7 +2,7 @@ import { ChevronRight, Plus, RefreshCw, Shield, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
-import { useRoles, useCreateRole, useUpdateRole, useDeleteRole, useApps } from '../hooks/useApi'
+import { useRoles, useCreateRole, useUpdateRole, useDeleteRole, useApps, useClients } from '../hooks/useApi'
 
 const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
 const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
@@ -184,6 +184,7 @@ const Roles = () => {
   const [formData, setFormData] = useState({ ...EMPTY_FORM })
   const { data: roles = [], isLoading, refetch } = useRoles()
   const { data: apps = [] } = useApps()
+  const { data: clients = [] } = useClients()
   const createRole = useCreateRole()
   const updateRole = useUpdateRole()
   const deleteRole = useDeleteRole()

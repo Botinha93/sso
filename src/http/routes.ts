@@ -2311,9 +2311,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
   app.patch("/api/admin/users/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { appId, externalSource, externalId, isServiceUser, avatarUrl, email, username, givenName, familyName, active, groupIds, customAttributes } = updateUserSchema.parse(request.body);
-    if (appId !== undefined || externalSource !== undefined || externalId !== undefined || isServiceUser !== undefined || avatarUrl !== undefined || email !== undefined || username !== undefined || givenName !== undefined || familyName !== undefined) {
-      await deps.userService.updateUserProfile(id, { appId, externalSource, externalId, isServiceUser, avatarUrl, email, username, givenName, familyName });
+    const { appId, appIds, externalSource, externalId, isServiceUser, avatarUrl, email, username, givenName, familyName, active, groupIds, customAttributes } = updateUserSchema.parse(request.body);
+    if (appId !== undefined || appIds !== undefined || externalSource !== undefined || externalId !== undefined || isServiceUser !== undefined || avatarUrl !== undefined || email !== undefined || username !== undefined || givenName !== undefined || familyName !== undefined) {
+      await deps.userService.updateUserProfile(id, { appId, appIds, externalSource, externalId, isServiceUser, avatarUrl, email, username, givenName, familyName });
     }
     if (active !== undefined) await deps.userService.setUserActive(id, active);
     if (customAttributes) await deps.userService.setCustomAttributes(id, customAttributes);
@@ -2333,6 +2333,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     await deps.eventHookService.emit("user.updated", {
       userId: id,
       appId,
+      appIds,
       externalSource,
       externalId,
       isServiceUser,
@@ -2345,7 +2346,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       updatedGroupIds: groupIds,
       updatedCustomAttributes: customAttributes ? Object.keys(customAttributes) : undefined
     });
-    return { id, appId, externalSource, externalId, isServiceUser, avatarUrl, active, email, username, givenName, familyName };
+    return { id, appId, appIds, externalSource, externalId, isServiceUser, avatarUrl, active, email, username, givenName, familyName };
   });
   app.post("/api/admin/users/:id/reset-password", async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -2772,10 +2773,10 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     if (!session) return reply.status(401).send({ error: "unauthorized" });
     const user = await deps.userService.findUserById(session.userId);
     if (!user) return reply.status(401).send({ error: "unauthorized" });
+    const userAppAccess = await deps.userService.resolveAppAccessForUser(user.id);
     const roleDetails = await deps.roleService.resolveRolePermissionDetailsForUser(user.id);
-    const userApps = (await deps.appService.listApps()).filter(a => {
-      // app directly assigned to user, or user has no appId restriction
-      return !user.appId || a.id === user.appId;
+    const userApps = (await deps.appService.listApps()).filter((appItem) => {
+      return userAppAccess.appIds.length === 0 || userAppAccess.appIds.includes(appItem.id);
     });
     return {
       id: user.id,
@@ -2785,7 +2786,10 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       familyName: user.familyName,
       avatarUrl: user.avatarUrl,
       customAttributes: user.customAttributes,
-      appId: user.appId,
+      appId: userAppAccess.appId,
+      appIds: userAppAccess.appIds,
+      directAppIds: userAppAccess.directAppIds,
+      inheritedAppIds: userAppAccess.inheritedAppIds,
       roles: roleDetails.map((role) => role.name),
       groups: await deps.groupService.resolveGroupNamesForUser(user.id),
       permissions: Array.from(new Set(roleDetails.flatMap((role) => role.permissions))),

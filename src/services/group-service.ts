@@ -1,5 +1,7 @@
 import { ValidationError } from "../core/errors.js";
 import type {
+  AppRepository,
+  GroupAppAssignmentRepository,
   GroupRepository,
   GroupRoleAssignmentRepository,
   RoleRepository,
@@ -10,34 +12,70 @@ import type {
 export class GroupService {
   constructor(
     private readonly groupRepository: GroupRepository,
+    private readonly appRepository: AppRepository,
+    private readonly groupAppAssignmentRepository: GroupAppAssignmentRepository,
     private readonly groupRoleAssignmentRepository: GroupRoleAssignmentRepository,
     private readonly userGroupAssignmentRepository: UserGroupAssignmentRepository,
     private readonly roleRepository: RoleRepository,
     private readonly userRepository: UserRepository
   ) {}
 
+  private normalizeAppIds(input: { appId?: string; appIds?: string[] }) {
+    return Array.from(new Set(input.appIds ?? (input.appId ? [input.appId] : [])));
+  }
+
+  private async validateAppIds(appIds: string[]) {
+    const apps = await this.appRepository.list();
+    const known = new Set(apps.map((app) => app.id));
+    if (appIds.some((appId) => !known.has(appId))) {
+      throw new ValidationError("One or more appIds are invalid");
+    }
+  }
+
+  private async setGroupAppAssignments(groupId: string, appIds: string[]) {
+    const existingAssignments = await this.groupAppAssignmentRepository.listByGroup(groupId);
+    const next = new Set(appIds);
+
+    for (const assignment of existingAssignments) {
+      if (!next.has(assignment.appId)) {
+        await this.groupAppAssignmentRepository.remove(groupId, assignment.appId);
+      }
+    }
+
+    for (const appId of appIds) {
+      await this.groupAppAssignmentRepository.assign({ groupId, appId });
+    }
+  }
+
   async createGroup(input: {
     appId?: string;
+    appIds?: string[];
     externalSource?: string;
     externalId?: string;
     name: string;
     description: string;
     roleIds: string[];
   }) {
+    const appIds = this.normalizeAppIds(input);
     const roleIds = Array.from(new Set(input.roleIds));
     const knownRoles = await this.roleRepository.findByIds(roleIds);
+
+    await this.validateAppIds(appIds);
 
     if (knownRoles.length !== roleIds.length) {
       throw new ValidationError("One or more roleIds are invalid");
     }
 
     const group = await this.groupRepository.create({
-      appId: input.appId,
+      appId: appIds[0],
+      appIds,
       externalSource: input.externalSource,
       externalId: input.externalId,
       name: input.name,
       description: input.description
     });
+
+    await this.setGroupAppAssignments(group.id, appIds);
 
     for (const roleId of roleIds) {
       await this.groupRoleAssignmentRepository.assign({
@@ -53,10 +91,14 @@ export class GroupService {
     const groups = await this.groupRepository.list();
 
     return Promise.all(groups.map(async (group) => {
+      const assignedAppIds = (await this.groupAppAssignmentRepository.listByGroup(group.id)).map((assignment) => assignment.appId);
+      const appIds = assignedAppIds.length > 0 ? assignedAppIds : (group.appId ? [group.appId] : []);
       const roleIds = (await this.groupRoleAssignmentRepository.listByGroup(group.id)).map((assignment) => assignment.roleId);
       const roleNames = (await this.roleRepository.findByIds(roleIds)).map((role) => role.name);
       return {
         ...group,
+        appId: appIds[0],
+        appIds,
         roleIds,
         roles: roleNames
       };
@@ -65,14 +107,30 @@ export class GroupService {
 
   async updateGroup(id: string, input: {
     appId?: string;
+    appIds?: string[];
     externalSource?: string;
     externalId?: string;
     name?: string;
     description?: string;
   }) {
-    const updated = await this.groupRepository.update(id, input);
+    const appIds = input.appId !== undefined || input.appIds !== undefined
+      ? this.normalizeAppIds(input)
+      : undefined;
+
+    if (appIds) {
+      await this.validateAppIds(appIds);
+    }
+
+    const updated = await this.groupRepository.update(id, {
+      ...input,
+      appId: appIds ? appIds[0] : input.appId
+    });
     if (!updated) {
       throw new ValidationError("Group not found");
+    }
+    if (appIds) {
+      await this.setGroupAppAssignments(id, appIds);
+      return { ...updated, appId: appIds[0], appIds };
     }
     return updated;
   }
@@ -93,6 +151,11 @@ export class GroupService {
     const roleAssignments = await this.groupRoleAssignmentRepository.listByGroup(id);
     for (const assignment of roleAssignments) {
       await this.groupRoleAssignmentRepository.remove(id, assignment.roleId);
+    }
+
+    const appAssignments = await this.groupAppAssignmentRepository.listByGroup(id);
+    for (const assignment of appAssignments) {
+      await this.groupAppAssignmentRepository.remove(id, assignment.appId);
     }
 
     await this.groupRepository.delete(id);
@@ -140,5 +203,13 @@ export class GroupService {
     const all = await this.groupRepository.list();
     const allowed = new Set(ids);
     return all.filter((group) => allowed.has(group.id)).map((group) => group.name);
+  }
+
+  async resolveAppIdsForGroups(groupIds: string[]) {
+    const groups = await Promise.all(groupIds.map((groupId) => this.groupRepository.findById(groupId)));
+    const assignments = await this.groupAppAssignmentRepository.listByGroups(groupIds);
+    const assignedAppIds = assignments.map((assignment) => assignment.appId);
+    const legacyAppIds = groups.flatMap((group) => group?.appId ? [group.appId] : []);
+    return Array.from(new Set([...legacyAppIds, ...assignedAppIds]));
   }
 }

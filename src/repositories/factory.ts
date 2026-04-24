@@ -20,6 +20,7 @@ import type {
   FederationProviderRepository,
   FederationTransactionRepository,
   GroupRepository,
+  GroupAppAssignmentRepository,
   GroupRoleAssignmentRepository,
   GroupUserAttributeAssignmentRepository,
   InstanceSettingsRepository,
@@ -44,6 +45,7 @@ import type {
   WebauthnCredentialRepository,
   UserAttributeRepository,
   UserGroupAssignmentRepository,
+  UserAppAssignmentRepository,
   UserRepository,
   UserRoleAssignmentRepository,
   ConnectorRepository,
@@ -59,6 +61,8 @@ export interface RepositoryBundle {
   appRepository: AppRepository;
   groupRepository: GroupRepository;
   userGroupAssignmentRepository: UserGroupAssignmentRepository;
+  userAppAssignmentRepository: UserAppAssignmentRepository;
+  groupAppAssignmentRepository: GroupAppAssignmentRepository;
   groupRoleAssignmentRepository: GroupRoleAssignmentRepository;
   assignmentRepository: UserRoleAssignmentRepository;
   userRepository: UserRepository;

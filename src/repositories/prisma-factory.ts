@@ -8,6 +8,71 @@ type PrismaClientLike = {
   $disconnect(): Promise<void>;
 };
 
+const ensureAppAssignmentTables = async (prisma: PrismaClientLike & Record<string, unknown>, provider: AppConfig["databaseProvider"]) => {
+  if (provider === "postgresql") {
+    await (prisma as any).$queryRaw`
+      CREATE TABLE IF NOT EXISTS user_app_assignments (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        app_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE (user_id, app_id)
+      )
+    `;
+    await (prisma as any).$queryRaw`
+      CREATE TABLE IF NOT EXISTS group_app_assignments (
+        id TEXT PRIMARY KEY,
+        group_id TEXT NOT NULL,
+        app_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE (group_id, app_id)
+      )
+    `;
+    return;
+  }
+
+  if (provider === "mysql") {
+    await (prisma as any).$queryRaw`
+      CREATE TABLE IF NOT EXISTS user_app_assignments (
+        id VARCHAR(191) PRIMARY KEY,
+        user_id VARCHAR(191) NOT NULL,
+        app_id VARCHAR(191) NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE KEY user_app_unique (user_id, app_id)
+      )
+    `;
+    await (prisma as any).$queryRaw`
+      CREATE TABLE IF NOT EXISTS group_app_assignments (
+        id VARCHAR(191) PRIMARY KEY,
+        group_id VARCHAR(191) NOT NULL,
+        app_id VARCHAR(191) NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE KEY group_app_unique (group_id, app_id)
+      )
+    `;
+    return;
+  }
+
+  await (prisma as any).$queryRaw`
+    CREATE TABLE IF NOT EXISTS user_app_assignments (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      app_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE (user_id, app_id)
+    )
+  `;
+  await (prisma as any).$queryRaw`
+    CREATE TABLE IF NOT EXISTS group_app_assignments (
+      id TEXT PRIMARY KEY,
+      group_id TEXT NOT NULL,
+      app_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE (group_id, app_id)
+    )
+  `;
+};
+
 type PrismaRepositoryClient = PrismaClientLike & Record<string, unknown>;
 
 type PrismaClientModule = {
@@ -72,7 +137,9 @@ export async function getPrismaClient(config: AppConfig): Promise<PrismaClientLi
   }
 
   const module = await loadPrismaClientModule(config.databaseProvider);
-  return new module.PrismaClient();
+  const prisma = new module.PrismaClient() as PrismaClientLike & Record<string, unknown>;
+  await ensureAppAssignmentTables(prisma, config.databaseProvider);
+  return prisma;
 }
 
 /**
