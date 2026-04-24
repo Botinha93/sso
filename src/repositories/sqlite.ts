@@ -448,6 +448,7 @@ export class SqliteDatabase {
         group_id TEXT NOT NULL,
         attribute_id TEXT NOT NULL,
         enabled INTEGER NOT NULL,
+        value TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         UNIQUE (group_id, attribute_id),
@@ -790,6 +791,12 @@ export class SqliteDatabase {
     const hasCustomAttributesColumn = userColumns.some((column) => column.name === "custom_attributes_json");
     if (!hasCustomAttributesColumn) {
       this.connection.exec("ALTER TABLE users ADD COLUMN custom_attributes_json TEXT NOT NULL DEFAULT '{}';");
+    }
+
+    const groupUserAttributeColumns = this.connection.prepare("PRAGMA table_info(group_user_attribute_assignments)").all() as Array<{ name: string }>;
+    const hasGroupUserAttributeValueColumn = groupUserAttributeColumns.some((column) => column.name === "value");
+    if (!hasGroupUserAttributeValueColumn) {
+      this.connection.exec("ALTER TABLE group_user_attribute_assignments ADD COLUMN value TEXT;");
     }
     const hasUserAppIdColumn = userColumns.some((column) => column.name === "app_id");
     if (!hasUserAppIdColumn) {

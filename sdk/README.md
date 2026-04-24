@@ -391,6 +391,12 @@ Implemented today:
 - SAML admin methods for service provider CRUD, metadata upload, certificate rotation, and assertion audits
 - workload identity methods for service identities, credential lifecycle, and usage inspection
 
+Multi-app notes:
+
+- The SDK still uses the same OAuth token endpoint, `POST /oauth/token`.
+- Multi-app support is reflected in the admin and portal types through `appIds` and, for portal identity responses, `directAppIds` and `inheritedAppIds`.
+- App access is resolved from user and group assignments; it is not selected by switching to a different token endpoint.
+
 Still planned:
 
 - connector-focused enterprise examples beyond onboarding snippets

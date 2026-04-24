@@ -201,6 +201,12 @@ paths:
   /oauth/token:
     post:
       summary: Token endpoint
+      description: |
+        Exchanges OAuth grants for tokens using the shared platform token endpoint.
+
+        Multi-app deployments still use this same `/oauth/token` route. App context is
+        derived from the client configuration and the user's effective app assignments,
+        rather than from an app-specific token endpoint.
       requestBody:
         required: true
         content:
@@ -1395,6 +1401,10 @@ paths:
   /api/portal/me:
     get:
       summary: Current portal user profile
+      description: |
+        Returns the current portal user's effective identity view, including the full
+        list of visible apps. In multi-app setups, `apps` represents the union of
+        direct user app assignments and app access inherited from the user's groups.
       responses:
         '200':
           description: User profile, apps, roles, groups, and effective permissions

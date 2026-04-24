@@ -89,6 +89,7 @@ export const createGroupSchema = z.object({
   externalId: z.string().min(1).optional(),
   name: z.string().min(2),
   description: z.string().min(2),
+  customAttributes: z.record(z.string(), z.string()).default({}),
   roleIds: z.array(z.string()).default([])
 });
 
@@ -98,7 +99,8 @@ export const updateGroupSchema = z.object({
   externalSource: z.string().min(1).optional(),
   externalId: z.string().min(1).optional(),
   name: z.string().min(2).optional(),
-  description: z.string().min(2).optional()
+  description: z.string().min(2).optional(),
+  customAttributes: z.record(z.string(), z.string()).optional()
 });
 
 export const assignGroupRoleSchema = z.object({
@@ -445,7 +447,8 @@ export const updateUserAttributeSchema = z.object({
 
 export const setUserAttributeGroupAssignmentSchema = z.object({
   groupId: z.string().min(2),
-  enabled: z.boolean()
+  enabled: z.boolean(),
+  value: z.string().optional()
 });
 
 export const createPolicySchema = z.object({

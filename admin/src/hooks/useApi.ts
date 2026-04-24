@@ -431,6 +431,7 @@ export function useCreateGroup() {
       appIds?: string[]
       name: string
       description: string
+      customAttributes?: Record<string, string>
       roleIds: string[]
     }) => jsonFetch(`${API_BASE}/groups`, {
       method: 'POST',
@@ -458,7 +459,7 @@ export function useDeleteGroup() {
 export function useUpdateGroup() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; appId?: string; appIds?: string[]; name?: string; description?: string }) =>
+    mutationFn: ({ id, ...data }: { id: string; appId?: string; appIds?: string[]; name?: string; description?: string; customAttributes?: Record<string, string> }) =>
       jsonFetch(`${API_BASE}/groups/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -885,11 +886,11 @@ export function useDeleteUserAttribute() {
 export function useSetUserAttributeGroupAssignment() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, groupId, enabled }: { id: string; groupId: string; enabled: boolean }) =>
+    mutationFn: ({ id, groupId, enabled, value }: { id: string; groupId: string; enabled: boolean; value?: string }) =>
       jsonFetch(`${API_BASE}/user-attributes/${id}/groups`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ groupId, enabled })
+        body: JSON.stringify({ groupId, enabled, value })
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['user-attributes'] })
   })

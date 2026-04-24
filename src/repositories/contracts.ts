@@ -248,6 +248,7 @@ export interface UserAttributeRepository {
 export interface GroupUserAttributeAssignmentRepository {
   list(): Awaitable<GroupUserAttributeAssignment[]>;
   listByAttribute(attributeId: string): Awaitable<GroupUserAttributeAssignment[]>;
+  listByGroup(groupId: string): Awaitable<GroupUserAttributeAssignment[]>;
   upsert(input: Omit<GroupUserAttributeAssignment, "id" | "createdAt" | "updatedAt">): Awaitable<GroupUserAttributeAssignment>;
   delete(attributeId: string, groupId: string): Awaitable<void>;
 }

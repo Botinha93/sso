@@ -9,7 +9,6 @@ import { registerSamlProtocolRoutes } from "./saml-protocol-routes.js";
 import { registerAccessGovernanceRoutes } from "./routes/access-governance.js";
 import { registerProvisioningRoutes } from "./routes/provisioning.js";
 import { registerElevationRoutes } from "./routes/elevations.js";
-import { registerServiceIdentityRoutes } from "./routes/service-identities.js";
 import { deriveRiskEventsFromAudit } from "./routes/security-risk-events.js";
 import { registerConnectorRoutes } from "./routes/connectors.js";
 import { registerPluginRoutes } from "./routes/plugins.js";
@@ -21,6 +20,17 @@ export const registerRoutes = async (app, deps) => {
     const allowedImageMimeTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"]);
     const translationService = new TranslationService();
     const geolocationService = new GeolocationService();
+    const runBestEffort = async (request, task, work) => {
+        try {
+            await work();
+        }
+        catch (error) {
+            request.log.warn({
+                task,
+                error: error instanceof Error ? error.message : "Unknown side effect failure"
+            }, "Ignored non-critical route side effect failure");
+        }
+    };
     const escapeXml = (value) => value
         .replaceAll("&", "&amp;")
         .replaceAll("<", "&lt;")
@@ -811,29 +821,16 @@ export const registerRoutes = async (app, deps) => {
         }
         let exchangeActor;
         // Optionally validate the caller presenting the exchange request.
-        // Accept either a registered OAuth client or a service identity credential.
+        // Accept only a registered OAuth client.
         if (client_id || client_secret) {
             if (!client_id || !client_secret) {
                 return reply.status(400).send({ error: "invalid_request", error_description: "client_id and client_secret must be provided together" });
             }
-            let matchedClient = false;
-            try {
-                const client = await deps.clientService.findClientById(client_id);
-                if (client && client.secret === client_secret) {
-                    matchedClient = true;
-                    exchangeActor = { type: "client", id: client.id };
-                }
+            const client = await deps.clientService.findClientById(client_id);
+            if (!client || client.secret !== client_secret) {
+                return reply.status(401).send({ error: "invalid_client" });
             }
-            catch {
-                // Fallback to service identity verification below.
-            }
-            if (!matchedClient) {
-                const serviceIdentity = await deps.serviceIdentityService.verifyCredential(client_id, client_secret);
-                if (!serviceIdentity) {
-                    return reply.status(401).send({ error: "invalid_client" });
-                }
-                exchangeActor = { type: "service_identity", id: serviceIdentity.id, clientId: client_id };
-            }
+            exchangeActor = { type: "client", id: client.id };
         }
         const subjectSub = String(subjectPayload.sub ?? "");
         const requestedScopes = scope ? scope.split(" ") : (subjectPayload.scope ? String(subjectPayload.scope).split(" ") : []);
@@ -855,9 +852,7 @@ export const registerRoutes = async (app, deps) => {
                 sub: subjectSub,
                 scopes: requestedScopes,
                 accessTokenId,
-                exchangeActorType: exchangeActor?.type,
-                serviceIdentityId: exchangeActor?.type === "service_identity" ? exchangeActor.id : undefined,
-                serviceIdentityClientId: exchangeActor?.type === "service_identity" ? exchangeActor.clientId : undefined
+                exchangeActorType: exchangeActor?.type
             }
         });
         return reply.status(200).send({
@@ -994,11 +989,13 @@ export const registerRoutes = async (app, deps) => {
                 userAgent: clientUserAgent(request)
             });
             deps.securityService.clearLoginFailures(input.email);
-            await deps.eventHookService.emit("auth.login.succeeded", {
-                userId: session.userId,
-                clientId: session.clientId,
-                sessionId: session.id,
-                ip: request.ip
+            await runBestEffort(request, "auth.login.succeeded", async () => {
+                await deps.eventHookService.emit("auth.login.succeeded", {
+                    userId: session.userId,
+                    clientId: session.clientId,
+                    sessionId: session.id,
+                    ip: request.ip
+                });
             });
             reply.setCookie("sid", session.id, {
                 httpOnly: true,
@@ -1010,32 +1007,41 @@ export const registerRoutes = async (app, deps) => {
             return { session, ...tokens };
         }
         catch (err) {
-            await deps.securityService.recordLoginFailure({
-                identifier: input.email,
-                ip: request.ip,
-                reason: err instanceof Error ? err.message : "unknown"
-            });
-            await deps.riskService.recordEvent({
-                userId: undefined,
-                ip: request.ip,
-                confidence: 40,
-                reason: "failed_login",
-                decision: "challenge",
-                metadata: {
+            const reason = err instanceof Error ? err.message : "unknown";
+            await runBestEffort(request, "security.recordLoginFailure", async () => {
+                await deps.securityService.recordLoginFailure({
                     identifier: input.email,
-                    grant: "interactive"
-                }
+                    ip: request.ip,
+                    reason
+                });
             });
-            await deps.auditRepository.log({
-                type: "login_failed",
-                actorType: "user",
-                ip: request.ip,
-                metadata: { email: input.email }
+            await runBestEffort(request, "risk.recordEvent", async () => {
+                await deps.riskService.recordEvent({
+                    userId: undefined,
+                    ip: request.ip,
+                    confidence: 40,
+                    reason: "failed_login",
+                    decision: "challenge",
+                    metadata: {
+                        identifier: input.email,
+                        grant: "interactive"
+                    }
+                });
             });
-            await deps.eventHookService.emit("auth.login.failed", {
-                email: input.email,
-                ip: request.ip,
-                error: err instanceof Error ? err.message : "unknown"
+            await runBestEffort(request, "audit.login_failed", async () => {
+                await deps.auditRepository.log({
+                    type: "login_failed",
+                    actorType: "user",
+                    ip: request.ip,
+                    metadata: { email: input.email }
+                });
+            });
+            await runBestEffort(request, "auth.login.failed", async () => {
+                await deps.eventHookService.emit("auth.login.failed", {
+                    email: input.email,
+                    ip: request.ip,
+                    error: reason
+                });
             });
             throw err;
         }
@@ -1073,12 +1079,14 @@ export const registerRoutes = async (app, deps) => {
                 ip: challenge.ip ?? request.ip,
                 userAgent: clientUserAgent(request)
             });
-            await deps.eventHookService.emit("auth.login.succeeded", {
-                userId: session.userId,
-                clientId: session.clientId,
-                sessionId: session.id,
-                ip: request.ip,
-                mfa: "totp"
+            await runBestEffort(request, "auth.login.succeeded.mfa_totp", async () => {
+                await deps.eventHookService.emit("auth.login.succeeded", {
+                    userId: session.userId,
+                    clientId: session.clientId,
+                    sessionId: session.id,
+                    ip: request.ip,
+                    mfa: "totp"
+                });
             });
             reply.setCookie("sid", session.id, {
                 httpOnly: true,
@@ -1142,12 +1150,14 @@ export const registerRoutes = async (app, deps) => {
                 ip: result.ip ?? request.ip,
                 userAgent: clientUserAgent(request)
             });
-            await deps.eventHookService.emit("auth.login.succeeded", {
-                userId: session.userId,
-                clientId: session.clientId,
-                sessionId: session.id,
-                ip: request.ip,
-                mfa: "webauthn"
+            await runBestEffort(request, "auth.login.succeeded.mfa_webauthn", async () => {
+                await deps.eventHookService.emit("auth.login.succeeded", {
+                    userId: session.userId,
+                    clientId: session.clientId,
+                    sessionId: session.id,
+                    ip: request.ip,
+                    mfa: "webauthn"
+                });
             });
             reply.setCookie("sid", session.id, {
                 httpOnly: true,
@@ -1285,7 +1295,6 @@ export const registerRoutes = async (app, deps) => {
         elevationService: deps.elevationService,
         requireSessionUser
     });
-    registerServiceIdentityRoutes(app, deps.serviceIdentityService);
     registerConnectorRoutes(app, deps.connectorService, deps.authMetricsService);
     registerPluginRoutes(app, deps.pluginService, deps.pluginRuntimeService);
     app.put("/api/admin/settings", async (request) => {
@@ -1877,9 +1886,9 @@ export const registerRoutes = async (app, deps) => {
     });
     app.patch("/api/admin/users/:id", async (request, reply) => {
         const { id } = request.params;
-        const { appId, externalSource, externalId, isServiceUser, avatarUrl, email, username, givenName, familyName, active, groupIds, customAttributes } = updateUserSchema.parse(request.body);
-        if (appId !== undefined || externalSource !== undefined || externalId !== undefined || isServiceUser !== undefined || avatarUrl !== undefined || email !== undefined || username !== undefined || givenName !== undefined || familyName !== undefined) {
-            await deps.userService.updateUserProfile(id, { appId, externalSource, externalId, isServiceUser, avatarUrl, email, username, givenName, familyName });
+        const { appId, appIds, externalSource, externalId, isServiceUser, avatarUrl, email, username, givenName, familyName, active, groupIds, customAttributes } = updateUserSchema.parse(request.body);
+        if (appId !== undefined || appIds !== undefined || externalSource !== undefined || externalId !== undefined || isServiceUser !== undefined || avatarUrl !== undefined || email !== undefined || username !== undefined || givenName !== undefined || familyName !== undefined) {
+            await deps.userService.updateUserProfile(id, { appId, appIds, externalSource, externalId, isServiceUser, avatarUrl, email, username, givenName, familyName });
         }
         if (active !== undefined)
             await deps.userService.setUserActive(id, active);
@@ -1901,6 +1910,7 @@ export const registerRoutes = async (app, deps) => {
         await deps.eventHookService.emit("user.updated", {
             userId: id,
             appId,
+            appIds,
             externalSource,
             externalId,
             isServiceUser,
@@ -1913,7 +1923,7 @@ export const registerRoutes = async (app, deps) => {
             updatedGroupIds: groupIds,
             updatedCustomAttributes: customAttributes ? Object.keys(customAttributes) : undefined
         });
-        return { id, appId, externalSource, externalId, isServiceUser, avatarUrl, active, email, username, givenName, familyName };
+        return { id, appId, appIds, externalSource, externalId, isServiceUser, avatarUrl, active, email, username, givenName, familyName };
     });
     app.post("/api/admin/users/:id/reset-password", async (request, reply) => {
         const { id } = request.params;
@@ -2310,10 +2320,11 @@ export const registerRoutes = async (app, deps) => {
         const user = await deps.userService.findUserById(session.userId);
         if (!user)
             return reply.status(401).send({ error: "unauthorized" });
+        const userAppAccess = await deps.userService.resolveAppAccessForUser(user.id);
+        const userCustomAttributes = await deps.userService.resolveCustomAttributesForUser(user.id);
         const roleDetails = await deps.roleService.resolveRolePermissionDetailsForUser(user.id);
-        const userApps = (await deps.appService.listApps()).filter(a => {
-            // app directly assigned to user, or user has no appId restriction
-            return !user.appId || a.id === user.appId;
+        const userApps = (await deps.appService.listApps()).filter((appItem) => {
+            return userAppAccess.appIds.length === 0 || userAppAccess.appIds.includes(appItem.id);
         });
         return {
             id: user.id,
@@ -2322,8 +2333,13 @@ export const registerRoutes = async (app, deps) => {
             givenName: user.givenName,
             familyName: user.familyName,
             avatarUrl: user.avatarUrl,
-            customAttributes: user.customAttributes,
-            appId: user.appId,
+            customAttributes: userCustomAttributes.customAttributes,
+            directCustomAttributes: userCustomAttributes.directCustomAttributes,
+            inheritedCustomAttributes: userCustomAttributes.inheritedCustomAttributes,
+            appId: userAppAccess.appId,
+            appIds: userAppAccess.appIds,
+            directAppIds: userAppAccess.directAppIds,
+            inheritedAppIds: userAppAccess.inheritedAppIds,
             roles: roleDetails.map((role) => role.name),
             groups: await deps.groupService.resolveGroupNamesForUser(user.id),
             permissions: Array.from(new Set(roleDetails.flatMap((role) => role.permissions))),

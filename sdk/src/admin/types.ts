@@ -31,6 +31,9 @@ export interface UpdateAppInput {
 export interface SDKUser {
   id: string;
   appId?: string;
+  appIds?: string[];
+  directAppIds?: string[];
+  inheritedAppIds?: string[];
   externalSource?: string;
   externalId?: string;
   isServiceUser: boolean;
@@ -47,6 +50,7 @@ export interface SDKUser {
 
 export interface CreateUserInput {
   appId?: string;
+  appIds?: string[];
   externalSource?: string;
   externalId?: string;
   isServiceUser?: boolean;
@@ -63,6 +67,7 @@ export interface CreateUserInput {
 
 export interface UpdateUserInput {
   appId?: string;
+  appIds?: string[];
   externalSource?: string;
   externalId?: string;
   isServiceUser?: boolean;
@@ -85,6 +90,7 @@ export interface CreatedUserSummary {
 export interface UpdatedUserSummary {
   id: string;
   appId?: string;
+  appIds?: string[];
   externalSource?: string;
   externalId?: string;
   isServiceUser?: boolean;
@@ -336,6 +342,7 @@ export interface RoleListQuery extends ListPageQuery {
 export interface SDKGroup {
   id: string;
   appId?: string;
+  appIds?: string[];
   externalSource?: string;
   externalId?: string;
   name: string;
@@ -345,6 +352,7 @@ export interface SDKGroup {
 
 export interface CreateGroupInput {
   appId?: string;
+  appIds?: string[];
   description: string;
   externalId?: string;
   externalSource?: string;
@@ -354,6 +362,7 @@ export interface CreateGroupInput {
 
 export interface UpdateGroupInput {
   appId?: string;
+  appIds?: string[];
   description?: string;
   externalId?: string;
   externalSource?: string;

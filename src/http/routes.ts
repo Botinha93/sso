@@ -2774,6 +2774,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const user = await deps.userService.findUserById(session.userId);
     if (!user) return reply.status(401).send({ error: "unauthorized" });
     const userAppAccess = await deps.userService.resolveAppAccessForUser(user.id);
+    const userCustomAttributes = await deps.userService.resolveCustomAttributesForUser(user.id);
     const roleDetails = await deps.roleService.resolveRolePermissionDetailsForUser(user.id);
     const userApps = (await deps.appService.listApps()).filter((appItem) => {
       return userAppAccess.appIds.length === 0 || userAppAccess.appIds.includes(appItem.id);
@@ -2785,7 +2786,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       givenName: user.givenName,
       familyName: user.familyName,
       avatarUrl: user.avatarUrl,
-      customAttributes: user.customAttributes,
+      customAttributes: userCustomAttributes.customAttributes,
+      directCustomAttributes: userCustomAttributes.directCustomAttributes,
+      inheritedCustomAttributes: userCustomAttributes.inheritedCustomAttributes,
       appId: userAppAccess.appId,
       appIds: userAppAccess.appIds,
       directAppIds: userAppAccess.directAppIds,

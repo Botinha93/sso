@@ -33,6 +33,12 @@ export class SqliteDatabase {
         this.connection.exec("PRAGMA foreign_keys = ON;");
         this.connection.exec("PRAGMA synchronous = NORMAL;");
     }
+    assertHealthy() {
+        const quickCheck = this.connection.pragma("quick_check", { simple: true });
+        if (quickCheck !== "ok") {
+            throw new Error(`SQLite integrity check failed: ${String(quickCheck)}`);
+        }
+    }
     migrate() {
         this.connection.exec(`
       CREATE TABLE IF NOT EXISTS apps (
@@ -177,6 +183,26 @@ export class SqliteDatabase {
         FOREIGN KEY (group_id) REFERENCES groups(id)
       );
 
+      CREATE TABLE IF NOT EXISTS user_app_assignments (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        app_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE (user_id, app_id),
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (app_id) REFERENCES apps(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS group_app_assignments (
+        id TEXT PRIMARY KEY,
+        group_id TEXT NOT NULL,
+        app_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE (group_id, app_id),
+        FOREIGN KEY (group_id) REFERENCES groups(id),
+        FOREIGN KEY (app_id) REFERENCES apps(id)
+      );
+
       CREATE TABLE IF NOT EXISTS group_role_assignments (
         id TEXT PRIMARY KEY,
         group_id TEXT NOT NULL,
@@ -317,6 +343,7 @@ export class SqliteDatabase {
         group_id TEXT NOT NULL,
         attribute_id TEXT NOT NULL,
         enabled INTEGER NOT NULL,
+        value TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         UNIQUE (group_id, attribute_id),
@@ -659,6 +686,11 @@ export class SqliteDatabase {
         if (!hasCustomAttributesColumn) {
             this.connection.exec("ALTER TABLE users ADD COLUMN custom_attributes_json TEXT NOT NULL DEFAULT '{}';");
         }
+        const groupUserAttributeColumns = this.connection.prepare("PRAGMA table_info(group_user_attribute_assignments)").all();
+        const hasGroupUserAttributeValueColumn = groupUserAttributeColumns.some((column) => column.name === "value");
+        if (!hasGroupUserAttributeValueColumn) {
+            this.connection.exec("ALTER TABLE group_user_attribute_assignments ADD COLUMN value TEXT;");
+        }
         const hasUserAppIdColumn = userColumns.some((column) => column.name === "app_id");
         if (!hasUserAppIdColumn) {
             this.connection.exec("ALTER TABLE users ADD COLUMN app_id TEXT;");
@@ -911,5 +943,8 @@ export class SqliteDatabase {
         if (!hasElevationSessionCorrelationId) {
             this.connection.exec("ALTER TABLE elevation_sessions ADD COLUMN correlation_id TEXT NOT NULL DEFAULT '';\nUPDATE elevation_sessions SET correlation_id = elevation_request_id WHERE correlation_id = '';\n");
         }
+    }
+    close() {
+        this.connection.close();
     }
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, RefreshCw, Trash2, Key, RotateCw, Copy, Eye, EyeOff, ChevronRight, X } from 'lucide-react'
+import { Plus, RefreshCw, Trash2, Key, RotateCw, Copy, Eye, EyeOff, Pencil, X } from 'lucide-react'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
 import {
@@ -19,19 +19,6 @@ import {
 const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
 const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
 
-const statusBadge = (status: ServiceIdentityDto['status']) => {
-  const styles: Record<string, string> = {
-    active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    inactive: 'bg-slate-50 text-slate-600 border-slate-200',
-    suspended: 'bg-red-50 text-red-700 border-red-200'
-  }
-  return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${styles[status] ?? styles.inactive}`}>
-      {status}
-    </span>
-  )
-}
-
 const defaultForm = () => ({
   name: '',
   description: '',
@@ -45,53 +32,43 @@ interface NewSecretInfo {
   plainClientSecret: string
 }
 
-const ServiceIdentityDetail = ({
+const statusBadge = (status: ServiceIdentityDto['status']) => {
+  const styles: Record<ServiceIdentityDto['status'], string> = {
+    active: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    inactive: 'bg-slate-100 text-slate-600 border-slate-200',
+    suspended: 'bg-red-50 text-red-600 border-red-100'
+  }
+
+  return (
+    <span className={`text-xs px-1.5 py-0.5 rounded-md border ${styles[status]}`}>
+      {status}
+    </span>
+  )
+}
+
+function parseCommaSeparated(value: string) {
+  return value.split(',').map((item) => item.trim()).filter(Boolean)
+}
+
+const CredentialsPanel = ({
   identity,
-  onClose
 }: {
   identity: ServiceIdentityDto
-  onClose: () => void
 }) => {
   const { data, refetch } = useServiceIdentity(identity.id)
+  const { data: usageData, refetch: refetchUsage } = useServiceIdentityUsage(identity.id)
   const issueCredential = useIssueServiceIdentityCredential()
   const rotateCredential = useRotateServiceIdentityCredential()
   const revokeCredential = useRevokeServiceIdentityCredential()
-  const { data: usageData, refetch: refetchUsage } = useServiceIdentityUsage(identity.id)
-  const updateIdentity = useUpdateServiceIdentity()
   const [expiresInDays, setExpiresInDays] = useState<string>('365')
   const [newSecret, setNewSecret] = useState<NewSecretInfo | null>(null)
   const [secretVisible, setSecretVisible] = useState(false)
   const [credentialToRevoke, setCredentialToRevoke] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({
-    description: identity.description ?? '',
-    status: identity.status,
-    allowedScopes: identity.allowedScopes.join(', '),
-    allowedAudiences: identity.allowedAudiences.join(', ')
-  })
 
   const si = data ?? identity
-
-  useEffect(() => {
-    setEditForm({
-      description: si.description ?? '',
-      status: si.status,
-      allowedScopes: si.allowedScopes.join(', '),
-      allowedAudiences: si.allowedAudiences.join(', ')
-    })
-  }, [si.description, si.status, si.allowedScopes, si.allowedAudiences])
-
   const usage = usageData?.data ?? []
 
-  const handleSaveIdentity = async () => {
-    await updateIdentity.mutateAsync({
-      id: si.id,
-      data: {
-        description: editForm.description || undefined,
-        status: editForm.status,
-        allowedScopes: editForm.allowedScopes.split(',').map((value) => value.trim()).filter(Boolean),
-        allowedAudiences: editForm.allowedAudiences.split(',').map((value) => value.trim()).filter(Boolean)
-      }
-    })
+  const refreshAll = async () => {
     await refetch()
     await refetchUsage()
   }
@@ -102,128 +79,40 @@ const ServiceIdentityDetail = ({
       expiresInDays: expiresInDays ? parseInt(expiresInDays) : undefined
     })
     setNewSecret({ clientId: result.credential.clientId, plainClientSecret: result.plainClientSecret })
-    refetch()
-    await refetch()
-    await refetchUsage()
+    await refreshAll()
   }
 
   const handleRotate = async (credentialId: string) => {
     const result = await rotateCredential.mutateAsync({ id: si.id, credentialId })
     setNewSecret({ clientId: result.credential.clientId, plainClientSecret: result.plainClientSecret })
-    refetch()
-    await refetch()
-    await refetchUsage()
+    await refreshAll()
   }
 
   const handleRevoke = async () => {
     if (!credentialToRevoke) return
     await revokeCredential.mutateAsync({ id: si.id, credentialId: credentialToRevoke })
     setCredentialToRevoke(null)
-    refetch()
-    await refetch()
-    await refetchUsage()
+    await refreshAll()
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">{si.name}</h2>
-          {si.description && <p className="text-sm text-slate-500 mt-0.5">{si.description}</p>}
-        </div>
-        <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 text-sm">
-
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
-                <h3 className="text-sm font-semibold text-slate-900">Identity Settings</h3>
-                <div>
-                  <label className={labelCls}>Description</label>
-                  <input
-                    className={fieldCls}
-                    value={editForm.description}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, description: e.target.value }))}
-                    placeholder="Optional description"
-                  />
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className={labelCls}>Status</label>
-                    <select
-                      className={fieldCls}
-                      value={editForm.status}
-                      onChange={(e) => setEditForm((prev) => ({ ...prev, status: e.target.value as ServiceIdentityDto['status'] }))}
-                    >
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                      <option value="suspended">Suspended</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className={labelCls}>Allowed Scopes</label>
-                    <input
-                      className={fieldCls}
-                      value={editForm.allowedScopes}
-                      onChange={(e) => setEditForm((prev) => ({ ...prev, allowedScopes: e.target.value }))}
-                      placeholder="read:users, write:reports"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className={labelCls}>Allowed Audiences</label>
-                  <input
-                    className={fieldCls}
-                    value={editForm.allowedAudiences}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, allowedAudiences: e.target.value }))}
-                    placeholder="api.example.com"
-                  />
-                </div>
-                <div className="flex justify-end">
-                  <button
-                    onClick={handleSaveIdentity}
-                    disabled={updateIdentity.isPending}
-                    className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
-                  >
-                    {updateIdentity.isPending ? 'Saving…' : 'Save Changes'}
-                  </button>
-                </div>
-              </div>
-        <div>
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Status</span>
-          <div className="mt-1">{statusBadge(si.status)}</div>
+          <label className={labelCls}>Status</label>
+          <div className="h-9 flex items-center">{statusBadge(si.status)}</div>
         </div>
         <div>
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">ID</span>
-          <p className="mt-1 font-mono text-xs text-slate-600 truncate">{si.id}</p>
-        </div>
-        {si.allowedScopes.length > 0 && (
-          <div className="col-span-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Allowed Scopes</span>
-            <div className="mt-1 flex flex-wrap gap-1">
-              {si.allowedScopes.map(s => (
-                <span key={s} className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{s}</span>
-              ))}
-            </div>
+          <label className={labelCls}>Identity ID</label>
+          <div className="h-9 flex items-center rounded-lg border border-slate-200 px-3 text-xs font-mono text-slate-600 truncate">
+            {si.id}
           </div>
-        )}
-        {si.allowedAudiences.length > 0 && (
-          <div className="col-span-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Allowed Audiences</span>
-            <div className="mt-1 flex flex-wrap gap-1">
-              {si.allowedAudiences.map(a => (
-                <span key={a} className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{a}</span>
-              ))}
-            </div>
-          </div>
-        )}
+        </div>
       </div>
 
       {newSecret && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-          <p className="text-sm font-semibold text-amber-900 mb-2">⚠ Save Client Secret — shown only once</p>
+          <p className="text-sm font-semibold text-amber-900 mb-2">Save Client Secret. It is shown only once.</p>
           <div className="space-y-2">
             <div>
               <p className="text-xs text-amber-700 mb-1">Client ID</p>
@@ -240,7 +129,7 @@ const ServiceIdentityDetail = ({
                 <code className="flex-1 rounded bg-white border border-amber-200 px-2 py-1 text-xs font-mono text-slate-800">
                   {secretVisible ? newSecret.plainClientSecret : '••••••••••••••••••••••••••••••••'}
                 </code>
-                <button onClick={() => setSecretVisible(!secretVisible)} className="p-1 text-amber-600 hover:text-amber-800">
+                <button onClick={() => setSecretVisible((prev) => !prev)} className="p-1 text-amber-600 hover:text-amber-800">
                   {secretVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                 </button>
                 <button onClick={() => navigator.clipboard.writeText(newSecret.plainClientSecret)} className="p-1 text-amber-600 hover:text-amber-800">
@@ -259,16 +148,17 @@ const ServiceIdentityDetail = ({
           <div className="flex items-center gap-2">
             <input
               type="number"
-              min="1" max="3650"
+              min="1"
+              max="3650"
               value={expiresInDays}
-              onChange={e => setExpiresInDays(e.target.value)}
+              onChange={(e) => setExpiresInDays(e.target.value)}
               placeholder="Expires (days)"
-              className="h-7 w-28 rounded border border-slate-200 px-2 text-xs text-slate-700"
+              className="h-8 w-28 rounded-lg border border-slate-200 px-2 text-xs text-slate-700"
             />
             <button
               onClick={handleIssueCredential}
               disabled={issueCredential.isPending}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+              className="h-8 px-3 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 disabled:opacity-50 inline-flex items-center gap-1.5"
             >
               <Key className="h-3.5 w-3.5" />
               Issue Credential
@@ -277,45 +167,46 @@ const ServiceIdentityDetail = ({
         </div>
 
         <div className="space-y-2">
-          {(si.credentials ?? []).length === 0 && (
-            <p className="text-sm text-slate-500 text-center py-4">No credentials yet.</p>
-          )}
-          {(si.credentials ?? []).map((cred: ServiceIdentityCredentialDto) => {
-            const isRevoked = !!cred.revokedAt
-            const isExpired = cred.expiresAt ? new Date(cred.expiresAt) < new Date() : false
-            const credStatus = isRevoked ? 'revoked' : isExpired ? 'expired' : 'active'
+          {(si.credentials ?? []).length === 0 ? (
+            <div className="p-6 text-center text-slate-400 text-sm rounded-xl border border-slate-200">No credentials yet</div>
+          ) : (
+            (si.credentials ?? []).map((cred: ServiceIdentityCredentialDto) => {
+              const isRevoked = !!cred.revokedAt
+              const isExpired = cred.expiresAt ? new Date(cred.expiresAt) < new Date() : false
+              const status = isRevoked ? 'revoked' : isExpired ? 'expired' : 'active'
 
-            return (
-              <div key={cred.id} className={`flex items-center justify-between rounded-lg border px-3 py-2 ${isRevoked || isExpired ? 'bg-slate-50 opacity-60' : 'bg-white'}`}>
-                <div className="flex-1 min-w-0">
-                  <code className="text-xs font-mono text-slate-700 truncate block">{cred.clientId}</code>
-                  <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-500">
-                    <span className={`font-medium ${credStatus === 'active' ? 'text-emerald-600' : 'text-red-500'}`}>{credStatus}</span>
-                    {cred.expiresAt && <span>Expires {new Date(cred.expiresAt).toLocaleDateString()}</span>}
-                    {cred.lastUsedAt && <span>Last used {new Date(cred.lastUsedAt).toLocaleString()}</span>}
+              return (
+                <div key={cred.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 gap-3">
+                  <div className="min-w-0 flex-1">
+                    <code className="text-xs font-mono text-slate-700 truncate block">{cred.clientId}</code>
+                    <div className="flex flex-wrap items-center gap-3 mt-0.5 text-xs text-slate-500">
+                      <span className={`font-medium ${status === 'active' ? 'text-emerald-600' : 'text-red-500'}`}>{status}</span>
+                      {cred.expiresAt && <span>Expires {new Date(cred.expiresAt).toLocaleDateString()}</span>}
+                      {cred.lastUsedAt && <span>Last used {new Date(cred.lastUsedAt).toLocaleString()}</span>}
+                    </div>
                   </div>
+                  {!isRevoked && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleRotate(cred.id)}
+                        title="Rotate credential"
+                        className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+                      >
+                        <RotateCw className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setCredentialToRevoke(cred.id)}
+                        title="Revoke credential"
+                        className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
-                {!isRevoked && (
-                  <div className="flex items-center gap-1 ml-2">
-                    <button
-                      onClick={() => handleRotate(cred.id)}
-                      title="Rotate"
-                      className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-indigo-600"
-                    >
-                      <RotateCw className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setCredentialToRevoke(cred.id)}
-                      title="Revoke"
-                      className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            )
-          })}
+              )
+            })
+          )}
         </div>
       </div>
 
@@ -356,15 +247,33 @@ const ServiceIdentityDetail = ({
 
 const ServiceIdentities = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false)
-  const [selectedIdentity, setSelectedIdentity] = useState<ServiceIdentityDto | null>(null)
-  const [identityToDelete, setIdentityToDelete] = useState<string | null>(null)
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [manageModalOpen, setManageModalOpen] = useState(false)
+  const [identityToEdit, setIdentityToEdit] = useState<ServiceIdentityDto | null>(null)
+  const [identityToManage, setIdentityToManage] = useState<ServiceIdentityDto | null>(null)
+  const [identityToDelete, setIdentityToDelete] = useState<ServiceIdentityDto | null>(null)
+  const [statusFilter, setStatusFilter] = useState<'all' | ServiceIdentityDto['status']>('all')
   const [formData, setFormData] = useState(defaultForm)
+  const [editFormData, setEditFormData] = useState(defaultForm)
 
   const { data, isLoading, refetch } = useServiceIdentities()
   const createIdentity = useCreateServiceIdentity()
+  const updateIdentity = useUpdateServiceIdentity()
   const deleteIdentity = useDeleteServiceIdentity()
 
   const identities: ServiceIdentityDto[] = (data as any)?.data ?? []
+  const filteredIdentities = identities.filter((identity) => statusFilter === 'all' ? true : identity.status === statusFilter)
+
+  useEffect(() => {
+    if (!identityToEdit) return
+    setEditFormData({
+      name: identityToEdit.name,
+      description: identityToEdit.description ?? '',
+      status: identityToEdit.status,
+      allowedScopes: identityToEdit.allowedScopes.join(', '),
+      allowedAudiences: identityToEdit.allowedAudiences.join(', ')
+    })
+  }, [identityToEdit])
 
   const handleCreate = async () => {
     if (!formData.name) return
@@ -372,127 +281,151 @@ const ServiceIdentities = () => {
       name: formData.name,
       description: formData.description || undefined,
       status: formData.status,
-      allowedScopes: formData.allowedScopes.split(',').map(s => s.trim()).filter(Boolean),
-      allowedAudiences: formData.allowedAudiences.split(',').map(s => s.trim()).filter(Boolean)
+      allowedScopes: parseCommaSeparated(formData.allowedScopes),
+      allowedAudiences: parseCommaSeparated(formData.allowedAudiences)
     })
     setCreateModalOpen(false)
     setFormData(defaultForm())
     refetch()
   }
 
+  const handleEdit = (identity: ServiceIdentityDto) => {
+    setIdentityToEdit(identity)
+    setEditModalOpen(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!identityToEdit || !editFormData.name) return
+    await updateIdentity.mutateAsync({
+      id: identityToEdit.id,
+      data: {
+        name: editFormData.name,
+        description: editFormData.description || undefined,
+        status: editFormData.status,
+        allowedScopes: parseCommaSeparated(editFormData.allowedScopes),
+        allowedAudiences: parseCommaSeparated(editFormData.allowedAudiences)
+      }
+    })
+    setEditModalOpen(false)
+    setIdentityToEdit(null)
+    setEditFormData(defaultForm())
+    refetch()
+  }
+
   const handleDelete = async () => {
     if (!identityToDelete) return
-    await deleteIdentity.mutateAsync(identityToDelete)
+    await deleteIdentity.mutateAsync(identityToDelete.id)
     setIdentityToDelete(null)
     refetch()
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div>
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Service Identities</h1>
-          <p className="text-sm text-slate-500 mt-1">Manage non-human identities for machine-to-machine authentication.</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Machine Directory</p>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Service Identities</h2>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => refetch()} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
-            <RefreshCw className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setCreateModalOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-          >
-            <Plus className="h-4 w-4" />
-            New Identity
-          </button>
-        </div>
+        <button
+          onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }}
+          className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 transition-colors"
+        >
+          <Plus size={14} />
+          New Identity
+        </button>
       </div>
 
-      {isLoading ? (
-        <div className="flex items-center justify-center py-16 text-slate-400">Loading...</div>
-      ) : identities.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 py-16 text-center">
-          <div className="rounded-full bg-slate-100 p-4 mb-4">
-            <Key className="h-8 w-8 text-slate-400" />
-          </div>
-          <p className="text-sm font-medium text-slate-600">No service identities yet</p>
-          <p className="text-xs text-slate-400 mt-1">Create one to enable machine-to-machine authentication</p>
-          <button
-            onClick={() => setCreateModalOpen(true)}
-            className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-          >
-            <Plus className="h-4 w-4" />
-            Create Service Identity
+      <div className="mb-4 max-w-sm">
+        <label className={labelCls}>Filter by Status</label>
+        <select className={fieldCls} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as 'all' | ServiceIdentityDto['status'])}>
+          <option value="all">All Identities</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="suspended">Suspended</option>
+        </select>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
+          <h4 className="text-sm font-semibold text-slate-700">All Service Identities</h4>
+          <button onClick={() => refetch()} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors">
+            <RefreshCw size={12} />
+            Refresh
           </button>
         </div>
-      ) : (
-        <div className="rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Name</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Scopes</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Created</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {identities.map((identity) => (
-                <tr key={identity.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3">
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">{identity.name}</p>
-                      {identity.description && <p className="text-xs text-slate-500">{identity.description}</p>}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">{statusBadge(identity.status)}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {identity.allowedScopes.slice(0, 3).map(s => (
-                        <span key={s} className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{s}</span>
-                      ))}
-                      {identity.allowedScopes.length > 3 && (
-                        <span className="text-xs text-slate-400">+{identity.allowedScopes.length - 3}</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-slate-500">
-                    {new Date(identity.createdAt).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => setSelectedIdentity(identity)}
-                        className="inline-flex items-center gap-1 rounded px-2 py-1.5 text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-                      >
-                        Manage <ChevronRight className="h-3 w-3" />
-                      </button>
-                      <button
-                        onClick={() => setIdentityToDelete(identity.id)}
-                        className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
 
-      {/* Create modal */}
-      <Modal isOpen={createModalOpen} onClose={() => { setCreateModalOpen(false); setFormData(defaultForm()) }} title="New Service Identity">
+        {isLoading ? (
+          <div className="p-10 text-center text-slate-400 text-sm">Loading service identities…</div>
+        ) : filteredIdentities.length === 0 ? (
+          <div className="p-10 text-center text-slate-400 text-sm">No service identities registered</div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {filteredIdentities.map((identity) => (
+              <div key={identity.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50/50 transition-colors gap-4">
+                <div className="space-y-0.5 flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-medium text-slate-900">{identity.name}</p>
+                    {statusBadge(identity.status)}
+                  </div>
+                  <p className="text-xs text-slate-500">{identity.description || 'No description'}</p>
+                  {identity.allowedScopes.length > 0 && (
+                    <div className="flex gap-1 flex-wrap">
+                      {identity.allowedScopes.map((scope) => (
+                        <span key={scope} className="text-xs px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">{scope}</span>
+                      ))}
+                    </div>
+                  )}
+                  {identity.allowedAudiences.length > 0 && (
+                    <div className="flex gap-1 flex-wrap">
+                      {identity.allowedAudiences.map((audience) => (
+                        <span key={audience} className="text-xs px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">{audience}</span>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-xs text-slate-400 font-mono">Created {new Date(identity.createdAt).toLocaleDateString()}</p>
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button
+                    onClick={() => {
+                      setIdentityToManage(identity)
+                      setManageModalOpen(true)
+                    }}
+                    className="h-8 px-2.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    Manage Credentials
+                  </button>
+                  <button
+                    onClick={() => handleEdit(identity)}
+                    disabled={updateIdentity.isPending}
+                    className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+                    title="Edit identity"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    onClick={() => setIdentityToDelete(identity)}
+                    disabled={deleteIdentity.isPending}
+                    className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors disabled:opacity-40"
+                    title="Delete identity"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Modal isOpen={createModalOpen} onClose={() => { setCreateModalOpen(false); setFormData(defaultForm()) }} title="Create Service Identity">
         <div className="space-y-4">
           <div>
-            <label className={labelCls}>Name *</label>
+            <label className={labelCls}>Name</label>
             <input
               className={fieldCls}
               value={formData.name}
               onChange={e => setFormData(f => ({ ...f, name: e.target.value }))}
-              placeholder="my-worker-service"
+              placeholder="reporting-worker"
             />
           </div>
           <div>
@@ -501,74 +434,131 @@ const ServiceIdentities = () => {
               className={fieldCls}
               value={formData.description}
               onChange={e => setFormData(f => ({ ...f, description: e.target.value }))}
-              placeholder="Optional description"
+              placeholder="Machine identity for scheduled reporting jobs"
             />
           </div>
-          <div>
-            <label className={labelCls}>Status</label>
-            <select
-              className={fieldCls}
-              value={formData.status}
-              onChange={e => setFormData(f => ({ ...f, status: e.target.value as ServiceIdentityDto['status'] }))}
-            >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="suspended">Suspended</option>
-            </select>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className={labelCls}>Status</label>
+              <select
+                className={fieldCls}
+                value={formData.status}
+                onChange={e => setFormData(f => ({ ...f, status: e.target.value as ServiceIdentityDto['status'] }))}
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="suspended">Suspended</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Allowed Scopes</label>
+              <input
+                className={fieldCls}
+                value={formData.allowedScopes}
+                onChange={e => setFormData(f => ({ ...f, allowedScopes: e.target.value }))}
+                placeholder="read:users, write:reports"
+              />
+            </div>
           </div>
           <div>
-            <label className={labelCls}>Allowed Scopes (comma-separated)</label>
-            <input
-              className={fieldCls}
-              value={formData.allowedScopes}
-              onChange={e => setFormData(f => ({ ...f, allowedScopes: e.target.value }))}
-              placeholder="read:users, write:reports"
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Allowed Audiences (comma-separated)</label>
+            <label className={labelCls}>Allowed Audiences</label>
             <input
               className={fieldCls}
               value={formData.allowedAudiences}
               onChange={e => setFormData(f => ({ ...f, allowedAudiences: e.target.value }))}
-              placeholder="api.example.com"
+              placeholder="api.example.com, jobs.internal"
             />
           </div>
-
-          <div className="flex justify-end gap-3 pt-2">
-            <button onClick={() => { setCreateModalOpen(false); setFormData(defaultForm()) }} className="rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-slate-100">
+          <div className="flex gap-2 justify-end pt-2">
+            <button onClick={() => { setCreateModalOpen(false); setFormData(defaultForm()) }} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
               Cancel
             </button>
             <button
               onClick={handleCreate}
               disabled={!formData.name || createIdentity.isPending}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+              className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
             >
-              {createIdentity.isPending ? 'Creating...' : 'Create'}
+              {createIdentity.isPending ? 'Creating…' : 'Create Identity'}
             </button>
           </div>
         </div>
       </Modal>
 
-      {/* Detail slide-over */}
-      <Modal
-        isOpen={!!selectedIdentity}
-        onClose={() => setSelectedIdentity(null)}
-        title=""
-        size="lg"
-      >
-        {selectedIdentity && (
-          <ServiceIdentityDetail
-            identity={selectedIdentity}
-            onClose={() => setSelectedIdentity(null)}
-          />
-        )}
+      <Modal isOpen={editModalOpen} onClose={() => { setEditModalOpen(false); setIdentityToEdit(null) }} title={`Edit Service Identity${identityToEdit ? `: ${identityToEdit.name}` : ''}`}>
+        <div className="space-y-4">
+          <div>
+            <label className={labelCls}>Name</label>
+            <input
+              className={fieldCls}
+              value={editFormData.name}
+              onChange={e => setEditFormData(f => ({ ...f, name: e.target.value }))}
+              placeholder="reporting-worker"
+            />
+          </div>
+          <div>
+            <label className={labelCls}>Description</label>
+            <input
+              className={fieldCls}
+              value={editFormData.description}
+              onChange={e => setEditFormData(f => ({ ...f, description: e.target.value }))}
+              placeholder="Machine identity for scheduled reporting jobs"
+            />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className={labelCls}>Status</label>
+              <select
+                className={fieldCls}
+                value={editFormData.status}
+                onChange={e => setEditFormData(f => ({ ...f, status: e.target.value as ServiceIdentityDto['status'] }))}
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="suspended">Suspended</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Allowed Scopes</label>
+              <input
+                className={fieldCls}
+                value={editFormData.allowedScopes}
+                onChange={e => setEditFormData(f => ({ ...f, allowedScopes: e.target.value }))}
+                placeholder="read:users, write:reports"
+              />
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Allowed Audiences</label>
+            <input
+              className={fieldCls}
+              value={editFormData.allowedAudiences}
+              onChange={e => setEditFormData(f => ({ ...f, allowedAudiences: e.target.value }))}
+              placeholder="api.example.com, jobs.internal"
+            />
+          </div>
+          <div className="flex gap-2 justify-end pt-2">
+            <button onClick={() => { setEditModalOpen(false); setIdentityToEdit(null) }} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveEdit}
+              disabled={!editFormData.name || updateIdentity.isPending}
+              className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+            >
+              {updateIdentity.isPending ? 'Saving…' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={manageModalOpen} onClose={() => { setManageModalOpen(false); setIdentityToManage(null) }} title={`Manage Credentials${identityToManage ? `: ${identityToManage.name}` : ''}`} size="lg">
+        {identityToManage && <CredentialsPanel identity={identityToManage} />}
       </Modal>
 
       <ConfirmDialog
         isOpen={!!identityToDelete}
         title="Delete Service Identity"
-        message="This will permanently delete the service identity and all of its credentials. Services using these credentials will lose access immediately."
+        message={`Delete service identity "${identityToDelete?.name ?? ''}"? This will permanently revoke all associated credentials.`}
         onConfirm={handleDelete}
         onCancel={() => setIdentityToDelete(null)}
       />

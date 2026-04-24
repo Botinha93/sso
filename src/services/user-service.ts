@@ -1,6 +1,6 @@
 import { ValidationError } from "../core/errors.js";
 import { hashPassword } from "../security/password.js";
-import type { AppRepository, UserAppAssignmentRepository, UserRepository } from "../repositories/contracts.js";
+import type { AppRepository, UserAppAssignmentRepository, UserAttributeRepository, UserRepository } from "../repositories/contracts.js";
 import { RoleService } from "./role-service.js";
 import { GroupService } from "./group-service.js";
 
@@ -9,6 +9,7 @@ export class UserService {
     private readonly userRepository: UserRepository,
     private readonly appRepository: AppRepository,
     private readonly userAppAssignmentRepository: UserAppAssignmentRepository,
+    private readonly userAttributeRepository: UserAttributeRepository,
     private readonly roleService: RoleService,
     private readonly groupService: GroupService
   ) {}
@@ -40,6 +41,38 @@ export class UserService {
     }
   }
 
+  private async validateCustomAttributes(customAttributes: Record<string, string>) {
+    const definitions = await this.userAttributeRepository.list();
+    const definitionsByKey = new Map(definitions.filter((definition) => definition.enabled).map((definition) => [definition.key, definition]));
+
+    for (const [key, value] of Object.entries(customAttributes)) {
+      const definition = definitionsByKey.get(key);
+      if (!definition) {
+        throw new ValidationError(`Unknown custom attribute: ${key}`);
+      }
+
+      if (definition.type === "number" && Number.isNaN(Number(value))) {
+        throw new ValidationError(`Custom attribute ${key} must be a valid number`);
+      }
+
+      if (definition.type === "boolean" && value !== "true" && value !== "false") {
+        throw new ValidationError(`Custom attribute ${key} must be true or false`);
+      }
+
+      if (definition.type === "date" && Number.isNaN(Date.parse(value))) {
+        throw new ValidationError(`Custom attribute ${key} must be a valid date`);
+      }
+
+      if (definition.type === "json") {
+        try {
+          JSON.parse(value);
+        } catch {
+          throw new ValidationError(`Custom attribute ${key} must be valid JSON`);
+        }
+      }
+    }
+  }
+
   async createUser(input: {
     appId?: string;
     appIds?: string[];
@@ -58,12 +91,14 @@ export class UserService {
     active?: boolean;
   }) {
     const appIds = this.normalizeAppIds(input);
+    const customAttributes = input.customAttributes ?? {};
 
     if (await this.userRepository.findByEmail(input.email)) {
       throw new ValidationError("A user with this email already exists");
     }
 
     await this.validateAppIds(appIds);
+    await this.validateCustomAttributes(customAttributes);
 
     const user = await this.userRepository.create({
       appId: appIds[0],
@@ -79,7 +114,7 @@ export class UserService {
       passwordHash: hashPassword(input.password),
       givenName: input.givenName,
       familyName: input.familyName,
-      customAttributes: input.customAttributes ?? {},
+      customAttributes,
       active: input.active ?? true
     });
 
@@ -103,6 +138,7 @@ export class UserService {
     const users = await this.userRepository.list();
     return Promise.all(users.map(async ({ passwordHash, ...user }) => ({
       ...user,
+      ...(await this.resolveCustomAttributesForUser(user.id)),
       ...(await this.resolveAppAccessForUser(user.id)),
       roles: await this.roleService.resolveNamesForUser(user.id),
       groups: await this.groupService.resolveGroupNamesForUser(user.id)
@@ -132,6 +168,7 @@ export class UserService {
     username?: string;
     givenName?: string;
     familyName?: string;
+    customAttributes?: Record<string, string>;
   }) {
     const existing = await this.userRepository.findById(id);
     if (!existing) {
@@ -158,6 +195,9 @@ export class UserService {
 
     if (appIds) {
       await this.validateAppIds(appIds);
+    }
+    if (input.customAttributes) {
+      await this.validateCustomAttributes(input.customAttributes);
     }
 
     const updated = await this.userRepository.updateProfile(id, {
@@ -196,6 +236,7 @@ export class UserService {
   }
 
   async setCustomAttributes(id: string, customAttributes: Record<string, string>) {
+    await this.validateCustomAttributes(customAttributes);
     await this.userRepository.setCustomAttributes(id, customAttributes);
   }
 
@@ -228,6 +269,31 @@ export class UserService {
       appIds,
       directAppIds,
       inheritedAppIds
+    };
+  }
+
+  async resolveCustomAttributesForUser(userId: string) {
+    const user = await this.userRepository.findById(userId);
+    const directCustomAttributes = user?.customAttributes ?? {};
+    const groupIds = await this.groupService.listGroupIdsForUser(userId);
+    const inheritedCustomAttributes: Record<string, string> = {};
+
+    for (const groupId of groupIds) {
+      const groupCustomAttributes = await this.groupService.resolveCustomAttributesForGroup(groupId);
+      for (const [key, value] of Object.entries(groupCustomAttributes)) {
+        if (!(key in inheritedCustomAttributes)) {
+          inheritedCustomAttributes[key] = value;
+        }
+      }
+    }
+
+    return {
+      customAttributes: {
+        ...inheritedCustomAttributes,
+        ...directCustomAttributes
+      },
+      directCustomAttributes,
+      inheritedCustomAttributes
     };
   }
 }

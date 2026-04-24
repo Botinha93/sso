@@ -70,7 +70,7 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'GET', path: '/.well-known/jwks.json', auth: 'public', description: 'JWKS document for token signature verification.' },
   { method: 'POST', path: '/connect/register', auth: 'public', description: 'Dynamic client registration endpoint.' },
   { method: 'GET', path: '/oauth/authorize', auth: 'session', description: 'Authorization endpoint for code and implicit flows.' },
-  { method: 'POST', path: '/oauth/token', auth: 'client', description: 'Token endpoint for authorization_code, refresh_token, client_credentials, password, and device_code grants.' },
+  { method: 'POST', path: '/oauth/token', auth: 'client', description: 'Shared token endpoint for authorization_code, refresh_token, client_credentials, password, and device_code grants. Multi-app deployments still use this same endpoint.' },
   { method: 'POST', path: '/oauth/device/authorize', auth: 'client', description: 'Starts device authorization flow and returns user_code/device_code.' },
   { method: 'POST', path: '/oauth/device/verify', auth: 'public', description: 'User approval/denial endpoint for device flow verification.' },
   { method: 'POST', path: '/oauth/introspect', auth: 'client', description: 'Token introspection endpoint.' },
@@ -231,7 +231,7 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'DELETE', path: '/api/admin/events/hooks/:id', auth: 'session+csrf', description: 'Deletes event hook.' },
   { method: 'GET', path: '/api/admin/events/notifications', auth: 'session', description: 'Lists event delivery notifications.' },
 
-  { method: 'GET', path: '/api/portal/me', auth: 'session', description: 'Returns current portal identity context: profile, groups, roles, permissions, rolePermission matrix, and assigned apps.' },
+  { method: 'GET', path: '/api/portal/me', auth: 'session', description: 'Returns current portal identity context: profile, groups, roles, permissions, rolePermission matrix, and effective apps (direct + inherited from groups).' },
   { method: 'PATCH', path: '/api/portal/profile', auth: 'session+csrf', description: 'Updates editable fields for current portal user (name and custom attributes).' },
   { method: 'POST', path: '/api/portal/change-password', auth: 'session+csrf', description: 'Changes current portal user password after verifying currentPassword.' },
   { method: 'DELETE', path: '/api/portal/account', auth: 'session+csrf', description: 'Deletes current portal account and revokes active sessions/tokens.' },
@@ -295,7 +295,7 @@ const OIDC_OAUTH_CONCEPTS = [
   },
   {
     title: 'Authorization Code, PKCE, And Token Exchange',
-    detail: 'Interactive clients start at /oauth/authorize and exchange code for tokens at /oauth/token. PKCE protects public clients by binding code usage to the initiating app.'
+    detail: 'Interactive clients start at /oauth/authorize and exchange code for tokens at /oauth/token. PKCE protects public clients by binding code usage to the initiating app. Even in multi-app deployments, token exchange still happens at this same shared /oauth/token endpoint.'
   },
   {
     title: 'Access, ID, And Refresh Tokens',
@@ -414,12 +414,13 @@ const ADMIN_CONCEPT_GUIDES: ConceptGuide[] = [
   {
     id: 'apps-governance',
     title: 'Apps As Governance Boundaries',
-    plainExplanation: 'Apps act as the principal governance boundary within the platform. When a role called "admin" exists in your billing product and another role also called "admin" exists in your support product, the app boundary is what keeps them separate. Without it, those roles share a namespace, access reviews mix unrelated entitlements, and delegating administration becomes difficult because you cannot grant someone rights over "just their product." The app label attaches to users, groups, roles, and clients so that each governance question — who can access this, who should review it, who owns it — can be answered within the correct product context.',
-    whyItMatters: 'Governance reviews are only tractable when the scope of each review is clearly bounded. An org-wide review of all roles in all products is operationally unmanageable. An app-scoped review is actionable: it lists the roles, the assigned users, and the clients for one product surface. App boundaries also enable delegated administration — giving a team lead admin rights scoped to their app without touching anything else. The clearer the app model, the faster and more reliable access reviews, offboarding, and compliance audits become.',
+    plainExplanation: 'Apps act as the principal governance boundary within the platform. When a role called "admin" exists in your billing product and another role also called "admin" exists in your support product, the app boundary is what keeps them separate. Without it, those roles share a namespace, access reviews mix unrelated entitlements, and delegating administration becomes difficult because you cannot grant someone rights over "just their product." Roles and clients remain app-scoped, while users and groups can now belong to multiple apps so access can reflect real cross-product work without duplicating identities.',
+    whyItMatters: 'Governance reviews are only tractable when the scope of each review is clearly bounded. An org-wide review of all roles in all products is operationally unmanageable. An app-scoped review is actionable: it lists the roles, the assigned users, and the clients for one product surface. Multi-app user and group assignment also means you can model shared staff cleanly: one user can reach several apps directly or through group membership, while the audit and review trail still stays product-aware. The clearer the app model, the faster and more reliable access reviews, offboarding, and compliance audits become.',
     whoDefinesIt: 'Platform administrators define apps and decide which identity objects belong to each. Product teams typically advocate for their own app scope and naming conventions.',
     whereInAdmin: ['Apps view', 'Users view', 'Groups view', 'Roles view', 'Clients view'],
     details: [
-      'App boundaries apply to roles, groups, clients, and user membership — the user record itself is global, but everything attached to it can be app-scoped.',
+      'Roles and clients are app-scoped, while users and groups can carry multiple app assignments.',
+      'A user’s effective app access is the union of direct user app assignments and any app assignments inherited from that user’s groups.',
       'Use separate apps when products have different administrators, different security expectations, or different compliance scope.',
       'App names should reflect stable product or service names that reviewers and auditors will recognize.',
       'App boundaries help documentation, onboarding, and audit review remain clear and product-aligned.',
@@ -2462,7 +2463,7 @@ const API_TUTORIALS: TutorialSection[] = [
       'Start login using /oauth/authorize with response_type=code, client_id, scope, redirect_uri, state, and PKCE challenge.',
       'Authenticate in the hosted login UI, then approve consent when required.',
       'Receive authorization code at the redirect URI.',
-      'Exchange code at /oauth/token using code_verifier and client credentials.',
+      'Exchange code at the shared /oauth/token endpoint using code_verifier and client credentials.',
       'Call /oauth/userinfo with the returned access token to verify user identity claims.'
     ],
     expectedResult: 'You receive access_token, id_token, refresh_token, and can resolve user claims from UserInfo.'
@@ -2472,7 +2473,7 @@ const API_TUTORIALS: TutorialSection[] = [
     goal: 'Issue an access token without user interaction.',
     steps: [
       'Use a client that supports client_credentials grant.',
-      'POST /oauth/token with grant_type=client_credentials, client_id, client_secret, and optional scope.',
+      'POST to the shared /oauth/token endpoint with grant_type=client_credentials, client_id, client_secret, and optional scope.',
       'Use returned access token in downstream API calls requiring bearer auth.',
       'Optionally validate token state with /oauth/introspect during troubleshooting.'
     ],
@@ -2485,7 +2486,7 @@ const API_TUTORIALS: TutorialSection[] = [
       'POST /oauth/device/authorize with client_id and client_secret to obtain device_code and user_code.',
       'Display user_code and verification URI on the device.',
       'User approves code on /oauth/device/verify using account credentials.',
-      'Device polls /oauth/token with grant_type=urn:ietf:params:oauth:grant-type:device_code.',
+      'Device polls the shared /oauth/token endpoint with grant_type=urn:ietf:params:oauth:grant-type:device_code.',
       'Handle pending and slow_down responses until approval is complete.'
     ],
     expectedResult: 'Polling endpoint returns normal token payload once user approves.'
@@ -2725,7 +2726,11 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
     return {
       parameters: params,
       requestJson: prettyJson({ grant_type: 'authorization_code', code: 'code_xxx', client_id: 'client_id', client_secret: 'client_secret', redirect_uri: 'http://localhost:3000/callback' }),
-      expectedResponse: prettyJson({ access_token: 'eyJ...', token_type: 'Bearer', expires_in: 900, refresh_token: 'r_xxx', id_token: 'eyJ...' })
+      expectedResponse: prettyJson({ access_token: 'eyJ...', token_type: 'Bearer', expires_in: 900, refresh_token: 'r_xxx', id_token: 'eyJ...' }),
+      notes: [
+        'This is the shared OAuth token endpoint for the platform; multi-app deployments do not use per-app token URLs.',
+        'App context is resolved from the client configuration and the user’s effective app access, not from a different token route.'
+      ]
     }
   }
 
@@ -3940,6 +3945,9 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
         avatarUrl: 'https://cdn.example.com/users/user_xxx/avatar.png',
         customAttributes: { department: 'Finance' },
         appId: 'app_portal',
+        appIds: ['app_portal', 'app_billing'],
+        directAppIds: ['app_portal'],
+        inheritedAppIds: ['app_billing'],
         roles: ['employee'],
         groups: ['finance-team'],
         permissions: ['portal:read'],
@@ -3958,12 +3966,20 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
             description: 'Self-service access hub',
             imageUrl: 'https://cdn.example.com/apps/portal.png',
             url: 'https://portal.example.com'
+          },
+          {
+            id: 'app_billing',
+            name: 'Billing Console',
+            description: 'Billing and subscription operations',
+            imageUrl: 'https://cdn.example.com/apps/billing.png',
+            url: 'https://billing.example.com'
           }
         ]
       }),
       notes: [
         'Use this endpoint as the single source of truth for portal self state after login or profile changes.',
         'roles/groups/permissions arrays represent effective access for the current user session.',
+        'appIds is the effective app set for the user; directAppIds and inheritedAppIds explain where each app assignment came from.',
         'rolePermissions provides role-by-role permission expansion useful for explaining UI access decisions.'
       ]
     }

@@ -110,8 +110,9 @@ These are the platform features the SDK should make especially easy to consume.
 
 ### Apps as first-class platform objects
 
-- App-aware API methods should expose `appId` naturally in request inputs and response types.
+- App-aware API methods should expose `appId` and `appIds` naturally in request inputs and response types where effective access can span multiple apps.
 - Examples and docs should show how apps scope users, groups, roles, OAuth clients, and customization.
+- For portal identity responses, the SDK should preserve both direct and inherited app access when the API exposes `directAppIds` and `inheritedAppIds`.
 
 ### Permissions inside roles
 
@@ -208,6 +209,7 @@ Objective: make login and credential handling practical for integrators.
 - [x] Implement authorize URL helper.
 - [x] Implement PKCE code verifier and challenge helpers.
 - [x] Implement token endpoint client methods.
+- [x] Document that multi-app deployments still use the same `POST /oauth/token` endpoint.
 - [x] Implement refresh token flow helper.
 - [x] Implement token revocation helper.
 - [x] Add session cookie authentication support.

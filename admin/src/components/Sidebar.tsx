@@ -51,6 +51,7 @@ const navGroups = [
     label: 'Identity & Access',
     items: [
       { path: '/users', label: 'Users', icon: Users, permission: 'users:view' },
+      { path: '/service-identities', label: 'Service Identities', icon: Bot, permission: 'service_identities:view' },
       { path: '/groups', label: 'Groups', icon: UsersRound, permission: 'groups:view' },
       { path: '/roles', label: 'Roles', icon: Shield, permission: 'roles:view' },
       { path: '/clients', label: 'Clients', icon: AppWindow, permission: 'clients:view' },
@@ -76,7 +77,6 @@ const navGroups = [
       { path: '/experience-customization', label: 'Experience Customization', icon: Sparkles, permission: 'administration:view' },
       { path: '/metrics', label: 'Auth Metrics', icon: BarChart3, permission: 'connectors:view' },
       { path: '/tenants', label: 'Tenants', icon: Building2, permission: 'tenants:view' },
-      { path: '/service-identities', label: 'Service Identities', icon: Bot, permission: 'service_identities:view' },
       { path: '/administration', label: 'Administration', icon: Settings2, permission: 'administration:view' },
       { path: '/documentation', label: 'Documentation', icon: BookText, permission: 'users:view' },
     ]

@@ -2,9 +2,11 @@ import { ValidationError } from "../core/errors.js";
 import type {
   AppRepository,
   GroupAppAssignmentRepository,
+  GroupUserAttributeAssignmentRepository,
   GroupRepository,
   GroupRoleAssignmentRepository,
   RoleRepository,
+  UserAttributeRepository,
   UserGroupAssignmentRepository,
   UserRepository
 } from "../repositories/contracts.js";
@@ -14,6 +16,8 @@ export class GroupService {
     private readonly groupRepository: GroupRepository,
     private readonly appRepository: AppRepository,
     private readonly groupAppAssignmentRepository: GroupAppAssignmentRepository,
+    private readonly userAttributeRepository: UserAttributeRepository,
+    private readonly groupUserAttributeAssignmentRepository: GroupUserAttributeAssignmentRepository,
     private readonly groupRoleAssignmentRepository: GroupRoleAssignmentRepository,
     private readonly userGroupAssignmentRepository: UserGroupAssignmentRepository,
     private readonly roleRepository: RoleRepository,
@@ -47,6 +51,87 @@ export class GroupService {
     }
   }
 
+  private async validateCustomAttributes(customAttributes: Record<string, string>) {
+    const definitions = await this.userAttributeRepository.list();
+    const definitionsByKey = new Map(definitions.filter((definition) => definition.enabled).map((definition) => [definition.key, definition]));
+
+    for (const [key, value] of Object.entries(customAttributes)) {
+      const definition = definitionsByKey.get(key);
+      if (!definition) {
+        throw new ValidationError(`Unknown custom attribute: ${key}`);
+      }
+
+      if (definition.type === "number" && Number.isNaN(Number(value))) {
+        throw new ValidationError(`Custom attribute ${key} must be a valid number`);
+      }
+
+      if (definition.type === "boolean" && value !== "true" && value !== "false") {
+        throw new ValidationError(`Custom attribute ${key} must be true or false`);
+      }
+
+      if (definition.type === "date" && Number.isNaN(Date.parse(value))) {
+        throw new ValidationError(`Custom attribute ${key} must be a valid date`);
+      }
+
+      if (definition.type === "json") {
+        try {
+          JSON.parse(value);
+        } catch {
+          throw new ValidationError(`Custom attribute ${key} must be valid JSON`);
+        }
+      }
+    }
+  }
+
+  private async setGroupCustomAttributes(groupId: string, customAttributes: Record<string, string>) {
+    const definitions = await this.userAttributeRepository.list();
+    const definitionsByKey = new Map(definitions.map((definition) => [definition.key, definition]));
+    const existingAssignments = await this.groupUserAttributeAssignmentRepository.listByGroup(groupId);
+
+    for (const assignment of existingAssignments) {
+      const definition = definitions.find((item) => item.id === assignment.attributeId);
+      if (!definition || !(definition.key in customAttributes)) {
+        await this.groupUserAttributeAssignmentRepository.delete(assignment.attributeId, groupId);
+      }
+    }
+
+    for (const [key, value] of Object.entries(customAttributes)) {
+      const definition = definitionsByKey.get(key);
+      if (!definition) {
+        continue;
+      }
+
+      await this.groupUserAttributeAssignmentRepository.upsert({
+        groupId,
+        attributeId: definition.id,
+        enabled: true,
+        value
+      });
+    }
+  }
+
+  async resolveCustomAttributesForGroup(groupId: string) {
+    const definitions = await this.userAttributeRepository.list();
+    const definitionsById = new Map(definitions.filter((definition) => definition.enabled).map((definition) => [definition.id, definition]));
+    const assignments = await this.groupUserAttributeAssignmentRepository.listByGroup(groupId);
+    const customAttributes: Record<string, string> = {};
+
+    for (const assignment of assignments) {
+      if (!assignment.enabled || assignment.value === undefined) {
+        continue;
+      }
+
+      const definition = definitionsById.get(assignment.attributeId);
+      if (!definition) {
+        continue;
+      }
+
+      customAttributes[definition.key] = assignment.value;
+    }
+
+    return customAttributes;
+  }
+
   async createGroup(input: {
     appId?: string;
     appIds?: string[];
@@ -54,13 +139,16 @@ export class GroupService {
     externalId?: string;
     name: string;
     description: string;
+    customAttributes?: Record<string, string>;
     roleIds: string[];
   }) {
     const appIds = this.normalizeAppIds(input);
     const roleIds = Array.from(new Set(input.roleIds));
     const knownRoles = await this.roleRepository.findByIds(roleIds);
+    const customAttributes = input.customAttributes ?? {};
 
     await this.validateAppIds(appIds);
+    await this.validateCustomAttributes(customAttributes);
 
     if (knownRoles.length !== roleIds.length) {
       throw new ValidationError("One or more roleIds are invalid");
@@ -69,6 +157,7 @@ export class GroupService {
     const group = await this.groupRepository.create({
       appId: appIds[0],
       appIds,
+      customAttributes,
       externalSource: input.externalSource,
       externalId: input.externalId,
       name: input.name,
@@ -76,6 +165,7 @@ export class GroupService {
     });
 
     await this.setGroupAppAssignments(group.id, appIds);
+    await this.setGroupCustomAttributes(group.id, customAttributes);
 
     for (const roleId of roleIds) {
       await this.groupRoleAssignmentRepository.assign({
@@ -93,12 +183,14 @@ export class GroupService {
     return Promise.all(groups.map(async (group) => {
       const assignedAppIds = (await this.groupAppAssignmentRepository.listByGroup(group.id)).map((assignment) => assignment.appId);
       const appIds = assignedAppIds.length > 0 ? assignedAppIds : (group.appId ? [group.appId] : []);
+      const customAttributes = await this.resolveCustomAttributesForGroup(group.id);
       const roleIds = (await this.groupRoleAssignmentRepository.listByGroup(group.id)).map((assignment) => assignment.roleId);
       const roleNames = (await this.roleRepository.findByIds(roleIds)).map((role) => role.name);
       return {
         ...group,
         appId: appIds[0],
         appIds,
+        customAttributes,
         roleIds,
         roles: roleNames
       };
@@ -112,6 +204,7 @@ export class GroupService {
     externalId?: string;
     name?: string;
     description?: string;
+    customAttributes?: Record<string, string>;
   }) {
     const appIds = input.appId !== undefined || input.appIds !== undefined
       ? this.normalizeAppIds(input)
@@ -119,6 +212,9 @@ export class GroupService {
 
     if (appIds) {
       await this.validateAppIds(appIds);
+    }
+    if (input.customAttributes) {
+      await this.validateCustomAttributes(input.customAttributes);
     }
 
     const updated = await this.groupRepository.update(id, {
@@ -130,7 +226,17 @@ export class GroupService {
     }
     if (appIds) {
       await this.setGroupAppAssignments(id, appIds);
-      return { ...updated, appId: appIds[0], appIds };
+    }
+    if (input.customAttributes) {
+      await this.setGroupCustomAttributes(id, input.customAttributes);
+    }
+    if (appIds || input.customAttributes) {
+      return {
+        ...updated,
+        appId: appIds ? appIds[0] : updated.appId,
+        appIds: appIds ?? updated.appIds,
+        customAttributes: input.customAttributes ?? await this.resolveCustomAttributesForGroup(id)
+      };
     }
     return updated;
   }
@@ -156,6 +262,11 @@ export class GroupService {
     const appAssignments = await this.groupAppAssignmentRepository.listByGroup(id);
     for (const assignment of appAssignments) {
       await this.groupAppAssignmentRepository.remove(id, assignment.appId);
+    }
+
+    const attributeAssignments = await this.groupUserAttributeAssignmentRepository.listByGroup(id);
+    for (const assignment of attributeAssignments) {
+      await this.groupUserAttributeAssignmentRepository.delete(assignment.attributeId, id);
     }
 
     await this.groupRepository.delete(id);

@@ -354,9 +354,9 @@ function FlowForm({
       </div>
       <div>
         <label className={labelCls}>Grant Types</label>
-        <div className="space-y-2 rounded-lg border border-slate-200 p-2">
+        <div className="space-y-2 rounded-lg border border-slate-200 p-2 flex flex-col gap-5">
           {GRANT_OPTIONS.map((option) => (
-            <label key={option.value} className="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+            <label key={option.value} className="inline-flex items-center gap-1 text-sm text-slate-700 cursor-pointer">
               <input
                 type="checkbox"
                 checked={form.grantTypes.includes(option.value)}

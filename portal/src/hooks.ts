@@ -44,6 +44,9 @@ export interface PortalUser {
   familyName: string
   avatarUrl?: string
   appId?: string
+  appIds?: string[]
+  directAppIds?: string[]
+  inheritedAppIds?: string[]
   customAttributes: Record<string, string>
   apps: PortalApp[]
 }

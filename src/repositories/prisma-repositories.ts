@@ -276,6 +276,7 @@ const mapTenant = (row: PrismaRow): Tenant => ({
 const mapGroup = (row: PrismaRow): Group => ({
   id: String(row.id),
   appId: row.appId ? String(row.appId) : undefined,
+  customAttributes: {},
   externalSource: row.externalSource ? String(row.externalSource) : undefined,
   externalId: row.externalId ? String(row.externalId) : undefined,
   name: String(row.name),
@@ -471,6 +472,7 @@ const mapGroupUserAttributeAssignment = (row: PrismaRow): GroupUserAttributeAssi
   groupId: String(row.groupId),
   attributeId: String(row.attributeId),
   enabled: asBoolean(row.enabled),
+  value: row.value ? String(row.value) : undefined,
   createdAt: asDate(row.createdAt),
   updatedAt: asDate(row.updatedAt)
 });
@@ -1863,18 +1865,23 @@ class PrismaGroupUserAttributeAssignmentRepository {
     return rows.map((row: PrismaRow) => mapGroupUserAttributeAssignment(row));
   }
 
+  async listByGroup(groupId: string): Promise<GroupUserAttributeAssignment[]> {
+    const rows = await this.prisma.groupUserAttributeAssignment.findMany({ where: { groupId }, orderBy: { createdAt: "asc" } });
+    return rows.map((row: PrismaRow) => mapGroupUserAttributeAssignment(row));
+  }
+
   async upsert(input: Omit<GroupUserAttributeAssignment, "id" | "createdAt" | "updatedAt">): Promise<GroupUserAttributeAssignment> {
     const existing = await this.prisma.groupUserAttributeAssignment.findFirst({ where: { groupId: input.groupId, attributeId: input.attributeId } });
     if (existing) {
       const current = mapGroupUserAttributeAssignment(existing as PrismaRow);
-      const updated: GroupUserAttributeAssignment = { ...current, enabled: input.enabled, updatedAt: new Date() };
-      await this.prisma.groupUserAttributeAssignment.update({ where: { id: updated.id }, data: { enabled: asBooleanInt(updated.enabled), updatedAt: updated.updatedAt.toISOString() } });
+      const updated: GroupUserAttributeAssignment = { ...current, enabled: input.enabled, value: input.value, updatedAt: new Date() };
+      await this.prisma.groupUserAttributeAssignment.update({ where: { id: updated.id }, data: { enabled: asBooleanInt(updated.enabled), value: updated.value ?? null, updatedAt: updated.updatedAt.toISOString() } });
       return updated;
     }
 
     const now = new Date();
-    const assignment: GroupUserAttributeAssignment = { id: nanoid(), groupId: input.groupId, attributeId: input.attributeId, enabled: input.enabled, createdAt: now, updatedAt: now };
-    await this.prisma.groupUserAttributeAssignment.create({ data: { id: assignment.id, groupId: assignment.groupId, attributeId: assignment.attributeId, enabled: asBooleanInt(assignment.enabled), createdAt: assignment.createdAt.toISOString(), updatedAt: assignment.updatedAt.toISOString() } });
+    const assignment: GroupUserAttributeAssignment = { id: nanoid(), groupId: input.groupId, attributeId: input.attributeId, enabled: input.enabled, value: input.value, createdAt: now, updatedAt: now };
+    await this.prisma.groupUserAttributeAssignment.create({ data: { id: assignment.id, groupId: assignment.groupId, attributeId: assignment.attributeId, enabled: asBooleanInt(assignment.enabled), value: assignment.value ?? null, createdAt: assignment.createdAt.toISOString(), updatedAt: assignment.updatedAt.toISOString() } });
     return assignment;
   }
 

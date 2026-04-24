@@ -1,4 +1,18 @@
 import { z } from "zod";
+const appUrlSchema = z.string().refine((value) => {
+    if (value.startsWith("/")) {
+        return true;
+    }
+    try {
+        new URL(value);
+        return true;
+    }
+    catch {
+        return false;
+    }
+}, {
+    message: "Invalid url"
+});
 export const createRoleSchema = z.object({
     appId: z.string().min(2).optional(),
     name: z.string().min(3),
@@ -15,6 +29,7 @@ export const updateRoleSchema = z.object({
 });
 export const createUserSchema = z.object({
     appId: z.string().min(2).optional(),
+    appIds: z.array(z.string().min(2)).optional(),
     externalSource: z.string().min(1).optional(),
     externalId: z.string().min(1).optional(),
     isServiceUser: z.boolean().default(false),
@@ -30,6 +45,7 @@ export const createUserSchema = z.object({
 });
 export const updateUserSchema = z.object({
     appId: z.string().min(2).optional(),
+    appIds: z.array(z.string().min(2)).optional(),
     externalSource: z.string().min(1).optional(),
     externalId: z.string().min(1).optional(),
     isServiceUser: z.boolean().optional(),
@@ -59,18 +75,22 @@ export const portalChangePasswordSchema = z.object({
 });
 export const createGroupSchema = z.object({
     appId: z.string().min(2).optional(),
+    appIds: z.array(z.string().min(2)).optional(),
     externalSource: z.string().min(1).optional(),
     externalId: z.string().min(1).optional(),
     name: z.string().min(2),
     description: z.string().min(2),
+    customAttributes: z.record(z.string(), z.string()).default({}),
     roleIds: z.array(z.string()).default([])
 });
 export const updateGroupSchema = z.object({
     appId: z.string().min(2).optional(),
+    appIds: z.array(z.string().min(2)).optional(),
     externalSource: z.string().min(1).optional(),
     externalId: z.string().min(1).optional(),
     name: z.string().min(2).optional(),
-    description: z.string().min(2).optional()
+    description: z.string().min(2).optional(),
+    customAttributes: z.record(z.string(), z.string()).optional()
 });
 export const assignGroupRoleSchema = z.object({
     groupId: z.string().min(2),
@@ -268,7 +288,7 @@ export const createAppSchema = z.object({
     description: z.string().min(2),
     icon: z.string().optional(),
     imageUrl: z.string().min(1).optional(),
-    url: z.string().url().optional(),
+    url: appUrlSchema.optional(),
     resources: z.array(z.string().min(1)).default([])
 });
 export const updateAppSchema = z.object({
@@ -276,7 +296,7 @@ export const updateAppSchema = z.object({
     description: z.string().min(2).optional(),
     icon: z.string().optional(),
     imageUrl: z.string().min(1).optional(),
-    url: z.string().url().optional().nullable(),
+    url: appUrlSchema.optional().nullable(),
     resources: z.array(z.string().min(1)).optional()
 });
 export const createFederationProviderSchema = z.object({
@@ -376,7 +396,8 @@ export const updateUserAttributeSchema = z.object({
 });
 export const setUserAttributeGroupAssignmentSchema = z.object({
     groupId: z.string().min(2),
-    enabled: z.boolean()
+    enabled: z.boolean(),
+    value: z.string().optional()
 });
 export const createPolicySchema = z.object({
     key: z.string().min(2),

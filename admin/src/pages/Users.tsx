@@ -10,6 +10,7 @@ import {
   useResetUserPassword,
   useApps,
   useGroups,
+  useUserAttributes,
   useAssignUserToGroup,
   useRemoveUserFromGroup
 } from '../hooks/useApi'
@@ -20,6 +21,8 @@ interface User {
   appIds?: string[]
   directAppIds?: string[]
   inheritedAppIds?: string[]
+  directCustomAttributes?: Record<string, string>
+  inheritedCustomAttributes?: Record<string, string>
   isServiceUser?: boolean
   email: string
   username: string
@@ -42,6 +45,17 @@ interface AppItem {
   name: string
 }
 
+type AttributeType = 'text' | 'number' | 'boolean' | 'date' | 'json'
+
+interface UserAttributeDefinition {
+  id: string
+  key: string
+  name: string
+  description: string
+  type: AttributeType
+  enabled: boolean
+}
+
 const defaultForm = () => ({
   appIds: [] as string[],
   isServiceUser: false,
@@ -50,7 +64,7 @@ const defaultForm = () => ({
   givenName: '',
   familyName: '',
   password: '',
-  customAttributesJson: '{}',
+  customAttributes: {} as Record<string, string>,
   groupIds: [] as string[]
 })
 
@@ -61,7 +75,7 @@ const defaultEditForm = () => ({
   username: '',
   givenName: '',
   familyName: '',
-  customAttributesJson: '{}'
+  customAttributes: {} as Record<string, string>
 })
 
 const defaultResetForm = () => ({
@@ -71,6 +85,55 @@ const defaultResetForm = () => ({
 
 const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
 const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
+
+const defaultValueForAttribute = (type?: AttributeType) => {
+  if (type === 'boolean') return 'false'
+  return ''
+}
+
+const AttributeValueField = ({
+  attribute,
+  value,
+  onChange,
+}: {
+  attribute?: UserAttributeDefinition
+  value: string
+  onChange: (value: string) => void
+}) => {
+  if (attribute?.type === 'boolean') {
+    return (
+      <select value={value} onChange={(e) => onChange(e.target.value)} className={fieldCls}>
+        <option value="false">false</option>
+        <option value="true">true</option>
+      </select>
+    )
+  }
+
+  if (attribute?.type === 'date') {
+    return <input type="date" value={value} onChange={(e) => onChange(e.target.value)} className={fieldCls} />
+  }
+
+  if (attribute?.type === 'json') {
+    return (
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 min-h-[88px] font-mono"
+        placeholder='{"key":"value"}'
+      />
+    )
+  }
+
+  return (
+    <input
+      type={attribute?.type === 'number' ? 'number' : 'text'}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={fieldCls}
+      placeholder={attribute?.description || attribute?.name || 'Value'}
+    />
+  )
+}
 
 const Users = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false)
@@ -86,9 +149,11 @@ const Users = () => {
   const deleteUser = useDeleteUser()
   const resetUserPassword = useResetUserPassword()
   const { data: groups = [] } = useGroups()
+  const { data: attributeDefinitions = [] } = useUserAttributes()
   const assignUserGroup = useAssignUserToGroup()
   const removeUserGroup = useRemoveUserFromGroup()
   const [groupPickerByUser, setGroupPickerByUser] = useState<Record<string, string>>({})
+  const [attributePicker, setAttributePicker] = useState<{ create: string; edit: string }>({ create: '', edit: '' })
   const [formData, setFormData] = useState(defaultForm)
   const [editFormData, setEditFormData] = useState(defaultEditForm)
   const [resetFormData, setResetFormData] = useState(defaultResetForm)
@@ -99,6 +164,8 @@ const Users = () => {
   const [userTypeFilter, setUserTypeFilter] = useState<'all' | 'human' | 'service'>('all')
 
   const appNameById = new Map((apps as AppItem[]).map((a) => [a.id, a.name]))
+  const enabledAttributeDefinitions = (attributeDefinitions as UserAttributeDefinition[]).filter((attribute) => attribute.enabled)
+  const attributeByKey = new Map(enabledAttributeDefinitions.map((attribute) => [attribute.key, attribute]))
   const filteredUsers = (users as User[] | undefined)?.filter((user) => {
     const userAppIds = user.appIds ?? (user.appId ? [user.appId] : [])
     const appMatches = appFilterId === 'all' ? true : appFilterId === 'none' ? userAppIds.length === 0 : userAppIds.includes(appFilterId)
@@ -130,21 +197,70 @@ const Users = () => {
     }))
   }
 
-  const handleCreate = async () => {
-    if (!formData.email || !formData.username || !formData.password) return
+  const addAttribute = (target: 'create' | 'edit') => {
+    const key = attributePicker[target]
+    if (!key) return
 
-    let parsedAttributes: Record<string, string> = {}
-    try {
-      const raw = JSON.parse(formData.customAttributesJson || '{}') as Record<string, unknown>
-      for (const [key, value] of Object.entries(raw)) {
-        if (typeof value === 'string') {
-          parsedAttributes[key] = value
+    if (target === 'create') {
+      setFormData((prev) => ({
+        ...prev,
+        customAttributes: {
+          ...prev.customAttributes,
+          [key]: defaultValueForAttribute(attributeByKey.get(key)?.type)
         }
-      }
-    } catch {
-      setCreateFormError('Custom attributes must be valid JSON object')
+      }))
+      setAttributePicker((prev) => ({ ...prev, create: '' }))
       return
     }
+
+    setEditFormData((prev) => ({
+      ...prev,
+      customAttributes: {
+        ...prev.customAttributes,
+        [key]: defaultValueForAttribute(attributeByKey.get(key)?.type)
+      }
+    }))
+    setAttributePicker((prev) => ({ ...prev, edit: '' }))
+  }
+
+  const removeAttribute = (target: 'create' | 'edit', key: string) => {
+    if (target === 'create') {
+      setFormData((prev) => ({
+        ...prev,
+        customAttributes: Object.fromEntries(Object.entries(prev.customAttributes).filter(([attributeKey]) => attributeKey !== key))
+      }))
+      return
+    }
+
+    setEditFormData((prev) => ({
+      ...prev,
+      customAttributes: Object.fromEntries(Object.entries(prev.customAttributes).filter(([attributeKey]) => attributeKey !== key))
+    }))
+  }
+
+  const updateAttributeValue = (target: 'create' | 'edit', key: string, value: string) => {
+    if (target === 'create') {
+      setFormData((prev) => ({
+        ...prev,
+        customAttributes: {
+          ...prev.customAttributes,
+          [key]: value
+        }
+      }))
+      return
+    }
+
+    setEditFormData((prev) => ({
+      ...prev,
+      customAttributes: {
+        ...prev.customAttributes,
+        [key]: value
+      }
+    }))
+  }
+
+  const handleCreate = async () => {
+    if (!formData.email || !formData.username || !formData.password) return
 
     setCreateFormError('')
 
@@ -156,11 +272,12 @@ const Users = () => {
       givenName: formData.givenName,
       familyName: formData.familyName,
       password: formData.password,
-      customAttributes: parsedAttributes,
+      customAttributes: formData.customAttributes,
       roleIds: [],
       groupIds: formData.groupIds
     })
     setCreateModalOpen(false)
+    setAttributePicker((prev) => ({ ...prev, create: '' }))
     setFormData(defaultForm())
   }
 
@@ -178,27 +295,15 @@ const Users = () => {
       username: user.username,
       givenName: user.givenName,
       familyName: user.familyName,
-      customAttributesJson: JSON.stringify(user.customAttributes ?? {}, null, 2)
+      customAttributes: user.directCustomAttributes ?? {}
     })
+    setAttributePicker((prev) => ({ ...prev, edit: '' }))
     setEditModalOpen(true)
   }
 
   const handleSaveEdit = async () => {
     if (!userToEdit) return
     if (!editFormData.email || !editFormData.username || !editFormData.givenName || !editFormData.familyName) return
-
-    let parsedAttributes: Record<string, string> = {}
-    try {
-      const raw = JSON.parse(editFormData.customAttributesJson || '{}') as Record<string, unknown>
-      for (const [key, value] of Object.entries(raw)) {
-        if (typeof value === 'string') {
-          parsedAttributes[key] = value
-        }
-      }
-    } catch {
-      setEditFormError('Custom attributes must be valid JSON object')
-      return
-    }
 
     setEditFormError('')
     await updateUser.mutateAsync({
@@ -209,10 +314,11 @@ const Users = () => {
       username: editFormData.username,
       givenName: editFormData.givenName,
       familyName: editFormData.familyName,
-      customAttributes: parsedAttributes
+      customAttributes: editFormData.customAttributes
     })
     setEditModalOpen(false)
     setUserToEdit(null)
+    setAttributePicker((prev) => ({ ...prev, edit: '' }))
     setEditFormData(defaultEditForm())
   }
 
@@ -352,7 +458,8 @@ const Users = () => {
                     <div className="flex gap-1 flex-wrap">
                       {Object.entries(user.customAttributes).map(([key, value]) => (
                         <span key={key} className="text-xs px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-100 font-mono">
-                          {key}: {value}
+                          {attributeByKey.get(key)?.name ?? key}: {value}
+                          {user.inheritedCustomAttributes?.[key] === value && !user.directCustomAttributes?.[key] ? ' via group' : ''}
                         </span>
                       ))}
                     </div>
@@ -488,13 +595,61 @@ const Users = () => {
             <input type="password" value={formData.password} onChange={e => setFormData(f => ({ ...f, password: e.target.value }))} className={fieldCls} placeholder="Min 8 characters" />
           </div>
           <div>
-            <label className={labelCls}>Custom Attributes (JSON)</label>
-            <textarea
-              value={formData.customAttributesJson}
-              onChange={e => setFormData(f => ({ ...f, customAttributesJson: e.target.value }))}
-              className="w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 min-h-[88px] font-mono"
-              placeholder='{"department":"engineering","region":"eu-west"}'
-            />
+            <label className={labelCls}>Custom Attributes</label>
+            <div className="space-y-2">
+              {Object.entries(formData.customAttributes).length === 0 ? (
+                <p className="text-xs text-slate-400">No attributes selected</p>
+              ) : (
+                Object.entries(formData.customAttributes).map(([key, value]) => {
+                  const attribute = attributeByKey.get(key)
+                  return (
+                    <div key={key} className="rounded-lg border border-slate-200 p-3">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">{attribute?.name ?? key}</p>
+                          <p className="text-xs text-slate-500 font-mono">{key}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeAttribute('create', key)}
+                          className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                          title="Remove attribute"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                      <AttributeValueField
+                        attribute={attribute}
+                        value={value}
+                        onChange={(nextValue) => updateAttributeValue('create', key, nextValue)}
+                      />
+                    </div>
+                  )
+                })
+              )}
+              <div className="flex items-center gap-2">
+                <select
+                  value={attributePicker.create}
+                  onChange={(e) => setAttributePicker((prev) => ({ ...prev, create: e.target.value }))}
+                  className={fieldCls}
+                >
+                  <option value="">Add attribute...</option>
+                  {enabledAttributeDefinitions
+                    .filter((attribute) => !(attribute.key in formData.customAttributes))
+                    .map((attribute) => (
+                      <option key={attribute.id} value={attribute.key}>{attribute.name}</option>
+                    ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => addAttribute('create')}
+                  disabled={!attributePicker.create}
+                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
             {createFormError && <p className="mt-1 text-xs text-red-600">{createFormError}</p>}
           </div>
           <div>
@@ -581,13 +736,73 @@ const Users = () => {
             Mark as service user (machine-to-machine/system communication)
           </label>
           <div>
-            <label className={labelCls}>Custom Attributes (JSON)</label>
-            <textarea
-              value={editFormData.customAttributesJson}
-              onChange={e => setEditFormData(f => ({ ...f, customAttributesJson: e.target.value }))}
-              className="w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 min-h-[88px] font-mono"
-              placeholder='{"department":"engineering","region":"eu-west"}'
-            />
+            <label className={labelCls}>Direct Custom Attributes</label>
+            <div className="space-y-2">
+              {Object.entries(editFormData.customAttributes).length === 0 ? (
+                <p className="text-xs text-slate-400">No direct attributes selected</p>
+              ) : (
+                Object.entries(editFormData.customAttributes).map(([key, value]) => {
+                  const attribute = attributeByKey.get(key)
+                  return (
+                    <div key={key} className="rounded-lg border border-slate-200 p-3">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">{attribute?.name ?? key}</p>
+                          <p className="text-xs text-slate-500 font-mono">{key}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeAttribute('edit', key)}
+                          className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                          title="Remove attribute"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                      <AttributeValueField
+                        attribute={attribute}
+                        value={value}
+                        onChange={(nextValue) => updateAttributeValue('edit', key, nextValue)}
+                      />
+                    </div>
+                  )
+                })
+              )}
+              <div className="flex items-center gap-2">
+                <select
+                  value={attributePicker.edit}
+                  onChange={(e) => setAttributePicker((prev) => ({ ...prev, edit: e.target.value }))}
+                  className={fieldCls}
+                >
+                  <option value="">Add attribute...</option>
+                  {enabledAttributeDefinitions
+                    .filter((attribute) => !(attribute.key in editFormData.customAttributes))
+                    .map((attribute) => (
+                      <option key={attribute.id} value={attribute.key}>{attribute.name}</option>
+                    ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => addAttribute('edit')}
+                  disabled={!attributePicker.edit}
+                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Add
+                </button>
+              </div>
+              {userToEdit && userToEdit.inheritedCustomAttributes && Object.keys(userToEdit.inheritedCustomAttributes).length > 0 && (
+                <div className="rounded-lg border border-dashed border-slate-200 p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Inherited From Groups</p>
+                  <div className="space-y-1">
+                    {Object.entries(userToEdit.inheritedCustomAttributes).map(([key, value]) => (
+                      <div key={key} className="text-xs text-slate-600">
+                        <span className="font-medium text-slate-900">{attributeByKey.get(key)?.name ?? key}</span>: {value}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
             {editFormError && <p className="mt-1 text-xs text-red-600">{editFormError}</p>}
           </div>
           <div className="flex gap-2 justify-end pt-2">

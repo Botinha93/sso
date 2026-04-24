@@ -136,6 +136,7 @@ export interface Group {
   id: string;
   appId?: string;
   appIds?: string[];
+  customAttributes?: Record<string, string>;
   externalSource?: string;
   externalId?: string;
   name: string;
@@ -294,6 +295,7 @@ export interface GroupUserAttributeAssignment {
   groupId: string;
   attributeId: string;
   enabled: boolean;
+  value?: string;
   createdAt: Date;
   updatedAt: Date;
 }

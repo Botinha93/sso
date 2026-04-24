@@ -1,25 +1,15 @@
-import { Pencil, Plus, RefreshCw, ToggleLeft, ToggleRight, Trash2, X } from 'lucide-react'
+import { Pencil, Plus, RefreshCw, ToggleLeft, ToggleRight, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
 import {
   useCreateUserAttribute,
   useDeleteUserAttribute,
-  useGroups,
-  useRemoveUserAttributeGroupAssignment,
-  useSetUserAttributeGroupAssignment,
   useUpdateUserAttribute,
   useUserAttributes,
 } from '../hooks/useApi'
 
 type AttributeType = 'text' | 'number' | 'boolean' | 'date' | 'json'
-
-interface GroupAssignment {
-  id: string
-  groupId: string
-  groupName: string
-  enabled: boolean
-}
 
 interface UserAttribute {
   id: string
@@ -28,12 +18,6 @@ interface UserAttribute {
   description: string
   type: AttributeType
   enabled: boolean
-  assignments: GroupAssignment[]
-}
-
-interface GroupItem {
-  id: string
-  name: string
 }
 
 const TYPE_OPTIONS: AttributeType[] = ['text', 'number', 'boolean', 'date', 'json']
@@ -51,23 +35,18 @@ const defaultForm = {
 
 const UserAttributes = () => {
   const { data, isLoading, refetch } = useUserAttributes()
-  const { data: groups = [] } = useGroups()
 
   const createAttribute = useCreateUserAttribute()
   const updateAttribute = useUpdateUserAttribute()
   const deleteAttribute = useDeleteUserAttribute()
-  const setGroupAssignment = useSetUserAttributeGroupAssignment()
-  const removeGroupAssignment = useRemoveUserAttributeGroupAssignment()
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [attributeToDelete, setAttributeToDelete] = useState<UserAttribute | null>(null)
   const [editingId, setEditingId] = useState('')
-  const [groupPickerByAttribute, setGroupPickerByAttribute] = useState<Record<string, string>>({})
   const [form, setForm] = useState(defaultForm)
 
   const attributes = useMemo(() => (data ?? []) as UserAttribute[], [data])
-  const groupItems = groups as GroupItem[]
 
   const openCreate = () => {
     setForm(defaultForm)
@@ -131,17 +110,6 @@ const UserAttributes = () => {
     updateAttribute.mutate({ id: attribute.id, enabled: !attribute.enabled })
   }
 
-  const applyGroup = (attribute: UserAttribute) => {
-    const groupId = groupPickerByAttribute[attribute.id]
-    if (!groupId) return
-
-    setGroupAssignment.mutate({ id: attribute.id, groupId, enabled: true })
-  }
-
-  const toggleGroup = (attributeId: string, assignment: GroupAssignment) => {
-    setGroupAssignment.mutate({ id: attributeId, groupId: assignment.groupId, enabled: !assignment.enabled })
-  }
-
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
@@ -174,10 +142,6 @@ const UserAttributes = () => {
         ) : (
           <div className="divide-y divide-slate-100">
             {attributes.map((attribute) => {
-              const mappedGroups = new Set(attribute.assignments.map((assignment) => assignment.groupId))
-              const availableGroups = groupItems.filter((group) => !mappedGroups.has(group.id))
-              const pickerValue = groupPickerByAttribute[attribute.id] ?? availableGroups[0]?.id ?? ''
-
               return (
                 <div key={attribute.id} className="px-5 py-4 hover:bg-slate-50/50 transition-colors">
                   <div className="flex items-start justify-between gap-4">
@@ -196,54 +160,9 @@ const UserAttributes = () => {
                         </button>
                       </div>
                       <p className="text-xs text-slate-500">{attribute.description}</p>
-
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {attribute.assignments.length === 0 && (
-                          <span className="text-xs px-1.5 py-0.5 rounded-md border border-slate-200 bg-slate-100 text-slate-500">No group rules</span>
-                        )}
-                        {attribute.assignments.map((assignment) => (
-                          <span key={assignment.id} className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-md border border-emerald-100 bg-emerald-50 text-emerald-700">
-                            {assignment.groupName}
-                            <button
-                              className="text-emerald-600 hover:text-slate-900"
-                              onClick={() => toggleGroup(attribute.id, assignment)}
-                              title="Toggle for this group"
-                            >
-                              {assignment.enabled ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
-                            </button>
-                            <button
-                              className="text-emerald-600 hover:text-red-600"
-                              onClick={() => removeGroupAssignment.mutate({ id: attribute.id, groupId: assignment.groupId })}
-                              title="Remove group rule"
-                            >
-                              <X size={11} />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-
-                      <div className="mt-3 flex items-center gap-2 max-w-md">
-                        <select
-                          className={fieldCls}
-                          value={pickerValue}
-                          onChange={(e) => setGroupPickerByAttribute((prev) => ({ ...prev, [attribute.id]: e.target.value }))}
-                        >
-                          {availableGroups.length === 0 ? (
-                            <option value="">All groups configured</option>
-                          ) : (
-                            availableGroups.map((group) => (
-                              <option key={group.id} value={group.id}>{group.name}</option>
-                            ))
-                          )}
-                        </select>
-                        <button
-                          className="h-9 px-3 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                          disabled={!pickerValue || setGroupAssignment.isPending}
-                          onClick={() => applyGroup(attribute)}
-                        >
-                          Apply To Group
-                        </button>
-                      </div>
+                      <p className="mt-2 text-xs text-slate-400">
+                        Attribute values are assigned from the Users and Groups pages.
+                      </p>
                     </div>
                     <div className="flex items-center gap-1">
                       <button

@@ -18,6 +18,7 @@ This repository provides a first-party identity platform aligned with OAuth 2.0 
 - Consent persistence, refresh token rotation, token revocation, tenant-aware role assignments
 - Admin console and user portal
 - User federation, authentication flows, policies, events/hooks, and audit logs
+- Multi-app assignments for users and groups, including user app access inherited from group membership
 
 ## Quick start
 
@@ -126,6 +127,22 @@ Notes:
 ## API Documentation
 
 - OpenAPI specification: `openapi.yaml`
+
+## Multi-App Behavior
+
+- Users and groups can now be assigned to multiple apps.
+- A user's effective app access is the union of:
+  - apps assigned directly to the user
+  - apps inherited from the groups the user belongs to
+- The portal launcher consumes `GET /api/portal/me` and renders the full `apps` array, so it can display multiple assigned apps for the same user.
+- For compatibility, legacy records that only have a single `appId` still work and are treated as having one direct app assignment until they are updated.
+
+## Token Endpoint And Apps
+
+- The token endpoint remains `POST /oauth/token`.
+- Multi-app support does not introduce an app-specific token endpoint.
+- App context is still modeled through the client, roles, permissions, and the effective app assignments on the user.
+- In other words, clients continue to exchange tokens through `/oauth/token`, while app visibility in the portal and admin APIs is resolved from the user's effective app assignments.
 
 ## Security Notes
 

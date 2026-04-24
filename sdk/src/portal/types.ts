@@ -24,6 +24,9 @@ export interface SDKPortalMe {
   avatarUrl?: string;
   customAttributes: Record<string, string>;
   appId?: string;
+  appIds?: string[];
+  directAppIds?: string[];
+  inheritedAppIds?: string[];
   roles: string[];
   groups: string[];
   permissions: string[];

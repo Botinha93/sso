@@ -126,6 +126,8 @@ export const bootstrap = async (config: AppConfig) => {
     groupRepository,
     appRepository,
     groupAppAssignmentRepository,
+    userAttributeRepository,
+    groupUserAttributeAssignmentRepository,
     groupRoleAssignmentRepository,
     userGroupAssignmentRepository,
     roleRepository,
@@ -135,6 +137,7 @@ export const bootstrap = async (config: AppConfig) => {
     userRepository,
     appRepository,
     userAppAssignmentRepository,
+    userAttributeRepository,
     roleService,
     groupService
   );
