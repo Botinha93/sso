@@ -21,7 +21,8 @@ export default function AccessGovernancePanel() {
   const [entitlementType, setEntitlementType] = useState('role')
   const [entitlementValue, setEntitlementValue] = useState('')
   const [justification, setJustification] = useState('')
-  const [expiresAt, setExpiresAt] = useState('')
+  const [expiresAtDate, setExpiresAtDate] = useState('')
+  const [expiresAtTime, setExpiresAtTime] = useState('23:59')
   const [sweepMessage, setSweepMessage] = useState<string | null>(null)
   const [stalledAfterMinutes, setStalledAfterMinutes] = useState(60)
 
@@ -53,12 +54,13 @@ export default function AccessGovernancePanel() {
       entitlementType,
       entitlementValue,
       justification,
-      expiresAt: expiresAt ? new Date(expiresAt).toISOString() : undefined
+      expiresAt: expiresAtDate ? new Date(`${expiresAtDate}T${expiresAtTime || '23:59'}:00`).toISOString() : undefined
     })
 
     setEntitlementValue('')
     setJustification('')
-    setExpiresAt('')
+    setExpiresAtDate('')
+    setExpiresAtTime('23:59')
   }
 
   const approveRequest = async (id: string) => {
@@ -128,12 +130,23 @@ export default function AccessGovernancePanel() {
             className="rounded-lg border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
           />
 
-          <input
-            type="datetime-local"
-            value={expiresAt}
-            onChange={(event) => setExpiresAt(event.target.value)}
-            className="h-9 rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
-          />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="date"
+              value={expiresAtDate}
+              onChange={(event) => setExpiresAtDate(event.target.value)}
+              className="h-9 rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+            />
+            <input
+              type="time"
+              value={expiresAtTime}
+              onChange={(event) => setExpiresAtTime(event.target.value)}
+              step={60}
+              disabled={!expiresAtDate}
+              className="h-9 rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 disabled:bg-slate-50 disabled:text-slate-400"
+            />
+          </div>
+          <p className="text-xs text-slate-500">Expiration is optional. Select date first, then time.</p>
 
           <div>
             <button

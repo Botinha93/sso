@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, ArrowRight, Lock, Mail, Network, RefreshCw, ShieldCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import {
   useAdminMe,
   useAdminRiskEvents,
+  useApps,
   useInstanceSettings,
   useMigrateDatabaseFromSqlite,
   useTestExternalDatabaseConnection,
@@ -42,6 +43,17 @@ const checkboxCls = 'h-4 w-4 rounded border-slate-300 text-slate-900 accent-slat
 const sectionCls = 'rounded-xl border border-slate-200 bg-white p-5 shadow-sm'
 const parseOrigins = (value: string) => value.split('\n').map((item) => item.trim()).filter(Boolean)
 
+const parseHttpOrigin = (value: unknown) => {
+  if (typeof value !== 'string' || !value.trim()) return null
+  try {
+    const parsed = new URL(value.trim())
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+    return parsed.origin
+  } catch {
+    return null
+  }
+}
+
 const defaultForm: SettingsForm = {
   databaseProvider: 'sqlite',
   databasePath: './data/sso.sqlite',
@@ -75,6 +87,7 @@ const defaultForm: SettingsForm = {
 export default function Administration() {
   const { data: adminMe } = useAdminMe()
   const { data, isLoading, refetch } = useInstanceSettings()
+  const { data: apps = [] } = useApps()
   const { data: riskEvents, refetch: refetchRiskEvents } = useAdminRiskEvents(15)
   const updateSettings = useUpdateInstanceSettings()
   const testEmail = useTestInstanceEmail()
@@ -85,6 +98,20 @@ export default function Administration() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const permissions: string[] = (adminMe as any)?.permissions ?? []
   const can = (permission: string) => permissions.includes('*:*') || permissions.includes(permission)
+  const appCorsOrigins = useMemo(() => {
+    const origins = new Set<string>()
+    for (const app of apps as any[]) {
+      const appOrigin = parseHttpOrigin(app?.url)
+      if (appOrigin) origins.add(appOrigin)
+
+      const resources = Array.isArray(app?.resources) ? app.resources : []
+      for (const resource of resources) {
+        const resourceOrigin = parseHttpOrigin(resource)
+        if (resourceOrigin) origins.add(resourceOrigin)
+      }
+    }
+    return Array.from(origins).sort()
+  }, [apps])
 
   const operationLinks = [
     {
@@ -167,7 +194,9 @@ export default function Administration() {
         requireHttps: form.requireHttps,
         secureCookies: form.secureCookies,
         allowAnyCorsOrigin: form.allowAnyCorsOrigin,
-        corsAllowedOrigins: form.allowAnyCorsOrigin ? [] : parseOrigins(form.corsAllowedOriginsText),
+        corsAllowedOrigins: form.allowAnyCorsOrigin
+          ? []
+          : Array.from(new Set([...parseOrigins(form.corsAllowedOriginsText), ...appCorsOrigins])),
         requireHttpsRedirectUris: form.requireHttpsRedirectUris,
         requireS256Pkce: form.requireS256Pkce,
         allowImplicitFlow: form.allowImplicitFlow,
@@ -455,6 +484,24 @@ export default function Administration() {
             </label>
 
             <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Auto-Added App Origins</label>
+              <div className="min-h-[48px] w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                {appCorsOrigins.length === 0 ? (
+                  <p className="text-xs text-slate-500">No app URLs or resource URLs found to auto-allow.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {appCorsOrigins.map((origin) => (
+                      <span key={origin} className="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-mono text-slate-700">
+                        {origin}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <p className="mt-2 text-xs text-slate-500">These origins are synced from app URL and app resource URLs and are included automatically when saving.</p>
+            </div>
+
+            <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Allowed Origins</label>
               <textarea
                 value={form.corsAllowedOriginsText}
@@ -463,7 +510,7 @@ export default function Administration() {
                 className="min-h-[140px] w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 disabled:bg-slate-50 disabled:text-slate-400 font-mono"
                 placeholder={'https://admin.example.com\nhttps://portal.example.com'}
               />
-              <p className="mt-2 text-xs text-slate-500">One origin per line. Include scheme and host, for example <span className="font-mono">https://admin.example.com</span>.</p>
+              <p className="mt-2 text-xs text-slate-500">One origin per line. Include scheme and host, for example <span className="font-mono">https://admin.example.com</span>. Manual values here are merged with the auto-added app origins.</p>
             </div>
           </div>
         </section>

@@ -27,7 +27,8 @@ export default function ProvisioningAdminPanel() {
   const runReconcile = useRunProvisioningReconcile()
 
   const [tokenLabel, setTokenLabel] = useState('')
-  const [tokenExpiry, setTokenExpiry] = useState('')
+  const [tokenExpiryDate, setTokenExpiryDate] = useState('')
+  const [tokenExpiryTime, setTokenExpiryTime] = useState('23:59')
   const [issuedToken, setIssuedToken] = useState<string | null>(null)
   const [mappingName, setMappingName] = useState('')
   const [sourceAttribute, setSourceAttribute] = useState('')
@@ -64,13 +65,18 @@ export default function ProvisioningAdminPanel() {
 
   const createNewToken = async () => {
     setIssuedToken(null)
+    const expiresAt = tokenExpiryDate
+      ? new Date(`${tokenExpiryDate}T${tokenExpiryTime || '23:59'}:00`).toISOString()
+      : undefined
+
     const created = await createToken.mutateAsync({
       label: tokenLabel,
-      expiresAt: tokenExpiry ? new Date(tokenExpiry).toISOString() : undefined
+      expiresAt
     })
     setIssuedToken(created.token)
     setTokenLabel('')
-    setTokenExpiry('')
+    setTokenExpiryDate('')
+    setTokenExpiryTime('23:59')
   }
 
   const createNewMapping = async () => {
@@ -100,13 +106,24 @@ export default function ProvisioningAdminPanel() {
             placeholder="okta-prod"
             className="h-9 rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
           />
-          <input
-            type="datetime-local"
-            value={tokenExpiry}
-            onChange={(event) => setTokenExpiry(event.target.value)}
-            className="h-9 rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
-          />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="date"
+              value={tokenExpiryDate}
+              onChange={(event) => setTokenExpiryDate(event.target.value)}
+              className="h-9 rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+            />
+            <input
+              type="time"
+              value={tokenExpiryTime}
+              onChange={(event) => setTokenExpiryTime(event.target.value)}
+              step={60}
+              disabled={!tokenExpiryDate}
+              className="h-9 rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 disabled:bg-slate-50 disabled:text-slate-400"
+            />
+          </div>
         </div>
+        <p className="mt-2 text-xs text-slate-500">Expiry is optional. Pick a date first, then an end time.</p>
         <div className="mt-3">
           <button
             onClick={createNewToken}

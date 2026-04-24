@@ -7,6 +7,7 @@ import {
   useCreateServiceIdentity,
   useUpdateServiceIdentity,
   useDeleteServiceIdentity,
+  useScopes,
   useServiceIdentity,
   useServiceIdentityUsage,
   useIssueServiceIdentityCredential,
@@ -23,7 +24,7 @@ const defaultForm = () => ({
   name: '',
   description: '',
   status: 'active' as ServiceIdentityDto['status'],
-  allowedScopes: '',
+  allowedScopes: [] as string[],
   allowedAudiences: ''
 })
 
@@ -48,6 +49,12 @@ const statusBadge = (status: ServiceIdentityDto['status']) => {
 
 function parseCommaSeparated(value: string) {
   return value.split(',').map((item) => item.trim()).filter(Boolean)
+}
+
+function toggleScopeSelection(scopes: string[], scopeName: string) {
+  return scopes.includes(scopeName)
+    ? scopes.filter((scope) => scope !== scopeName)
+    : [...scopes, scopeName]
 }
 
 const CredentialsPanel = ({
@@ -257,6 +264,7 @@ const ServiceIdentities = () => {
   const [editFormData, setEditFormData] = useState(defaultForm)
 
   const { data, isLoading, refetch } = useServiceIdentities()
+  const { data: scopes = [] } = useScopes()
   const createIdentity = useCreateServiceIdentity()
   const updateIdentity = useUpdateServiceIdentity()
   const deleteIdentity = useDeleteServiceIdentity()
@@ -270,7 +278,7 @@ const ServiceIdentities = () => {
       name: identityToEdit.name,
       description: identityToEdit.description ?? '',
       status: identityToEdit.status,
-      allowedScopes: identityToEdit.allowedScopes.join(', '),
+      allowedScopes: [...identityToEdit.allowedScopes],
       allowedAudiences: identityToEdit.allowedAudiences.join(', ')
     })
   }, [identityToEdit])
@@ -281,7 +289,7 @@ const ServiceIdentities = () => {
       name: formData.name,
       description: formData.description || undefined,
       status: formData.status,
-      allowedScopes: parseCommaSeparated(formData.allowedScopes),
+      allowedScopes: formData.allowedScopes,
       allowedAudiences: parseCommaSeparated(formData.allowedAudiences)
     })
     setCreateModalOpen(false)
@@ -302,7 +310,7 @@ const ServiceIdentities = () => {
         name: editFormData.name,
         description: editFormData.description || undefined,
         status: editFormData.status,
-        allowedScopes: parseCommaSeparated(editFormData.allowedScopes),
+        allowedScopes: editFormData.allowedScopes,
         allowedAudiences: parseCommaSeparated(editFormData.allowedAudiences)
       }
     })
@@ -452,12 +460,20 @@ const ServiceIdentities = () => {
             </div>
             <div>
               <label className={labelCls}>Allowed Scopes</label>
-              <input
-                className={fieldCls}
-                value={formData.allowedScopes}
-                onChange={e => setFormData(f => ({ ...f, allowedScopes: e.target.value }))}
-                placeholder="read:users, write:reports"
-              />
+              <div className="rounded-lg border border-slate-200 p-2 max-h-[140px] overflow-auto bg-slate-50/40 space-y-1.5">
+                {(scopes as any[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No scopes defined.</p>}
+                {(scopes as any[]).map((scope: any) => (
+                  <label key={scope.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.allowedScopes.includes(scope.name)}
+                      onChange={() => setFormData((f) => ({ ...f, allowedScopes: toggleScopeSelection(f.allowedScopes, scope.name) }))}
+                      className="rounded border-slate-300"
+                    />
+                    <span className="font-mono">{scope.name}</span>
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
           <div>
@@ -519,12 +535,20 @@ const ServiceIdentities = () => {
             </div>
             <div>
               <label className={labelCls}>Allowed Scopes</label>
-              <input
-                className={fieldCls}
-                value={editFormData.allowedScopes}
-                onChange={e => setEditFormData(f => ({ ...f, allowedScopes: e.target.value }))}
-                placeholder="read:users, write:reports"
-              />
+              <div className="rounded-lg border border-slate-200 p-2 max-h-[140px] overflow-auto bg-slate-50/40 space-y-1.5">
+                {(scopes as any[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No scopes defined.</p>}
+                {(scopes as any[]).map((scope: any) => (
+                  <label key={scope.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editFormData.allowedScopes.includes(scope.name)}
+                      onChange={() => setEditFormData((f) => ({ ...f, allowedScopes: toggleScopeSelection(f.allowedScopes, scope.name) }))}
+                      className="rounded border-slate-300"
+                    />
+                    <span className="font-mono">{scope.name}</span>
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
           <div>

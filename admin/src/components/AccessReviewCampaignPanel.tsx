@@ -13,7 +13,8 @@ const sectionCls = 'rounded-xl border border-slate-200 bg-white p-5 shadow-sm'
 export default function AccessReviewCampaignPanel() {
   const [name, setName] = useState('Quarterly Access Recertification')
   const [description, setDescription] = useState('Review direct roles and group memberships for active users.')
-  const [dueAt, setDueAt] = useState('')
+  const [dueAtDate, setDueAtDate] = useState('')
+  const [dueAtTime, setDueAtTime] = useState('23:59')
   const [campaignId, setCampaignId] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -54,7 +55,7 @@ export default function AccessReviewCampaignPanel() {
     const created = await createCampaign.mutateAsync({
       name,
       description: description.trim() || undefined,
-      dueAt: dueAt ? new Date(dueAt).toISOString() : undefined
+      dueAt: dueAtDate ? new Date(`${dueAtDate}T${dueAtTime || '23:59'}:00`).toISOString() : undefined
     })
 
     setCampaignId(created.campaign.id)
@@ -92,12 +93,23 @@ export default function AccessReviewCampaignPanel() {
             className="w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
             placeholder="Campaign scope and reviewer guidance"
           />
-          <input
-            type="datetime-local"
-            value={dueAt}
-            onChange={(event) => setDueAt(event.target.value)}
-            className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
-          />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="date"
+              value={dueAtDate}
+              onChange={(event) => setDueAtDate(event.target.value)}
+              className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+            />
+            <input
+              type="time"
+              value={dueAtTime}
+              onChange={(event) => setDueAtTime(event.target.value)}
+              step={60}
+              disabled={!dueAtDate}
+              className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 disabled:bg-slate-50 disabled:text-slate-400"
+            />
+          </div>
+          <p className="text-xs text-slate-500">Due date is optional. Select date first, then time.</p>
           <button
             onClick={runCreateCampaign}
             disabled={createCampaign.isPending || name.trim().length < 3}
