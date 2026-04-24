@@ -288,6 +288,7 @@ const mapApp = (row: PrismaRow): App => ({
   icon: row.icon ? String(row.icon) : undefined,
   imageUrl: row.imageUrl ? String(row.imageUrl) : (readField(row, "image_url") ? String(readField(row, "image_url")) : undefined),
   url: row.url ? String(row.url) : undefined,
+  resources: parseStringArray(readField(row, "resourcesJson", "resources_json")),
   createdAt: asDate(row.createdAt)
 });
 
@@ -1254,7 +1255,18 @@ class PrismaAppRepository {
 
   async create(input: Omit<App, "id" | "createdAt">): Promise<App> {
     const app: App = { ...input, id: nanoid(), createdAt: new Date() };
-    await this.prisma.app.create({ data: { id: app.id, name: app.name, description: app.description, icon: app.icon ?? null, imageUrl: app.imageUrl ?? null, url: app.url ?? null, createdAt: app.createdAt.toISOString() } });
+    await this.prisma.app.create({
+      data: {
+        id: app.id,
+        name: app.name,
+        description: app.description,
+        icon: app.icon ?? null,
+        imageUrl: app.imageUrl ?? null,
+        url: app.url ?? null,
+        resourcesJson: JSON.stringify(app.resources ?? []),
+        createdAt: app.createdAt.toISOString()
+      }
+    });
     return app;
   }
 
@@ -1274,8 +1286,26 @@ class PrismaAppRepository {
       return undefined;
     }
 
-    const updated: App = { ...existing, name: input.name ?? existing.name, description: input.description ?? existing.description, icon: input.icon !== undefined ? input.icon : existing.icon, imageUrl: input.imageUrl !== undefined ? input.imageUrl : existing.imageUrl, url: input.url !== undefined ? input.url : existing.url };
-    await this.prisma.app.update({ where: { id }, data: { name: updated.name, description: updated.description, icon: updated.icon ?? null, imageUrl: updated.imageUrl ?? null, url: updated.url ?? null } });
+    const updated: App = {
+      ...existing,
+      name: input.name ?? existing.name,
+      description: input.description ?? existing.description,
+      icon: input.icon !== undefined ? input.icon : existing.icon,
+      imageUrl: input.imageUrl !== undefined ? input.imageUrl : existing.imageUrl,
+      url: input.url !== undefined ? input.url : existing.url,
+      resources: input.resources !== undefined ? input.resources : existing.resources
+    };
+    await this.prisma.app.update({
+      where: { id },
+      data: {
+        name: updated.name,
+        description: updated.description,
+        icon: updated.icon ?? null,
+        imageUrl: updated.imageUrl ?? null,
+        url: updated.url ?? null,
+        resourcesJson: JSON.stringify(updated.resources ?? [])
+      }
+    });
     return updated;
   }
 
@@ -2538,60 +2568,401 @@ class PrismaElevationSessionRepository {
 
 class PrismaRiskEventRepository implements RiskEventRepository {
   constructor(private readonly prisma: PrismaClientLike) {}
-  async create(_input: Omit<RiskEvent, "id" | "createdAt">): Promise<RiskEvent> { throw new Error("RiskEventRepository not yet implemented for Prisma provider"); }
-  async list(_input?: { limit?: number; userId?: string; minConfidence?: number }): Promise<RiskEvent[]> { return []; }
-  async countRecentByIp(_ip: string, _windowMs: number): Promise<number> { return 0; }
+
+  private mapRow(row: PrismaRow): RiskEvent {
+    return {
+      id: String(row.id),
+      userId: row.user_id ? String(row.user_id) : undefined,
+      ip: row.ip ? String(row.ip) : undefined,
+      deviceFingerprintHash: row.device_fingerprint_hash ? String(row.device_fingerprint_hash) : undefined,
+      geo: row.geo ? String(row.geo) : undefined,
+      confidence: Number(row.confidence),
+      reason: String(row.reason) as RiskReason,
+      decision: String(row.decision) as RiskDecision,
+      metadata: row.metadata_json ? JSON.parse(String(row.metadata_json)) : undefined,
+      createdAt: asDate(row.created_at)
+    };
+  }
+
+  async create(input: Omit<RiskEvent, "id" | "createdAt">): Promise<RiskEvent> {
+    const id = nanoid();
+    const now = new Date().toISOString();
+    const row = await this.prisma.$queryRaw<PrismaRow[]>`
+      INSERT INTO risk_events (id, user_id, ip, device_fingerprint_hash, geo, confidence, reason, decision, metadata_json, created_at)
+      VALUES (${id}, ${input.userId ?? null}, ${input.ip ?? null}, ${input.deviceFingerprintHash ?? null}, ${input.geo ?? null}, ${input.confidence}, ${input.reason}, ${input.decision}, ${input.metadata ? JSON.stringify(input.metadata) : null}, ${now})
+      RETURNING *
+    `;
+    return this.mapRow(row[0]);
+  }
+
+  async list(input?: { limit?: number; userId?: string; minConfidence?: number }): Promise<RiskEvent[]> {
+    const limit = input?.limit ?? 100;
+    
+    if (input?.userId && input.minConfidence !== undefined) {
+      const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+        SELECT * FROM risk_events 
+        WHERE user_id = ${input.userId} AND confidence >= ${input.minConfidence}
+        ORDER BY created_at DESC LIMIT ${limit}
+      `;
+      return rows.map((row) => this.mapRow(row));
+    }
+
+    if (input?.userId) {
+      const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+        SELECT * FROM risk_events 
+        WHERE user_id = ${input.userId}
+        ORDER BY created_at DESC LIMIT ${limit}
+      `;
+      return rows.map((row) => this.mapRow(row));
+    }
+
+    if (input?.minConfidence !== undefined) {
+      const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+        SELECT * FROM risk_events 
+        WHERE confidence >= ${input.minConfidence}
+        ORDER BY created_at DESC LIMIT ${limit}
+      `;
+      return rows.map((row) => this.mapRow(row));
+    }
+
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      SELECT * FROM risk_events ORDER BY created_at DESC LIMIT ${limit}
+    `;
+    return rows.map((row) => this.mapRow(row));
+  }
+
+  async countRecentByIp(ip: string, windowMs: number): Promise<number> {
+    const since = new Date(Date.now() - windowMs).toISOString();
+    const rows = await this.prisma.$queryRaw<{ cnt: number }[]>`
+      SELECT COUNT(*) as cnt FROM risk_events WHERE ip = ${ip} AND created_at >= ${since}
+    `;
+    return rows[0]?.cnt ?? 0;
+  }
 }
 
 class PrismaServiceIdentityRepository implements ServiceIdentityRepository {
   constructor(private readonly prisma: PrismaClientLike) {}
-  async create(_input: Omit<ServiceIdentity, "id" | "createdAt" | "updatedAt">): Promise<ServiceIdentity> { throw new Error("ServiceIdentityRepository not yet implemented for Prisma provider"); }
-  async list(): Promise<ServiceIdentity[]> { return []; }
-  async findById(_id: string): Promise<ServiceIdentity | undefined> { return undefined; }
-  async update(_id: string, _input: Partial<Omit<ServiceIdentity, "id" | "createdAt">>): Promise<ServiceIdentity | undefined> { return undefined; }
-  async delete(_id: string): Promise<void> {}
+
+  private mapRow(row: PrismaRow): ServiceIdentity {
+    return {
+      id: String(row.id),
+      name: String(row.name),
+      description: row.description ? String(row.description) : undefined,
+      ownerId: row.owner_id ? String(row.owner_id) : undefined,
+      appId: row.app_id ? String(row.app_id) : undefined,
+      status: String(row.status) as ServiceIdentityStatus,
+      allowedScopes: parseStringArray(row.allowed_scopes_json),
+      allowedAudiences: parseStringArray(row.allowed_audiences_json),
+      metadata: row.metadata_json ? JSON.parse(String(row.metadata_json)) : undefined,
+      createdAt: asDate(row.created_at),
+      updatedAt: asDate(row.updated_at)
+    };
+  }
+
+  async create(input: Omit<ServiceIdentity, "id" | "createdAt" | "updatedAt">): Promise<ServiceIdentity> {
+    const id = nanoid();
+    const now = new Date().toISOString();
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      INSERT INTO service_identities (id, name, description, owner_id, app_id, status, allowed_scopes_json, allowed_audiences_json, metadata_json, created_at, updated_at)
+      VALUES (${id}, ${input.name}, ${input.description ?? null}, ${input.ownerId ?? null}, ${input.appId ?? null}, ${input.status}, ${JSON.stringify(input.allowedScopes)}, ${JSON.stringify(input.allowedAudiences)}, ${input.metadata ? JSON.stringify(input.metadata) : null}, ${now}, ${now})
+      RETURNING *
+    `;
+    return this.mapRow(rows[0]);
+  }
+
+  async list(): Promise<ServiceIdentity[]> {
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`SELECT * FROM service_identities ORDER BY created_at DESC`;
+    return rows.map((row) => this.mapRow(row));
+  }
+
+  async findById(id: string): Promise<ServiceIdentity | undefined> {
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`SELECT * FROM service_identities WHERE id = ${id}`;
+    return rows.length > 0 ? this.mapRow(rows[0]) : undefined;
+  }
+
+  async update(id: string, input: Partial<Omit<ServiceIdentity, "id" | "createdAt">>): Promise<ServiceIdentity | undefined> {
+    const existing = await this.findById(id);
+    if (!existing) return undefined;
+
+    const updated = { ...existing, ...input, updatedAt: new Date() };
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      UPDATE service_identities
+      SET name = ${updated.name}, description = ${updated.description ?? null}, owner_id = ${updated.ownerId ?? null}, app_id = ${updated.appId ?? null}, status = ${updated.status}, allowed_scopes_json = ${JSON.stringify(updated.allowedScopes)}, allowed_audiences_json = ${JSON.stringify(updated.allowedAudiences)}, metadata_json = ${updated.metadata ? JSON.stringify(updated.metadata) : null}, updated_at = ${updated.updatedAt.toISOString()}
+      WHERE id = ${id}
+      RETURNING *
+    `;
+    return rows.length > 0 ? this.mapRow(rows[0]) : undefined;
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.$queryRaw`DELETE FROM service_identity_credentials WHERE service_identity_id = ${id}`;
+    await this.prisma.$queryRaw`DELETE FROM service_identities WHERE id = ${id}`;
+  }
 }
 
 class PrismaServiceIdentityCredentialRepository implements ServiceIdentityCredentialRepository {
   constructor(private readonly prisma: PrismaClientLike) {}
-  async create(_input: Omit<ServiceIdentityCredential, "id" | "createdAt">): Promise<ServiceIdentityCredential> { throw new Error("ServiceIdentityCredentialRepository not yet implemented for Prisma provider"); }
-  async listByServiceIdentity(_serviceIdentityId: string): Promise<ServiceIdentityCredential[]> { return []; }
-  async findById(_id: string): Promise<ServiceIdentityCredential | undefined> { return undefined; }
-  async findByClientId(_clientId: string): Promise<ServiceIdentityCredential | undefined> { return undefined; }
-  async revoke(_id: string, _revokedAt: Date): Promise<void> {}
-  async touchLastUsed(_id: string, _usedAt: Date): Promise<void> {}
+
+  private mapRow(row: PrismaRow): ServiceIdentityCredential {
+    return {
+      id: String(row.id),
+      serviceIdentityId: String(row.service_identity_id),
+      clientId: String(row.client_id),
+      clientSecretHash: String(row.client_secret_hash),
+      expiresAt: maybeDate(row.expires_at),
+      revokedAt: maybeDate(row.revoked_at),
+      rotatedFromId: row.rotated_from_id ? String(row.rotated_from_id) : undefined,
+      lastUsedAt: maybeDate(row.last_used_at),
+      createdAt: asDate(row.created_at)
+    };
+  }
+
+  async create(input: Omit<ServiceIdentityCredential, "id" | "createdAt">): Promise<ServiceIdentityCredential> {
+    const id = nanoid();
+    const now = new Date().toISOString();
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      INSERT INTO service_identity_credentials (id, service_identity_id, client_id, client_secret_hash, expires_at, revoked_at, rotated_from_id, last_used_at, created_at)
+      VALUES (${id}, ${input.serviceIdentityId}, ${input.clientId}, ${input.clientSecretHash}, ${input.expiresAt?.toISOString() ?? null}, ${input.revokedAt?.toISOString() ?? null}, ${input.rotatedFromId ?? null}, ${input.lastUsedAt?.toISOString() ?? null}, ${now})
+      RETURNING *
+    `;
+    return this.mapRow(rows[0]);
+  }
+
+  async listByServiceIdentity(serviceIdentityId: string): Promise<ServiceIdentityCredential[]> {
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      SELECT * FROM service_identity_credentials WHERE service_identity_id = ${serviceIdentityId} ORDER BY created_at DESC
+    `;
+    return rows.map((row) => this.mapRow(row));
+  }
+
+  async findById(id: string): Promise<ServiceIdentityCredential | undefined> {
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`SELECT * FROM service_identity_credentials WHERE id = ${id}`;
+    return rows.length > 0 ? this.mapRow(rows[0]) : undefined;
+  }
+
+  async findByClientId(clientId: string): Promise<ServiceIdentityCredential | undefined> {
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      SELECT * FROM service_identity_credentials WHERE client_id = ${clientId} AND revoked_at IS NULL ORDER BY created_at DESC LIMIT 1
+    `;
+    return rows.length > 0 ? this.mapRow(rows[0]) : undefined;
+  }
+
+  async revoke(id: string, revokedAt: Date): Promise<void> {
+    await this.prisma.$queryRaw`UPDATE service_identity_credentials SET revoked_at = ${revokedAt.toISOString()} WHERE id = ${id}`;
+  }
+
+  async touchLastUsed(id: string, usedAt: Date): Promise<void> {
+    await this.prisma.$queryRaw`UPDATE service_identity_credentials SET last_used_at = ${usedAt.toISOString()} WHERE id = ${id}`;
+  }
 }
 
 class PrismaConnectorRepository implements ConnectorRepository {
   constructor(private readonly prisma: PrismaClientLike) {}
-  async list(): Promise<Connector[]> { return []; }
-  async findById(_id: string): Promise<Connector | undefined> { return undefined; }
-  async create(_input: Omit<Connector, "id" | "createdAt" | "updatedAt">): Promise<Connector> { throw new Error("ConnectorRepository not yet implemented for Prisma provider"); }
-  async update(_id: string, _input: Partial<Omit<Connector, "id" | "createdAt">>): Promise<Connector | undefined> { return undefined; }
-  async delete(_id: string): Promise<void> {}
+
+  private mapRow(row: PrismaRow): Connector {
+    return {
+      id: String(row.id),
+      name: String(row.name),
+      type: String(row.type) as Connector["type"],
+      status: String(row.status) as Connector["status"],
+      config: row.config_json ? JSON.parse(String(row.config_json)) : {},
+      schedule: row.schedule ? String(row.schedule) : undefined,
+      lastSyncAt: maybeDate(row.last_sync_at),
+      createdAt: asDate(row.created_at),
+      updatedAt: asDate(row.updated_at)
+    };
+  }
+
+  async list(): Promise<Connector[]> {
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`SELECT * FROM connectors ORDER BY created_at DESC`;
+    return rows.map((row) => this.mapRow(row));
+  }
+
+  async findById(id: string): Promise<Connector | undefined> {
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`SELECT * FROM connectors WHERE id = ${id}`;
+    return rows.length > 0 ? this.mapRow(rows[0]) : undefined;
+  }
+
+  async create(input: Omit<Connector, "id" | "createdAt" | "updatedAt">): Promise<Connector> {
+    const id = nanoid();
+    const now = new Date().toISOString();
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      INSERT INTO connectors (id, name, type, status, config_json, schedule, last_sync_at, created_at, updated_at)
+      VALUES (${id}, ${input.name}, ${input.type}, ${input.status}, ${JSON.stringify(input.config)}, ${input.schedule ?? null}, ${input.lastSyncAt?.toISOString() ?? null}, ${now}, ${now})
+      RETURNING *
+    `;
+    return this.mapRow(rows[0]);
+  }
+
+  async update(id: string, input: Partial<Omit<Connector, "id" | "createdAt">>): Promise<Connector | undefined> {
+    const existing = await this.findById(id);
+    if (!existing) return undefined;
+
+    const merged = { ...existing, ...input, updatedAt: new Date() };
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      UPDATE connectors SET name = ${merged.name}, type = ${merged.type}, status = ${merged.status}, config_json = ${JSON.stringify(merged.config)}, schedule = ${merged.schedule ?? null}, last_sync_at = ${merged.lastSyncAt?.toISOString() ?? null}, updated_at = ${merged.updatedAt.toISOString()} WHERE id = ${id}
+      RETURNING *
+    `;
+    return rows.length > 0 ? this.mapRow(rows[0]) : undefined;
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.$queryRaw`DELETE FROM connectors WHERE id = ${id}`;
+  }
 }
 
 class PrismaConnectorRunRepository implements ConnectorRunRepository {
   constructor(private readonly prisma: PrismaClientLike) {}
-  async listByConnector(_connectorId: string, _limit?: number): Promise<ConnectorRun[]> { return []; }
-  async findById(_id: string): Promise<ConnectorRun | undefined> { return undefined; }
-  async create(_input: Omit<ConnectorRun, "id" | "createdAt">): Promise<ConnectorRun> { throw new Error("ConnectorRunRepository not yet implemented for Prisma provider"); }
-  async update(_id: string, _input: Partial<Omit<ConnectorRun, "id" | "createdAt">>): Promise<ConnectorRun | undefined> { return undefined; }
-  async deleteByConnector(_connectorId: string): Promise<void> {}
+
+  private mapRow(row: PrismaRow): ConnectorRun {
+    return {
+      id: String(row.id),
+      connectorId: String(row.connector_id),
+      status: String(row.status) as ConnectorRun["status"],
+      startedAt: maybeDate(row.started_at),
+      finishedAt: maybeDate(row.finished_at),
+      recordsImported: Number(row.records_imported ?? 0),
+      recordsFailed: Number(row.records_failed ?? 0),
+      errorMessage: row.error_message ? String(row.error_message) : undefined,
+      createdAt: asDate(row.created_at)
+    };
+  }
+
+  async listByConnector(connectorId: string, limit = 50): Promise<ConnectorRun[]> {
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      SELECT * FROM connector_runs WHERE connector_id = ${connectorId} ORDER BY created_at DESC LIMIT ${limit}
+    `;
+    return rows.map((row) => this.mapRow(row));
+  }
+
+  async findById(id: string): Promise<ConnectorRun | undefined> {
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`SELECT * FROM connector_runs WHERE id = ${id}`;
+    return rows.length > 0 ? this.mapRow(rows[0]) : undefined;
+  }
+
+  async create(input: Omit<ConnectorRun, "id" | "createdAt">): Promise<ConnectorRun> {
+    const id = nanoid();
+    const now = new Date().toISOString();
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      INSERT INTO connector_runs (id, connector_id, status, started_at, finished_at, records_imported, records_failed, error_message, created_at)
+      VALUES (${id}, ${input.connectorId}, ${input.status}, ${input.startedAt?.toISOString() ?? null}, ${input.finishedAt?.toISOString() ?? null}, ${input.recordsImported}, ${input.recordsFailed}, ${input.errorMessage ?? null}, ${now})
+      RETURNING *
+    `;
+    return this.mapRow(rows[0]);
+  }
+
+  async update(id: string, input: Partial<Omit<ConnectorRun, "id" | "createdAt">>): Promise<ConnectorRun | undefined> {
+    const existing = await this.findById(id);
+    if (!existing) return undefined;
+
+    const merged = { ...existing, ...input };
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      UPDATE connector_runs SET status = ${merged.status}, started_at = ${merged.startedAt?.toISOString() ?? null}, finished_at = ${merged.finishedAt?.toISOString() ?? null}, records_imported = ${merged.recordsImported}, records_failed = ${merged.recordsFailed}, error_message = ${merged.errorMessage ?? null} WHERE id = ${id}
+      RETURNING *
+    `;
+    return rows.length > 0 ? this.mapRow(rows[0]) : undefined;
+  }
+
+  async deleteByConnector(connectorId: string): Promise<void> {
+    await this.prisma.$queryRaw`DELETE FROM connector_runs WHERE connector_id = ${connectorId}`;
+  }
 }
 
 class PrismaConnectorMappingRepository implements ConnectorMappingRepository {
   constructor(private readonly prisma: PrismaClientLike) {}
-  async listByConnector(_connectorId: string): Promise<ConnectorMapping[]> { return []; }
-  async create(_input: Omit<ConnectorMapping, "id" | "createdAt" | "updatedAt">): Promise<ConnectorMapping> { throw new Error("ConnectorMappingRepository not yet implemented for Prisma provider"); }
-  async update(_id: string, _input: Partial<Omit<ConnectorMapping, "id" | "createdAt">>): Promise<ConnectorMapping | undefined> { return undefined; }
-  async delete(_id: string): Promise<void> {}
+
+  private mapRow(row: PrismaRow): ConnectorMapping {
+    return {
+      id: String(row.id),
+      connectorId: String(row.connector_id),
+      sourceField: String(row.source_field),
+      targetField: String(row.target_field),
+      transform: row.transform ? String(row.transform) : undefined,
+      createdAt: asDate(row.created_at),
+      updatedAt: asDate(row.updated_at)
+    };
+  }
+
+  async listByConnector(connectorId: string): Promise<ConnectorMapping[]> {
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      SELECT * FROM connector_mappings WHERE connector_id = ${connectorId} ORDER BY created_at ASC
+    `;
+    return rows.map((row) => this.mapRow(row));
+  }
+
+  async create(input: Omit<ConnectorMapping, "id" | "createdAt" | "updatedAt">): Promise<ConnectorMapping> {
+    const id = nanoid();
+    const now = new Date().toISOString();
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      INSERT INTO connector_mappings (id, connector_id, source_field, target_field, transform, created_at, updated_at)
+      VALUES (${id}, ${input.connectorId}, ${input.sourceField}, ${input.targetField}, ${input.transform ?? null}, ${now}, ${now})
+      RETURNING *
+    `;
+    return this.mapRow(rows[0]);
+  }
+
+  async update(id: string, input: Partial<Omit<ConnectorMapping, "id" | "createdAt">>): Promise<ConnectorMapping | undefined> {
+    const row = await this.prisma.$queryRaw<PrismaRow[]>`SELECT * FROM connector_mappings WHERE id = ${id}`;
+    if (row.length === 0) return undefined;
+
+    const current = this.mapRow(row[0]);
+    const now = new Date().toISOString();
+    const merged = { ...current, ...input, updatedAt: new Date(now) };
+
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      UPDATE connector_mappings SET source_field = ${merged.sourceField}, target_field = ${merged.targetField}, transform = ${merged.transform ?? null}, updated_at = ${now} WHERE id = ${id}
+      RETURNING *
+    `;
+    return rows.length > 0 ? this.mapRow(rows[0]) : undefined;
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.$queryRaw`DELETE FROM connector_mappings WHERE id = ${id}`;
+  }
 }
 
 class PrismaAuthMetricRepository implements AuthMetricRepository {
   constructor(private readonly prisma: PrismaClientLike) {}
-  async increment(_bucket: string, _event: string, _by?: number): Promise<void> {}
-  async query(_input: { startBucket: string; endBucket: string; event?: string }): Promise<AuthMetricRollup[]> { return []; }
+
+  async increment(bucket: string, event: string, by = 1): Promise<void> {
+    const id = nanoid();
+    const now = new Date().toISOString();
+    await this.prisma.$queryRaw`
+      INSERT INTO auth_metric_rollups (id, bucket, event, count, created_at)
+      VALUES (${id}, ${bucket}, ${event}, ${by}, ${now})
+      ON CONFLICT (bucket, event) DO UPDATE SET count = count + excluded.count
+    `;
+  }
+
+  async query(input: { startBucket: string; endBucket: string; event?: string }): Promise<AuthMetricRollup[]> {
+    if (input.event) {
+      const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+        SELECT * FROM auth_metric_rollups 
+        WHERE bucket >= ${input.startBucket} AND bucket <= ${input.endBucket} AND event = ${input.event}
+        ORDER BY bucket ASC, event ASC
+      `;
+      return rows.map((row) => ({
+        id: String(row.id),
+        bucket: String(row.bucket),
+        event: String(row.event),
+        count: Number(row.count),
+        createdAt: asDate(row.created_at)
+      }));
+    }
+
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      SELECT * FROM auth_metric_rollups 
+      WHERE bucket >= ${input.startBucket} AND bucket <= ${input.endBucket}
+      ORDER BY bucket ASC, event ASC
+    `;
+    return rows.map((row) => ({
+      id: String(row.id),
+      bucket: String(row.bucket),
+      event: String(row.event),
+      count: Number(row.count),
+      createdAt: asDate(row.created_at)
+    }));
+  }
 }
 
 export const createPrismaRepositories = (prisma: PrismaClientLike): RepositoryBundle => ({

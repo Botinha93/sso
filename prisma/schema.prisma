@@ -30,6 +30,7 @@ model apps {
   icon        String?
   image_url   String?
   url         String?
+  resources_json String @default("[]")
 }
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
@@ -589,4 +590,100 @@ model saml_assertion_audits {
   destination_url  String
   status_code      String
   created_at       String
+}
+
+model risk_events {
+  id                      String  @id
+  user_id                 String?
+  ip                      String?
+  device_fingerprint_hash String?
+  geo                     String?
+  confidence              Int
+  reason                  String
+  decision                String
+  metadata_json           String?
+  created_at              String
+}
+
+model service_identities {
+  id                       String                            @id
+  name                     String
+  description              String?
+  owner_id                 String?
+  app_id                   String?
+  status                   String
+  allowed_scopes_json      String
+  allowed_audiences_json   String
+  metadata_json            String?
+  created_at               String
+  updated_at               String
+  service_identity_credentials service_identity_credentials[]
+}
+
+model service_identity_credentials {
+  id                  String              @id
+  service_identity_id String
+  client_id           String
+  client_secret_hash  String
+  expires_at          String?
+  revoked_at          String?
+  rotated_from_id     String?
+  last_used_at        String?
+  created_at          String
+  service_identities  service_identities  @relation(fields: [service_identity_id], references: [id], onDelete: Cascade)
+
+  @@index([service_identity_id])
+  @@index([client_id])
+}
+
+model connectors {
+  id               String            @id
+  name             String
+  type             String
+  status           String
+  config_json      String
+  schedule         String?
+  last_sync_at     String?
+  created_at       String
+  updated_at       String
+  connector_runs   connector_runs[]
+  connector_mappings connector_mappings[]
+}
+
+model connector_runs {
+  id              String  @id
+  connector_id    String
+  status          String
+  started_at      String?
+  finished_at     String?
+  records_imported Int     @default(0)
+  records_failed  Int     @default(0)
+  error_message   String?
+  created_at      String
+  connectors      connectors @relation(fields: [connector_id], references: [id], onDelete: Cascade)
+
+  @@index([connector_id])
+}
+
+model connector_mappings {
+  id             String     @id
+  connector_id   String
+  source_field   String
+  target_field   String
+  transform      String?
+  created_at     String
+  updated_at     String
+  connectors     connectors @relation(fields: [connector_id], references: [id], onDelete: Cascade)
+
+  @@index([connector_id])
+}
+
+model auth_metric_rollups {
+  id         String @id
+  bucket     String
+  event      String
+  count      Int    @default(0)
+  created_at String
+
+  @@unique([bucket, event])
 }

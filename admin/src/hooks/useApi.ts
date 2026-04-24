@@ -284,7 +284,7 @@ export function useApps() {
 export function useCreateApp() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (app: { name: string; description: string; icon?: string; imageUrl?: string; url?: string }) => jsonFetch(`${API_BASE}/apps`, {
+    mutationFn: (app: { name: string; description: string; icon?: string; imageUrl?: string; url?: string; resources?: string[] }) => jsonFetch(`${API_BASE}/apps`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(app)
@@ -296,7 +296,7 @@ export function useCreateApp() {
 export function useUpdateApp() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; name?: string; description?: string; icon?: string; imageUrl?: string; url?: string | null }) => jsonFetch(`${API_BASE}/apps/${id}`, {
+    mutationFn: ({ id, ...data }: { id: string; name?: string; description?: string; icon?: string; imageUrl?: string; url?: string | null; resources?: string[] }) => jsonFetch(`${API_BASE}/apps/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)

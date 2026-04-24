@@ -158,6 +158,7 @@ export const bootstrap = async (config: AppConfig) => {
   const clientService = new ClientService(clientRepository, instanceSettingsService);
   const scopeService = new ScopeService(scopeRepository);
   const appService = new AppService(appRepository);
+  await appService.ensureDefaults();
   const scimService = new ScimService(userService, groupService);
   const scimTokenService = new ScimTokenService(scimTokenRepository);
   const samlService = new SamlService(
@@ -388,6 +389,27 @@ export const bootstrap = async (config: AppConfig) => {
       resources: [],
       flowIds: []
     });
+  }
+
+  const defaultApps = await appRepository.list();
+  const accountPortalApp = defaultApps.find((app) => app.name === "Account Portal");
+  const adminPortalApp = defaultApps.find((app) => app.name === "Admin Portal");
+
+  if (adminPortalApp) {
+    const adminClient = await clientRepository.findById("sso-admin-ui");
+    if (adminClient && adminClient.appId !== adminPortalApp.id) {
+      await clientRepository.update(adminClient.id, { appId: adminPortalApp.id });
+    }
+  }
+
+  if (accountPortalApp) {
+    const accountClientIds = ["sso-device-cli", "sso-password-cli", "sso-service-client"];
+    for (const clientId of accountClientIds) {
+      const client = await clientRepository.findById(clientId);
+      if (client && client.appId !== accountPortalApp.id) {
+        await clientRepository.update(client.id, { appId: accountPortalApp.id });
+      }
+    }
   }
 
   const signingKeys = await createSigningKeys();

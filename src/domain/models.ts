@@ -146,6 +146,7 @@ export interface App {
   icon?: string;
   imageUrl?: string;
   url?: string;
+  resources: string[];
   createdAt: Date;
 }
 

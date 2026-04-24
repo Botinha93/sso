@@ -307,7 +307,8 @@ export const createAppSchema = z.object({
   description: z.string().min(2),
   icon: z.string().optional(),
   imageUrl: z.string().min(1).optional(),
-  url: z.string().url().optional()
+  url: z.string().url().optional(),
+  resources: z.array(z.string().min(1)).default([])
 });
 
 export const updateAppSchema = z.object({
@@ -315,7 +316,8 @@ export const updateAppSchema = z.object({
   description: z.string().min(2).optional(),
   icon: z.string().optional(),
   imageUrl: z.string().min(1).optional(),
-  url: z.string().url().optional().nullable()
+  url: z.string().url().optional().nullable(),
+  resources: z.array(z.string().min(1)).optional()
 });
 
 export const createFederationProviderSchema = z.object({

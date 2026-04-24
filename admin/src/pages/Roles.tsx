@@ -2,7 +2,7 @@ import { ChevronRight, Plus, RefreshCw, Shield, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
-import { useRoles, useCreateRole, useUpdateRole, useDeleteRole, useClients, useApps } from '../hooks/useApi'
+import { useRoles, useCreateRole, useUpdateRole, useDeleteRole, useApps } from '../hooks/useApi'
 
 const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
 const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
@@ -32,21 +32,21 @@ function permKey(resource: string, action: Action) {
   return `${resource}:${action}`
 }
 
-function PermissionMatrix({ permissions, onChange, clientResources }: {
+function PermissionMatrix({ permissions, onChange, appResources }: {
   permissions: string[]
   onChange: (p: string[]) => void
-  clientResources: Array<{ clientId: string; clientName: string; resource: string }>
+  appResources: Array<{ appId: string; appName: string; resource: string }>
 }) {
   const set = new Set(permissions)
 
-  // Combine system resources with client-specific ones
+  // Combine system resources with app-specific ones
   const allResources = [
     ...SYSTEM_RESOURCES,
-    ...clientResources.map(cr => ({
-      key: `client:${cr.clientId}:${cr.resource}`,
-      label: cr.resource,
-      clientName: cr.clientName,
-      isClientResource: true
+    ...appResources.map(ar => ({
+      key: `app:${ar.appId}:${ar.resource}`,
+      label: ar.resource,
+      appName: ar.appName,
+      isAppResource: true
     }))
   ]
 
@@ -75,8 +75,8 @@ function PermissionMatrix({ permissions, onChange, clientResources }: {
     onChange(Array.from(next))
   }
 
-  // Group client resources by clientName
-  const uniqueClients = Array.from(new Set(clientResources.map(cr => cr.clientId)))
+  // Group app resources by appId
+  const uniqueApps = Array.from(new Set(appResources.map(ar => ar.appId)))
 
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200">
@@ -123,18 +123,18 @@ function PermissionMatrix({ permissions, onChange, clientResources }: {
             )
           })}
 
-          {/* Client-specific resources grouped by client */}
-          {uniqueClients.map(clientId => {
-            const clientName = clientResources.find(cr => cr.clientId === clientId)?.clientName ?? clientId
-            const clientRows = clientResources.filter(cr => cr.clientId === clientId)
+          {/* App-specific resources grouped by app */}
+          {uniqueApps.map(appId => {
+            const appName = appResources.find(ar => ar.appId === appId)?.appName ?? appId
+            const appRows = appResources.filter(ar => ar.appId === appId)
             return [
-              <tr key={`section-${clientId}`}>
+              <tr key={`section-${appId}`}>
                 <td colSpan={ACTIONS.length + 1} className="px-3 py-1.5 bg-violet-50 text-[10px] font-bold uppercase tracking-widest text-violet-600 border-b border-violet-100">
-                  {clientName}
+                  {appName}
                 </td>
               </tr>,
-              ...clientRows.map((cr, i) => {
-                const rkey = `client:${cr.clientId}:${cr.resource}`
+              ...appRows.map((ar, i) => {
+                const rkey = `app:${ar.appId}:${ar.resource}`
                 const rowKeys = ACTIONS.map(a => permKey(rkey, a))
                 const allChecked = rowKeys.every(k => set.has(k))
                 return (
@@ -144,7 +144,7 @@ function PermissionMatrix({ permissions, onChange, clientResources }: {
                       onClick={() => toggleRow(rkey)}
                       title="Click to toggle all"
                     >
-                      <span className={allChecked ? 'text-slate-900 font-semibold' : ''}>{cr.resource}</span>
+                      <span className={allChecked ? 'text-slate-900 font-semibold' : ''}>{ar.resource}</span>
                     </td>
                     {ACTIONS.map(action => {
                       const key = permKey(rkey, action)
@@ -161,10 +161,10 @@ function PermissionMatrix({ permissions, onChange, clientResources }: {
             ]
           })}
 
-          {clientResources.length === 0 && (
+          {appResources.length === 0 && (
             <tr>
               <td colSpan={ACTIONS.length + 1} className="px-3 py-2 text-xs text-slate-400 italic text-center border-t border-slate-100">
-                No client resources defined. Add resources to a client to see them here.
+                No app resources defined. Add resources to an app to see them here.
               </td>
             </tr>
           )}
@@ -183,7 +183,6 @@ const Roles = () => {
   const [appFilterId, setAppFilterId] = useState<string>('all')
   const [formData, setFormData] = useState({ ...EMPTY_FORM })
   const { data: roles = [], isLoading, refetch } = useRoles()
-  const { data: clients = [] } = useClients()
   const { data: apps = [] } = useApps()
   const createRole = useCreateRole()
   const updateRole = useUpdateRole()
@@ -196,8 +195,10 @@ const Roles = () => {
       ? !role.appId
       : role.appId === appFilterId)
 
-  // Flatten all client resources for the matrix
-  const clientResources = (clients as any[]).flatMap((c: any) =>
+  // Flatten all app resources for the matrix
+  const appResources = (apps as any[]).flatMap((a: any) =>
+    (a.resources ?? []).map((r: string) => ({ appId: a.id, appName: a.name, resource: r }))
+  )
     (c.resources ?? []).map((r: string) => ({ clientId: c.id, clientName: c.name, resource: r }))
   )
 
@@ -336,7 +337,7 @@ const Roles = () => {
           </div>
           <div>
             <label className={labelCls}>Permissions <span className="text-slate-400 normal-case font-normal">(click header to toggle column, resource name to toggle row)</span></label>
-            <PermissionMatrix permissions={formData.permissions} onChange={perms => setFormData(p => ({ ...p, permissions: perms }))} clientResources={clientResources} />
+            <PermissionMatrix permissions={formData.permissions} onChange={perms => setFormData(p => ({ ...p, permissions: perms }))} appResources={appResources} />
           </div>
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setCreateModalOpen(false)} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
@@ -384,7 +385,7 @@ const Roles = () => {
           </div>
           <div>
             <label className={labelCls}>Permissions</label>
-            <PermissionMatrix permissions={formData.permissions} onChange={perms => setFormData(p => ({ ...p, permissions: perms }))} clientResources={clientResources} />
+            <PermissionMatrix permissions={formData.permissions} onChange={perms => setFormData(p => ({ ...p, permissions: perms }))} appResources={appResources} />
           </div>
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setEditRole(null)} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">

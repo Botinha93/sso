@@ -60,8 +60,9 @@ export class SetupService {
   }
 
   async ensureSaneDefaults() {
-    const roleIds = await this.ensureDefaultRoles();
-    await this.ensureDefaultGroups(roleIds);
+    const adminPortalAppId = await this.ensureAdminPortalAppId();
+    const roleIds = await this.ensureDefaultRoles(adminPortalAppId);
+    await this.ensureDefaultGroups(roleIds, adminPortalAppId);
     await this.ensureDefaultPolicies();
   }
 
@@ -106,8 +107,9 @@ export class SetupService {
       throw new ValidationError("A user with this username already exists");
     }
 
-    const roleIds = await this.ensureDefaultRoles();
-    await this.ensureDefaultGroups(roleIds);
+    const adminPortalAppId = await this.ensureAdminPortalAppId();
+    const roleIds = await this.ensureDefaultRoles(adminPortalAppId);
+    await this.ensureDefaultGroups(roleIds, adminPortalAppId);
     await this.ensureDefaultPolicies();
 
     await this.instanceSettingsService.updateSettings({
@@ -120,6 +122,7 @@ export class SetupService {
     const familyName = rest.join(" ") || "Administrator";
 
     const adminUser = await this.userService.createUser({
+      appId: adminPortalAppId,
       email,
       username,
       password: input.password,
@@ -135,24 +138,36 @@ export class SetupService {
     };
   }
 
-  private async ensureDefaultRoles() {
+  private async ensureDefaultRoles(adminPortalAppId: string) {
     const existing = await this.roleService.listRoles();
 
-    const platformAdmin = existing.find((role) => role.name === "platform_admin") ?? await this.roleService.createRole({
+    const existingPlatformAdmin = existing.find((role) => role.name === "platform_admin");
+    const platformAdmin = existingPlatformAdmin ?? await this.roleService.createRole({
+      appId: adminPortalAppId,
       name: "platform_admin",
       description: "Full platform administration access",
       permissions: ["*:*", ...makeAllPermissions()],
       scope: "platform"
     });
+    if (existingPlatformAdmin && existingPlatformAdmin.appId !== adminPortalAppId) {
+      await this.roleService.updateRole(existingPlatformAdmin.id, { appId: adminPortalAppId });
+    }
 
-    const readOnly = existing.find((role) => role.name === "readonly") ?? await this.roleService.createRole({
+    const existingReadOnly = existing.find((role) => role.name === "readonly");
+    const readOnly = existingReadOnly ?? await this.roleService.createRole({
+      appId: adminPortalAppId,
       name: "readonly",
       description: "View-only access to administration data",
       permissions: ALL_RESOURCES.map((resource) => `${resource}:view`),
       scope: "platform"
     });
+    if (existingReadOnly && existingReadOnly.appId !== adminPortalAppId) {
+      await this.roleService.updateRole(existingReadOnly.id, { appId: adminPortalAppId });
+    }
 
-    const auditor = existing.find((role) => role.name === "auditor") ?? await this.roleService.createRole({
+    const existingAuditor = existing.find((role) => role.name === "auditor");
+    const auditor = existingAuditor ?? await this.roleService.createRole({
+      appId: adminPortalAppId,
       name: "auditor",
       description: "Audit and session monitoring access",
       permissions: [
@@ -164,8 +179,13 @@ export class SetupService {
       ],
       scope: "platform"
     });
+    if (existingAuditor && existingAuditor.appId !== adminPortalAppId) {
+      await this.roleService.updateRole(existingAuditor.id, { appId: adminPortalAppId });
+    }
 
-    const helpdesk = existing.find((role) => role.name === "helpdesk") ?? await this.roleService.createRole({
+    const existingHelpdesk = existing.find((role) => role.name === "helpdesk");
+    const helpdesk = existingHelpdesk ?? await this.roleService.createRole({
+      appId: adminPortalAppId,
       name: "helpdesk",
       description: "Operational user support with limited write access",
       permissions: [
@@ -180,6 +200,9 @@ export class SetupService {
       ],
       scope: "platform"
     });
+    if (existingHelpdesk && existingHelpdesk.appId !== adminPortalAppId) {
+      await this.roleService.updateRole(existingHelpdesk.id, { appId: adminPortalAppId });
+    }
 
     return {
       platformAdmin: platformAdmin.id,
@@ -189,40 +212,66 @@ export class SetupService {
     };
   }
 
-  private async ensureDefaultGroups(roleIds: { platformAdmin: string; readOnly: string; auditor: string; helpdesk: string }) {
+  private async ensureDefaultGroups(roleIds: { platformAdmin: string; readOnly: string; auditor: string; helpdesk: string }, adminPortalAppId: string) {
     const groups = await this.groupService.listGroups();
 
-    if (!groups.some((group) => group.name === "Administrators")) {
+    const administrators = groups.find((group) => group.name === "Administrators");
+    if (!administrators) {
       await this.groupService.createGroup({
+        appId: adminPortalAppId,
         name: "Administrators",
         description: "Platform administrators",
         roleIds: [roleIds.platformAdmin]
       });
+    } else if (administrators.appId !== adminPortalAppId) {
+      await this.groupService.updateGroup(administrators.id, { appId: adminPortalAppId });
     }
 
-    if (!groups.some((group) => group.name === "Auditors")) {
+    const auditors = groups.find((group) => group.name === "Auditors");
+    if (!auditors) {
       await this.groupService.createGroup({
+        appId: adminPortalAppId,
         name: "Auditors",
         description: "Security and compliance review users",
         roleIds: [roleIds.auditor]
       });
+    } else if (auditors.appId !== adminPortalAppId) {
+      await this.groupService.updateGroup(auditors.id, { appId: adminPortalAppId });
     }
 
-    if (!groups.some((group) => group.name === "Helpdesk")) {
+    const helpdesk = groups.find((group) => group.name === "Helpdesk");
+    if (!helpdesk) {
       await this.groupService.createGroup({
+        appId: adminPortalAppId,
         name: "Helpdesk",
         description: "Operational support users",
         roleIds: [roleIds.helpdesk]
       });
+    } else if (helpdesk.appId !== adminPortalAppId) {
+      await this.groupService.updateGroup(helpdesk.id, { appId: adminPortalAppId });
     }
 
-    if (!groups.some((group) => group.name === "Read Only")) {
+    const readOnly = groups.find((group) => group.name === "Read Only");
+    if (!readOnly) {
       await this.groupService.createGroup({
+        appId: adminPortalAppId,
         name: "Read Only",
         description: "Read-only observers",
         roleIds: [roleIds.readOnly]
       });
+    } else if (readOnly.appId !== adminPortalAppId) {
+      await this.groupService.updateGroup(readOnly.id, { appId: adminPortalAppId });
     }
+  }
+
+  private async ensureAdminPortalAppId() {
+    await this.appService.ensureDefaults();
+    const apps = await this.appService.listApps();
+    const adminPortal = apps.find((app) => app.name === "Admin Portal");
+    if (!adminPortal) {
+      throw new ValidationError("Admin Portal app is missing");
+    }
+    return adminPortal.id;
   }
 
   private async ensureDefaultPolicies() {
@@ -298,21 +347,5 @@ export class SetupService {
       }
     }
 
-    // Ensure a default "Account Portal" app exists.
-    const existingApps = await this.appService.listApps();
-    const portalApp = existingApps.find((app) => app.name === "Account Portal");
-    if (!portalApp) {
-      await this.appService.createApp({
-        name: "Account Portal",
-        description: "Default self-service user portal",
-        icon: "👤",
-        url: "/portal/"
-      });
-    } else if (portalApp.url === "/portal") {
-      // Normalize legacy default URL to canonical portal base path.
-      await this.appService.updateApp(portalApp.id, {
-        url: "/portal/"
-      });
-    }
   }
 }

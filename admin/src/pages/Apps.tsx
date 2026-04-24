@@ -23,10 +23,11 @@ interface AppItem {
   icon?: string
   imageUrl?: string
   url?: string
+  resources: string[]
   createdAt: string
 }
 
-const EMPTY_FORM = { name: '', description: '', icon: '', imageUrl: '', url: '' }
+const EMPTY_FORM = { name: '', description: '', icon: '', imageUrl: '', url: '', resources: [] as string[] }
 
 type ComponentTab = 'clients' | 'users' | 'groups' | 'roles'
 
@@ -134,7 +135,7 @@ const Apps = () => {
 
   const openEdit = (app: AppItem) => {
     setAppToEdit(app)
-    setFormData({ name: app.name, description: app.description, icon: app.icon ?? '', imageUrl: app.imageUrl ?? '', url: app.url ?? '' })
+    setFormData({ name: app.name, description: app.description, icon: app.icon ?? '', imageUrl: app.imageUrl ?? '', url: app.url ?? '', resources: app.resources ?? [] })
     setEditTab('details')
     setEditOpen(true)
   }
@@ -147,6 +148,7 @@ const Apps = () => {
       icon: formData.icon || undefined,
       imageUrl: formData.imageUrl || undefined,
       url: formData.url || undefined,
+      resources: formData.resources,
     })
     setCreateOpen(false)
   }
@@ -160,6 +162,7 @@ const Apps = () => {
       icon: formData.icon || undefined,
       imageUrl: formData.imageUrl || undefined,
       url: formData.url || null,
+      resources: formData.resources,
     })
     setEditOpen(false)
     setAppToEdit(null)
@@ -305,6 +308,41 @@ const Apps = () => {
           />
         </div>
       </div>
+
+      <div>
+        <label className={labelCls}>Resources <span className="text-slate-400 normal-case font-normal">(used for role permission scoping)</span></label>
+        <div className="space-y-1.5">
+          {formData.resources.map((r, i) => (
+            <div key={i} className="flex gap-2">
+              <input
+                type="text"
+                value={r}
+                onChange={e => {
+                  const next = [...formData.resources]
+                  next[i] = e.target.value
+                  setFormData(p => ({ ...p, resources: next }))
+                }}
+                className={fieldCls}
+                placeholder="resource_name"
+              />
+              <button
+                type="button"
+                onClick={() => setFormData(p => ({ ...p, resources: p.resources.filter((_, j) => j !== i) }))}
+                className="h-9 px-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors text-sm"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => setFormData(p => ({ ...p, resources: [...p.resources, ''] }))}
+            className="h-8 px-3 rounded-lg border border-dashed border-slate-300 text-xs text-slate-500 hover:border-slate-500 hover:text-slate-700 transition-colors"
+          >
+            + Add Resource
+          </button>
+        </div>
+      </div>
     </div>
   )
 
@@ -358,6 +396,11 @@ const Apps = () => {
                       {app.description && <p className="text-xs text-slate-500 truncate">{app.description}</p>}
                     </div>
                   </div>
+                  {(app.resources?.length ?? 0) > 0 && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-violet-50 text-violet-600 border border-violet-100 ml-10">
+                      {app.resources.length} resource{app.resources.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <button

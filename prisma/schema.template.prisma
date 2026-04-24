@@ -15,6 +15,7 @@ model App {
   icon        String?
   imageUrl    String? @map("image_url")
   url         String?
+  resourcesJson String @default("[]") @map("resources_json")
   createdAt   String  @map("created_at")
 
   @@map("apps")
@@ -295,6 +296,112 @@ model AuthenticationFlow {
   updatedAt   String @map("updated_at")
 
   @@map("authentication_flows")
+}
+
+model RiskEvent {
+  id                      String  @id
+  userId                  String? @map("user_id")
+  ip                      String?
+  deviceFingerprintHash   String? @map("device_fingerprint_hash")
+  geo                     String?
+  confidence              Int
+  reason                  String
+  decision                String
+  metadataJson            String? @map("metadata_json")
+  createdAt               String  @map("created_at")
+
+  @@map("risk_events")
+}
+
+model ServiceIdentity {
+  id                       String                            @id
+  name                     String
+  description              String?
+  ownerId                  String?                           @map("owner_id")
+  appId                    String?                           @map("app_id")
+  status                   String
+  allowedScopesJson        String                            @map("allowed_scopes_json")
+  allowedAudiencesJson     String                            @map("allowed_audiences_json")
+  metadataJson             String?                           @map("metadata_json")
+  createdAt                String                            @map("created_at")
+  updatedAt                String                            @map("updated_at")
+  serviceIdentityCredentials ServiceIdentityCredential[]
+
+  @@map("service_identities")
+}
+
+model ServiceIdentityCredential {
+  id                  String            @id
+  serviceIdentityId   String            @map("service_identity_id")
+  clientId            String            @map("client_id")
+  clientSecretHash    String            @map("client_secret_hash")
+  expiresAt           String?           @map("expires_at")
+  revokedAt           String?           @map("revoked_at")
+  rotatedFromId       String?           @map("rotated_from_id")
+  lastUsedAt          String?           @map("last_used_at")
+  createdAt           String            @map("created_at")
+  serviceIdentity     ServiceIdentity   @relation(fields: [serviceIdentityId], references: [id], onDelete: Cascade)
+
+  @@index([serviceIdentityId])
+  @@index([clientId])
+  @@map("service_identity_credentials")
+}
+
+model Connector {
+  id                 String            @id
+  name               String
+  type               String
+  status             String
+  configJson         String            @map("config_json")
+  schedule           String?
+  lastSyncAt         String?           @map("last_sync_at")
+  createdAt          String            @map("created_at")
+  updatedAt          String            @map("updated_at")
+  connectorRuns      ConnectorRun[]
+  connectorMappings  ConnectorMapping[]
+
+  @@map("connectors")
+}
+
+model ConnectorRun {
+  id              String  @id
+  connectorId     String  @map("connector_id")
+  status          String
+  startedAt       String? @map("started_at")
+  finishedAt      String? @map("finished_at")
+  recordsImported Int     @default(0) @map("records_imported")
+  recordsFailed   Int     @default(0) @map("records_failed")
+  errorMessage    String? @map("error_message")
+  createdAt       String  @map("created_at")
+  connector       Connector @relation(fields: [connectorId], references: [id], onDelete: Cascade)
+
+  @@index([connectorId])
+  @@map("connector_runs")
+}
+
+model ConnectorMapping {
+  id             String     @id
+  connectorId    String     @map("connector_id")
+  sourceField    String     @map("source_field")
+  targetField    String     @map("target_field")
+  transform      String?
+  createdAt      String     @map("created_at")
+  updatedAt      String     @map("updated_at")
+  connector      Connector  @relation(fields: [connectorId], references: [id], onDelete: Cascade)
+
+  @@index([connectorId])
+  @@map("connector_mappings")
+}
+
+model AuthMetricRollup {
+  id         String @id
+  bucket     String
+  event      String
+  count      Int    @default(0)
+  createdAt  String @map("created_at")
+
+  @@unique([bucket, event])
+  @@map("auth_metric_rollups")
 }
 
 model UserAttributeDefinition {
