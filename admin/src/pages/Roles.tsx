@@ -218,7 +218,9 @@ const Roles = () => {
 
   function handleUpdate() {
     if (!editRole || !formData.name) return
-    updateRole.mutate({ id: editRole.id, ...formData }, {
+    const payload: any = { id: editRole.id, ...formData }
+    if (payload.permissions && payload.permissions.length === 0) delete payload.permissions
+    updateRole.mutate(payload, {
       onSuccess: () => setEditRole(null)
     })
   }

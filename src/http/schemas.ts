@@ -12,7 +12,7 @@ export const updateRoleSchema = z.object({
   appId: z.string().min(2).optional(),
   name: z.string().min(3).optional(),
   description: z.string().optional(),
-  permissions: z.array(z.string().min(2)).min(1).optional(),
+  permissions: z.array(z.string().min(2)).optional(),
   scope: z.enum(["platform", "tenant"]).optional()
 });
 
