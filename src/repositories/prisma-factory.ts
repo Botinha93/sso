@@ -60,7 +60,15 @@ export async function getPrismaClient(config: AppConfig): Promise<PrismaClientLi
     const sqlitePath = resolveSqlitePath(config.databasePath);
     mkdirSync(dirname(sqlitePath), { recursive: true });
     const sqlite = new SqliteDatabase(sqlitePath);
-    sqlite.migrate();
+    try {
+      sqlite.migrate();
+      sqlite.assertHealthy();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown SQLite initialization error";
+      throw new Error(`SQLite database failed integrity validation at ${sqlitePath}: ${message}`);
+    } finally {
+      sqlite.close();
+    }
   }
 
   const module = await loadPrismaClientModule(config.databaseProvider);

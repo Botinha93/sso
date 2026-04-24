@@ -10,7 +10,7 @@ export const updateRoleSchema = z.object({
     appId: z.string().min(2).optional(),
     name: z.string().min(3).optional(),
     description: z.string().optional(),
-    permissions: z.array(z.string().min(2)).min(1).optional(),
+    permissions: z.array(z.string().min(2)).optional(),
     scope: z.enum(["platform", "tenant"]).optional()
 });
 export const createUserSchema = z.object({
@@ -268,14 +268,16 @@ export const createAppSchema = z.object({
     description: z.string().min(2),
     icon: z.string().optional(),
     imageUrl: z.string().min(1).optional(),
-    url: z.string().url().optional()
+    url: z.string().url().optional(),
+    resources: z.array(z.string().min(1)).default([])
 });
 export const updateAppSchema = z.object({
     name: z.string().min(2).optional(),
     description: z.string().min(2).optional(),
     icon: z.string().optional(),
     imageUrl: z.string().min(1).optional(),
-    url: z.string().url().optional().nullable()
+    url: z.string().url().optional().nullable(),
+    resources: z.array(z.string().min(1)).optional()
 });
 export const createFederationProviderSchema = z.object({
     id: z.string().min(2),

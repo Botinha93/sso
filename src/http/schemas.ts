@@ -1,5 +1,20 @@
 import { z } from "zod";
 
+const appUrlSchema = z.string().refine((value) => {
+  if (value.startsWith("/")) {
+    return true;
+  }
+
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+}, {
+  message: "Invalid url"
+});
+
 export const createRoleSchema = z.object({
   appId: z.string().min(2).optional(),
   name: z.string().min(3),
@@ -307,7 +322,7 @@ export const createAppSchema = z.object({
   description: z.string().min(2),
   icon: z.string().optional(),
   imageUrl: z.string().min(1).optional(),
-  url: z.string().url().optional(),
+  url: appUrlSchema.optional(),
   resources: z.array(z.string().min(1)).default([])
 });
 
@@ -316,7 +331,7 @@ export const updateAppSchema = z.object({
   description: z.string().min(2).optional(),
   icon: z.string().optional(),
   imageUrl: z.string().min(1).optional(),
-  url: z.string().url().optional().nullable(),
+  url: appUrlSchema.optional().nullable(),
   resources: z.array(z.string().min(1)).optional()
 });
 
@@ -759,4 +774,3 @@ export const uploadPluginSchema = z.object({
   bundleBase64: z.string().min(8),
   activate: z.boolean().default(false)
 });
-

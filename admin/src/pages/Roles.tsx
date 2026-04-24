@@ -198,8 +198,10 @@ const Roles = () => {
   // Flatten all app resources for the matrix
   const appResources = (apps as any[]).flatMap((a: any) =>
     (a.resources ?? []).map((r: string) => ({ appId: a.id, appName: a.name, resource: r }))
-  )
-    (c.resources ?? []).map((r: string) => ({ clientId: c.id, clientName: c.name, resource: r }))
+  ).concat(
+    (clients as any[]).flatMap((c: any) =>
+      (c.resources ?? []).map((r: string) => ({ clientId: c.id, clientName: c.name, resource: r }))
+    )
   )
 
   function handleCreate() {

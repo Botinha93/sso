@@ -174,7 +174,7 @@ const Apps = () => {
     setAppToDelete(null)
   }
 
-  const AppForm = () => (
+  const renderAppForm = () => (
     <div className="space-y-4">
       <div className="grid grid-cols-[80px_1fr] gap-3 items-end">
         <div>
@@ -427,7 +427,7 @@ const Apps = () => {
       {/* Create Modal */}
       <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title="Create App">
         <div className="space-y-4">
-          <AppForm />
+          {renderAppForm()}
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => setCreateOpen(false)} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">Cancel</button>
             <button
@@ -462,7 +462,7 @@ const Apps = () => {
 
           {editTab === 'details' ? (
             <div className="space-y-4">
-              <AppForm />
+              {renderAppForm()}
               <div className="flex gap-2 justify-end pt-2">
                 <button onClick={() => { setEditOpen(false); setAppToEdit(null) }} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">Cancel</button>
                 <button

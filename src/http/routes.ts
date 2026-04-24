@@ -181,6 +181,19 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   const allowedImageMimeTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"]);
   const translationService = new TranslationService();
   const geolocationService = new GeolocationService();
+  const runBestEffort = async (request: { log: FastifyInstance["log"] }, task: string, work: () => Promise<void>) => {
+    try {
+      await work();
+    } catch (error) {
+      request.log.warn(
+        {
+          task,
+          error: error instanceof Error ? error.message : "Unknown side effect failure"
+        },
+        "Ignored non-critical route side effect failure"
+      );
+    }
+  };
 
   const escapeXml = (value: string) => value
     .replaceAll("&", "&amp;")
@@ -1298,11 +1311,13 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         userAgent: clientUserAgent(request)
       });
       deps.securityService.clearLoginFailures(input.email);
-      await deps.eventHookService.emit("auth.login.succeeded", {
-        userId: session.userId,
-        clientId: session.clientId,
-        sessionId: session.id,
-        ip: request.ip
+      await runBestEffort(request, "auth.login.succeeded", async () => {
+        await deps.eventHookService.emit("auth.login.succeeded", {
+          userId: session.userId,
+          clientId: session.clientId,
+          sessionId: session.id,
+          ip: request.ip
+        });
       });
       reply.setCookie("sid", session.id, {
         httpOnly: true,
@@ -1313,32 +1328,41 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       });
       return { session, ...tokens };
     } catch (err) {
-      await deps.securityService.recordLoginFailure({
-        identifier: input.email,
-        ip: request.ip,
-        reason: err instanceof Error ? err.message : "unknown"
-      });
-      await deps.riskService.recordEvent({
-        userId: undefined,
-        ip: request.ip,
-        confidence: 40,
-        reason: "failed_login",
-        decision: "challenge",
-        metadata: {
+      const reason = err instanceof Error ? err.message : "unknown";
+      await runBestEffort(request, "security.recordLoginFailure", async () => {
+        await deps.securityService.recordLoginFailure({
           identifier: input.email,
-          grant: "interactive"
-        }
+          ip: request.ip,
+          reason
+        });
       });
-      await deps.auditRepository.log({
-        type: "login_failed",
-        actorType: "user",
-        ip: request.ip,
-        metadata: { email: input.email }
+      await runBestEffort(request, "risk.recordEvent", async () => {
+        await deps.riskService.recordEvent({
+          userId: undefined,
+          ip: request.ip,
+          confidence: 40,
+          reason: "failed_login",
+          decision: "challenge",
+          metadata: {
+            identifier: input.email,
+            grant: "interactive"
+          }
+        });
       });
-      await deps.eventHookService.emit("auth.login.failed", {
-        email: input.email,
-        ip: request.ip,
-        error: err instanceof Error ? err.message : "unknown"
+      await runBestEffort(request, "audit.login_failed", async () => {
+        await deps.auditRepository.log({
+          type: "login_failed",
+          actorType: "user",
+          ip: request.ip,
+          metadata: { email: input.email }
+        });
+      });
+      await runBestEffort(request, "auth.login.failed", async () => {
+        await deps.eventHookService.emit("auth.login.failed", {
+          email: input.email,
+          ip: request.ip,
+          error: reason
+        });
       });
       throw err;
     }
@@ -1384,12 +1408,14 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         userAgent: clientUserAgent(request)
       });
 
-      await deps.eventHookService.emit("auth.login.succeeded", {
-        userId: session.userId,
-        clientId: session.clientId,
-        sessionId: session.id,
-        ip: request.ip,
-        mfa: "totp"
+      await runBestEffort(request, "auth.login.succeeded.mfa_totp", async () => {
+        await deps.eventHookService.emit("auth.login.succeeded", {
+          userId: session.userId,
+          clientId: session.clientId,
+          sessionId: session.id,
+          ip: request.ip,
+          mfa: "totp"
+        });
       });
 
       reply.setCookie("sid", session.id, {
@@ -1463,12 +1489,14 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         userAgent: clientUserAgent(request)
       });
 
-      await deps.eventHookService.emit("auth.login.succeeded", {
-        userId: session.userId,
-        clientId: session.clientId,
-        sessionId: session.id,
-        ip: request.ip,
-        mfa: "webauthn"
+      await runBestEffort(request, "auth.login.succeeded.mfa_webauthn", async () => {
+        await deps.eventHookService.emit("auth.login.succeeded", {
+          userId: session.userId,
+          clientId: session.clientId,
+          sessionId: session.id,
+          ip: request.ip,
+          mfa: "webauthn"
+        });
       });
 
       reply.setCookie("sid", session.id, {

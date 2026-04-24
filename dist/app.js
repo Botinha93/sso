@@ -16,6 +16,9 @@ export const buildApp = async () => {
         await services.dispose();
     });
     app.addHook("onRequest", async (request, reply) => {
+        if (request.url === "/health") {
+            return;
+        }
         if (!await services.instanceSettingsService.shouldRequireHttps()) {
             return;
         }
@@ -29,7 +32,7 @@ export const buildApp = async () => {
         }
         return reply.status(426).send({
             error: "https_required",
-            message: "HTTPS is required in production"
+            message: "HTTPS is required by instance settings"
         });
     });
     await app.register(helmet, {

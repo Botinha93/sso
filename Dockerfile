@@ -49,7 +49,7 @@ RUN mkdir -p /app/data \
   && ln -s /app/dist/generated/prisma /app/src/generated/prisma \
   && chmod +x /usr/local/bin/start-with-nginx.sh
 
-EXPOSE 8443
+EXPOSE 80 8443
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "const port = process.env.APP_INTERNAL_PORT || 4001; fetch('http://127.0.0.1:' + port + '/health').then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1));"

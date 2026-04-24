@@ -56,8 +56,8 @@ docker build -t sso-platform .
 Run it with the default SQLite configuration and a persisted data directory:
 
 ```bash
-docker run --rm -p 4000:4000 \
-   -e ISSUER=http://localhost:4000 \
+docker run --rm -p 8080:80 -p 8443:8443 \
+   -e ISSUER=https://localhost:8443 \
    -e COOKIE_SECRET="$(openssl rand -hex 32)" \
    -v sso-data:/app/data \
    sso-platform
@@ -65,7 +65,9 @@ docker run --rm -p 4000:4000 \
 
 Notes:
 
-- The container listens on `0.0.0.0:4000`.
+- `nginx` listens on `80` and redirects all HTTP traffic to `https://...:8443`.
+- The TLS endpoint is served on `8443` with a self-signed certificate when no cert/key is provided.
+- The Node app listens only on the internal loopback interface at `127.0.0.1:4001`.
 - SQLite data is stored at `/app/data/sso.sqlite` by default.
 - The admin frontend is served from `/` and the account portal is served from `/portal`.
 - Set `DATABASE_PROVIDER=postgresql` or `DATABASE_PROVIDER=mysql` together with `DATABASE_URL` to use an external database.

@@ -137,6 +137,13 @@ export class SqliteDatabase {
     this.connection.exec("PRAGMA synchronous = NORMAL;");
   }
 
+  assertHealthy() {
+    const quickCheck = this.connection.pragma("quick_check", { simple: true });
+    if (quickCheck !== "ok") {
+      throw new Error(`SQLite integrity check failed: ${String(quickCheck)}`);
+    }
+  }
+
   migrate() {
     this.connection.exec(`
       CREATE TABLE IF NOT EXISTS apps (
@@ -146,6 +153,7 @@ export class SqliteDatabase {
         icon TEXT,
         image_url TEXT,
         url TEXT,
+        resources_json TEXT NOT NULL DEFAULT '[]',
         created_at TEXT NOT NULL
       );
 
@@ -831,6 +839,10 @@ export class SqliteDatabase {
     if (!hasAppImageUrlColumn) {
       this.connection.exec("ALTER TABLE apps ADD COLUMN image_url TEXT;");
     }
+    const hasAppResourcesColumn = appColumns.some((column) => column.name === "resources_json");
+    if (!hasAppResourcesColumn) {
+      this.connection.exec("ALTER TABLE apps ADD COLUMN resources_json TEXT NOT NULL DEFAULT '[]';");
+    }
 
     const authFlowColumns = this.connection.prepare("PRAGMA table_info(authentication_flows)").all() as Array<{ name: string }>;
     const hasDesignationColumn = authFlowColumns.some((column) => column.name === "designation");
@@ -1025,5 +1037,9 @@ export class SqliteDatabase {
     if (!hasElevationSessionCorrelationId) {
       this.connection.exec("ALTER TABLE elevation_sessions ADD COLUMN correlation_id TEXT NOT NULL DEFAULT '';\nUPDATE elevation_sessions SET correlation_id = elevation_request_id WHERE correlation_id = '';\n");
     }
+  }
+
+  close() {
+    this.connection.close();
   }
 }

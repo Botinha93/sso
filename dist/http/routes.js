@@ -14,9 +14,13 @@ import { deriveRiskEventsFromAudit } from "./routes/security-risk-events.js";
 import { registerConnectorRoutes } from "./routes/connectors.js";
 import { registerPluginRoutes } from "./routes/plugins.js";
 import { assignGroupRoleSchema, assignRoleSchema, assignUserGroupSchema, backChannelLogoutSchema, authorizeSchema, createAppSchema, createClientSchema, createScopeSchema, createAuthenticationFlowSchema, deviceAuthorizationSchema, deviceVerificationSchema, dynamicClientRegistrationSchema, frontChannelLogoutSchema, createFederationProviderSchema, createGroupSchema, createUserAttributeSchema, createPolicySchema, createEventHookSchema, createTenantSchema, createRoleSchema, updateGroupSchema, updateRoleSchema, createUserSchema, introspectSchema, loginSchema, migrateDatabaseSchema, oidcRevokeSchema, portalChangePasswordSchema, portalUpdateProfileSchema, recoverySchema, recoveryRequestSchema, sendTestEmailSchema, testDatabaseConnectionSchema, mfaLoginSchema, verifyTotpEnrollmentSchema, webauthnLoginBeginSchema, webauthnLoginFinishSchema, webauthnRegisterBeginSchema, webauthnRegisterFinishSchema, resetUserPasswordSchema, revokeTokenSchema, tokenSchema, setUserAttributeGroupAssignmentSchema, setPolicyAssignmentSchema, evaluatePolicyDecisionSchema, authorizationCheckSchema, removePolicyAssignmentSchema, setupInitializeSchema, testEventHookSchema, updateInstanceSettingsSchema, updateAppSchema, updateAuthenticationFlowSchema, updateClientSchema, updateEventHookSchema, updateFederationProviderSchema, updatePolicySchema, updateTenantSchema, updateUserAttributeSchema, updateUserSchema } from "./schemas.js";
+import { GeolocationService } from "../services/geolocation-service.js";
+import { TranslationService } from "../services/translation-service.js";
 export const registerRoutes = async (app, deps) => {
     const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
     const allowedImageMimeTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"]);
+    const translationService = new TranslationService();
+    const geolocationService = new GeolocationService();
     const escapeXml = (value) => value
         .replaceAll("&", "&amp;")
         .replaceAll("<", "&lt;")
@@ -33,12 +37,54 @@ export const registerRoutes = async (app, deps) => {
         const initials = escapeXml(normalizeInitials(initialsRaw));
         const palette = {
             initials: ["#334155", "#0f172a"],
+            male: ["#2563eb", "#0f172a"],
+            female: ["#db2777", "#4c1d95"],
+            rocket: ["#f97316", "#7c2d12"],
+            house: ["#22c55e", "#065f46"],
+            dog: ["#14b8a6", "#134e4a"],
+            cat: ["#a855f7", "#4c1d95"],
             sunset: ["#f97316", "#dc2626"],
             forest: ["#10b981", "#065f46"],
             ocean: ["#0ea5e9", "#1d4ed8"],
             mono: ["#71717a", "#27272a"]
         };
         const [start, end] = palette[variant] ?? palette.initials;
+        const iconByVariant = {
+            male: `
+  <circle cx="160" cy="118" r="42" stroke="white" stroke-width="12" fill="none" />
+  <path d="M84 246c8-43 38-68 76-68s68 25 76 68" stroke="white" stroke-width="12" fill="none" stroke-linecap="round" />`,
+            female: `
+  <circle cx="160" cy="112" r="38" stroke="white" stroke-width="12" fill="none" />
+  <path d="M106 248c8-35 28-58 54-58s46 23 54 58" stroke="white" stroke-width="12" fill="none" stroke-linecap="round" />
+  <path d="M112 138c8 16 22 24 48 24s40-8 48-24" stroke="white" stroke-width="10" fill="none" stroke-linecap="round" opacity="0.9" />`,
+            rocket: `
+  <path d="M160 68c38 18 57 62 57 99l-57 34-57-34c0-37 19-81 57-99Z" stroke="white" stroke-width="12" fill="none" stroke-linejoin="round" />
+  <circle cx="160" cy="136" r="14" stroke="white" stroke-width="10" fill="none" />
+  <path d="M132 205 116 236M188 205 204 236" stroke="white" stroke-width="12" stroke-linecap="round" />
+  <path d="M160 201v43" stroke="white" stroke-width="12" stroke-linecap="round" />`,
+            house: `
+  <path d="M88 150 160 92l72 58" stroke="white" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+  <rect x="102" y="150" width="116" height="96" rx="10" stroke="white" stroke-width="12" fill="none" />
+  <rect x="146" y="186" width="28" height="60" rx="8" stroke="white" stroke-width="10" fill="none" />`,
+            dog: `
+  <path d="M118 116 88 144M202 116l30 28" stroke="white" stroke-width="12" stroke-linecap="round" />
+  <circle cx="160" cy="170" r="58" stroke="white" stroke-width="12" fill="none" />
+  <circle cx="138" cy="164" r="6" fill="white" />
+  <circle cx="182" cy="164" r="6" fill="white" />
+  <path d="M148 190h24" stroke="white" stroke-width="10" stroke-linecap="round" />
+  <path d="M144 214c10 10 22 10 32 0" stroke="white" stroke-width="10" fill="none" stroke-linecap="round" />`,
+            cat: `
+  <path d="M124 116 102 86l-6 44M196 116l22-30 6 44" stroke="white" stroke-width="12" fill="none" stroke-linejoin="round" />
+  <circle cx="160" cy="172" r="58" stroke="white" stroke-width="12" fill="none" />
+  <circle cx="140" cy="168" r="6" fill="white" />
+  <circle cx="180" cy="168" r="6" fill="white" />
+  <path d="M160 178 152 190h16Z" fill="white" />
+  <path d="M128 192h-26M128 204h-26M192 192h26M192 204h26" stroke="white" stroke-width="8" stroke-linecap="round" />`
+        };
+        const icon = iconByVariant[variant];
+        const content = icon
+            ? `<g>${icon}\n  </g>`
+            : `<text x="160" y="182" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="108" font-weight="700" fill="white">${initials}</text>`;
         return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320" fill="none">
   <defs>
@@ -48,7 +94,7 @@ export const registerRoutes = async (app, deps) => {
     </linearGradient>
   </defs>
   <rect width="320" height="320" rx="160" fill="url(#g)" />
-  <text x="160" y="182" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="108" font-weight="700" fill="white">${initials}</text>
+  ${content}
 </svg>`;
     };
     const renderAppDefaultSvg = (variant) => {
@@ -2230,6 +2276,32 @@ export const registerRoutes = async (app, deps) => {
             return null;
         return session;
     }
+    app.get("/api/portal/language/default", async (request) => {
+        const countryHeaders = ["cf-ipcountry", "x-vercel-ip-country", "x-country-code"];
+        let countryCode = null;
+        for (const header of countryHeaders) {
+            const value = request.headers[header];
+            if (typeof value === "string" && value.trim().length === 2) {
+                countryCode = value.trim().toUpperCase();
+                break;
+            }
+        }
+        const fromCountry = countryCode
+            ? geolocationService.getLanguageFromCountryCode(countryCode)
+            : null;
+        const fromIp = fromCountry
+            ? null
+            : await geolocationService.detectLanguageFromIp(request.ip);
+        const acceptLanguage = typeof request.headers["accept-language"] === "string"
+            ? request.headers["accept-language"]
+            : "";
+        const fallback = translationService.detectLanguageFromHeader(acceptLanguage);
+        const language = fromCountry ?? fromIp ?? fallback;
+        return {
+            language,
+            supportedLanguages: translationService.getAvailableLanguages()
+        };
+    });
     // GET /api/portal/me — current user profile + apps + custom attributes
     app.get("/api/portal/me", async (request, reply) => {
         const session = await getPortalSession(request);
@@ -2238,6 +2310,7 @@ export const registerRoutes = async (app, deps) => {
         const user = await deps.userService.findUserById(session.userId);
         if (!user)
             return reply.status(401).send({ error: "unauthorized" });
+        const roleDetails = await deps.roleService.resolveRolePermissionDetailsForUser(user.id);
         const userApps = (await deps.appService.listApps()).filter(a => {
             // app directly assigned to user, or user has no appId restriction
             return !user.appId || a.id === user.appId;
@@ -2251,6 +2324,10 @@ export const registerRoutes = async (app, deps) => {
             avatarUrl: user.avatarUrl,
             customAttributes: user.customAttributes,
             appId: user.appId,
+            roles: roleDetails.map((role) => role.name),
+            groups: await deps.groupService.resolveGroupNamesForUser(user.id),
+            permissions: Array.from(new Set(roleDetails.flatMap((role) => role.permissions))),
+            rolePermissions: roleDetails,
             apps: userApps.map(a => ({ id: a.id, name: a.name, description: a.description, icon: a.icon, imageUrl: a.imageUrl, url: a.url }))
         };
     });
@@ -2328,8 +2405,10 @@ export const registerRoutes = async (app, deps) => {
         await deps.mediaService.deleteByUrl(previousAvatarUrl);
         return reply.status(200).send({ avatarUrl: saved.url });
     });
-    app.get("/portal", async (_request, reply) => {
-        return sendFrontendIndex(reply, "portal");
+    app.get("/portal", async (request, reply) => {
+        const queryIndex = request.url.indexOf("?");
+        const query = queryIndex >= 0 ? request.url.slice(queryIndex) : "";
+        return reply.redirect(`/portal/${query}`, 308);
     });
     app.get("/portal/*", async (request, reply) => {
         const relativePath = String(request.params["*"] ?? "");

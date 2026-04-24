@@ -23,6 +23,14 @@ const asBoolean = (name, fallback) => {
     }
     throw new Error(`Invalid boolean environment variable: ${name}`);
 };
+const asHost = () => {
+    const raw = process.env.HOST;
+    if (!raw) {
+        return "0.0.0.0";
+    }
+    const normalized = raw.trim();
+    return normalized.length > 0 ? normalized : "0.0.0.0";
+};
 const resolveCookieSecret = () => {
     const configured = process.env.COOKIE_SECRET?.trim();
     if (configured) {
@@ -57,7 +65,7 @@ const asFederationProviders = () => {
 };
 export const loadConfig = () => ({
     port: asNumber("PORT", 4000),
-    host: process.env.HOST ?? "127.0.0.1",
+    host: asHost(),
     trustProxy: asBoolean("TRUST_PROXY", false),
     cookieSecret: resolveCookieSecret(),
     databaseProvider: (() => {
