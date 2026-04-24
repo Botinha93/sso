@@ -106,6 +106,7 @@ export type {
   AuthorizationCodeTokenInput,
   BearerAuthConfig,
   ClientCredentialsInput,
+  OAuthAudience,
   OAuthAuthorizeParams,
   OAuthResponseType,
   OAuthScope,

@@ -9,6 +9,7 @@ import { registerSamlProtocolRoutes } from "./saml-protocol-routes.js";
 import { registerAccessGovernanceRoutes } from "./routes/access-governance.js";
 import { registerProvisioningRoutes } from "./routes/provisioning.js";
 import { registerElevationRoutes } from "./routes/elevations.js";
+import { registerServiceIdentityRoutes } from "./routes/service-identities.js";
 import { deriveRiskEventsFromAudit } from "./routes/security-risk-events.js";
 import { registerConnectorRoutes } from "./routes/connectors.js";
 import { registerPluginRoutes } from "./routes/plugins.js";
@@ -807,7 +808,7 @@ export const registerRoutes = async (app, deps) => {
         if (!parsed.success) {
             return reply.status(400).send({ error: "invalid_request", error_description: "Missing required fields for token exchange" });
         }
-        const { subject_token, subject_token_type, scope, client_id, client_secret } = parsed.data;
+        const { subject_token, subject_token_type, scope, audience, client_id, client_secret } = parsed.data;
         if (subject_token_type !== "urn:ietf:params:oauth:token-type:access_token" &&
             subject_token_type !== "urn:ietf:params:oauth:token-type:jwt") {
             return reply.status(400).send({ error: "invalid_request", error_description: "Unsupported subject_token_type" });
@@ -821,25 +822,69 @@ export const registerRoutes = async (app, deps) => {
         }
         let exchangeActor;
         // Optionally validate the caller presenting the exchange request.
-        // Only registered OAuth clients are accepted.
+        // Accept either a registered OAuth client or a service identity credential.
         if (client_id || client_secret) {
             if (!client_id || !client_secret) {
                 return reply.status(400).send({ error: "invalid_request", error_description: "client_id and client_secret must be provided together" });
             }
-            const client = await deps.clientService.findClientById(client_id);
-            if (!client || client.secret !== client_secret) {
-                return reply.status(401).send({ error: "invalid_client" });
+            let matchedClient = false;
+            try {
+                const client = await deps.clientService.findClientById(client_id);
+                if (client && client.secret === client_secret) {
+                    matchedClient = true;
+                    exchangeActor = { type: "client", id: client.id };
+                }
             }
-            exchangeActor = { type: "client", id: client.id };
+            catch {
+                // Fallback to service identity verification below.
+            }
+            if (!matchedClient) {
+                const serviceIdentity = await deps.serviceIdentityService.verifyCredential(client_id, client_secret);
+                if (!serviceIdentity) {
+                    return reply.status(401).send({ error: "invalid_client" });
+                }
+                exchangeActor = {
+                    type: "service_identity",
+                    id: serviceIdentity.id,
+                    clientId: client_id,
+                    allowedScopes: serviceIdentity.allowedScopes,
+                    allowedAudiences: serviceIdentity.allowedAudiences
+                };
+            }
         }
         const subjectSub = String(subjectPayload.sub ?? "");
-        const requestedScopes = scope ? scope.split(" ") : (subjectPayload.scope ? String(subjectPayload.scope).split(" ") : []);
+        const requestedScopes = scope ? scope.split(" ").map((value) => value.trim()).filter(Boolean) : (subjectPayload.scope ? String(subjectPayload.scope).split(" ").map((value) => value.trim()).filter(Boolean) : []);
+        const requestedAudiences = audience
+            ? audience.split(/[\s,]+/).map((value) => value.trim()).filter(Boolean)
+            : [];
+        let finalScopes = requestedScopes;
+        if (exchangeActor?.type === "service_identity") {
+            const allowedScopes = new Set(exchangeActor.allowedScopes);
+            finalScopes = finalScopes.length > 0 ? finalScopes : exchangeActor.allowedScopes;
+            if (finalScopes.some((value) => !allowedScopes.has(value))) {
+                return reply.status(400).send({ error: "invalid_scope", error_description: "Requested scope exceeds service identity policy" });
+            }
+            if (requestedAudiences.length > 0) {
+                const allowedAudiences = new Set(exchangeActor.allowedAudiences);
+                if (requestedAudiences.some((value) => !allowedAudiences.has(value))) {
+                    return reply.status(400).send({ error: "invalid_target", error_description: "Requested audience exceeds service identity policy" });
+                }
+            }
+        }
+        if (exchangeActor?.type === "client" && requestedAudiences.length > 0) {
+            const client = await deps.clientService.findClientById(exchangeActor.id);
+            const allowedAudiences = new Set(client?.resources ?? []);
+            if (requestedAudiences.some((value) => !allowedAudiences.has(value))) {
+                return reply.status(400).send({ error: "invalid_target", error_description: "Requested audience exceeds client policy" });
+            }
+        }
         const { nanoid } = await import("nanoid");
         const accessTokenId = nanoid();
         // Issue a new token with the same subject but potentially different scopes/audience
         const newToken = await deps.oidcService.mintExchangeToken({
             sub: subjectSub,
-            scopes: requestedScopes,
+            scopes: finalScopes,
+            audiences: requestedAudiences,
             accessTokenId
         });
         await deps.auditRepository.log({
@@ -850,9 +895,12 @@ export const registerRoutes = async (app, deps) => {
             metadata: {
                 grant: "token_exchange",
                 sub: subjectSub,
-                scopes: requestedScopes,
+                scopes: finalScopes,
+                audiences: requestedAudiences,
                 accessTokenId,
-                exchangeActorType: exchangeActor?.type
+                exchangeActorType: exchangeActor?.type,
+                serviceIdentityId: exchangeActor?.type === "service_identity" ? exchangeActor.id : undefined,
+                serviceIdentityClientId: exchangeActor?.type === "service_identity" ? exchangeActor.clientId : undefined
             }
         });
         return reply.status(200).send({
@@ -860,7 +908,7 @@ export const registerRoutes = async (app, deps) => {
             token_type: "Bearer",
             expires_in: newToken.expiresIn,
             issued_token_type: "urn:ietf:params:oauth:token-type:access_token",
-            scope: requestedScopes.join(" ")
+            scope: finalScopes.join(" ")
         });
     });
     app.post("/oauth/device/authorize", async (request, reply) => {
@@ -1295,6 +1343,7 @@ export const registerRoutes = async (app, deps) => {
         elevationService: deps.elevationService,
         requireSessionUser
     });
+    registerServiceIdentityRoutes(app, deps.serviceIdentityService);
     registerConnectorRoutes(app, deps.connectorService, deps.authMetricsService);
     registerPluginRoutes(app, deps.pluginService, deps.pluginRuntimeService);
     app.put("/api/admin/settings", async (request) => {

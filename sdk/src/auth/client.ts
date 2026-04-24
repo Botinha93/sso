@@ -17,6 +17,14 @@ const serializeScope = (scope?: string | string[]): string | undefined => {
   return Array.isArray(scope) ? scope.join(" ") : scope;
 };
 
+const serializeAudience = (audience?: string | string[]): string | undefined => {
+  if (!audience) {
+    return undefined;
+  }
+
+  return Array.isArray(audience) ? audience.join(" ") : audience;
+};
+
 const authorizationCodeBody = (input: AuthorizationCodeTokenInput) => ({
   grant_type: "authorization_code" as const,
   code: input.code,
@@ -50,7 +58,7 @@ const tokenExchangeBody = (input: TokenExchangeInput) => ({
   subject_token: input.subjectToken,
   subject_token_type: input.subjectTokenType,
   requested_token_type: input.requestedTokenType,
-  audience: input.audience,
+  audience: serializeAudience(input.audience),
   scope: serializeScope(input.scope),
   client_id: input.clientId,
   client_secret: input.clientSecret

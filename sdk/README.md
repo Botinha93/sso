@@ -125,7 +125,7 @@ const refreshed = await auth.exchangeRefreshToken({
 const exchanged = await auth.exchangeToken({
   subjectToken: refreshed.access_token,
   subjectTokenType: "urn:ietf:params:oauth:token-type:access_token",
-  audience: "https://api.example.com",
+  audience: ["https://api.example.com"],
   scope: ["tickets.read"]
 });
 
@@ -134,6 +134,8 @@ await auth.revokeToken({
   tokenTypeHint: "refresh_token"
 });
 ```
+
+When using service identity credentials for token exchange, pass `clientId` and `clientSecret` from the issued workload credential and keep `scope`/`audience` within that identity policy (`allowedScopes` and `allowedAudiences`).
 
 ## Session Cookie Auth
 

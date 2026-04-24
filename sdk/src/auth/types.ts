@@ -62,10 +62,12 @@ export interface RevokeTokenInput {
   tokenTypeHint?: OAuthTokenTypeHint;
 }
 
+export type OAuthAudience = string | string[];
+
 export interface TokenExchangeInput {
   subjectToken: string;
   subjectTokenType: string;
-  audience?: string;
+  audience?: OAuthAudience;
   clientId?: string;
   clientSecret?: string;
   requestedTokenType?: string;

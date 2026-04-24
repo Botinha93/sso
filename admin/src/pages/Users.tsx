@@ -58,7 +58,6 @@ interface UserAttributeDefinition {
 
 const defaultForm = () => ({
   appIds: [] as string[],
-  isServiceUser: false,
   email: '',
   username: '',
   givenName: '',
@@ -70,7 +69,6 @@ const defaultForm = () => ({
 
 const defaultEditForm = () => ({
   appIds: [] as string[],
-  isServiceUser: false,
   email: '',
   username: '',
   givenName: '',
@@ -161,7 +159,6 @@ const Users = () => {
   const [editFormError, setEditFormError] = useState<string>('')
   const [resetFormError, setResetFormError] = useState<string>('')
   const [appFilterId, setAppFilterId] = useState<string>('all')
-  const [userTypeFilter, setUserTypeFilter] = useState<'all' | 'human' | 'service'>('all')
 
   const appNameById = new Map((apps as AppItem[]).map((a) => [a.id, a.name]))
   const enabledAttributeDefinitions = (attributeDefinitions as UserAttributeDefinition[]).filter((attribute) => attribute.enabled)
@@ -169,13 +166,7 @@ const Users = () => {
   const filteredUsers = (users as User[] | undefined)?.filter((user) => {
     const userAppIds = user.appIds ?? (user.appId ? [user.appId] : [])
     const appMatches = appFilterId === 'all' ? true : appFilterId === 'none' ? userAppIds.length === 0 : userAppIds.includes(appFilterId)
-    const typeMatches = userTypeFilter === 'all'
-      ? true
-      : userTypeFilter === 'service'
-        ? Boolean(user.isServiceUser)
-        : !user.isServiceUser
-
-    return appMatches && typeMatches
+    return appMatches && !user.isServiceUser
   })
 
   const toggleAppId = (appId: string, target: 'create' | 'edit') => {
@@ -266,7 +257,7 @@ const Users = () => {
 
     await createUser.mutateAsync({
       appIds: formData.appIds,
-      isServiceUser: formData.isServiceUser,
+      isServiceUser: false,
       email: formData.email,
       username: formData.username,
       givenName: formData.givenName,
@@ -309,7 +300,7 @@ const Users = () => {
     await updateUser.mutateAsync({
       id: userToEdit.id,
       appIds: editFormData.appIds,
-      isServiceUser: editFormData.isServiceUser,
+      isServiceUser: false,
       email: editFormData.email,
       username: editFormData.username,
       givenName: editFormData.givenName,
@@ -390,7 +381,7 @@ const Users = () => {
         </button>
       </div>
 
-      <div className="mb-4 grid gap-3 md:grid-cols-2 md:max-w-2xl">
+      <div className="mb-4 max-w-sm">
         <label className={labelCls}>Filter by App</label>
         <select className={fieldCls} value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
           <option value="all">All Apps</option>
@@ -398,12 +389,6 @@ const Users = () => {
           {(apps as AppItem[]).map((app) => (
             <option key={app.id} value={app.id}>{app.name}</option>
           ))}
-        </select>
-        <label className={labelCls}>Filter by User Type</label>
-        <select className={fieldCls} value={userTypeFilter} onChange={(e) => setUserTypeFilter(e.target.value as 'all' | 'human' | 'service')}>
-          <option value="all">All Users</option>
-          <option value="human">Human Users</option>
-          <option value="service">Service Users</option>
         </select>
       </div>
 
@@ -439,9 +424,7 @@ const Users = () => {
                         </span>
                       ))
                     )}
-                    {user.isServiceUser ? (
-                      <span className="text-xs px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100">Service User</span>
-                    ) : null}
+
                     {!user.active && (
                       <span className="text-xs px-1.5 py-0.5 rounded-md bg-red-50 text-red-600 border border-red-100">Inactive</span>
                     )}
@@ -581,15 +564,6 @@ const Users = () => {
             <label className={labelCls}>Username</label>
             <input type="text" value={formData.username} onChange={e => setFormData(f => ({ ...f, username: e.target.value }))} className={`${fieldCls} font-mono`} placeholder="janedoe" />
           </div>
-          <label className="flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={formData.isServiceUser}
-              onChange={e => setFormData(f => ({ ...f, isServiceUser: e.target.checked }))}
-              className="rounded border-slate-300"
-            />
-            Mark as service user (machine-to-machine/system communication)
-          </label>
           <div>
             <label className={labelCls}>Password</label>
             <input type="password" value={formData.password} onChange={e => setFormData(f => ({ ...f, password: e.target.value }))} className={fieldCls} placeholder="Min 8 characters" />
@@ -726,15 +700,6 @@ const Users = () => {
             <label className={labelCls}>Username</label>
             <input type="text" value={editFormData.username} onChange={e => setEditFormData(f => ({ ...f, username: e.target.value }))} className={`${fieldCls} font-mono`} placeholder="janedoe" />
           </div>
-          <label className="flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={editFormData.isServiceUser}
-              onChange={e => setEditFormData(f => ({ ...f, isServiceUser: e.target.checked }))}
-              className="rounded border-slate-300"
-            />
-            Mark as service user (machine-to-machine/system communication)
-          </label>
           <div>
             <label className={labelCls}>Direct Custom Attributes</label>
             <div className="space-y-2">
