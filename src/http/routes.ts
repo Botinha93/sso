@@ -11,7 +11,6 @@ import { registerSamlProtocolRoutes } from "./saml-protocol-routes.js";
 import { registerAccessGovernanceRoutes } from "./routes/access-governance.js";
 import { registerProvisioningRoutes } from "./routes/provisioning.js";
 import { registerElevationRoutes } from "./routes/elevations.js";
-import { registerServiceIdentityRoutes } from "./routes/service-identities.js";
 import { deriveRiskEventsFromAudit } from "./routes/security-risk-events.js";
 import { registerConnectorRoutes } from "./routes/connectors.js";
 import { registerPluginRoutes } from "./routes/plugins.js";
@@ -99,7 +98,6 @@ import { SetupService } from "../services/setup-service.js";
 import { TenantService } from "../services/tenant-service.js";
 import { TotpService } from "../services/totp-service.js";
 import { WebauthnService } from "../services/webauthn-service.js";
-import { ServiceIdentityService } from "../services/service-identity-service.js";
 import { UserService } from "../services/user-service.js";
 import { UserAttributeService } from "../services/user-attribute-service.js";
 import { PolicyService } from "../services/policy-service.js";
@@ -149,7 +147,6 @@ interface RouteDeps {
   elevationService: ElevationService;
   totpService: TotpService;
   webauthnService: WebauthnService;
-  serviceIdentityService: ServiceIdentityService;
   userService: UserService;
   userAttributeService: UserAttributeService;
   policyService: PolicyService;
@@ -1105,34 +1102,20 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       return reply.status(401).send({ error: "invalid_token", error_description: "Subject token validation failed" });
     }
 
-    let exchangeActor: { type: "client"; id: string } | { type: "service_identity"; id: string; clientId: string } | undefined;
+    let exchangeActor: { type: "client"; id: string } | undefined;
 
     // Optionally validate the caller presenting the exchange request.
-    // Accept either a registered OAuth client or a service identity credential.
+    // Only registered OAuth clients are accepted.
     if (client_id || client_secret) {
       if (!client_id || !client_secret) {
         return reply.status(400).send({ error: "invalid_request", error_description: "client_id and client_secret must be provided together" });
       }
 
-      let matchedClient = false;
-
-      try {
-        const client = await deps.clientService.findClientById(client_id);
-        if (client && client.secret === client_secret) {
-          matchedClient = true;
-          exchangeActor = { type: "client", id: client.id };
-        }
-      } catch {
-        // Fallback to service identity verification below.
+      const client = await deps.clientService.findClientById(client_id);
+      if (!client || client.secret !== client_secret) {
+        return reply.status(401).send({ error: "invalid_client" });
       }
-
-      if (!matchedClient) {
-        const serviceIdentity = await deps.serviceIdentityService.verifyCredential(client_id, client_secret);
-        if (!serviceIdentity) {
-          return reply.status(401).send({ error: "invalid_client" });
-        }
-        exchangeActor = { type: "service_identity", id: serviceIdentity.id, clientId: client_id };
-      }
+      exchangeActor = { type: "client", id: client.id };
     }
 
     const subjectSub = String(subjectPayload.sub ?? "");
@@ -1157,9 +1140,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         sub: subjectSub,
         scopes: requestedScopes,
         accessTokenId,
-        exchangeActorType: exchangeActor?.type,
-        serviceIdentityId: exchangeActor?.type === "service_identity" ? exchangeActor.id : undefined,
-        serviceIdentityClientId: exchangeActor?.type === "service_identity" ? exchangeActor.clientId : undefined
+        exchangeActorType: exchangeActor?.type
       }
     });
 
@@ -1658,7 +1639,6 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     elevationService: deps.elevationService,
     requireSessionUser
   });
-  registerServiceIdentityRoutes(app, deps.serviceIdentityService);
   registerConnectorRoutes(app, deps.connectorService, deps.authMetricsService);
   registerPluginRoutes(app, deps.pluginService, deps.pluginRuntimeService);
 

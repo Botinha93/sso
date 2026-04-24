@@ -821,7 +821,7 @@ export const registerRoutes = async (app, deps) => {
         }
         let exchangeActor;
         // Optionally validate the caller presenting the exchange request.
-        // Accept only a registered OAuth client.
+        // Only registered OAuth clients are accepted.
         if (client_id || client_secret) {
             if (!client_id || !client_secret) {
                 return reply.status(400).send({ error: "invalid_request", error_description: "client_id and client_secret must be provided together" });

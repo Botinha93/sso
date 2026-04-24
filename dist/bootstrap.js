@@ -54,7 +54,7 @@ export const bootstrap = async (config) => {
     const mediaService = new MediaService(mediaStorageRoot);
     const pluginRuntimeService = new PluginRuntimeService(pluginService, auditRepository);
     eventHookService.setPluginRuntime(pluginRuntimeService);
-    const serviceIdentityService = new ServiceIdentityService(repositories.serviceIdentityRepository, repositories.serviceIdentityCredentialRepository);
+    const serviceIdentityService = new ServiceIdentityService(userRepository);
     const roleService = new RoleService(roleRepository, assignmentRepository, tenantRepository, userGroupAssignmentRepository, groupRoleAssignmentRepository);
     const authenticationFlowService = new AuthenticationFlowService(authenticationFlowRepository);
     const groupService = new GroupService(groupRepository, appRepository, groupAppAssignmentRepository, userAttributeRepository, groupUserAttributeAssignmentRepository, groupRoleAssignmentRepository, userGroupAssignmentRepository, roleRepository, userRepository);
