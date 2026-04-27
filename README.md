@@ -126,7 +126,73 @@ Notes:
 
 ## API Documentation
 
-- OpenAPI specification: `openapi.yaml`
+The platform provides a comprehensive OpenAPI 3.0.3 specification with complete request/response schemas and real-world examples for all endpoints.
+
+### Accessing the API Documentation
+
+- **OpenAPI specification:** [`openapi.yaml`](./openapi.yaml)
+- **Interactive documentation:** Use any OpenAPI viewer to render `openapi.yaml` for interactive exploration
+  - [SwaggerUI](https://swagger.io/tools/swagger-ui/) can be self-hosted or accessed via online editors
+  - [ReDoc](https://redoc.ly/) provides a clean, reader-friendly view
+  - [Postman](https://www.postman.com/) can import the specification directly for testing
+
+### Covered API Areas
+
+**OAuth 2.0 & OIDC**
+- Authorization endpoint with code/token response types
+- Token endpoint (authorization_code, refresh_token, client_credentials, password, device_code)
+- Token introspection and revocation
+- Dynamic client registration
+- UserInfo endpoint
+- JWKS and discovery endpoints
+
+**User Management & Provisioning**
+- SCIM 2.0 user and group management
+- SCIM provisioning tokens and attribute mappings
+- Connector framework (LDAP, SCIM, CSV, SQL, custom)
+- Connector sync jobs and drift detection
+
+**Access Control & Governance**
+- Role-based access control (RBAC) with multi-app support
+- Access requests with approval workflows
+- Access review campaigns with attestation
+- Privileged access management (PAM) with elevation requests
+- Break-glass emergency access
+- Security risk event detection and SLA monitoring
+
+**Authentication**
+- WebAuthn passwordless registration and authentication
+- TOTP multi-factor authentication
+- Authentication flow definitions and stage configuration
+- Risk-based adaptive authentication
+
+**Workload Identity**
+- Service identity management
+- Machine-to-machine credential issuance and rotation
+- Credential usage telemetry
+
+**SAML**
+- Service provider configuration and metadata management
+- Assertion signing and encryption
+- Assertion audit logs
+
+**Federation & Sessions**
+- External identity provider integration
+- Session management with anomaly detection
+- Front-channel and back-channel logout
+
+**Portal & User APIs**
+- Current user profile with app assignments
+- Avatar management
+- Password and account management
+- Custom user attributes
+
+Every endpoint includes:
+- Complete request/response payload schemas
+- Real-world example data with valid values
+- HTTP status codes and error descriptions
+- Required parameters and query filters
+- Security requirements (bearer token, client credentials)
 
 ## Multi-App Behavior
 

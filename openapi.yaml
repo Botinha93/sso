@@ -11,19 +11,58 @@ paths:
       summary: SCIM service provider capabilities
       responses:
         '200':
-          description: Service provider configuration
+          description: Service provider configuration and supported features
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documentationUri:
+                    type: string
+                  supported:
+                    type: array
+                    items:
+                      type: string
+                  schemas:
+                    type: array
+                    items:
+                      type: string
   /scim/v2/Schemas:
     get:
       summary: List SCIM schemas
       responses:
         '200':
           description: SCIM schema list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schemas:
+                    type: array
+                    items:
+                      type: string
+                  totalResults:
+                    type: integer
   /scim/v2/ResourceTypes:
     get:
       summary: List SCIM resource types
       responses:
         '200':
           description: SCIM resource type list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schemas:
+                    type: array
+                    items:
+                      type: string
+                  resourceTypes:
+                    type: array
+                    items:
+                      type: object
   /scim/v2/Users:
     get:
       summary: List SCIM users
@@ -39,12 +78,46 @@ paths:
           schema: { type: string }
       responses:
         '200':
-          description: SCIM user list
+          description: SCIM user list with pagination
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schemas:
+                    type: array
+                    items:
+                      type: string
+                  totalResults:
+                    type: integer
+                  startIndex:
+                    type: integer
+                  itemsPerPage:
+                    type: integer
+                  Resources:
+                    type: array
+                    items:
+                      type: object
     post:
       summary: Create SCIM user (supports externalId linkage)
       responses:
         '201':
           description: SCIM user created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schemas:
+                    type: array
+                    items:
+                      type: string
+                  id:
+                    type: string
+                  userName:
+                    type: string
+                  meta:
+                    type: object
   /scim/v2/Users/{id}:
     get:
       summary: Get SCIM user by id
@@ -55,7 +128,20 @@ paths:
           schema: { type: string }
       responses:
         '200':
-          description: SCIM user
+          description: SCIM user with all attributes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schemas:
+                    type: array
+                    items:
+                      type: string
+                  id:
+                    type: string
+                  userName:
+                    type: string
         '404':
           description: User not found
     put:
@@ -68,6 +154,17 @@ paths:
       responses:
         '200':
           description: SCIM user replaced
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schemas:
+                    type: array
+                    items:
+                      type: string
+                  id:
+                    type: string
     patch:
       summary: Patch SCIM user (supports externalId linkage)
       parameters:
@@ -78,6 +175,17 @@ paths:
       responses:
         '200':
           description: SCIM user patched
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schemas:
+                    type: array
+                    items:
+                      type: string
+                  id:
+                    type: string
     delete:
       summary: Delete SCIM user
       parameters:
@@ -103,12 +211,44 @@ paths:
           schema: { type: string }
       responses:
         '200':
-          description: SCIM group list
+          description: SCIM group list with pagination
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schemas:
+                    type: array
+                    items:
+                      type: string
+                  totalResults:
+                    type: integer
+                  startIndex:
+                    type: integer
+                  itemsPerPage:
+                    type: integer
+                  Resources:
+                    type: array
+                    items:
+                      type: object
     post:
       summary: Create SCIM group (supports externalId linkage)
       responses:
         '201':
           description: SCIM group created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schemas:
+                    type: array
+                    items:
+                      type: string
+                  id:
+                    type: string
+                  displayName:
+                    type: string
   /scim/v2/Groups/{id}:
     get:
       summary: Get SCIM group by id
@@ -119,7 +259,20 @@ paths:
           schema: { type: string }
       responses:
         '200':
-          description: SCIM group
+          description: SCIM group with all attributes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schemas:
+                    type: array
+                    items:
+                      type: string
+                  id:
+                    type: string
+                  displayName:
+                    type: string
         '404':
           description: Group not found
     put:
@@ -132,6 +285,17 @@ paths:
       responses:
         '200':
           description: SCIM group replaced
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schemas:
+                    type: array
+                    items:
+                      type: string
+                  id:
+                    type: string
     patch:
       summary: Patch SCIM group (supports externalId linkage)
       parameters:
@@ -142,6 +306,17 @@ paths:
       responses:
         '200':
           description: SCIM group patched
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schemas:
+                    type: array
+                    items:
+                      type: string
+                  id:
+                    type: string
     delete:
       summary: Delete SCIM group
       parameters:
@@ -157,13 +332,60 @@ paths:
       summary: OIDC discovery document
       responses:
         '200':
-          description: Discovery metadata
+          description: Discovery metadata with OIDC provider configuration
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  issuer:
+                    type: string
+                  authorization_endpoint:
+                    type: string
+                  token_endpoint:
+                    type: string
+                  userinfo_endpoint:
+                    type: string
+                  jwks_uri:
+                    type: string
+                  response_types_supported:
+                    type: array
+                    items:
+                      type: string
+                  subject_types_supported:
+                    type: array
+                    items:
+                      type: string
+                  grant_types_supported:
+                    type: array
+                    items:
+                      type: string
   /.well-known/jwks.json:
     get:
       summary: JSON Web Key Set
       responses:
         '200':
-          description: JWK keys
+          description: JWK Set with platform signing keys
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        kty:
+                          type: string
+                        kid:
+                          type: string
+                        use:
+                          type: string
+                        n:
+                          type: string
+                        e:
+                          type: string
   /oauth/authorize:
     get:
       summary: Authorization endpoint
@@ -247,19 +469,92 @@ paths:
                     scope: { type: string }
       responses:
         '200':
-          description: Token response
+          description: Access token and refresh token response
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [access_token, token_type, expires_in]
+                properties:
+                  access_token:
+                    type: string
+                    description: OAuth access token
+                  token_type:
+                    type: string
+                    enum: [Bearer]
+                  expires_in:
+                    type: integer
+                    description: Token lifetime in seconds
+                  refresh_token:
+                    type: string
+                    description: Refresh token for obtaining new access tokens
+                  id_token:
+                    type: string
+                    description: OIDC ID token (for OIDC flows)
   /oauth/introspect:
     post:
-      summary: Token introspection
+      summary: Token introspection (RFC 7662)
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+                  description: Token to introspect
       responses:
         '200':
-          description: Token status
+          description: Token status and claims
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  active:
+                    type: boolean
+                  scope:
+                    type: string
+                  client_id:
+                    type: string
+                  username:
+                    type: string
+                  token_type:
+                    type: string
+                  exp:
+                    type: integer
+                  iat:
+                    type: integer
   /oauth/token/revoke:
     post:
       summary: RFC7009 token revocation
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [token, client_id, client_secret]
+              properties:
+                token:
+                  type: string
+                  description: Token to revoke
+                client_id:
+                  type: string
+                client_secret:
+                  type: string
       responses:
         '200':
           description: Revocation accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  revoked:
+                    type: boolean
   /oauth/userinfo:
     get:
       summary: OIDC UserInfo endpoint
@@ -267,9 +562,33 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: User claims
+          description: User claims and profile information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sub:
+                    type: string
+                    description: Subject identifier
+                  preferred_username:
+                    type: string
+                  email:
+                    type: string
+                  email_verified:
+                    type: boolean
+                  name:
+                    type: string
+                  given_name:
+                    type: string
+                  family_name:
+                    type: string
+                  picture:
+                    type: string
+                  updated_at:
+                    type: integer
         '401':
-          description: Invalid token
+          description: Invalid or missing access token
   /oauth/logout:
     get:
       summary: RP-initiated logout
@@ -279,15 +598,46 @@ paths:
   /oauth/frontchannel-logout:
     get:
       summary: Front-channel logout
+      parameters:
+        - in: query
+          name: iss
+          schema: { type: string }
+          description: Issuer identifier
+        - in: query
+          name: sid
+          schema: { type: string }
+          description: Session ID
       responses:
         '200':
           description: Logout completed
+          content:
+            text/html:
+              schema:
+                type: string
   /oauth/backchannel-logout:
     post:
-      summary: Back-channel logout
+      summary: Back-channel logout (OIDC RP-Initiated Logout)
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [logout_token]
+              properties:
+                logout_token:
+                  type: string
+                  description: Logout token
       responses:
         '200':
           description: Session(s) revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  revoked:
+                    type: boolean
   /connect/register:
     post:
       summary: Dynamic client registration
@@ -323,35 +673,211 @@ paths:
                   type: string
       responses:
         '201':
-          description: Registered client metadata
+          description: Client registered successfully with credentials
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [client_id, client_secret, client_name]
+                properties:
+                  client_id:
+                    type: string
+                  client_secret:
+                    type: string
+                  client_name:
+                    type: string
+                  redirect_uris:
+                    type: array
+                    items:
+                      type: string
+                  grant_types:
+                    type: array
+                    items:
+                      type: string
+                  scope:
+                    type: string
   /api/admin/clients:
     get:
-      summary: List OAuth clients
+      summary: List OAuth clients with pagination
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
       responses:
         '200':
-          description: Clients list
+          description: Paginated list of OAuth clients
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OAuthClient'
+                  total:
+                    type: integer
     post:
       summary: Create OAuth client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, redirectUris, grants]
+              properties:
+                name:
+                  type: string
+                appId:
+                  type: string
+                  nullable: true
+                redirectUris:
+                  type: array
+                  items:
+                    type: string
+                    format: uri
+                allowedScopes:
+                  type: array
+                  items:
+                    type: string
+                grants:
+                  type: array
+                  items:
+                    type: string
+                requirePkce:
+                  type: boolean
+                resources:
+                  type: array
+                  items:
+                    type: string
       responses:
         '201':
-          description: Client created
+          description: OAuth client created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OAuthClient'
   /api/admin/users:
     get:
-      summary: List users
+      summary: List users with pagination
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+        - in: query
+          name: appId
+          schema:
+            type: string
       responses:
         '200':
-          description: Users list
+          description: Paginated list of users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        username:
+                          type: string
+                        email:
+                          type: string
+                        givenName:
+                          type: string
+                        familyName:
+                          type: string
+                        active:
+                          type: boolean
+                        isServiceUser:
+                          type: boolean
+                        createdAt:
+                          type: string
+                          format: date-time
+                  total:
+                    type: integer
   /api/admin/provisioning/tokens:
     get:
       summary: List SCIM provisioning tokens
       responses:
         '200':
-          description: SCIM token list
+          description: SCIM provisioning tokens
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: string
+                    token:
+                      type: string
+                    expiresAt:
+                      type: string
+                      format: date-time
+                      nullable: true
+                    createdAt:
+                      type: string
+                      format: date-time
     post:
       summary: Create SCIM provisioning token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                expiresAt:
+                  type: string
+                  format: date-time
+                  nullable: true
       responses:
         '201':
           description: SCIM token created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  token:
+                    type: string
+                  expiresAt:
+                    type: string
+                    format: date-time
+                    nullable: true
+                  createdAt:
+                    type: string
+                    format: date-time
   /api/admin/provisioning/tokens/{id}:
     delete:
       summary: Revoke SCIM provisioning token
@@ -364,17 +890,70 @@ paths:
       responses:
         '204':
           description: SCIM token revoked
+        '404':
+          description: Token not found
   /api/admin/provisioning/mappings:
     get:
       summary: List provisioning attribute mappings
       responses:
         '200':
-          description: Provisioning mapping list
+          description: Provisioning attribute mappings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    sourceField:
+                      type: string
+                    targetField:
+                      type: string
+                    transform:
+                      type: string
+                      nullable: true
+                    createdAt:
+                      type: string
+                      format: date-time
     post:
-      summary: Create provisioning attribute mapping (optional transform expression)
+      summary: Create provisioning attribute mapping
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sourceField, targetField]
+              properties:
+                sourceField:
+                  type: string
+                targetField:
+                  type: string
+                transform:
+                  type: string
+                  nullable: true
       responses:
         '201':
-          description: Provisioning mapping created
+          description: Mapping created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  sourceField:
+                    type: string
+                  targetField:
+                    type: string
+                  transform:
+                    type: string
+                    nullable: true
+                  createdAt:
+                    type: string
+                    format: date-time
   /api/admin/provisioning/mappings/{id}:
     delete:
       summary: Delete provisioning attribute mapping
@@ -386,25 +965,116 @@ paths:
             type: string
       responses:
         '204':
-          description: Provisioning mapping deleted
+          description: Mapping deleted
+        '404':
+          description: Mapping not found
   /api/admin/provisioning/jobs:
     get:
-      summary: List provisioning job history
+      summary: List provisioning job history with results
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
       responses:
         '200':
-          description: Provisioning job list
+          description: Provisioning job history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    connectorId:
+                      type: string
+                    status:
+                      type: string
+                      enum: [pending, running, succeeded, failed]
+                    startedAt:
+                      type: string
+                      format: date-time
+                    completedAt:
+                      type: string
+                      format: date-time
+                      nullable: true
+                    usersCreated:
+                      type: integer
+                    usersUpdated:
+                      type: integer
+                    usersDeleted:
+                      type: integer
+                    createdAt:
+                      type: string
+                      format: date-time
   /api/admin/provisioning/deprovisioning-queue:
     get:
       summary: List deprovisioning queue tasks
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
       responses:
         '200':
-          description: Deprovisioning queue list
+          description: Deprovisioning queue tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    userId:
+                      type: string
+                    status:
+                      type: string
+                      enum: [pending, processing, completed, failed]
+                    reason:
+                      type: string
+                    createdAt:
+                      type: string
+                      format: date-time
   /api/admin/provisioning/jobs/reconcile:
     post:
-      summary: Run provisioning reconciliation job with drift reporting
+      summary: Run provisioning reconciliation with drift detection
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                connectorId:
+                  type: string
+                dryRun:
+                  type: boolean
       responses:
         '202':
           description: Reconciliation job accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobId:
+                    type: string
+                  status:
+                    type: string
+                  startedAt:
+                    type: string
+                    format: date-time
   /api/admin/access-requests:
     get:
       summary: List access governance requests
@@ -420,14 +1090,67 @@ paths:
             type: integer
             minimum: 1
             maximum: 200
+            default: 50
       responses:
         '200':
-          description: Access request list
+          description: List of access requests with full details
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AccessRequest'
+              example:
+                - id: "ar_uuid001"
+                  requesterId: "user_uuid111"
+                  subjectUserId: "user_uuid222"
+                  entitlementType: "role"
+                  entitlementValue: "admin"
+                  status: "pending"
+                  justification: "Need elevated access for operational tasks"
+                  expiresAt: "2026-05-27T10:00:00Z"
+                  createdAt: "2026-04-27T10:00:00Z"
+                  updatedAt: "2026-04-27T10:00:00Z"
     post:
       summary: Create access governance request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subjectUserId, entitlementType, entitlementValue, justification]
+              properties:
+                subjectUserId:
+                  type: string
+                entitlementType:
+                  type: string
+                entitlementValue:
+                  type: string
+                justification:
+                  type: string
+                expiresAt:
+                  type: string
+                  format: date-time
+                  nullable: true
       responses:
         '201':
-          description: Access request created
+          description: Access request created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessRequest'
+              example:
+                id: "ar_uuid001"
+                requesterId: "user_uuid111"
+                subjectUserId: "user_uuid222"
+                entitlementType: "role"
+                entitlementValue: "admin"
+                status: "pending"
+                justification: "Need elevated access for operational tasks"
+                expiresAt: "2026-05-27T10:00:00Z"
+                createdAt: "2026-04-27T10:00:00Z"
+                updatedAt: "2026-04-27T10:00:00Z"
   /api/admin/access-requests/{id}/approve:
     post:
       summary: Approve access governance request
@@ -437,9 +1160,26 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rationale:
+                  type: string
       responses:
         '200':
-          description: Access request approved
+          description: Access request approved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessRequest'
+        '404':
+          description: Request not found
+        '409':
+          description: Request is not in pending status
   /api/admin/access-requests/{id}/reject:
     post:
       summary: Reject access governance request
@@ -449,12 +1189,29 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
       responses:
         '200':
-          description: Access request rejected
+          description: Access request rejected successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessRequest'
+        '404':
+          description: Request not found
+        '409':
+          description: Request is not in pending status
   /api/admin/access-requests/process-expirations:
     post:
-      summary: Process expired approved access requests and revoke granted assignments
+      summary: Process expired access requests and revoke assignments
       requestBody:
         required: false
         content:
@@ -464,12 +1221,31 @@ paths:
               properties:
                 dryRun:
                   type: boolean
+                  default: false
+                  description: If true, simulate without making changes
       responses:
         '200':
-          description: Expiration processing summary
+          description: Expiration processing completed with summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  processed:
+                    type: integer
+                    description: Number of expired requests processed
+                  revoked:
+                    type: integer
+                    description: Number of assignments revoked
+                  dryRun:
+                    type: boolean
+              example:
+                processed: 3
+                revoked: 2
+                dryRun: false
   /api/admin/access-reviews/campaigns:
     post:
-      summary: Create an access review campaign and generate review items from current assignments
+      summary: Create access review campaign from current assignments
       requestBody:
         required: true
         content:
@@ -480,17 +1256,41 @@ paths:
               properties:
                 name:
                   type: string
+                  description: Campaign name
                 description:
                   type: string
+                  description: Optional description
                 dueAt:
                   type: string
                   format: date-time
+                  nullable: true
+                  description: Optional due date
       responses:
         '201':
-          description: Access review campaign created
+          description: Campaign created with review items generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  campaign:
+                    $ref: '#/components/schemas/AccessReviewCampaign'
+                  itemsGenerated:
+                    type: integer
+              example:
+                campaign:
+                  id: "camp_uuid001"
+                  name: "Q2 2026 Access Review"
+                  description: null
+                  status: "active"
+                  createdByUserId: "user_uuid789"
+                  dueAt: "2026-06-27T23:59:59Z"
+                  createdAt: "2026-04-27T10:00:00Z"
+                  updatedAt: "2026-04-27T10:00:00Z"
+                itemsGenerated: 247
   /api/admin/access-reviews/campaigns/{id}:
     get:
-      summary: Get access review campaign with generated items
+      summary: Get campaign with all generated review items
       parameters:
         - in: path
           name: id
@@ -499,10 +1299,23 @@ paths:
             type: string
       responses:
         '200':
-          description: Access review campaign details
+          description: Campaign details with review items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  campaign:
+                    $ref: '#/components/schemas/AccessReviewCampaign'
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AccessReviewItem'
+        '404':
+          description: Campaign not found
   /api/admin/access-reviews/items/{id}/decision:
     post:
-      summary: Record a decision for an access review item and emit attestation evidence metadata
+      summary: Record reviewer decision on access item
       parameters:
         - in: path
           name: id
@@ -520,14 +1333,24 @@ paths:
                 decision:
                   type: string
                   enum: [certified, revoked]
+                  description: Review decision
                 rationale:
                   type: string
+                  description: Reason for decision
       responses:
         '200':
-          description: Access review item updated
+          description: Decision recorded and attestation evidence emitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessReviewItem'
+        '404':
+          description: Item not found
+        '409':
+          description: Item already has a decision
   /api/admin/security/risk-events:
     get:
-      summary: List normalized security risk events derived from audit telemetry
+      summary: List normalized security risk events from audit telemetry
       parameters:
         - in: query
           name: limit
@@ -538,22 +1361,82 @@ paths:
             default: 50
       responses:
         '200':
-          description: List of security risk events
+          description: Risk events derived and normalized from system audit logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    type:
+                      type: string
+                    severity:
+                      type: string
+                      enum: [low, medium, high, critical]
+                    description:
+                      type: string
+                    affectedUserId:
+                      type: string
+                      nullable: true
+                    detectedAt:
+                      type: string
+                      format: date-time
+                    auditEvents:
+                      type: array
+                      items:
+                        type: string
+                      description: Associated audit event IDs
+              example:
+                - id: "risk_001"
+                  type: "brute_force_attempt"
+                  severity: "high"
+                  description: "Multiple failed login attempts detected"
+                  affectedUserId: "user_uuid123"
+                  detectedAt: "2026-04-27T10:30:00Z"
+                  auditEvents: ["event_001", "event_002", "event_003"]
   /api/admin/access-requests/stalled:
     get:
-      summary: List stalled pending access requests that have exceeded the SLA threshold
+      summary: List access requests exceeding SLA threshold
       parameters:
         - in: query
           name: stalledAfterMinutes
+          required: true
           schema:
             type: integer
             minimum: 1
       responses:
         '200':
-          description: List of stalled access requests
+          description: List of stalled access requests that exceeded SLA
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    request:
+                      $ref: '#/components/schemas/AccessRequest'
+                    minutesOverdue:
+                      type: integer
+              example:
+                - request:
+                    id: "ar_uuid001"
+                    requesterId: "user_uuid111"
+                    subjectUserId: "user_uuid222"
+                    entitlementType: "role"
+                    entitlementValue: "analyst"
+                    status: "pending"
+                    justification: "Need access for project work"
+                    expiresAt: "2026-05-27T10:00:00Z"
+                    createdAt: "2026-04-20T10:00:00Z"
+                    updatedAt: "2026-04-20T10:00:00Z"
+                  minutesOverdue: 360
   /api/admin/elevations:
     get:
-      summary: List PAM-lite elevation requests (includes correlationId for privileged action audit stitching)
+      summary: List PAM-lite elevation requests with audit correlation
       parameters:
         - in: query
           name: status
@@ -566,11 +1449,34 @@ paths:
             type: integer
             minimum: 1
             maximum: 200
+            default: 50
       responses:
         '200':
-          description: Elevation request list
+          description: List of elevation requests with correlation IDs for audit stitching
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ElevationRequest'
+              example:
+                - id: "elev_uuid001"
+                  correlationId: "corr_audit_123xyz"
+                  requesterId: "user_uuid456"
+                  justification: "Emergency database access required for incident response"
+                  resource: "database:prod"
+                  action: "admin:connect"
+                  status: "approved"
+                  approvedByUserId: "user_uuid789"
+                  approvedAt: "2026-04-27T10:30:00Z"
+                  activatedAt: null
+                  expiresAt: "2026-04-27T12:00:00Z"
+                  revokedAt: null
+                  revokedByUserId: null
+                  createdAt: "2026-04-27T10:00:00Z"
+                  updatedAt: "2026-04-27T10:30:00Z"
     post:
-      summary: Create a PAM-lite elevation request (returns correlationId for downstream audit correlation)
+      summary: Create a PAM-lite elevation request
       requestBody:
         required: true
         content:
@@ -581,17 +1487,41 @@ paths:
               properties:
                 justification:
                   type: string
+                  description: Business justification for elevation
                 resource:
                   type: string
+                  description: Resource requiring elevation
                 action:
                   type: string
+                  description: Action to be performed
                 durationMinutes:
                   type: integer
                   minimum: 1
                   maximum: 480
+                  description: Requested duration in minutes
       responses:
         '201':
-          description: Elevation request created
+          description: Elevation request created with correlationId for audit correlation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ElevationRequest'
+              example:
+                id: "elev_uuid001"
+                correlationId: "corr_audit_123xyz"
+                requesterId: "user_uuid456"
+                justification: "Emergency database access required for incident response"
+                resource: "database:prod"
+                action: "admin:connect"
+                status: "pending"
+                approvedByUserId: null
+                approvedAt: null
+                activatedAt: null
+                expiresAt: "2026-04-27T12:00:00Z"
+                revokedAt: null
+                revokedByUserId: null
+                createdAt: "2026-04-27T10:00:00Z"
+                updatedAt: "2026-04-27T10:00:00Z"
   /api/admin/elevations/{id}:
     get:
       summary: Get elevation request details
@@ -603,10 +1533,16 @@ paths:
             type: string
       responses:
         '200':
-          description: Elevation request details
+          description: Elevation request with full details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ElevationRequest'
+        '404':
+          description: Elevation request not found
   /api/admin/elevations/sessions:
     get:
-      summary: List elevation sessions with hard expiry state and correlationId
+      summary: List active elevation sessions with hard expiry and correlation
       parameters:
         - in: query
           name: status
@@ -619,9 +1555,29 @@ paths:
             type: integer
             minimum: 1
             maximum: 200
+            default: 50
       responses:
         '200':
-          description: Elevation session list
+          description: List of elevation sessions with correlation IDs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ElevationSession'
+              example:
+                - id: "sess_uuid001"
+                  correlationId: "corr_audit_123xyz"
+                  elevationRequestId: "elev_uuid001"
+                  requesterId: "user_uuid456"
+                  resource: "database:prod"
+                  action: "admin:connect"
+                  status: "active"
+                  startedAt: "2026-04-27T10:35:00Z"
+                  expiresAt: "2026-04-27T12:00:00Z"
+                  endedAt: null
+                  createdAt: "2026-04-27T10:35:00Z"
+                  updatedAt: "2026-04-27T10:35:00Z"
   /api/admin/elevations/{id}/approve:
     post:
       summary: Approve a pending elevation request
@@ -640,9 +1596,16 @@ paths:
               properties:
                 rationale:
                   type: string
+                  description: Reason for approval
       responses:
         '200':
-          description: Elevation request approved
+          description: Elevation request approved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ElevationRequest'
+        '404':
+          description: Elevation request not found
   /api/admin/elevations/{id}/activate:
     post:
       summary: Activate an approved elevation request
@@ -654,7 +1617,20 @@ paths:
             type: string
       responses:
         '200':
-          description: Elevation request activated
+          description: Elevation session created and activated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request:
+                    $ref: '#/components/schemas/ElevationRequest'
+                  session:
+                    $ref: '#/components/schemas/ElevationSession'
+        '404':
+          description: Elevation request not found
+        '409':
+          description: Request is not in approved status
   /api/admin/elevations/{id}/revoke:
     post:
       summary: Revoke an active or approved elevation request
@@ -673,25 +1649,40 @@ paths:
               properties:
                 reason:
                   type: string
+                  description: Reason for revocation
       responses:
         '200':
-          description: Elevation request revoked
+          description: Elevation request revoked successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ElevationRequest'
+        '404':
+          description: Elevation request not found
   /api/admin/elevations/process-expirations:
     post:
-      summary: Expire elevation requests that have passed their expiry time
+      summary: Process expired elevation requests and revoke sessions
       responses:
         '200':
-          description: Expiration processing summary
+          description: Expiration processing summary with count of expired items
           content:
             application/json:
               schema:
                 type: object
+                required: [expired]
                 properties:
                   expired:
                     type: integer
+                    description: Number of requests/sessions expired
+                  revokedSessions:
+                    type: integer
+                    description: Number of sessions that were revoked
+              example:
+                expired: 5
+                revokedSessions: 3
   /api/admin/elevations/check:
     post:
-      summary: Check if current user has an active elevation session for a resource/action
+      summary: Check if user has active elevation for resource/action
       requestBody:
         required: true
         content:
@@ -702,15 +1693,43 @@ paths:
               properties:
                 resource:
                   type: string
+                  description: Resource to check
                 action:
                   type: string
+                  description: Action to check
       responses:
         '200':
-          description: Elevation access decision
+          description: Access decision with active session details if allowed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [allowed, hasSession]
+                properties:
+                  allowed:
+                    type: boolean
+                    description: Whether user has active elevation
+                  hasSession:
+                    type: boolean
+                    description: Whether an active session exists
+                  sessionId:
+                    type: string
+                    nullable: true
+                    description: Active session ID if exists
+                  expiresAt:
+                    type: string
+                    format: date-time
+                    nullable: true
+                    description: Session expiration time
+              example:
+                allowed: true
+                hasSession: true
+                sessionId: "sess_uuid001"
+                expiresAt: "2026-04-27T12:00:00Z"
   /api/admin/elevations/break-glass:
     post:
-      summary: Activate emergency break-glass elevation for immediate privileged action
-      description: Allows admins to bypass approval workflow for emergency scenarios. Requires strong justification and creates special audit trail for break-glass usage.
+      summary: Activate emergency break-glass elevation
+      description: Allows admins to bypass approval workflow for emergency scenarios. Requires strong justification and creates special audit trail.
       requestBody:
         required: true
         content:
@@ -728,14 +1747,16 @@ paths:
                 reason:
                   type: string
                   minLength: 10
-                  description: Emergency justification for break-glass activation (minimum 10 characters)
+                  description: Emergency justification (minimum 10 characters)
                 requesterId:
                   type: string
-                  description: User ID for elevation (defaults to admin if not specified)
+                  nullable: true
+                  description: User ID for elevation (defaults to current admin)
                 durationMinutes:
                   type: number
                   minimum: 1
                   maximum: 120
+                  default: 30
                   description: Duration of emergency elevation (default 30 minutes, max 120)
       responses:
         '201':
@@ -743,11 +1764,21 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  breakGlassId:
-                    type: string
-                    description: Unique break-glass event identifier
+                $ref: '#/components/schemas/BreakGlassElevationResponse'
+              example:
+                breakGlassId: "bg_emergency_001"
+                request:
+                  id: "elev_uuid999"
+                  status: "active"
+                  correlationId: "corr_bg_audit_xyz"
+                  resource: "production:database"
+                  action: "admin:reset"
+                  expiresAt: "2026-04-27T11:00:00Z"
+                session:
+                  id: "sess_uuid999"
+                  status: "active"
+                  startedAt: "2026-04-27T10:00:00Z"
+                  expiresAt: "2026-04-27T11:00:00Z"
                   request:
                     type: object
                     properties:
@@ -824,6 +1855,19 @@ paths:
       responses:
         '200':
           description: HTML auto-post form or JSON payload with base64 signed SAML response
+          content:
+            text/html:
+              schema:
+                type: string
+                description: HTML form with hidden SAMLResponse field for auto-submission
+            application/json:
+              schema:
+                type: object
+                properties:
+                  samlResponse:
+                    type: string
+                  relayState:
+                    type: string
         '401':
           description: No active session and no valid user context
         '400':
@@ -853,6 +1897,17 @@ paths:
       responses:
         '200':
           description: Assertion accepted and audited
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accepted:
+                    type: boolean
+                  userId:
+                    type: string
+                  sessionId:
+                    type: string
         '400':
           description: Assertion validation failed
         '422':
@@ -877,10 +1932,19 @@ paths:
                   type: string
       responses:
         '200':
-          description: Logout processed
+          description: Logout processed and session revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  revoked:
+                    type: boolean
+                  sessionId:
+                    type: string
   /api/admin/saml/service-providers:
     get:
-      summary: List SAML service providers
+      summary: List SAML service providers with pagination
       parameters:
         - in: query
           name: limit
@@ -902,11 +1966,12 @@ paths:
             enum: ["true", "false"]
       responses:
         '200':
-          description: List of SAML service providers
+          description: Paginated list of SAML service providers
           content:
             application/json:
               schema:
                 type: object
+                required: [items, total, limit, offset]
                 properties:
                   items:
                     type: array
@@ -914,10 +1979,28 @@ paths:
                       $ref: '#/components/schemas/SamlServiceProvider'
                   total:
                     type: integer
+                    description: Total count of service providers
                   limit:
                     type: integer
+                    description: Limit parameter used
                   offset:
                     type: integer
+                    description: Offset parameter used
+              example:
+                items:
+                  - id: "sp_uuid001"
+                    entityId: "https://app.example.com"
+                    acsUrl: "https://app.example.com/saml/acs"
+                    sloUrl: "https://app.example.com/saml/slo"
+                    signingCertificate: "-----BEGIN CERTIFICATE-----..."
+                    encryptionCertificate: null
+                    nameIdFormat: "persistent"
+                    enabled: true
+                    createdAt: "2026-04-01T10:00:00Z"
+                    updatedAt: "2026-04-27T09:00:00Z"
+                total: 5
+                limit: 50
+                offset: 0
     post:
       summary: Create SAML service provider
       requestBody:
@@ -930,7 +2013,7 @@ paths:
               properties:
                 entityId:
                   type: string
-                  description: SAML service provider entity ID
+                  description: SAML service provider entity ID (unique identifier)
                 acsUrl:
                   type: string
                   format: uri
@@ -938,12 +2021,14 @@ paths:
                 sloUrl:
                   type: string
                   format: uri
+                  nullable: true
                   description: Single Logout Service URL (optional)
                 signingCertificate:
                   type: string
-                  description: X.509 certificate for signature verification
+                  description: X.509 certificate for signature verification (PEM format)
                 encryptionCertificate:
                   type: string
+                  nullable: true
                   description: X.509 certificate for response encryption (optional)
                 nameIdFormat:
                   type: string
@@ -954,14 +2039,25 @@ paths:
                   default: true
       responses:
         '201':
-          description: SAML service provider created
+          description: Service provider created successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SamlServiceProvider'
+              example:
+                id: "sp_uuid001"
+                entityId: "https://app.example.com"
+                acsUrl: "https://app.example.com/saml/acs"
+                sloUrl: "https://app.example.com/saml/slo"
+                signingCertificate: "-----BEGIN CERTIFICATE-----..."
+                encryptionCertificate: null
+                nameIdFormat: "persistent"
+                enabled: true
+                createdAt: "2026-04-27T10:00:00Z"
+                updatedAt: "2026-04-27T10:00:00Z"
   /api/admin/saml/service-providers/{id}:
     get:
-      summary: Get SAML service provider by ID
+      summary: Get SAML service provider configuration
       parameters:
         - in: path
           name: id
@@ -970,7 +2066,7 @@ paths:
             type: string
       responses:
         '200':
-          description: SAML service provider details
+          description: Service provider configuration and endpoints
           content:
             application/json:
               schema:
@@ -978,7 +2074,7 @@ paths:
         '404':
           description: Service provider not found
     patch:
-      summary: Update SAML service provider
+      summary: Update SAML service provider configuration
       parameters:
         - in: path
           name: id
@@ -1000,10 +2096,12 @@ paths:
                 sloUrl:
                   type: string
                   format: uri
+                  nullable: true
                 signingCertificate:
                   type: string
                 encryptionCertificate:
                   type: string
+                  nullable: true
                 nameIdFormat:
                   type: string
                   enum: [persistent, transient, emailAddress]
@@ -1011,11 +2109,13 @@ paths:
                   type: boolean
       responses:
         '200':
-          description: SAML service provider updated
+          description: Service provider updated successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SamlServiceProvider'
+        '404':
+          description: Service provider not found
     delete:
       summary: Delete SAML service provider
       parameters:
@@ -1026,10 +2126,12 @@ paths:
             type: string
       responses:
         '204':
-          description: SAML service provider deleted
+          description: Service provider deleted successfully
+        '404':
+          description: Service provider not found
   /api/admin/saml/service-providers/{id}/metadata:
     post:
-      summary: Upload and parse service provider metadata XML
+      summary: Upload and parse SAML metadata XML
       parameters:
         - in: path
           name: id
@@ -1046,23 +2148,25 @@ paths:
               properties:
                 metadata:
                   type: string
-                  description: Raw SAML metadata XML document.
+                  description: Raw SAML metadata XML document
                 overwriteManualFields:
                   type: boolean
                   default: true
-                  description: When true, parsed metadata values overwrite entityId/ACS/SLO/certificate fields.
+                  description: If true, parsed values overwrite manual fields
       responses:
         '200':
-          description: Metadata uploaded and parsed
+          description: Metadata parsed and service provider updated
           content:
             application/json:
               schema:
                 type: object
+                required: [serviceProvider, imported]
                 properties:
                   serviceProvider:
                     $ref: '#/components/schemas/SamlServiceProvider'
                   imported:
                     type: object
+                    description: Values parsed from metadata
                     properties:
                       entityId:
                         type: string
@@ -1070,13 +2174,31 @@ paths:
                         type: string
                       sloUrl:
                         type: string
+                        nullable: true
                       hasSigningCertificate:
                         type: boolean
+              example:
+                serviceProvider:
+                  id: "sp_uuid001"
+                  entityId: "https://app.example.com"
+                  acsUrl: "https://app.example.com/saml/acs"
+                  sloUrl: "https://app.example.com/saml/slo"
+                  signingCertificate: "-----BEGIN CERTIFICATE-----..."
+                  encryptionCertificate: null
+                  nameIdFormat: "persistent"
+                  enabled: true
+                  createdAt: "2026-04-01T10:00:00Z"
+                  updatedAt: "2026-04-27T10:00:00Z"
+                imported:
+                  entityId: "https://app.example.com"
+                  acsUrl: "https://app.example.com/saml/acs"
+                  sloUrl: "https://app.example.com/saml/slo"
+                  hasSigningCertificate: true
         '400':
-          description: Invalid metadata payload or service provider id
+          description: Invalid metadata XML or service provider ID
   /api/admin/saml/service-providers/{id}/certificates/rotate:
     post:
-      summary: Rotate service provider signing or encryption certificate
+      summary: Rotate service provider certificate
       parameters:
         - in: path
           name: id
@@ -1097,18 +2219,19 @@ paths:
                   default: signing
                 certificate:
                   type: string
+                  description: New X.509 certificate in PEM format
       responses:
         '200':
-          description: Certificate rotated
+          description: Certificate rotated successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SamlServiceProvider'
         '400':
-          description: Invalid rotation payload or service provider id
+          description: Invalid certificate or service provider ID
   /api/admin/saml/assertions:
     get:
-      summary: List SAML assertion audits
+      summary: List SAML assertion audit logs
       parameters:
         - in: query
           name: spId
@@ -1142,11 +2265,12 @@ paths:
           description: Filter assertions up to this date
       responses:
         '200':
-          description: List of SAML assertion audits
+          description: Paginated assertion audit logs
           content:
             application/json:
               schema:
                 type: object
+                required: [items, total, limit, offset]
                 properties:
                   items:
                     type: array
@@ -1158,6 +2282,23 @@ paths:
                     type: integer
                   offset:
                     type: integer
+              example:
+                items:
+                  - id: "audit_uuid001"
+                    spId: "sp_uuid001"
+                    requestId: "req_123xyz"
+                    responseId: "resp_456uvw"
+                    subject: "user@example.com"
+                    audience: "https://app.example.com"
+                    assertionId: "assert_789abc"
+                    issueInstant: "2026-04-27T10:15:00Z"
+                    notOnOrAfter: "2026-04-27T10:45:00Z"
+                    destinationUrl: "https://app.example.com/saml/acs"
+                    statusCode: "urn:oasis:names:tc:SAML:2.0:status:Success"
+                    createdAt: "2026-04-27T10:15:00Z"
+                total: 2145
+                limit: 50
+                offset: 0
   /api/admin/authentication/flows:
     get:
       summary: List authentication flows
@@ -1400,17 +2541,78 @@ paths:
                           type: string
   /api/portal/me:
     get:
-      summary: Current portal user profile
+      summary: Get current user profile with apps and permissions
       description: |
         Returns the current portal user's effective identity view, including the full
-        list of visible apps. In multi-app setups, `apps` represents the union of
+        list of visible apps. In multi-app setups, apps represents the union of
         direct user app assignments and app access inherited from the user's groups.
+      security:
+        - bearerAuth: []
       responses:
         '200':
-          description: User profile, apps, roles, groups, and effective permissions
+          description: Complete user profile with apps, roles, groups, and permissions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  username:
+                    type: string
+                  email:
+                    type: string
+                  givenName:
+                    type: string
+                  familyName:
+                    type: string
+                  avatarUrl:
+                    type: string
+                    nullable: true
+                  preferredLanguage:
+                    type: string
+                  customAttributes:
+                    type: object
+                    additionalProperties: true
+                  active:
+                    type: boolean
+                  apps:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        url:
+                          type: string
+                          nullable: true
+                        icon:
+                          type: string
+                          nullable: true
+                  roles:
+                    type: array
+                    items:
+                      type: string
+                  groups:
+                    type: array
+                    items:
+                      type: string
+                  permissions:
+                    type: array
+                    items:
+                      type: string
+                  createdAt:
+                    type: string
+                    format: date-time
+        '401':
+          description: No valid session or token
   /api/portal/profile:
     patch:
-      summary: Update current portal user profile
+      summary: Update user profile information
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -1428,16 +2630,33 @@ paths:
                   type: string
                 username:
                   type: string
+                preferredLanguage:
+                  type: string
                 customAttributes:
                   type: object
                   additionalProperties:
                     type: string
       responses:
-        '204':
-          description: Profile updated
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  user:
+                    type: object
+        '400':
+          description: Invalid profile data
+        '409':
+          description: Username or email already taken
   /api/portal/change-password:
     post:
-      summary: Change current portal user password
+      summary: Change user password
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -1448,20 +2667,49 @@ paths:
               properties:
                 currentPassword:
                   type: string
+                  description: Current password for verification
                 newPassword:
                   type: string
+                  description: New password to set
       responses:
-        '204':
-          description: Password changed
+        '200':
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          description: Current password is incorrect
+        '400':
+          description: New password does not meet requirements
   /api/portal/account:
     delete:
-      summary: Delete current portal user account
+      summary: Delete user account permanently
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                currentPassword:
+                  type: string
+                  description: Required for account deletion
       responses:
         '204':
-          description: Account deleted
+          description: Account deleted permanently
+        '401':
+          description: Password required or invalid
   /api/portal/avatar:
     post:
-      summary: Upload current portal user avatar
+      summary: Upload user avatar image
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -1473,12 +2721,23 @@ paths:
                 file:
                   type: string
                   format: binary
+                  description: Image file (PNG, JPG, WebP)
       responses:
         '200':
-          description: Avatar uploaded
+          description: Avatar uploaded and saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  avatarUrl:
+                    type: string
+                    description: URL to uploaded avatar
+        '400':
+          description: Invalid file format or size
   /auth/login/webauthn/begin:
     post:
-      summary: Start WebAuthn login challenge
+      summary: Start WebAuthn passwordless login flow
       requestBody:
         required: true
         content:
@@ -1489,22 +2748,44 @@ paths:
               properties:
                 identifier:
                   type: string
+                  description: Username, email, or user ID
                 clientId:
                   type: string
+                  nullable: true
+                  description: Optional OAuth client ID
                 tenantSlug:
                   type: string
+                  nullable: true
+                  description: Optional tenant slug
                 scope:
                   type: array
                   items:
                     type: string
+                  description: Requested scopes
       responses:
         '200':
-          description: WebAuthn login challenge created
+          description: WebAuthn challenge created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  loginId:
+                    type: string
+                  challenge:
+                    type: string
+                    format: base64
+                  allowCredentials:
+                    type: array
+                    items:
+                      type: object
         '401':
-          description: Invalid identity or no passkey enrolled
+          description: User not found or no passkey enrolled
+        '400':
+          description: Invalid request parameters
   /auth/login/webauthn/finish:
     post:
-      summary: Complete WebAuthn login challenge
+      summary: Complete WebAuthn login with assertion
       requestBody:
         required: true
         content:
@@ -1520,20 +2801,71 @@ paths:
                 signCount:
                   type: integer
                   minimum: 0
+                assertion:
+                  type: string
+                  format: base64
       responses:
         '200':
-          description: Login completed and session created
+          description: Login successful and session created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessionId:
+                    type: string
+                  accessToken:
+                    type: string
+                  expiresIn:
+                    type: integer
         '401':
-          description: Invalid challenge or assertion
+          description: Invalid assertion or signature
+        '400':
+          description: Invalid parameters
   /api/account/mfa/webauthn/credentials:
     get:
-      summary: List current account WebAuthn credentials
+      summary: List enrolled WebAuthn credentials
+      security:
+        - bearerAuth: []
       responses:
         '200':
-          description: WebAuthn credentials for current account
+          description: List of user's enrolled WebAuthn credentials
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    credentialId:
+                      type: string
+                    displayName:
+                      type: string
+                    transports:
+                      type: array
+                      items:
+                        type: string
+                    aaguid:
+                      type: string
+                      nullable: true
+                    signCount:
+                      type: integer
+                    createdAt:
+                      type: string
+                      format: date-time
+                    lastUsedAt:
+                      type: string
+                      format: date-time
+                      nullable: true
+        '401':
+          description: No valid session
   /api/account/mfa/webauthn/register/begin:
     post:
-      summary: Start WebAuthn registration
+      summary: Start WebAuthn credential registration
+      security:
+        - bearerAuth: []
       requestBody:
         required: false
         content:
@@ -1543,12 +2875,45 @@ paths:
               properties:
                 displayName:
                   type: string
+                  description: Human-readable name for the credential
       responses:
         '200':
-          description: WebAuthn registration challenge created
+          description: Registration challenge created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  registrationId:
+                    type: string
+                  challenge:
+                    type: string
+                    format: base64
+                  rp:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                      displayName:
+                        type: string
+                  pubKeyCredParams:
+                    type: array
+                    items:
+                      type: object
+        '401':
+          description: No valid session
   /api/account/mfa/webauthn/register/finish:
     post:
-      summary: Complete WebAuthn registration
+      summary: Complete WebAuthn credential registration
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -1561,23 +2926,48 @@ paths:
                   type: string
                 credentialId:
                   type: string
+                  format: base64
                 publicKey:
                   type: string
+                  format: base64
                 transports:
                   type: array
                   items:
                     type: string
+                  description: Transport hints (usb, nfc, ble, internal)
                 aaguid:
                   type: string
+                  nullable: true
                 signCount:
                   type: integer
                   minimum: 0
+                displayName:
+                  type: string
+                  nullable: true
       responses:
         '200':
-          description: WebAuthn credential stored
+          description: Credential registered and stored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  credentialId:
+                    type: string
+                  displayName:
+                    type: string
+                  createdAt:
+                    type: string
+                    format: date-time
+        '400':
+          description: Invalid registration data or challenge
+        '401':
+          description: No valid session
   /api/account/mfa/webauthn/credentials/{credentialId}:
     delete:
-      summary: Delete one enrolled WebAuthn credential
+      summary: Delete enrolled WebAuthn credential
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: credentialId
@@ -1586,7 +2976,11 @@ paths:
             type: string
       responses:
         '204':
-          description: Credential removed
+          description: Credential deleted successfully
+        '404':
+          description: Credential not found
+        '401':
+          description: No valid session
 
   /api/admin/service-identities:
     get:
@@ -1594,7 +2988,25 @@ paths:
       tags: [Workload Identity]
       responses:
         '200':
-          description: List of service identities
+          description: List of service identities with all details
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceIdentity'
+              example:
+                - id: "si_uuid123"
+                  name: "backend-api"
+                  description: "Service identity for backend API workload"
+                  ownerId: "user_uuid456"
+                  appId: "app_uuid789"
+                  status: "active"
+                  allowedScopes: ["api:read", "api:write"]
+                  allowedAudiences: ["api.example.com"]
+                  metadata: { "team": "platform", "env": "prod" }
+                  createdAt: "2026-04-27T10:00:00Z"
+                  updatedAt: "2026-04-27T10:00:00Z"
     post:
       summary: Create a service identity
       tags: [Workload Identity]
@@ -1605,6 +3017,118 @@ paths:
             schema:
               type: object
               required: [name]
+              properties:
+                name:
+                  type: string
+                  description: Human-readable name
+                description:
+                  type: string
+                  description: Optional description
+                status:
+                  type: string
+                  enum: [active, inactive, suspended]
+                  default: active
+                  description: Initial status
+                allowedScopes:
+                  type: array
+                  items:
+                    type: string
+                  description: List of allowed OAuth scopes
+                allowedAudiences:
+                  type: array
+                  items:
+                    type: string
+                  description: List of allowed JWT audiences
+                ownerId:
+                  type: string
+                  description: Optional owner user ID
+                metadata:
+                  type: object
+                  additionalProperties: true
+                  description: Optional custom metadata
+      responses:
+        '201':
+          description: Service identity created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceIdentity'
+              example:
+                id: "si_uuid123"
+                name: "backend-api"
+                description: "Service identity for backend API workload"
+                ownerId: "user_uuid456"
+                appId: null
+                status: "active"
+                allowedScopes: ["api:read", "api:write"]
+                allowedAudiences: ["api.example.com"]
+                metadata: { "team": "platform" }
+                createdAt: "2026-04-27T10:00:00Z"
+                updatedAt: "2026-04-27T10:00:00Z"
+
+  /api/admin/service-identities/{id}:
+    get:
+      summary: Get service identity with credentials
+      tags: [Workload Identity]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Service identity with all credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceIdentityWithCredentials'
+              example:
+                id: "si_uuid123"
+                name: "backend-api"
+                description: "Service identity for backend API workload"
+                ownerId: "user_uuid456"
+                appId: "app_uuid789"
+                status: "active"
+                allowedScopes: ["api:read", "api:write"]
+                allowedAudiences: ["api.example.com"]
+                metadata: { "team": "platform" }
+                credentials:
+                  - id: "cred_uuid111"
+                    serviceIdentityId: "si_uuid123"
+                    clientId: "si_uuid123"
+                    expiresAt: null
+                    revokedAt: null
+                    rotatedFromId: null
+                    lastUsedAt: "2026-04-26T15:30:00Z"
+                    createdAt: "2026-04-20T10:00:00Z"
+                  - id: "cred_uuid112"
+                    serviceIdentityId: "si_uuid123"
+                    clientId: "si_uuid123"
+                    expiresAt: "2027-04-20T10:00:00Z"
+                    revokedAt: null
+                    rotatedFromId: "cred_uuid111"
+                    lastUsedAt: null
+                    createdAt: "2026-04-27T09:00:00Z"
+                createdAt: "2026-04-20T10:00:00Z"
+                updatedAt: "2026-04-27T09:00:00Z"
+        '404':
+          description: Service identity not found
+    patch:
+      summary: Update service identity
+      tags: [Workload Identity]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
               properties:
                 name:
                   type: string
@@ -1621,35 +3145,18 @@ paths:
                   type: array
                   items:
                     type: string
-      responses:
-        '201':
-          description: Service identity created
-
-  /api/admin/service-identities/{id}:
-    get:
-      summary: Get service identity with credentials
-      tags: [Workload Identity]
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Service identity detail
-    patch:
-      summary: Update service identity
-      tags: [Workload Identity]
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
+                metadata:
+                  type: object
+                  additionalProperties: true
       responses:
         '200':
           description: Updated service identity
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceIdentity'
+        '404':
+          description: Service identity not found
     delete:
       summary: Delete service identity
       tags: [Workload Identity]
@@ -1661,7 +3168,9 @@ paths:
             type: string
       responses:
         '204':
-          description: Deleted
+          description: Service identity deleted successfully
+        '404':
+          description: Service identity not found
 
   /api/admin/service-identities/{id}/credentials:
     post:
@@ -1681,13 +3190,31 @@ paths:
               properties:
                 expiresInDays:
                   type: integer
+                  minimum: 1
+                  description: Number of days until credential expires (optional)
       responses:
         '201':
-          description: Credential issued with plainClientSecret (shown once)
+          description: Credential issued with plainClientSecret (shown once only)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceIdentityCredential'
+              example:
+                id: "cred_uuid112"
+                serviceIdentityId: "si_uuid123"
+                clientId: "si_uuid123"
+                plainClientSecret: "se4_c1i3nt_s3cr3t_abc123xyz789"
+                expiresAt: "2027-04-20T10:00:00Z"
+                revokedAt: null
+                rotatedFromId: null
+                lastUsedAt: null
+                createdAt: "2026-04-27T09:00:00Z"
+        '404':
+          description: Service identity not found
 
   /api/admin/service-identities/{id}/credentials/rotate:
     post:
-      summary: Rotate credential (issue + revoke old)
+      summary: Rotate credential (issue new + revoke old)
       tags: [Workload Identity]
       parameters:
         - in: path
@@ -1705,11 +3232,30 @@ paths:
               properties:
                 credentialId:
                   type: string
+                  description: Credential ID to rotate (revoke)
                 expiresInDays:
                   type: integer
+                  minimum: 1
+                  description: Number of days until new credential expires (optional)
       responses:
         '201':
-          description: New credential issued
+          description: New credential issued (old one revoked)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceIdentityCredential'
+              example:
+                id: "cred_uuid113"
+                serviceIdentityId: "si_uuid123"
+                clientId: "si_uuid123"
+                plainClientSecret: "se4_n3w_c1i3nt_s3cr3t_def456uvw012"
+                expiresAt: "2027-04-27T09:00:00Z"
+                revokedAt: null
+                rotatedFromId: "cred_uuid112"
+                lastUsedAt: null
+                createdAt: "2026-04-27T09:30:00Z"
+        '404':
+          description: Service identity or credential not found
 
   /api/admin/service-identities/{id}/credentials/{credentialId}:
     delete:
@@ -1728,11 +3274,13 @@ paths:
             type: string
       responses:
         '204':
-          description: Revoked
+          description: Credential revoked successfully
+        '404':
+          description: Service identity or credential not found
 
   /api/admin/service-identities/{id}/usage:
     get:
-      summary: Get credential usage for a service identity
+      summary: Get credential usage telemetry for a service identity
       tags: [Workload Identity]
       parameters:
         - in: path
@@ -1742,7 +3290,48 @@ paths:
             type: string
       responses:
         '200':
-          description: Credential usage telemetry
+          description: Credential usage statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  serviceIdentityId:
+                    type: string
+                  credentials:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        credentialId:
+                          type: string
+                        status:
+                          type: string
+                          enum: [active, revoked, expired]
+                        lastUsedAt:
+                          type: string
+                          format: date-time
+                          nullable: true
+                        usageCount:
+                          type: integer
+                        createdAt:
+                          type: string
+                          format: date-time
+              example:
+                serviceIdentityId: "si_uuid123"
+                credentials:
+                  - credentialId: "cred_uuid112"
+                    status: "active"
+                    lastUsedAt: "2026-04-26T15:30:00Z"
+                    usageCount: 245
+                    createdAt: "2026-04-27T09:00:00Z"
+                  - credentialId: "cred_uuid113"
+                    status: "active"
+                    lastUsedAt: null
+                    usageCount: 0
+                    createdAt: "2026-04-27T09:30:00Z"
+        '404':
+          description: Service identity not found
 
   /api/admin/connectors:
     get:
@@ -1750,7 +3339,23 @@ paths:
       tags: [Connectors]
       responses:
         '200':
-          description: Connector list
+          description: List of all configured connectors with current status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Connector'
+              example:
+                - id: "conn_uuid001"
+                  name: "LDAP Production"
+                  type: "ldap"
+                  status: "active"
+                  config: { "host": "ldap.company.com", "port": 389, "baseDn": "dc=company,dc=com" }
+                  schedule: "0 */6 * * *"
+                  lastSyncAt: "2026-04-27T06:00:00Z"
+                  createdAt: "2026-04-01T10:00:00Z"
+                  updatedAt: "2026-04-27T09:00:00Z"
     post:
       summary: Create connector
       tags: [Connectors]
@@ -1764,20 +3369,39 @@ paths:
               properties:
                 name:
                   type: string
+                  description: Human-readable connector name
                 type:
                   type: string
                   enum: [ldap, scim, csv, sql, custom]
+                  description: Connector type
                 config:
                   type: object
+                  additionalProperties: true
+                  description: Connector-specific configuration
                 schedule:
                   type: string
+                  description: Optional cron expression for scheduled syncs
       responses:
         '201':
-          description: Connector created
+          description: Connector created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Connector'
+              example:
+                id: "conn_uuid001"
+                name: "LDAP Production"
+                type: "ldap"
+                status: "active"
+                config: { "host": "ldap.company.com", "port": 389, "baseDn": "dc=company,dc=com" }
+                schedule: "0 */6 * * *"
+                lastSyncAt: null
+                createdAt: "2026-04-27T10:00:00Z"
+                updatedAt: "2026-04-27T10:00:00Z"
 
   /api/admin/connectors/{id}:
     get:
-      summary: Get connector
+      summary: Get connector details
       tags: [Connectors]
       parameters:
         - in: path
@@ -1787,11 +3411,25 @@ paths:
             type: string
       responses:
         '200':
-          description: Connector detail
+          description: Connector configuration and status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Connector'
+              example:
+                id: "conn_uuid001"
+                name: "LDAP Production"
+                type: "ldap"
+                status: "active"
+                config: { "host": "ldap.company.com", "port": 389, "baseDn": "dc=company,dc=com" }
+                schedule: "0 */6 * * *"
+                lastSyncAt: "2026-04-27T06:00:00Z"
+                createdAt: "2026-04-01T10:00:00Z"
+                updatedAt: "2026-04-27T09:00:00Z"
         '404':
           description: Connector not found
     patch:
-      summary: Update connector
+      summary: Update connector configuration
       tags: [Connectors]
       parameters:
         - in: path
@@ -1816,11 +3454,16 @@ paths:
                   enum: [active, inactive, error]
                 config:
                   type: object
+                  additionalProperties: true
                 schedule:
                   type: string
       responses:
         '200':
-          description: Updated connector
+          description: Connector updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Connector'
         '404':
           description: Connector not found
     delete:
@@ -1834,11 +3477,13 @@ paths:
             type: string
       responses:
         '204':
-          description: Connector deleted
+          description: Connector deleted successfully
+        '404':
+          description: Connector not found
 
   /api/admin/connectors/{id}/sync:
     post:
-      summary: Trigger connector sync
+      summary: Trigger connector sync immediately
       tags: [Connectors]
       parameters:
         - in: path
@@ -1848,15 +3493,30 @@ paths:
             type: string
       responses:
         '202':
-          description: Connector sync run accepted
+          description: Connector sync job accepted and queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runId:
+                    type: string
+                    description: Sync run identifier
+                  status:
+                    type: string
+                    enum: [pending]
+                    description: Run was queued and is pending execution
+              example:
+                runId: "run_uuid999"
+                status: "pending"
         '400':
-          description: Connector inactive
+          description: Connector is inactive and cannot be synced
         '404':
           description: Connector not found
 
   /api/admin/connectors/{id}/runs:
     get:
-      summary: List connector runs
+      summary: List connector sync runs and history
       tags: [Connectors]
       parameters:
         - in: path
@@ -1870,15 +3530,36 @@ paths:
           schema:
             type: integer
             minimum: 1
+            default: 50
       responses:
         '200':
-          description: Connector run history
+          description: List of connector run history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConnectorRun'
+              example:
+                - id: "run_uuid999"
+                  connectorId: "conn_uuid001"
+                  status: "succeeded"
+                  startedAt: "2026-04-27T06:00:00Z"
+                  completedAt: "2026-04-27T06:15:00Z"
+                  error: null
+                  usersCreated: 5
+                  usersUpdated: 12
+                  usersDeleted: 0
+                  groupsCreated: 1
+                  groupsUpdated: 3
+                  groupsDeleted: 0
+                  createdAt: "2026-04-27T06:00:00Z"
         '404':
           description: Connector not found
 
   /api/admin/connectors/{id}/mappings:
     get:
-      summary: List connector mappings
+      summary: List all attribute mappings for connector
       tags: [Connectors]
       parameters:
         - in: path
@@ -1888,11 +3569,30 @@ paths:
             type: string
       responses:
         '200':
-          description: Connector field mappings
+          description: List of field mappings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConnectorMapping'
+              example:
+                - id: "map_uuid001"
+                  connectorId: "conn_uuid001"
+                  sourceField: "givenName"
+                  targetField: "givenName"
+                  transform: null
+                  createdAt: "2026-04-01T10:00:00Z"
+                - id: "map_uuid002"
+                  connectorId: "conn_uuid001"
+                  sourceField: "mail"
+                  targetField: "email"
+                  transform: "lowercase"
+                  createdAt: "2026-04-01T10:00:00Z"
         '404':
           description: Connector not found
     post:
-      summary: Create connector mapping
+      summary: Create attribute mapping for connector
       tags: [Connectors]
       parameters:
         - in: path
@@ -1910,19 +3610,33 @@ paths:
               properties:
                 sourceField:
                   type: string
+                  description: Source field from connector
                 targetField:
                   type: string
+                  description: Target user/group attribute
                 transform:
                   type: string
+                  description: Optional transformation expression
       responses:
         '201':
-          description: Connector mapping created
+          description: Mapping created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectorMapping'
+              example:
+                id: "map_uuid003"
+                connectorId: "conn_uuid001"
+                sourceField: "telephoneNumber"
+                targetField: "phone"
+                transform: null
+                createdAt: "2026-04-27T10:00:00Z"
         '404':
           description: Connector not found
 
   /api/admin/connectors/{connectorId}/mappings/{mappingId}:
     delete:
-      summary: Delete connector mapping
+      summary: Delete attribute mapping
       tags: [Connectors]
       parameters:
         - in: path
@@ -1937,7 +3651,9 @@ paths:
             type: string
       responses:
         '204':
-          description: Connector mapping deleted
+          description: Mapping deleted successfully
+        '404':
+          description: Connector or mapping not found
 
   /api/admin/metrics/auth:
     get:
@@ -1961,7 +3677,25 @@ paths:
             type: string
       responses:
         '200':
-          description: Authentication metric rollups
+          description: Authentication metric rollups with timestamps and event counts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    timestamp:
+                      type: string
+                      format: date-time
+                    event:
+                      type: string
+                    count:
+                      type: integer
+                    successCount:
+                      type: integer
+                    failureCount:
+                      type: integer
 
   /oauth/token/exchange:
     post:
@@ -1988,7 +3722,22 @@ paths:
                   type: string
       responses:
         '200':
-          description: Exchanged access token
+          description: Exchanged access token for target audience
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [access_token, token_type, expires_in]
+                properties:
+                  access_token:
+                    type: string
+                  token_type:
+                    type: string
+                    enum: [Bearer]
+                  expires_in:
+                    type: integer
+                  scope:
+                    type: string
 
 components:
   schemas:
@@ -2149,6 +3898,542 @@ components:
         createdAt:
           type: string
           format: date-time
+    ServiceIdentity:
+      type: object
+      required: [id, name, status, allowedScopes, allowedAudiences, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          description: Unique service identity identifier
+        name:
+          type: string
+          description: Human-readable name of the service identity
+        description:
+          type: string
+          nullable: true
+          description: Optional description
+        ownerId:
+          type: string
+          nullable: true
+          description: Owner user ID
+        appId:
+          type: string
+          nullable: true
+          description: Associated app ID
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+          description: Current status of the service identity
+        allowedScopes:
+          type: array
+          items:
+            type: string
+          description: List of OAuth scopes this service identity can request
+        allowedAudiences:
+          type: array
+          items:
+            type: string
+          description: List of allowed audience values for token validation
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Custom metadata object
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+    ServiceIdentityWithCredentials:
+      allOf:
+        - $ref: '#/components/schemas/ServiceIdentity'
+        - type: object
+          properties:
+            credentials:
+              type: array
+              items:
+                $ref: '#/components/schemas/ServiceIdentityCredential'
+              description: List of active credentials
+    ServiceIdentityCredential:
+      type: object
+      required: [id, serviceIdentityId, clientId, createdAt]
+      properties:
+        id:
+          type: string
+          description: Unique credential identifier
+        serviceIdentityId:
+          type: string
+          description: Associated service identity ID
+        clientId:
+          type: string
+          description: OAuth client identifier (machine username)
+        clientSecretHash:
+          type: string
+          description: Hashed client secret (not exposed in responses)
+        plainClientSecret:
+          type: string
+          description: Plain client secret (shown only once on creation/rotation)
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Expiration time if set
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Revocation time if revoked
+        rotatedFromId:
+          type: string
+          nullable: true
+          description: Previous credential ID if this was rotated from another
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last usage timestamp
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+    Connector:
+      type: object
+      required: [id, name, type, status, config, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          description: Unique connector identifier
+        name:
+          type: string
+          description: Human-readable connector name
+        type:
+          type: string
+          enum: [ldap, scim, csv, sql, custom]
+          description: Connector type
+        status:
+          type: string
+          enum: [active, inactive, error]
+          description: Current operational status
+        config:
+          type: object
+          additionalProperties: true
+          description: Connector-specific configuration
+        schedule:
+          type: string
+          nullable: true
+          description: Cron expression for scheduled syncs
+        lastSyncAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of last successful sync
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+    ConnectorRun:
+      type: object
+      required: [id, connectorId, status, createdAt]
+      properties:
+        id:
+          type: string
+          description: Unique run identifier
+        connectorId:
+          type: string
+          description: Associated connector ID
+        status:
+          type: string
+          enum: [pending, running, succeeded, failed, cancelled]
+          description: Current run status
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when run started
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when run completed
+        error:
+          type: string
+          nullable: true
+          description: Error message if run failed
+        usersCreated:
+          type: integer
+          description: Number of users created
+        usersUpdated:
+          type: integer
+          description: Number of users updated
+        usersDeleted:
+          type: integer
+          description: Number of users deleted
+        groupsCreated:
+          type: integer
+          description: Number of groups created
+        groupsUpdated:
+          type: integer
+          description: Number of groups updated
+        groupsDeleted:
+          type: integer
+          description: Number of groups deleted
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+    ConnectorMapping:
+      type: object
+      required: [id, connectorId, sourceField, targetField]
+      properties:
+        id:
+          type: string
+          description: Unique mapping identifier
+        connectorId:
+          type: string
+          description: Associated connector ID
+        sourceField:
+          type: string
+          description: Source field name from connector
+        targetField:
+          type: string
+          description: Target user/group attribute
+        transform:
+          type: string
+          nullable: true
+          description: Optional transformation expression
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+    AccessRequest:
+      type: object
+      required: [id, requesterId, subjectUserId, entitlementType, status, createdAt]
+      properties:
+        id:
+          type: string
+          description: Unique request identifier
+        requesterId:
+          type: string
+          description: User ID who created the request
+        subjectUserId:
+          type: string
+          description: User ID requesting access
+        entitlementType:
+          type: string
+          description: Type of entitlement (e.g., role, group)
+        entitlementValue:
+          type: string
+          description: Value of the entitlement being requested
+        status:
+          type: string
+          enum: [pending, approved, rejected, expired, cancelled]
+          description: Current request status
+        justification:
+          type: string
+          description: Reason for the access request
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Expiration time for the requested access
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+    AccessReviewCampaign:
+      type: object
+      required: [id, name, status, createdByUserId, createdAt]
+      properties:
+        id:
+          type: string
+          description: Unique campaign identifier
+        name:
+          type: string
+          description: Campaign name
+        description:
+          type: string
+          nullable: true
+          description: Optional campaign description
+        status:
+          type: string
+          enum: [active, closed]
+          description: Campaign status
+        createdByUserId:
+          type: string
+          description: User ID who created the campaign
+        dueAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Optional due date for reviews
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+    AccessReviewItem:
+      type: object
+      required: [id, campaignId, subjectUserId, entitlementType, entitlementValue, currentState, createdAt]
+      properties:
+        id:
+          type: string
+          description: Unique review item identifier
+        campaignId:
+          type: string
+          description: Associated campaign ID
+        subjectUserId:
+          type: string
+          description: User being reviewed
+        entitlementType:
+          type: string
+          enum: [role, group]
+          description: Type of entitlement
+        entitlementValue:
+          type: string
+          description: Entitlement identifier
+        currentState:
+          type: string
+          enum: [granted]
+          description: Current state of the entitlement
+        decision:
+          type: string
+          enum: [certified, revoked]
+          nullable: true
+          description: Reviewer decision
+        decidedByUserId:
+          type: string
+          nullable: true
+          description: User ID of reviewer
+        decisionRationale:
+          type: string
+          nullable: true
+          description: Explanation for the decision
+        decidedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of decision
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+    ElevationRequest:
+      type: object
+      required: [id, correlationId, requesterId, justification, resource, action, status, createdAt]
+      properties:
+        id:
+          type: string
+          description: Unique request identifier
+        correlationId:
+          type: string
+          description: Correlation ID for audit trail stitching
+        requesterId:
+          type: string
+          description: User ID requesting elevation
+        justification:
+          type: string
+          description: Justification for the elevation request
+        resource:
+          type: string
+          description: Resource requiring privileged access
+        action:
+          type: string
+          description: Action requiring elevation
+        status:
+          type: string
+          enum: [pending, approved, active, revoked, expired]
+          description: Current request status
+        approvedByUserId:
+          type: string
+          nullable: true
+          description: User ID of approver
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Approval timestamp
+        activatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Activation timestamp
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Expiration timestamp
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Revocation timestamp
+        revokedByUserId:
+          type: string
+          nullable: true
+          description: User ID who revoked
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+    ElevationSession:
+      type: object
+      required: [id, correlationId, elevationRequestId, requesterId, resource, action, status, startedAt, expiresAt, createdAt]
+      properties:
+        id:
+          type: string
+          description: Unique session identifier
+        correlationId:
+          type: string
+          description: Correlation ID for audit stitching
+        elevationRequestId:
+          type: string
+          description: Associated elevation request ID
+        requesterId:
+          type: string
+          description: User ID of elevated session owner
+        resource:
+          type: string
+          description: Resource with elevation
+        action:
+          type: string
+          description: Elevated action
+        status:
+          type: string
+          enum: [active, revoked, expired]
+          description: Current session status
+        startedAt:
+          type: string
+          format: date-time
+          description: Session start timestamp
+        expiresAt:
+          type: string
+          format: date-time
+          description: Hard expiry timestamp
+        endedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Session end timestamp
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+    OAuthClient:
+      type: object
+      required: [id, name, secret, redirectUris, allowedScopes, grants, createdAt]
+      properties:
+        id:
+          type: string
+          description: Unique client identifier
+        appId:
+          type: string
+          nullable: true
+          description: Associated app ID
+        name:
+          type: string
+          description: Human-readable client name
+        secret:
+          type: string
+          description: Client secret (shown once on creation)
+        redirectUris:
+          type: array
+          items:
+            type: string
+            format: uri
+          description: Authorized redirect URIs
+        allowedScopes:
+          type: array
+          items:
+            type: string
+          description: Allowed OAuth scopes
+        grants:
+          type: array
+          items:
+            type: string
+          description: Allowed grant types
+        requirePkce:
+          type: boolean
+          description: Whether PKCE is required
+        resources:
+          type: array
+          items:
+            type: string
+          description: Associated resources
+        flowIds:
+          type: array
+          items:
+            type: string
+          description: Associated authentication flow IDs
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+    BreakGlassElevationResponse:
+      type: object
+      required: [breakGlassId, request, session]
+      properties:
+        breakGlassId:
+          type: string
+          description: Unique break-glass event identifier
+        request:
+          type: object
+          required: [id, status, correlationId, resource, action, expiresAt]
+          properties:
+            id:
+              type: string
+            status:
+              type: string
+              enum: [active]
+            correlationId:
+              type: string
+            resource:
+              type: string
+            action:
+              type: string
+            expiresAt:
+              type: string
+              format: date-time
+        session:
+          type: object
+          required: [id, status, startedAt, expiresAt]
+          properties:
+            id:
+              type: string
+            status:
+              type: string
+              enum: [active]
+            startedAt:
+              type: string
+              format: date-time
+            expiresAt:
+              type: string
+              format: date-time
   securitySchemes:
     bearerAuth:
       type: http

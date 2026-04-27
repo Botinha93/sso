@@ -1,5 +1,8 @@
 import { Fragment, useDeferredValue, useMemo, useState } from 'react'
 import { BookText, Code2, Search, Server } from 'lucide-react'
+import { parse } from 'yaml'
+
+import openApiSource from '../../../openapi.yaml?raw'
 
 type DocArea = 'api' | 'admin' | 'dev'
 
@@ -15,6 +18,43 @@ interface ApiEndpointDocs {
   requestJson?: string
   expectedResponse: string
   notes?: string[]
+}
+
+interface OpenApiSpec {
+  paths?: Record<string, Record<string, OpenApiOperation>>
+  components?: {
+    schemas?: Record<string, unknown>
+  }
+}
+
+interface OpenApiOperation {
+  summary?: string
+  description?: string
+  parameters?: Array<{
+    in?: string
+    name?: string
+    required?: boolean
+    description?: string
+    schema?: Record<string, unknown>
+  }>
+  requestBody?: {
+    description?: string
+    required?: boolean
+    content?: Record<string, Record<string, unknown>>
+  }
+  responses?: Record<string, {
+    description?: string
+    content?: Record<string, Record<string, unknown>>
+  }>
+  security?: Array<Record<string, string[]>>
+  tags?: string[]
+}
+
+interface OpenApiEndpointDocs {
+  parameters: string[]
+  requestBody?: string
+  responses?: string
+  notes: string[]
 }
 
 interface TutorialSection {
@@ -58,6 +98,8 @@ const matchesSearch = (needle: string, values: Array<string | undefined>) => {
 
   return values.some((value) => value?.toLowerCase().includes(needle))
 }
+
+const OPENAPI_SPEC = parse(openApiSource) as OpenApiSpec
 
 const API_ROUTES: ApiRoute[] = [
   { method: 'GET', path: '/health', auth: 'public', description: 'Health probe for service status and timestamp.' },
@@ -2640,6 +2682,154 @@ function prettyJson(value: unknown) {
   return JSON.stringify(value, null, 2)
 }
 
+function normalizeOpenApiPath(path: string) {
+  return path.replace(/:([a-zA-Z0-9_]+)/g, '{$1}')
+}
+
+function schemaTypeLabel(schema: Record<string, unknown> | undefined) {
+  const type = typeof schema?.type === 'string' ? schema.type : undefined
+  if (type) return type
+  if (schema?.$ref) return 'object'
+  return undefined
+}
+
+function resolveRef(ref: string) {
+  const match = ref.match(/^#\/components\/schemas\/(.+)$/)
+  if (!match) return undefined
+  return OPENAPI_SPEC.components?.schemas?.[match[1]]
+}
+
+function materializeSchema(schema: unknown, seen = new Set<string>()): unknown {
+  if (!schema || typeof schema !== 'object') return schema
+
+  if ('$ref' in schema && typeof schema.$ref === 'string') {
+    if (seen.has(schema.$ref)) {
+      return { $ref: schema.$ref }
+    }
+    const resolved = resolveRef(schema.$ref)
+    if (!resolved) {
+      return { $ref: schema.$ref }
+    }
+    const nextSeen = new Set(seen)
+    nextSeen.add(schema.$ref)
+    return materializeSchema(resolved, nextSeen)
+  }
+
+  if (Array.isArray(schema)) {
+    return schema.map((item) => materializeSchema(item, seen))
+  }
+
+  const record = schema as Record<string, unknown>
+  const output: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(record)) {
+    if (key === 'properties' && value && typeof value === 'object' && !Array.isArray(value)) {
+      output[key] = Object.fromEntries(
+        Object.entries(value).map(([propertyName, propertySchema]) => [propertyName, materializeSchema(propertySchema, seen)])
+      )
+      continue
+    }
+    if (key === 'items') {
+      output[key] = materializeSchema(value, seen)
+      continue
+    }
+    if (key === 'allOf' || key === 'oneOf' || key === 'anyOf') {
+      output[key] = Array.isArray(value) ? value.map((item) => materializeSchema(item, seen)) : value
+      continue
+    }
+    output[key] = value
+  }
+  return output
+}
+
+function firstExample(content?: Record<string, Record<string, unknown>>) {
+  if (!content) return undefined
+
+  for (const [contentType, media] of Object.entries(content)) {
+    if (media.example !== undefined) {
+      return { contentType, value: media.example }
+    }
+    if (media.examples && typeof media.examples === 'object') {
+      const first = Object.values(media.examples)[0]
+      if (first && typeof first === 'object') {
+        const exampleRecord = first as Record<string, unknown>
+        if (exampleRecord.value !== undefined) {
+          return { contentType, value: exampleRecord.value }
+        }
+        if (exampleRecord.example !== undefined) {
+          return { contentType, value: exampleRecord.example }
+        }
+      }
+    }
+    if (media.schema && typeof media.schema === 'object') {
+      const schema = media.schema as Record<string, unknown>
+      if (schema.example !== undefined) {
+        return { contentType, value: schema.example }
+      }
+      return { contentType, value: materializeSchema(schema) }
+    }
+  }
+
+  return undefined
+}
+
+function formatOpenApiParameters(operation?: OpenApiOperation) {
+  if (!operation?.parameters?.length) return []
+
+  return operation.parameters.map((parameter) => {
+    const location = parameter.in ? `${parameter.in[0].toUpperCase()}${parameter.in.slice(1)}` : 'Parameter'
+    const required = parameter.required ? 'required' : 'optional'
+    const type = schemaTypeLabel(parameter.schema)
+    const detail = [parameter.name, type ? `(${type}, ${required})` : `(${required})`, parameter.description]
+      .filter(Boolean)
+      .join(' ')
+    return `${location}: ${detail}`
+  })
+}
+
+function formatRequestBody(operation?: OpenApiOperation) {
+  const example = firstExample(operation?.requestBody?.content)
+  if (!example) return undefined
+
+  return `${example.contentType}\n${prettyJson(example.value)}`
+}
+
+function formatResponses(operation?: OpenApiOperation) {
+  if (!operation?.responses) return undefined
+
+  const blocks = Object.entries(operation.responses).map(([status, response]) => {
+    const example = firstExample(response.content)
+    const lines = [`${status} ${response.description ?? 'Response'}`]
+    if (example) {
+      lines.push(example.contentType)
+      lines.push(prettyJson(example.value))
+    }
+    return lines.join('\n')
+  })
+
+  return blocks.join('\n\n')
+}
+
+function openApiEndpointDocs(route: ApiRoute): OpenApiEndpointDocs | null {
+  const path = normalizeOpenApiPath(route.path)
+  const operation = OPENAPI_SPEC.paths?.[path]?.[route.method.toLowerCase()]
+  if (!operation) return null
+
+  const notes: string[] = []
+  if (operation.summary) notes.push(`Summary: ${operation.summary}`)
+  if (operation.description) notes.push(operation.description)
+  if (operation.tags?.length) notes.push(`Tags: ${operation.tags.join(', ')}`)
+  if (operation.security?.length) {
+    notes.push(`Security: ${operation.security.map((entry) => Object.keys(entry).join(', ')).join(' | ')}`)
+  }
+
+  return {
+    parameters: formatOpenApiParameters(operation),
+    requestBody: formatRequestBody(operation),
+    responses: formatResponses(operation),
+    notes
+  }
+}
+
 function endpointDocs(route: ApiRoute): ApiEndpointDocs {
   const idParam = route.path.includes(':id')
   const credentialIdParam = route.path.includes(':credentialId')
@@ -4173,6 +4363,10 @@ function ApiDocs() {
           This catalog reflects all accessible endpoints currently exposed by the platform, including OAuth2/OIDC protocol routes,
           admin APIs, portal APIs, and compatibility routes.
         </p>
+        <p className="mt-2 text-sm text-slate-600">
+          Request and response panels below now prefer the authoritative OpenAPI contract from <span className="font-mono">openapi.yaml</span>,
+          with the existing operator notes retained as supplemental context.
+        </p>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
           <input
             value={query}
@@ -4213,7 +4407,12 @@ function ApiDocs() {
             {filtered.map((route) => {
               const key = `${route.method}:${route.path}`
               const docs = endpointDocs(route)
+              const specDocs = openApiEndpointDocs(route)
               const isOpen = expandedRoute === key
+              const parameters = Array.from(new Set([...(specDocs?.parameters ?? []), ...docs.parameters]))
+              const requestBody = specDocs?.requestBody ?? docs.requestJson
+              const responses = specDocs?.responses ?? docs.expectedResponse
+              const notes = Array.from(new Set([...(specDocs?.notes ?? []), ...(docs.notes ?? [])]))
               return (
                 <Fragment key={key}>
                   <tr key={key} className="border-t border-slate-100 align-top">
@@ -4238,9 +4437,9 @@ function ApiDocs() {
                         <div className="grid gap-4 lg:grid-cols-1">
                           <div>
                             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Parameters</p>
-                            {docs.parameters.length ? (
+                            {parameters.length ? (
                               <ul className="mt-2 space-y-1 text-xs text-slate-700">
-                                {docs.parameters.map((param) => (
+                                {parameters.map((param) => (
                                   <li key={param}>{param}</li>
                                 ))}
                               </ul>
@@ -4249,18 +4448,18 @@ function ApiDocs() {
                             )}
                           </div>
                           <div>
-                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Request JSON</p>
-                            <pre className="mt-2 overflow-auto rounded-lg border border-slate-200 bg-white p-3 text-[11px] text-slate-700">{docs.requestJson ?? 'N/A for this endpoint'}</pre>
+                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Request Body</p>
+                            <pre className="mt-2 overflow-auto rounded-lg border border-slate-200 bg-white p-3 text-[11px] text-slate-700">{requestBody ?? 'N/A for this endpoint'}</pre>
                           </div>
                           <div>
-                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Expected Response</p>
-                            <pre className="mt-2 overflow-auto rounded-lg border border-slate-200 bg-white p-3 text-[11px] text-slate-700">{docs.expectedResponse}</pre>
+                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Responses</p>
+                            <pre className="mt-2 overflow-auto rounded-lg border border-slate-200 bg-white p-3 text-[11px] text-slate-700">{responses}</pre>
                           </div>
-                          {docs.notes?.length ? (
+                          {notes.length ? (
                             <div>
                               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Notes</p>
                               <ul className="mt-2 space-y-1 text-xs text-slate-700">
-                                {docs.notes.map((note) => (
+                                {notes.map((note) => (
                                   <li key={note}>{note}</li>
                                 ))}
                               </ul>
