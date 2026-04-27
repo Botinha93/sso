@@ -20,6 +20,18 @@ This repository provides a first-party identity platform aligned with OAuth 2.0 
 - User federation, authentication flows, policies, events/hooks, and audit logs
 - Multi-app assignments for users and groups, including user app access inherited from group membership
 
+## SDKs
+
+- TypeScript SDK: `sdk/`
+- Python SDK: `sdk-python/`
+
+Quick checks:
+
+```bash
+npm run check:sdk
+npm run check:sdk:python
+```
+
 ## Quick start
 
 1. Install dependencies:

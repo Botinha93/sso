@@ -6,3 +6,8 @@ data/
 .github/
 bundle/
 /src/generated/prisma
+__pycache__/
+*.pyc
+sdk-python/dist/
+sdk-python/.pytest_cache/
+sdk-python/.ruff_cache/
