@@ -426,7 +426,7 @@ class GetApiPortalMeResponse200AppsItem(TypedDict):
     icon: NotRequired[str | None]
 
 class GetOauthAuthorizeQueryParams(TypedDict):
-    response_type: Literal["code", "token", "code token"]
+    response_type: Literal["code", "token", "code token", "code id_token", "id_token token", "code id_token token"]
     client_id: str
     redirect_uri: str
     scope: str
@@ -927,7 +927,7 @@ class PostConnectRegisterRequestBody(TypedDict):
     client_name: str
     redirect_uris: list[str]
     grant_types: NotRequired[list[Literal["authorization_code", "client_credentials", "refresh_token", "password", "device_code", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"]]]
-    response_types: NotRequired[list[Literal["code", "token", "code token"]]]
+    response_types: NotRequired[list[Literal["code", "token", "code token", "code id_token", "id_token token", "code id_token token"]]]
     scope: NotRequired[str]
 
 class PostConnectRegisterResponse201(TypedDict):

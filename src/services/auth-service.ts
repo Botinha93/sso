@@ -39,6 +39,9 @@ interface CibaAuthorizationRecord {
   scope: string[];
   loginHint: string;
   bindingMessage?: string;
+  deliveryMode: "poll" | "ping" | "push";
+  clientNotificationEndpoint?: string;
+  clientNotificationToken?: string;
   userCode?: string;
   createdAt: Date;
   expiresAt: Date;
@@ -517,6 +520,9 @@ export class AuthService {
     clientSecret: string;
     loginHint: string;
     scope?: string;
+    requestedDeliveryMode?: "poll" | "ping" | "push";
+    clientNotificationEndpoint?: string;
+    clientNotificationToken?: string;
     bindingMessage?: string;
     userCode?: string;
   }) {
@@ -533,6 +539,12 @@ export class AuthService {
 
     const requestedScope = input.scope ? input.scope.split(" ") : client.allowedScopes;
     const allowedScope = requestedScope.filter((scope) => client.allowedScopes.includes(scope));
+    const deliveryMode = input.requestedDeliveryMode ?? "poll";
+
+    if ((deliveryMode === "ping" || deliveryMode === "push") && !input.clientNotificationEndpoint) {
+      throw new ValidationError("client_notification_endpoint is required for CIBA ping/push delivery mode");
+    }
+
     const authReqId = nanoid(56);
     const expiresIn = 600;
     const interval = 5;
@@ -543,6 +555,9 @@ export class AuthService {
       scope: allowedScope,
       loginHint: input.loginHint.trim(),
       bindingMessage: input.bindingMessage,
+      deliveryMode,
+      clientNotificationEndpoint: input.clientNotificationEndpoint,
+      clientNotificationToken: input.clientNotificationToken,
       userCode: input.userCode,
       createdAt: new Date(),
       expiresAt: new Date(Date.now() + expiresIn * 1000),
@@ -553,7 +568,8 @@ export class AuthService {
     return {
       auth_req_id: authReqId,
       expires_in: expiresIn,
-      interval
+      interval,
+      requested_delivery_mode: deliveryMode
     };
   }
 
@@ -584,8 +600,37 @@ export class AuthService {
       return { status: "denied" as const };
     }
 
+    if (record.deliveryMode === "push") {
+      const client = await this.requireClient(record.clientId);
+      const token = await this.issueUserScopedAccessToken({
+        user,
+        client,
+        scope: record.scope,
+        grant: "ciba"
+      });
+
+      record.status = "consumed";
+      record.userId = user.id;
+
+      await this.sendCibaClientNotification(record, {
+        event: "ciba_push",
+        auth_req_id: record.authReqId,
+        ...token
+      });
+
+      return { status: "approved" as const };
+    }
+
     record.status = "approved";
     record.userId = user.id;
+
+    if (record.deliveryMode === "ping") {
+      await this.sendCibaClientNotification(record, {
+        event: "ciba_ping",
+        auth_req_id: record.authReqId
+      });
+    }
+
     return { status: "approved" as const };
   }
 
@@ -619,6 +664,10 @@ export class AuthService {
     if (record.expiresAt.getTime() < Date.now()) {
       this.cibaAuthorizations.delete(input.authReqId);
       return { error: "expired_token", error_description: "auth_req_id has expired" } as const;
+    }
+
+    if (record.deliveryMode === "push") {
+      return { error: "invalid_grant", error_description: "auth_req_id is configured for push delivery mode" } as const;
     }
 
     const now = Date.now();
@@ -982,6 +1031,32 @@ export class AuthService {
     };
   }
 
+  async issueFrontChannelIdToken(input: {
+    userId: string;
+    clientId: string;
+    nonce: string;
+  }) {
+    await this.authenticationFlowService.assertGrantSupported("authorization_code");
+
+    const user = await this.userService.findUserById(input.userId);
+    if (!user || !user.active) {
+      throw new AuthenticationError("User is not available for ID token flow");
+    }
+
+    const client = await this.requireClient(input.clientId);
+    await this.assertClientSupportsActiveFlow(client);
+
+    if (!client.grants.includes("authorization_code")) {
+      throw new AuthenticationError("Client does not support authorization_code grant");
+    }
+
+    return await this.jwtService.issueIdToken({
+      user,
+      client,
+      nonce: input.nonce
+    });
+  }
+
   private async issueUserScopedAccessToken(input: {
     user: User;
     client: OAuthClient;
@@ -1054,6 +1129,34 @@ export class AuthService {
       return { active: true, ...payload };
     } catch {
       return { active: false };
+    }
+  }
+
+  private async sendCibaClientNotification(record: CibaAuthorizationRecord, payload: Record<string, unknown>) {
+    if (!record.clientNotificationEndpoint) {
+      return;
+    }
+
+    const headers: Record<string, string> = {
+      "content-type": "application/json"
+    };
+
+    if (record.clientNotificationToken) {
+      headers.authorization = `Bearer ${record.clientNotificationToken}`;
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      await fetch(record.clientNotificationEndpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+    } catch {
+      // Notification delivery is best-effort; clients can still complete via token polling when applicable.
     }
   }
 

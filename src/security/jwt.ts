@@ -130,6 +130,30 @@ export class JwtService {
     };
   }
 
+  async issueIdToken(params: {
+    user: User;
+    client: OAuthClient;
+    nonce?: string;
+  }) {
+    const { user, client, nonce } = params;
+    const now = Math.floor(Date.now() / 1000);
+
+    return await new SignJWT({
+      email: user.email,
+      preferred_username: user.username,
+      given_name: user.givenName,
+      family_name: user.familyName,
+      nonce
+    })
+      .setProtectedHeader({ alg: "RS256", kid: this.keys.kid })
+      .setIssuer(this.appConfig.issuer)
+      .setAudience(client.id)
+      .setSubject(user.id)
+      .setIssuedAt(now)
+      .setExpirationTime(now + this.appConfig.ttl.idTokenSeconds)
+      .sign(this.keys.privateKey);
+  }
+
   getJwks() {
     return {
       keys: [this.keys.jwk]

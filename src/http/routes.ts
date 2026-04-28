@@ -918,9 +918,19 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       return reply.redirect(redirectUrl.toString());
     }
 
-    const responseMode = input.response_mode ?? "query";
-    const params: Record<string, string> = {};
     const responseTypes = new Set(input.response_type.split(" ").map((value) => value.trim()).filter(Boolean));
+    const hasFrontChannelToken = responseTypes.has("token") || responseTypes.has("id_token");
+    const responseMode = input.response_mode ?? (hasFrontChannelToken ? "fragment" : "query");
+
+    if (hasFrontChannelToken && responseMode === "query") {
+      return reply.status(400).send({ error: "invalid_request", error_description: "response_mode=query is not allowed for token or id_token responses" });
+    }
+
+    if (responseTypes.has("id_token") && !input.nonce) {
+      return reply.status(400).send({ error: "invalid_request", error_description: "nonce is required when response_type includes id_token" });
+    }
+
+    const params: Record<string, string> = {};
 
     if (responseTypes.has("code")) {
       const authorizationCode = await deps.authService.createAuthorizationCode({
@@ -950,7 +960,16 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       params.scope = token.scope;
     }
 
-    if (!responseTypes.has("code") && !responseTypes.has("token")) {
+    if (responseTypes.has("id_token")) {
+      const idToken = await deps.authService.issueFrontChannelIdToken({
+        userId: user.id,
+        clientId: input.client_id,
+        nonce: String(input.nonce)
+      });
+      params.id_token = idToken;
+    }
+
+    if (!responseTypes.has("code") && !responseTypes.has("token") && !responseTypes.has("id_token")) {
       return reply.status(400).send({ error: "unsupported_response_type", error_description: "Unsupported response_type" });
     }
 
@@ -1283,6 +1302,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       clientSecret: input.client_secret,
       loginHint: input.login_hint,
       scope: input.scope,
+      requestedDeliveryMode: input.requested_delivery_mode,
+      clientNotificationEndpoint: input.client_notification_endpoint,
+      clientNotificationToken: input.client_notification_token,
       bindingMessage: input.binding_message,
       userCode: input.user_code
     });

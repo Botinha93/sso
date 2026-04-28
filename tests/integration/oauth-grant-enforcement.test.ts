@@ -247,7 +247,7 @@ test("OAuth endpoint supports hybrid, jwt-bearer, saml2-bearer, and ciba grants"
       client_name: "Advanced Grants Client",
       redirect_uris: ["http://localhost:3000/callback"],
       grant_types: ["authorization_code", "jwt_bearer", "saml2_bearer", "ciba"],
-      response_types: ["code", "token", "code token"],
+      response_types: ["code", "token", "code token", "code id_token", "id_token token", "code id_token token"],
       scope: "openid profile email"
     }
   });
@@ -268,6 +268,37 @@ test("OAuth endpoint supports hybrid, jwt-bearer, saml2-bearer, and ciba grants"
   const hybridFragment = new URLSearchParams(hybridRedirect.split("#")[1] ?? "");
   assert.ok(hybridFragment.get("code"));
   assert.ok(hybridFragment.get("access_token"));
+
+  const hybridCodeIdToken = await app.inject({
+    method: "GET",
+    url: `/oauth/authorize?response_type=${encodeURIComponent("code id_token")}&response_mode=fragment&client_id=${encodeURIComponent(advancedClient.client_id)}&redirect_uri=${encodeURIComponent("http://localhost:3000/callback")}&scope=${encodeURIComponent("openid profile email")}&state=hybrid-idtoken-state&nonce=n-12345&consent=approve&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`,
+    headers: { cookie: sid }
+  });
+  assert.equal(hybridCodeIdToken.statusCode, 302);
+  const codeIdTokenFragment = new URLSearchParams(String(hybridCodeIdToken.headers.location).split("#")[1] ?? "");
+  assert.ok(codeIdTokenFragment.get("code"));
+  assert.ok(codeIdTokenFragment.get("id_token"));
+
+  const hybridIdTokenToken = await app.inject({
+    method: "GET",
+    url: `/oauth/authorize?response_type=${encodeURIComponent("id_token token")}&response_mode=fragment&client_id=${encodeURIComponent(advancedClient.client_id)}&redirect_uri=${encodeURIComponent("http://localhost:3000/callback")}&scope=${encodeURIComponent("openid profile email")}&state=hybrid-idtoken-token-state&nonce=n-67890&consent=approve&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`,
+    headers: { cookie: sid }
+  });
+  assert.equal(hybridIdTokenToken.statusCode, 302);
+  const idTokenTokenFragment = new URLSearchParams(String(hybridIdTokenToken.headers.location).split("#")[1] ?? "");
+  assert.ok(idTokenTokenFragment.get("id_token"));
+  assert.ok(idTokenTokenFragment.get("access_token"));
+
+  const hybridAll = await app.inject({
+    method: "GET",
+    url: `/oauth/authorize?response_type=${encodeURIComponent("code id_token token")}&response_mode=fragment&client_id=${encodeURIComponent(advancedClient.client_id)}&redirect_uri=${encodeURIComponent("http://localhost:3000/callback")}&scope=${encodeURIComponent("openid profile email")}&state=hybrid-all-state&nonce=n-abcdef&consent=approve&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`,
+    headers: { cookie: sid }
+  });
+  assert.equal(hybridAll.statusCode, 302);
+  const allFragment = new URLSearchParams(String(hybridAll.headers.location).split("#")[1] ?? "");
+  assert.ok(allFragment.get("code"));
+  assert.ok(allFragment.get("id_token"));
+  assert.ok(allFragment.get("access_token"));
 
   const subjectTokenResponse = await app.inject({
     method: "POST",
@@ -354,4 +385,83 @@ test("OAuth endpoint supports hybrid, jwt-bearer, saml2-bearer, and ciba grants"
   assert.equal(cibaTokenResponse.statusCode, 200);
   const cibaTokenPayload = cibaTokenResponse.json() as { access_token?: string };
   assert.ok(cibaTokenPayload.access_token);
+
+  const cibaPingResponse = await app.inject({
+    method: "POST",
+    url: "/oauth/ciba/authenticate",
+    payload: {
+      client_id: advancedClient.client_id,
+      client_secret: advancedClient.client_secret,
+      login_hint: admin.username,
+      requested_delivery_mode: "ping",
+      client_notification_endpoint: "https://client.example.com/ciba-notify"
+    }
+  });
+  assert.equal(cibaPingResponse.statusCode, 200);
+  const cibaPingPayload = cibaPingResponse.json() as { auth_req_id: string };
+
+  const cibaPingApproval = await app.inject({
+    method: "POST",
+    url: "/oauth/ciba/approve",
+    payload: {
+      auth_req_id: cibaPingPayload.auth_req_id,
+      username: admin.username,
+      password: admin.password,
+      approve: true
+    }
+  });
+  assert.equal(cibaPingApproval.statusCode, 200);
+
+  const cibaPingToken = await app.inject({
+    method: "POST",
+    url: "/oauth/token",
+    payload: {
+      grant_type: "urn:openid:params:grant-type:ciba",
+      auth_req_id: cibaPingPayload.auth_req_id,
+      client_id: advancedClient.client_id,
+      client_secret: advancedClient.client_secret
+    }
+  });
+  assert.equal(cibaPingToken.statusCode, 200);
+
+  const cibaPushResponse = await app.inject({
+    method: "POST",
+    url: "/oauth/ciba/authenticate",
+    payload: {
+      client_id: advancedClient.client_id,
+      client_secret: advancedClient.client_secret,
+      login_hint: admin.username,
+      requested_delivery_mode: "push",
+      client_notification_endpoint: "https://client.example.com/ciba-push"
+    }
+  });
+  assert.equal(cibaPushResponse.statusCode, 200);
+  const cibaPushPayload = cibaPushResponse.json() as { auth_req_id: string };
+
+  const cibaPushApproval = await app.inject({
+    method: "POST",
+    url: "/oauth/ciba/approve",
+    payload: {
+      auth_req_id: cibaPushPayload.auth_req_id,
+      username: admin.username,
+      password: admin.password,
+      approve: true
+    }
+  });
+  assert.equal(cibaPushApproval.statusCode, 200);
+
+  const cibaPushToken = await app.inject({
+    method: "POST",
+    url: "/oauth/token",
+    payload: {
+      grant_type: "urn:openid:params:grant-type:ciba",
+      auth_req_id: cibaPushPayload.auth_req_id,
+      client_id: advancedClient.client_id,
+      client_secret: advancedClient.client_secret
+    }
+  });
+  assert.equal(cibaPushToken.statusCode, 400);
+  const cibaPushTokenPayload = cibaPushToken.json() as { error: string; error_description?: string };
+  assert.equal(cibaPushTokenPayload.error, "invalid_grant");
+  assert.match(String(cibaPushTokenPayload.error_description), /push delivery mode/);
 });

@@ -6,7 +6,7 @@ export interface PKCEPair {
   codeVerifier: string;
 }
 
-export type OAuthResponseType = "code" | "token" | "code token";
+export type OAuthResponseType = "code" | "token" | "code token" | "code id_token" | "id_token token" | "code id_token token";
 
 export type OAuthScope = string | string[];
 

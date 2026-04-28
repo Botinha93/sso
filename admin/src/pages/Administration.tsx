@@ -533,7 +533,7 @@ export default function Administration() {
               <input type="checkbox" checked={form.allowImplicitFlow} onChange={(e) => setForm((v) => ({ ...v, allowImplicitFlow: e.target.checked }))} className={checkboxCls} />
               <div>
                 <p className="font-medium text-slate-900">Allow implicit flow</p>
-                <p className="mt-1 text-slate-600">Keeps <span className="font-mono">response_type=token</span> available. Disable this to remove the weaker implicit flow path.</p>
+                <p className="mt-1 text-slate-600">Keeps front-channel token responses available, including <span className="font-mono">response_type=token</span>, <span className="font-mono">id_token token</span>, and <span className="font-mono">code id_token token</span>. Disable this to remove weaker implicit and hybrid front-channel paths.</p>
               </div>
             </label>
 
@@ -749,7 +749,7 @@ export default function Administration() {
             <li>CORS origin policy is checked on the next browser preflight or cross-origin request.</li>
             <li>Cookie security changes affect the next issued CSRF or session cookie.</li>
             <li>Redirect URI and PKCE enforcement apply to subsequent client changes and authorize requests.</li>
-            <li>Disabling implicit flow immediately blocks new <span className="font-mono">response_type=token</span> authorize requests.</li>
+            <li>Disabling implicit flow immediately blocks new authorize requests that return front-channel tokens, including <span className="font-mono">response_type=token</span>, <span className="font-mono">id_token token</span>, and <span className="font-mono">code id_token token</span>.</li>
             <li>Lockout and anomaly thresholds are applied immediately to new authentication and session observation events.</li>
             <li>Database provider settings are persisted immediately and take effect once the backend storage rewrite path is activated.</li>
             <li>Email transport settings are used immediately for recovery and other email-driven flows.</li>

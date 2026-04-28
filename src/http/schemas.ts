@@ -160,7 +160,7 @@ export const webauthnLoginFinishSchema = z.object({
 });
 
 export const authorizeSchema = z.object({
-  response_type: z.enum(["code", "token", "code token"]),
+  response_type: z.enum(["code", "token", "code token", "code id_token", "id_token token", "code id_token token"]),
   client_id: z.string().min(2),
   redirect_uri: z.string().url(),
   scope: z.string().min(1),
@@ -277,6 +277,9 @@ export const cibaAuthenticationRequestSchema = z.object({
   client_secret: z.string().min(8),
   login_hint: z.string().min(1),
   scope: z.string().optional(),
+  requested_delivery_mode: z.enum(["poll", "ping", "push"]).default("poll"),
+  client_notification_endpoint: z.string().url().optional(),
+  client_notification_token: z.string().min(8).optional(),
   binding_message: z.string().min(1).max(120).optional(),
   user_code: z.string().min(4).max(20).optional()
 });
@@ -448,7 +451,7 @@ export const dynamicClientRegistrationSchema = z.object({
   client_name: z.string().min(2).default("dynamic-client"),
   redirect_uris: z.array(z.string().url()).min(1),
   grant_types: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"])).optional(),
-  response_types: z.array(z.enum(["code", "token", "code token"])).optional(),
+  response_types: z.array(z.enum(["code", "token", "code token", "code id_token", "id_token token", "code id_token token"])).optional(),
   scope: z.string().optional(),
   token_endpoint_auth_method: z.enum(["client_secret_post"]).default("client_secret_post")
 });

@@ -394,7 +394,7 @@ paths:
           name: response_type
           schema:
             type: string
-            enum: [code, token, "code token"]
+            enum: [code, token, "code token", "code id_token", "id_token token", "code id_token token"]
           required: true
         - in: query
           name: client_id
@@ -766,7 +766,7 @@ paths:
                   type: array
                   items:
                     type: string
-                    enum: [code, token, "code token"]
+                    enum: [code, token, "code token", "code id_token", "id_token token", "code id_token token"]
                 scope:
                   type: string
       responses:

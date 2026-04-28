@@ -111,11 +111,11 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'GET', path: '/.well-known/openid-configuration', auth: 'public', description: 'OIDC discovery metadata document.' },
   { method: 'GET', path: '/.well-known/jwks.json', auth: 'public', description: 'JWKS document for token signature verification.' },
   { method: 'POST', path: '/connect/register', auth: 'public', description: 'Dynamic client registration endpoint.' },
-  { method: 'GET', path: '/oauth/authorize', auth: 'session', description: 'Authorization endpoint for authorization code (PKCE), implicit compatibility, and hybrid code+token response type.' },
+  { method: 'GET', path: '/oauth/authorize', auth: 'session', description: 'Authorization endpoint for authorization code (PKCE), implicit compatibility, and OIDC hybrid response types (code token, code id_token, id_token token, code id_token token).' },
   { method: 'POST', path: '/oauth/token', auth: 'client', description: 'Shared token endpoint for authorization_code, refresh_token, client_credentials, password, device_code, jwt-bearer, saml2-bearer, and ciba grants.' },
   { method: 'POST', path: '/oauth/device/authorize', auth: 'client', description: 'Starts device authorization flow and returns user_code/device_code.' },
   { method: 'POST', path: '/oauth/device/verify', auth: 'public', description: 'User approval/denial endpoint for device flow verification.' },
-  { method: 'POST', path: '/oauth/ciba/authenticate', auth: 'client', description: 'Starts CIBA authentication and returns auth_req_id for polling mode.' },
+  { method: 'POST', path: '/oauth/ciba/authenticate', auth: 'client', description: 'Starts CIBA authentication and returns auth_req_id for poll, ping, or push delivery modes.' },
   { method: 'POST', path: '/oauth/ciba/approve', auth: 'public', description: 'Decoupled CIBA approval endpoint for authenticating and approving/denying an auth_req_id.' },
   { method: 'POST', path: '/oauth/introspect', auth: 'client', description: 'Token introspection endpoint.' },
   { method: 'POST', path: '/oauth/token/revoke', auth: 'client', description: 'RFC7009 token revocation endpoint.' },
@@ -550,7 +550,7 @@ const ADMIN_CONCEPT_GUIDES: ConceptGuide[] = [
       'Long-lived user sessions     | refresh_token                             | Rotate and revoke refresh tokens on risk events.',
       'OIDC-specific:',
       'OIDC code flow is authorization_code with openid scope and returns ID token from token endpoint.',
-      'Hybrid code+token response type and CIBA polling mode are supported for advanced enterprise scenarios.',
+      'OIDC hybrid response types (code token, code id_token, id_token token, code id_token token) and CIBA delivery modes (poll, ping, push) are supported for advanced enterprise scenarios.',
       'Legacy or specialized extensions:',
       'implicit is deprecated for new apps; use authorization_code + PKCE instead.',
       'password (ROPC) is deprecated and should be avoided except for constrained legacy migrations with compensating controls.',
@@ -1643,7 +1643,7 @@ const ENTITY_FIELD_TUTORIALS: EntityFieldGuide[] = [
       },
       {
         field: 'Allow Implicit Flow',
-        meaning: 'Controls whether the platform accepts implicit flow authorization requests.',
+        meaning: 'Controls whether the platform accepts authorize requests that return front-channel tokens (token/id_token implicit and hybrid variants).',
         recommendation: 'Disable unless an older integration still requires it and you accept the weaker model.'
       },
       {

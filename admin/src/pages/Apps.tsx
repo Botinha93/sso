@@ -131,30 +131,39 @@ const Apps = () => {
   const [appToEdit, setAppToEdit] = useState<AppItem | null>(null)
   const [appToDelete, setAppToDelete] = useState<AppItem | null>(null)
   const [formData, setFormData] = useState(EMPTY_FORM)
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
 
   const openCreate = () => {
     setFormData(EMPTY_FORM)
+    setSelectedImageFile(null)
     setCreateOpen(true)
   }
 
   const openEdit = (app: AppItem) => {
     setAppToEdit(app)
     setFormData({ name: app.name, description: app.description, icon: app.icon ?? '', imageUrl: app.imageUrl ?? '', url: app.url ?? '', resources: app.resources ?? [] })
+    setSelectedImageFile(null)
     setEditTab('details')
     setEditOpen(true)
   }
 
   const handleCreate = async () => {
     if (!formData.name) return
-    await createApp.mutateAsync({
+    const created = await createApp.mutateAsync({
       name: formData.name,
       description: formData.description,
       icon: formData.icon || undefined,
       imageUrl: formData.imageUrl || undefined,
       url: formData.url || undefined,
       resources: formData.resources,
-    })
+    }) as AppItem
+
+    if (selectedImageFile && created?.id) {
+      await uploadAppImage.mutateAsync({ appId: created.id, file: selectedImageFile })
+    }
+
     setCreateOpen(false)
+    setSelectedImageFile(null)
   }
 
   const handleUpdate = async () => {
@@ -213,24 +222,31 @@ const Apps = () => {
         />
       </div>
 
-      {appToEdit && (
-        <div>
-          <label className={labelCls}>Upload Image</label>
-          <input
-            type="file"
-            accept="image/*"
-            className={`${fieldCls} pt-1.5`}
-            onChange={async (event) => {
-              const file = event.target.files?.[0]
-              if (!file || !appToEdit) return
+      <div>
+        <label className={labelCls}>Upload Image</label>
+        <input
+          type="file"
+          accept="image/*"
+          className={`${fieldCls} pt-1.5`}
+          onChange={async (event) => {
+            const file = event.target.files?.[0]
+            if (!file) return
+
+            if (appToEdit) {
               const result = await uploadAppImage.mutateAsync({ appId: appToEdit.id, file }) as { imageUrl?: string }
               if (result?.imageUrl) {
                 setFormData((prev) => ({ ...prev, imageUrl: result.imageUrl }))
               }
-            }}
-          />
-        </div>
-      )}
+              return
+            }
+
+            setSelectedImageFile(file)
+          }}
+        />
+        {!appToEdit && selectedImageFile ? (
+          <p className="mt-1 text-xs text-slate-500">Selected: <span className="font-mono">{selectedImageFile.name}</span>. The image will upload automatically when you create the app.</p>
+        ) : null}
+      </div>
 
       <div>
         <label className={labelCls}>Default Images</label>
@@ -433,13 +449,13 @@ const Apps = () => {
         <div className="space-y-4">
           {renderAppForm()}
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setCreateOpen(false)} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">Cancel</button>
+            <button onClick={() => { setCreateOpen(false); setSelectedImageFile(null) }} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">Cancel</button>
             <button
               onClick={handleCreate}
-              disabled={createApp.isPending || !formData.name}
+              disabled={createApp.isPending || uploadAppImage.isPending || !formData.name}
               className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
             >
-              {createApp.isPending ? 'Creating...' : 'Create App'}
+              {createApp.isPending || uploadAppImage.isPending ? 'Creating...' : 'Create App'}
             </button>
           </div>
         </div>
