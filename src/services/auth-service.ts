@@ -368,12 +368,13 @@ export class AuthService {
     clientSecret: string;
     scope?: string;
   }) {
-    await this.authenticationFlowService.assertGrantSupported("client_credentials");
     const client = await this.clientRepository.findById(input.clientId);
 
     if (!client) {
       return this.issueServiceIdentityClientCredentialsTokens(input);
     }
+
+    await this.authenticationFlowService.assertGrantSupported("client_credentials");
 
     const authenticatedClient = await this.authenticateClient({
       clientId: input.clientId,

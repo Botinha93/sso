@@ -117,12 +117,23 @@ test("service identity credential repository parity: SQLite vs Prisma", async ()
   const sqliteConfig = makeConfig({ databaseProvider: "sqlite" });
   const sqliteRepos = await createRepositoryBundle(sqliteConfig);
 
-  // First create a service identity
-  const identity = await sqliteRepos.serviceIdentityRepository.create({
-    name: "test-cred-service",
-    status: "active",
-    allowedScopes: [],
-    allowedAudiences: []
+  // First create the backing non-human user principal.
+  const identity = await sqliteRepos.userRepository.create({
+    appIds: [],
+    directAppIds: [],
+    inheritedAppIds: [],
+    isServiceUser: true,
+    email: "test-cred-service@service.local",
+    username: "test-cred-service",
+    passwordHash: "disabled",
+    givenName: "test-cred-service",
+    familyName: "",
+    customAttributes: {
+      "si.allowedScopes": "[]",
+      "si.allowedAudiences": "[]",
+      "si.status": "active"
+    },
+    active: true
   });
 
   const credData = {

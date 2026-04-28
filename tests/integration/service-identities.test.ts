@@ -139,6 +139,24 @@ test("service identity CRUD and credential lifecycle", async (t) => {
 
   const credentialId = issued.credential.id;
 
+  const flowsResp = await app.inject({
+    method: "GET",
+    url: "/api/admin/authentication/flows",
+    headers: { cookie: authHeaders.cookie }
+  });
+  assert.equal(flowsResp.statusCode, 200);
+  const activeAuthenticationFlow = (flowsResp.json() as Array<{ id: string; enabled: boolean; designation: string; grantTypes: string[] }>)
+    .find((flow) => flow.enabled && flow.designation === "authentication");
+  assert.ok(activeAuthenticationFlow);
+
+  const restrictActiveFlowResp = await app.inject({
+    method: "PUT",
+    url: `/api/admin/authentication/flows/${activeAuthenticationFlow.id}`,
+    payload: { grantTypes: ["authorization_code"] },
+    headers: authHeaders
+  });
+  assert.equal(restrictActiveFlowResp.statusCode, 200);
+
   const tokenResp = await app.inject({
     method: "POST",
     url: "/oauth/token",
@@ -159,6 +177,14 @@ test("service identity CRUD and credential lifecycle", async (t) => {
   assert.equal(tokenClaims.service_identity_id, identity.id);
   assert.deepEqual(tokenClaims.roles?.sort(), ["report_operator", "report_reader"]);
   assert.deepEqual(tokenClaims.permissions?.sort(), ["reports:operate", "reports:read"]);
+
+  const restoreActiveFlowResp = await app.inject({
+    method: "PUT",
+    url: `/api/admin/authentication/flows/${activeAuthenticationFlow.id}`,
+    payload: { grantTypes: activeAuthenticationFlow.grantTypes },
+    headers: authHeaders
+  });
+  assert.equal(restoreActiveFlowResp.statusCode, 200);
 
   const disallowedScopeResp = await app.inject({
     method: "POST",
