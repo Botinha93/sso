@@ -55,7 +55,7 @@ export default function ConnectorDetail() {
           <button
             onClick={() => triggerSync.mutate(id)}
             disabled={triggerSync.isPending}
-            className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-3 text-sm text-white hover:bg-slate-800 active:scale-[0.98] transition-all disabled:opacity-50"
+            className="inline-flex h-9 items-center gap-2 rounded-lg bg-sky-600 px-3 text-sm text-white hover:bg-sky-500 active:scale-[0.98] transition-all disabled:opacity-50"
           >
             <Play size={14} /> {triggerSync.isPending ? 'Syncing…' : 'Trigger Sync'}
           </button>

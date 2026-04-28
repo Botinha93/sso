@@ -183,7 +183,7 @@ export default function Connectors() {
         <button onClick={() => { setShowCreate(false); setEditConnector(null) }}
           className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800">Cancel</button>
         <button onClick={onSubmit} disabled={isLoading}
-          className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
+          className="rounded-lg bg-sky-600 px-5 py-2 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-50">
           {isLoading ? 'Saving…' : 'Save'}
         </button>
       </div>
@@ -202,7 +202,7 @@ export default function Connectors() {
               <RefreshCw className="h-3.5 w-3.5" />
             </button>
             <Link to="/metrics" className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 hover:bg-slate-50">View Auth Metrics</Link>
-            <button onClick={openCreate} className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 active:scale-[0.98] transition-all">
+            <button onClick={openCreate} className="inline-flex h-9 items-center gap-2 rounded-lg bg-sky-600 px-4 text-sm font-medium text-white hover:bg-sky-500 active:scale-[0.98] transition-all">
               <Plus className="h-4 w-4" /> New Connector
             </button>
           </div>
@@ -217,7 +217,7 @@ export default function Connectors() {
               icon={GitMerge}
               title="No connectors yet"
               description="Create a connector to sync users from an external source."
-              action={<button onClick={openCreate} className="inline-flex h-8 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 transition-colors"><Plus className="h-3.5 w-3.5" /> New Connector</button>}
+              action={<button onClick={openCreate} className="inline-flex h-8 items-center gap-2 rounded-lg bg-sky-600 px-4 text-sm font-medium text-white hover:bg-sky-500 transition-colors"><Plus className="h-3.5 w-3.5" /> New Connector</button>}
             />
           ) : (
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">

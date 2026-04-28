@@ -245,7 +245,7 @@ const Roles = () => {
         action={
           <button
             onClick={() => { setFormData({ ...EMPTY_FORM }); setCreateModalOpen(true) }}
-            className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 active:scale-[0.98] transition-all"
+            className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-sky-500 active:scale-[0.98] transition-all"
           >
             <Plus size={14} />
             New Role
@@ -350,7 +350,7 @@ const Roles = () => {
             <button
               onClick={handleCreate}
               disabled={createRole.isPending || !formData.name || !formData.permissions.length}
-              className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
             >
               {createRole.isPending ? 'Creating…' : 'Create Role'}
             </button>
@@ -398,7 +398,7 @@ const Roles = () => {
             <button
               onClick={handleUpdate}
               disabled={updateRole.isPending || !formData.name}
-              className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
             >
               {updateRole.isPending ? 'Saving…' : 'Save Changes'}
             </button>

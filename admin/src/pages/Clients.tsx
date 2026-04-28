@@ -218,7 +218,7 @@ const Clients = () => {
         action={
           <button
             onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true); setEditClient(null) }}
-            className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 active:scale-[0.98] transition-all"
+            className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-sky-500 active:scale-[0.98] transition-all"
           >
             <Plus size={14} />
             New Client
@@ -456,7 +456,7 @@ const Clients = () => {
               <button
                 onClick={handleCreateScope}
                 disabled={createScope.isPending || !newScopeName.trim()}
-                className="h-8 px-3 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                className="h-8 px-3 rounded-lg bg-sky-600 text-white text-xs font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
               >
                 {createScope.isPending ? 'Adding…' : 'Add Scope'}
               </button>
@@ -504,7 +504,7 @@ const Clients = () => {
                   ? updateClient.isPending || !formData.name || formData.allowedScopes.length === 0 || formData.grants.length === 0
                   : createClient.isPending || !formData.id || !formData.name || !formData.secret || formData.allowedScopes.length === 0 || formData.grants.length === 0
               }
-              className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
             >
               {editClient ? (updateClient.isPending ? 'Saving…' : 'Save Changes') : (createClient.isPending ? 'Creating…' : 'Create Client')}
             </button>
@@ -528,7 +528,7 @@ const Clients = () => {
             <button
               onClick={handleAddResource}
               disabled={!newResource.trim() || updateClient.isPending}
-              className="h-9 px-3 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors shrink-0"
+              className="h-9 px-3 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors shrink-0"
             >
               <Plus size={14} />
             </button>

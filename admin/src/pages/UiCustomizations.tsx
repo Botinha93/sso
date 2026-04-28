@@ -239,7 +239,7 @@ export default function UiCustomizations() {
             <button
               onClick={saveAll}
               disabled={updateSettings.isPending}
-              className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50 active:scale-[0.98] transition-all"
+              className="inline-flex h-9 items-center gap-2 rounded-lg bg-sky-600 px-4 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-50 active:scale-[0.98] transition-all"
             >
               <Save size={14} />
               {updateSettings.isPending ? 'Saving...' : 'Save All'}
@@ -262,7 +262,7 @@ export default function UiCustomizations() {
                     key={value}
                     type="button"
                     onClick={() => setScope(value)}
-                    className={`h-9 rounded-lg border text-sm font-medium capitalize transition-colors ${scope === value ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                    className={`h-9 rounded-lg border text-sm font-medium capitalize transition-colors ${scope === value ? 'border-slate-900 bg-sky-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                   >
                     {value}
                   </button>
@@ -302,7 +302,7 @@ export default function UiCustomizations() {
                     key={item.key}
                     type="button"
                     onClick={() => setSurface(item.key)}
-                    className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${surface === item.key ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                    className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${surface === item.key ? 'border-slate-900 bg-sky-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                   >
                     {item.label}
                   </button>

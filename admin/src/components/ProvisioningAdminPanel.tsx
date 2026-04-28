@@ -128,7 +128,7 @@ export default function ProvisioningAdminPanel() {
           <button
             onClick={createNewToken}
             disabled={createToken.isPending || tokenLabel.trim().length < 2}
-            className="inline-flex h-9 items-center rounded-lg bg-slate-900 px-3 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+            className="inline-flex h-9 items-center rounded-lg bg-sky-600 px-3 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-50"
           >
             {createToken.isPending ? 'Issuing…' : 'Issue Token'}
           </button>
@@ -196,7 +196,7 @@ export default function ProvisioningAdminPanel() {
             <button
               onClick={createNewMapping}
               disabled={createMapping.isPending || mappingName.trim().length < 2 || sourceAttribute.trim().length === 0 || targetAttribute.trim().length === 0}
-              className="inline-flex h-9 items-center rounded-lg bg-slate-900 px-3 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+              className="inline-flex h-9 items-center rounded-lg bg-sky-600 px-3 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-50"
             >
               {createMapping.isPending ? 'Saving…' : 'Add Mapping'}
             </button>

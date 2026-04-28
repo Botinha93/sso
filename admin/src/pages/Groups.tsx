@@ -269,7 +269,7 @@ const Groups = () => {
         action={
           <button
             onClick={() => setCreateModalOpen(true)}
-            className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 active:scale-[0.98] transition-all"
+            className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-sky-500 active:scale-[0.98] transition-all"
           >
             <Plus size={14} />
             New Group
@@ -529,7 +529,7 @@ const Groups = () => {
             <button
               onClick={onCreateGroup}
               disabled={createGroup.isPending || !groupName || !groupDescription}
-              className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
             >
               {createGroup.isPending ? 'Creating...' : 'Create Group'}
             </button>
@@ -643,7 +643,7 @@ const Groups = () => {
             <button
               onClick={onSaveGroupEdit}
               disabled={updateGroup.isPending || !editGroupName || !editGroupDescription}
-              className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
             >
               {updateGroup.isPending ? 'Saving…' : 'Save Changes'}
             </button>

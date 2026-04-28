@@ -39,7 +39,7 @@ const ConfirmDialog = ({
             onClick={onConfirm}
             disabled={pending}
             className={`h-9 px-4 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50 ${
-              variant === 'danger' ? 'bg-red-600 hover:bg-red-500' : 'bg-slate-900 hover:bg-slate-800'
+              variant === 'danger' ? 'bg-red-600 hover:bg-red-500' : 'bg-sky-600 hover:bg-sky-500'
             }`}
           >
             {pending ? 'Working…' : confirmLabel}

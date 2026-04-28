@@ -133,7 +133,7 @@ export default function DeviceVerification() {
             <button
               onClick={() => submit(true)}
               disabled={loading || !userCode.trim() || !username.trim() || !password}
-              className="h-9 flex-1 rounded-lg bg-slate-900 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:opacity-50"
+              className="h-9 flex-1 rounded-lg bg-sky-600 text-sm font-medium text-white transition-colors hover:bg-sky-500 disabled:opacity-50"
             >
               {loading ? 'Submitting…' : 'Approve'}
             </button>

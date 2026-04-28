@@ -85,7 +85,7 @@ const ComponentsManager = ({ appId }: ComponentsManagerProps) => {
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`h-7 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${tab === t.key ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
+            className={`h-7 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${tab === t.key ? 'bg-sky-600 text-white' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
           >
             {t.icon}{t.label}
           </button>
@@ -106,7 +106,7 @@ const ComponentsManager = ({ appId }: ComponentsManagerProps) => {
                 type="checkbox"
                 checked={assigned}
                 onChange={() => toggleAssign(item)}
-                className="h-4 w-4 rounded border-slate-300 text-slate-900 accent-slate-900"
+                className="h-4 w-4 rounded border-slate-300 text-slate-900 accent-sky-600"
               />
               <span className="text-sm text-slate-800 flex-1">{label}</span>
               {assigned && <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">assigned</span>}
@@ -281,7 +281,7 @@ const Apps = () => {
               key={emoji}
               type="button"
               onClick={() => setFormData(p => ({ ...p, icon: p.icon === emoji ? '' : emoji }))}
-              className={`w-8 h-8 rounded-lg text-base transition-colors hover:bg-slate-100 ${formData.icon === emoji ? 'bg-slate-900 text-white' : 'bg-slate-50'}`}
+              className={`w-8 h-8 rounded-lg text-base transition-colors hover:bg-slate-100 ${formData.icon === emoji ? 'bg-sky-600 text-white' : 'bg-slate-50'}`}
             >
               {emoji}
             </button>
@@ -375,7 +375,7 @@ const Apps = () => {
         action={
           <button
             onClick={openCreate}
-            className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 active:scale-[0.98] transition-all"
+            className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-sky-500 active:scale-[0.98] transition-all"
           >
             <Plus size={14} />
             New App
@@ -399,7 +399,7 @@ const Apps = () => {
             icon={Boxes}
             title="No apps created yet"
             description="Create an app to group users, clients and roles."
-            action={<button onClick={openCreate} className="h-8 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-colors">New App</button>}
+            action={<button onClick={openCreate} className="h-8 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 transition-colors">New App</button>}
           />
         ) : (
           <div className="divide-y divide-slate-100">
@@ -459,7 +459,7 @@ const Apps = () => {
             <button
               onClick={handleCreate}
               disabled={createApp.isPending || uploadAppImage.isPending || !formData.name}
-              className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
             >
               {createApp.isPending || uploadAppImage.isPending ? 'Creating...' : 'Create App'}
             </button>
@@ -474,13 +474,13 @@ const Apps = () => {
           <div className="flex gap-1 mb-5 border-b border-slate-100 pb-3">
             <button
               onClick={() => setEditTab('details')}
-              className={`h-7 px-3 rounded-lg text-xs font-medium transition-colors ${editTab === 'details' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
+              className={`h-7 px-3 rounded-lg text-xs font-medium transition-colors ${editTab === 'details' ? 'bg-sky-600 text-white' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
             >
               Details
             </button>
             <button
               onClick={() => setEditTab('components')}
-              className={`h-7 px-3 rounded-lg text-xs font-medium transition-colors ${editTab === 'components' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
+              className={`h-7 px-3 rounded-lg text-xs font-medium transition-colors ${editTab === 'components' ? 'bg-sky-600 text-white' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
             >
               Components
             </button>
@@ -494,7 +494,7 @@ const Apps = () => {
                 <button
                   onClick={handleUpdate}
                   disabled={updateApp.isPending || !formData.name}
-                  className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                  className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
                 >
                   {updateApp.isPending ? 'Saving...' : 'Save Changes'}
                 </button>

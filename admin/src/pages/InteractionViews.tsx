@@ -49,7 +49,7 @@ export default function InteractionViews() {
                 <code className="truncate text-xs text-slate-400">{card.href}</code>
                 <a
                   href={card.href}
-                  className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800"
+                  className="inline-flex items-center gap-1 rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-500"
                 >
                   Open
                   <ArrowUpRight size={14} />

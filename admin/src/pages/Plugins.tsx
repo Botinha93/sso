@@ -213,7 +213,7 @@ export default function Plugins() {
 
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
             <label className={labelCls}>Bundle ZIP (max 5MB)</label>
-            <input type="file" accept=".zip,application/zip" onChange={onSelectBundle} className="block w-full text-sm text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-slate-900 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-slate-800" />
+            <input type="file" accept=".zip,application/zip" onChange={onSelectBundle} className="block w-full text-sm text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-sky-600 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-sky-500" />
             <p className="mt-2 text-xs text-slate-500">{bundleName ? `Selected: ${bundleName}` : 'No file selected'}</p>
           </div>
 
@@ -236,7 +236,7 @@ export default function Plugins() {
             <button
               onClick={handleUpload}
               disabled={uploadPlugin.isPending}
-              className="h-9 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+              className="h-9 rounded-lg bg-sky-600 px-4 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-60"
             >
               {uploadPlugin.isPending ? 'Uploading...' : 'Upload Plugin'}
             </button>

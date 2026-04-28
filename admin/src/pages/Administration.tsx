@@ -40,7 +40,7 @@ interface SettingsForm {
   uiCustomizationsText: string
 }
 
-const checkboxCls = 'h-4 w-4 rounded border-slate-300 text-slate-900 accent-slate-900'
+const checkboxCls = 'h-4 w-4 rounded border-slate-300 text-slate-900 accent-sky-600'
 const sectionCls = 'rounded-xl border border-slate-200 bg-white p-5 shadow-sm'
 const sectionIconCls = 'flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600'
 const parseOrigins = (value: string) => value.split('\n').map((item) => item.trim()).filter(Boolean)
@@ -435,7 +435,7 @@ export default function Administration() {
                 <button
                   onClick={migrateFromSqlite}
                   disabled={migrateDatabase.isPending || !form.externalDatabaseUrl}
-                  className="inline-flex h-9 items-center rounded-lg bg-slate-900 px-3 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:opacity-50"
+                  className="inline-flex h-9 items-center rounded-lg bg-sky-600 px-3 text-sm font-medium text-white transition-colors hover:bg-sky-500 disabled:opacity-50"
                 >
                   {migrateDatabase.isPending ? 'Migrating…' : 'Migrate From SQLite'}
                 </button>
@@ -774,7 +774,7 @@ export default function Administration() {
         <button
           onClick={save}
           disabled={updateSettings.isPending}
-          className="inline-flex h-10 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:opacity-50"
+          className="inline-flex h-10 items-center rounded-lg bg-sky-600 px-4 text-sm font-medium text-white transition-colors hover:bg-sky-500 disabled:opacity-50"
         >
           {updateSettings.isPending ? 'Saving…' : 'Save Instance Settings'}
         </button>

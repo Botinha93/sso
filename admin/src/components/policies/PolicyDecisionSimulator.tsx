@@ -39,14 +39,14 @@ export function PolicyDecisionSimulator() {
       <div className="flex gap-2">
         <button
           type="button"
-          className={`rounded px-3 py-1.5 text-xs font-medium ${runMode === 'evaluate' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}
+          className={`rounded px-3 py-1.5 text-xs font-medium ${runMode === 'evaluate' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-700'}`}
           onClick={() => setRunMode('evaluate')}
         >
           Policies Evaluate
         </button>
         <button
           type="button"
-          className={`rounded px-3 py-1.5 text-xs font-medium ${runMode === 'check' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}
+          className={`rounded px-3 py-1.5 text-xs font-medium ${runMode === 'check' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-700'}`}
           onClick={() => setRunMode('check')}
         >
           Authorization Check
@@ -122,7 +122,7 @@ export function PolicyDecisionSimulator() {
 
       <div className="flex justify-end">
         <button
-          className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+          className="rounded bg-sky-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
           disabled={isRunning}
           onClick={async () => {
             setSimulationError(null)

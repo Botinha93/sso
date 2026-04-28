@@ -374,7 +374,7 @@ const Users = () => {
         action={
           <button
             onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }}
-            className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 active:scale-[0.98] transition-all"
+            className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-sky-500 active:scale-[0.98] transition-all"
           >
             <Plus size={14} />
             New User
@@ -405,7 +405,7 @@ const Users = () => {
         {isLoading ? (
           <TableSkeleton rows={6} />
         ) : !filteredUsers?.length ? (
-          <EmptyState icon={Users} title="No users registered" description="Create the first user to get started." action={<button onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }} className="h-8 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-colors">New User</button>} />
+          <EmptyState icon={Users} title="No users registered" description="Create the first user to get started." action={<button onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }} className="h-8 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 transition-colors">New User</button>} />
         ) : (
           <div className="divide-y divide-slate-100">
             {filteredUsers.map((user: User) => (
@@ -656,7 +656,7 @@ const Users = () => {
             <button
               onClick={handleCreate}
               disabled={createUser.isPending || !formData.email || !formData.username || !formData.password}
-              className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
             >
               {createUser.isPending ? 'Creating…' : 'Create User'}
             </button>
@@ -783,7 +783,7 @@ const Users = () => {
             <button
               onClick={handleSaveEdit}
               disabled={updateUser.isPending || !editFormData.email || !editFormData.username || !editFormData.givenName || !editFormData.familyName}
-              className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
             >
               {updateUser.isPending ? 'Saving…' : 'Save Changes'}
             </button>
@@ -824,7 +824,7 @@ const Users = () => {
             <button
               onClick={handleResetPassword}
               disabled={resetUserPassword.isPending || !resetFormData.password || !resetFormData.confirmPassword}
-              className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
             >
               {resetUserPassword.isPending ? 'Resetting…' : 'Reset Password'}
             </button>

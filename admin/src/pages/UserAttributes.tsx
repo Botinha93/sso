@@ -119,7 +119,7 @@ const UserAttributes = () => {
         action={
           <button
             onClick={openCreate}
-            className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 active:scale-[0.98] transition-all"
+            className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-sky-500 active:scale-[0.98] transition-all"
           >
             <Plus size={14} />
             New Attribute
@@ -268,7 +268,7 @@ function AttributeForm({
         Enabled for all users
       </label>
       <div className="flex justify-end">
-        <button onClick={onSubmit} disabled={pending || !form.key || !form.name || !form.description} className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors">
+        <button onClick={onSubmit} disabled={pending || !form.key || !form.name || !form.description} className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors">
           {submitLabel}
         </button>
       </div>

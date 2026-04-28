@@ -216,7 +216,7 @@ function AssignmentConfigEditor({
             <div className="flex justify-end">
               <button
                 type="button"
-                className="rounded bg-slate-900 px-3 py-1.5 text-xs font-medium text-white"
+                className="rounded bg-sky-600 px-3 py-1.5 text-xs font-medium text-white"
                 onClick={applyRawConfig}
               >
                 Apply JSON
@@ -429,7 +429,7 @@ export default function Policies() {
                           ...v,
                           stageBindings: active ? v.stageBindings.filter((s) => s !== stage) : [...v.stageBindings, stage]
                         }))}
-                        className={`rounded px-2 py-1 text-xs font-mono transition-colors ${active ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                        className={`rounded px-2 py-1 text-xs font-mono transition-colors ${active ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
                       >
                         {stage}
                       </button>
@@ -452,7 +452,7 @@ export default function Policies() {
 
             <div className="flex justify-end">
               <button
-                className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white"
+                className="rounded bg-sky-600 px-4 py-2 text-sm font-medium text-white"
                 onClick={async () => {
                   await createPolicy.mutateAsync({
                     ...newPolicy,
@@ -566,7 +566,7 @@ now() // returns current ISO timestamp
                                     : [...editState.stageBindings, stage]
                                 }
                               }))}
-                              className={`rounded px-2 py-1 text-xs font-mono transition-colors ${active ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                              className={`rounded px-2 py-1 text-xs font-mono transition-colors ${active ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
                             >
                               {stage}
                             </button>

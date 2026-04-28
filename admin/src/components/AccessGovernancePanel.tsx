@@ -152,7 +152,7 @@ export default function AccessGovernancePanel() {
             <button
               onClick={submitRequest}
               disabled={createAccessRequest.isPending || !subjectUserId || entitlementType.trim().length === 0 || entitlementValue.trim().length === 0 || justification.trim().length < 3}
-              className="inline-flex h-9 items-center rounded-lg bg-slate-900 px-3 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+              className="inline-flex h-9 items-center rounded-lg bg-sky-600 px-3 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-50"
             >
               {createAccessRequest.isPending ? 'Submitting…' : 'Create Access Request'}
             </button>
@@ -192,7 +192,7 @@ export default function AccessGovernancePanel() {
             <button
               onClick={() => sweepExpiredRequests(false)}
               disabled={processExpiredAccessRequests.isPending}
-              className="inline-flex h-8 items-center rounded-lg bg-slate-900 px-3 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+              className="inline-flex h-8 items-center rounded-lg bg-sky-600 px-3 text-xs font-medium text-white hover:bg-sky-500 disabled:opacity-50"
             >
               Run Expiration Sweep
             </button>

@@ -135,7 +135,7 @@ const Sidebar = ({
                         `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all ${
                           isActive
                             ? 'bg-slate-50 text-slate-950 shadow-sm ring-1 ring-white/70'
-                            : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-50'
+                            : 'text-slate-400 hover:bg-sky-500/80 hover:text-slate-50'
                         }`
                       }
                     >
@@ -154,7 +154,7 @@ const Sidebar = ({
       <div className="border-t border-slate-800/80 px-3 py-4">
         <button
           onClick={handleLogout}
-          className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-400 transition-all hover:bg-slate-800/80 hover:text-slate-50"
+          className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-400 transition-all hover:bg-sky-500/80 hover:text-slate-50"
         >
           <LogOut size={15} strokeWidth={2} className="opacity-70 transition-transform group-hover:scale-110" />
           Sign out

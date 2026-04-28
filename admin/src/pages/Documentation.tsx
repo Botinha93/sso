@@ -5024,21 +5024,21 @@ export default function Documentation() {
       <div className="flex flex-wrap gap-2">
         <button
           onClick={() => setArea('api')}
-          className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${area === 'api' ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
+          className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${area === 'api' ? 'bg-sky-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
         >
           <Server size={14} />
           API Documentation
         </button>
         <button
           onClick={() => setArea('admin')}
-          className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${area === 'admin' ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
+          className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${area === 'admin' ? 'bg-sky-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
         >
           <BookText size={14} />
           Admin Documentation
         </button>
         <button
           onClick={() => setArea('dev')}
-          className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${area === 'dev' ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
+          className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${area === 'dev' ? 'bg-sky-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
         >
           <Code2 size={14} />
           Dev Documentation

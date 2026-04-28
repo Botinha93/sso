@@ -179,7 +179,7 @@ const CredentialsPanel = ({
             <button
               onClick={handleIssueCredential}
               disabled={issueCredential.isPending}
-              className="h-8 px-3 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 disabled:opacity-50 inline-flex items-center gap-1.5"
+              className="h-8 px-3 rounded-lg bg-sky-600 text-white text-xs font-medium hover:bg-sky-500 disabled:opacity-50 inline-flex items-center gap-1.5"
             >
               <Key className="h-3.5 w-3.5" />
               Issue Client Secret
@@ -357,7 +357,7 @@ const ServiceIdentities = () => {
         action={
           <button
             onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }}
-            className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 active:scale-[0.98] transition-all"
+            className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-sky-500 active:scale-[0.98] transition-all"
           >
             <Plus size={14} />
             New Identity
@@ -559,7 +559,7 @@ const ServiceIdentities = () => {
             <button
               onClick={handleCreate}
               disabled={!formData.name || createIdentity.isPending}
-              className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
             >
               {createIdentity.isPending ? 'Creating…' : 'Create Identity'}
             </button>
@@ -670,7 +670,7 @@ const ServiceIdentities = () => {
             <button
               onClick={handleSaveEdit}
               disabled={!editFormData.name || updateIdentity.isPending}
-              className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
             >
               {updateIdentity.isPending ? 'Saving…' : 'Save Changes'}
             </button>

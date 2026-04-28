@@ -29,7 +29,7 @@ const statusLabels: Record<ElevationRequestDto['status'], string> = {
 
 const inputCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
 const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
-const btnPrimary = 'inline-flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:opacity-50'
+const btnPrimary = 'inline-flex h-9 items-center rounded-lg bg-sky-600 px-4 text-sm font-medium text-white transition-colors hover:bg-sky-500 disabled:opacity-50'
 const btnSecondary = 'inline-flex h-7 items-center rounded-md border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50'
 
 interface CreateFormState {
