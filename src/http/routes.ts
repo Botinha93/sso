@@ -652,7 +652,8 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     }
 
     const path = request.url.split("?")[0];
-    const requiresCsrf = csrfProtectedMethods.has(request.method) && !csrfExemptPaths.has(path);
+    const hasBearerToken = typeof request.headers.authorization === "string" && request.headers.authorization.startsWith("Bearer ");
+    const requiresCsrf = csrfProtectedMethods.has(request.method) && !csrfExemptPaths.has(path) && !hasBearerToken;
     if (requiresCsrf && (path.startsWith("/api/admin") || path.startsWith("/api/account") || path.startsWith("/api/portal") || path === "/auth/logout")) {
       if (!verifyCsrf(request, reply)) {
         return;
@@ -661,8 +662,31 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
     if (path.startsWith("/api/admin")) {
       const session = await getSession(request);
+
       if (!session) {
-        return reply.status(401).send({ error: "unauthorized" });
+        // Fallback: allow service identities authenticating with a Bearer access token
+        if (!hasBearerToken) {
+          return reply.status(401).send({ error: "unauthorized" });
+        }
+        try {
+          const token = (request.headers.authorization as string).slice("Bearer ".length);
+          const claims = await deps.authService.jwtService.verifyAccessToken(token);
+          if (claims.actor_type !== "service_identity") {
+            return reply.status(401).send({ error: "unauthorized" });
+          }
+          if (path === "/api/admin/me") {
+            return;
+          }
+          const resource = toAdminResource(path);
+          const action = toAdminAction(request.method);
+          const permissions = Array.isArray(claims.permissions) ? (claims.permissions as string[]) : [];
+          if (!hasAdminPermission({ permissions, resource, action })) {
+            return reply.status(403).send({ error: "forbidden" });
+          }
+          return;
+        } catch {
+          return reply.status(401).send({ error: "unauthorized" });
+        }
       }
 
       const user = await deps.userService.findUserById(session.userId);
