@@ -747,6 +747,8 @@ export const createServiceIdentitySchema = z.object({
   status: z.enum(["active", "inactive", "suspended"]).default("active"),
   allowedScopes: z.array(z.string()).default([]),
   allowedAudiences: z.array(z.string()).default([]),
+  roleIds: z.array(z.string()).default([]),
+  groupIds: z.array(z.string()).default([]),
   metadata: z.record(z.string(), z.unknown()).optional()
 });
 
@@ -758,6 +760,8 @@ export const updateServiceIdentitySchema = z.object({
   status: z.enum(["active", "inactive", "suspended"]).optional(),
   allowedScopes: z.array(z.string()).optional(),
   allowedAudiences: z.array(z.string()).optional(),
+  roleIds: z.array(z.string()).optional(),
+  groupIds: z.array(z.string()).optional(),
   metadata: z.record(z.string(), z.unknown()).optional()
 });
 

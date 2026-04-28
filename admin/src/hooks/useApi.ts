@@ -1597,6 +1597,8 @@ export interface ServiceIdentityDto {
   status: 'active' | 'inactive' | 'suspended'
   allowedScopes: string[]
   allowedAudiences: string[]
+  roleIds?: string[]
+  groupIds?: string[]
   metadata?: Record<string, unknown>
   createdAt: string
   updatedAt: string

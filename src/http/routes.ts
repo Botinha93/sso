@@ -1798,7 +1798,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     elevationService: deps.elevationService,
     requireSessionUser
   });
-  registerServiceIdentityRoutes(app, deps.serviceIdentityService);
+  registerServiceIdentityRoutes(app, deps.serviceIdentityService, deps.roleService, deps.groupService);
   registerConnectorRoutes(app, deps.connectorService, deps.authMetricsService);
   registerPluginRoutes(app, deps.pluginService, deps.pluginRuntimeService);
 

@@ -8,6 +8,8 @@ import {
   useUpdateServiceIdentity,
   useDeleteServiceIdentity,
   useScopes,
+  useRoles,
+  useGroups,
   useServiceIdentity,
   useServiceIdentityUsage,
   useIssueServiceIdentityCredential,
@@ -25,6 +27,8 @@ const defaultForm = () => ({
   description: '',
   status: 'active' as ServiceIdentityDto['status'],
   allowedScopes: [] as string[],
+  roleIds: [] as string[],
+  groupIds: [] as string[],
   allowedAudiences: ''
 })
 
@@ -55,6 +59,12 @@ function toggleScopeSelection(scopes: string[], scopeName: string) {
   return scopes.includes(scopeName)
     ? scopes.filter((scope) => scope !== scopeName)
     : [...scopes, scopeName]
+}
+
+function toggleSelection(values: string[], value: string) {
+  return values.includes(value)
+    ? values.filter((item) => item !== value)
+    : [...values, value]
 }
 
 const CredentialsPanel = ({
@@ -265,6 +275,8 @@ const ServiceIdentities = () => {
 
   const { data, isLoading, refetch } = useServiceIdentities()
   const { data: scopes = [] } = useScopes()
+  const { data: roles = [] } = useRoles()
+  const { data: groups = [] } = useGroups()
   const createIdentity = useCreateServiceIdentity()
   const updateIdentity = useUpdateServiceIdentity()
   const deleteIdentity = useDeleteServiceIdentity()
@@ -279,6 +291,8 @@ const ServiceIdentities = () => {
       description: identityToEdit.description ?? '',
       status: identityToEdit.status,
       allowedScopes: [...identityToEdit.allowedScopes],
+      roleIds: [...(identityToEdit.roleIds ?? [])],
+      groupIds: [...(identityToEdit.groupIds ?? [])],
       allowedAudiences: identityToEdit.allowedAudiences.join(', ')
     })
   }, [identityToEdit])
@@ -290,6 +304,8 @@ const ServiceIdentities = () => {
       description: formData.description || undefined,
       status: formData.status,
       allowedScopes: formData.allowedScopes,
+      roleIds: formData.roleIds,
+      groupIds: formData.groupIds,
       allowedAudiences: parseCommaSeparated(formData.allowedAudiences)
     })
     setCreateModalOpen(false)
@@ -311,6 +327,8 @@ const ServiceIdentities = () => {
         description: editFormData.description || undefined,
         status: editFormData.status,
         allowedScopes: editFormData.allowedScopes,
+        roleIds: editFormData.roleIds,
+        groupIds: editFormData.groupIds,
         allowedAudiences: parseCommaSeparated(editFormData.allowedAudiences)
       }
     })
@@ -389,6 +407,12 @@ const ServiceIdentities = () => {
                         <span key={audience} className="text-xs px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">{audience}</span>
                       ))}
                     </div>
+                  )}
+                  {!!identity.roleIds?.length && (
+                    <p className="text-xs text-slate-500">Direct roles: {identity.roleIds.length}</p>
+                  )}
+                  {!!identity.groupIds?.length && (
+                    <p className="text-xs text-slate-500">Group memberships: {identity.groupIds.length}</p>
                   )}
                   <p className="text-xs text-slate-400 font-mono">Created {new Date(identity.createdAt).toLocaleDateString()}</p>
                 </div>
@@ -485,6 +509,42 @@ const ServiceIdentities = () => {
               placeholder="api.example.com, jobs.internal"
             />
           </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className={labelCls}>Direct Roles</label>
+              <div className="rounded-lg border border-slate-200 p-2 max-h-[140px] overflow-auto bg-slate-50/40 space-y-1.5">
+                {(roles as any[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No roles defined.</p>}
+                {(roles as any[]).map((role: any) => (
+                  <label key={role.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.roleIds.includes(role.id)}
+                      onChange={() => setFormData((f) => ({ ...f, roleIds: toggleSelection(f.roleIds, role.id) }))}
+                      className="rounded border-slate-300"
+                    />
+                    <span>{role.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className={labelCls}>Groups</label>
+              <div className="rounded-lg border border-slate-200 p-2 max-h-[140px] overflow-auto bg-slate-50/40 space-y-1.5">
+                {(groups as any[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No groups defined.</p>}
+                {(groups as any[]).map((group: any) => (
+                  <label key={group.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.groupIds.includes(group.id)}
+                      onChange={() => setFormData((f) => ({ ...f, groupIds: toggleSelection(f.groupIds, group.id) }))}
+                      className="rounded border-slate-300"
+                    />
+                    <span>{group.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => { setCreateModalOpen(false); setFormData(defaultForm()) }} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
               Cancel
@@ -559,6 +619,42 @@ const ServiceIdentities = () => {
               onChange={e => setEditFormData(f => ({ ...f, allowedAudiences: e.target.value }))}
               placeholder="api.example.com, jobs.internal"
             />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className={labelCls}>Direct Roles</label>
+              <div className="rounded-lg border border-slate-200 p-2 max-h-[140px] overflow-auto bg-slate-50/40 space-y-1.5">
+                {(roles as any[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No roles defined.</p>}
+                {(roles as any[]).map((role: any) => (
+                  <label key={role.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editFormData.roleIds.includes(role.id)}
+                      onChange={() => setEditFormData((f) => ({ ...f, roleIds: toggleSelection(f.roleIds, role.id) }))}
+                      className="rounded border-slate-300"
+                    />
+                    <span>{role.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className={labelCls}>Groups</label>
+              <div className="rounded-lg border border-slate-200 p-2 max-h-[140px] overflow-auto bg-slate-50/40 space-y-1.5">
+                {(groups as any[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No groups defined.</p>}
+                {(groups as any[]).map((group: any) => (
+                  <label key={group.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editFormData.groupIds.includes(group.id)}
+                      onChange={() => setEditFormData((f) => ({ ...f, groupIds: toggleSelection(f.groupIds, group.id) }))}
+                      className="rounded border-slate-300"
+                    />
+                    <span>{group.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
           </div>
           <div className="flex gap-2 justify-end pt-2">
             <button onClick={() => { setEditModalOpen(false); setIdentityToEdit(null) }} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
