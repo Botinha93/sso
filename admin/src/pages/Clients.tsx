@@ -379,7 +379,7 @@ const Clients = () => {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelCls}>Allowed Scopes</label>
-              <div className="rounded-lg border border-slate-200 p-2 bg-slate-50/40 space-y-1.5">
+              <div className="rounded-lg border border-slate-200 p-2 max-h-[180px] overflow-auto bg-slate-50/40 space-y-1.5">
                 {scopes.length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No scopes defined.</p>}
                 {scopes.map((scope: any) => (
                   <label key={scope.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
@@ -396,21 +396,19 @@ const Clients = () => {
             </div>
             <div>
               <label className={labelCls}>Grants</label>
-              <div className="rounded-lg border border-slate-200 p-2 bg-slate-50/40">
-                <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                  {GRANT_OPTIONS.map((grant) => (
-                    <label key={grant.value} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer rounded-md px-1 py-1 hover:bg-white/70">
-                      <input
-                        type="checkbox"
-                        checked={formData.grants.includes(grant.value)}
-                        onChange={() => toggleGrant(grant.value)}
-                        className="rounded border-slate-300"
-                      />
-                      <span className="font-mono">{grant.value}</span>
-                      <span className="text-slate-400">{grant.label}</span>
-                    </label>
-                  ))}
-                </div>
+              <div className="rounded-lg border border-slate-200 p-2 max-h-[180px] overflow-auto bg-slate-50/40 space-y-1.5">
+                {GRANT_OPTIONS.map((grant) => (
+                  <label key={grant.value} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer rounded-md px-1 py-1 hover:bg-white/70">
+                    <input
+                      type="checkbox"
+                      checked={formData.grants.includes(grant.value)}
+                      onChange={() => toggleGrant(grant.value)}
+                      className="rounded border-slate-300"
+                    />
+                    <span className="font-mono">{grant.value}</span>
+                    <span className="text-slate-400">{grant.label}</span>
+                  </label>
+                ))}
               </div>
             </div>
           </div>
