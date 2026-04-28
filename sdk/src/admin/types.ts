@@ -285,6 +285,19 @@ export interface ScopesAPI {
   delete(id: string): Promise<void>;
 }
 
+export interface ResourceListQuery extends ListPageQuery {
+  search?: string;
+}
+
+export interface ResourcesAPI {
+  /** Compatibility wrapper for resources backed by OAuth scopes. */
+  list(query?: ResourceListQuery): Promise<SDKOAuthScope[]>;
+  /** Compatibility create for resource scopes. */
+  create(input: CreateOAuthScopeInput): Promise<SDKOAuthScope>;
+  /** Compatibility delete for resource scopes. */
+  delete(id: string): Promise<void>;
+}
+
 export interface ScopeListQuery extends ListPageQuery {
   search?: string;
 }
@@ -334,6 +347,20 @@ export interface RolesAPI {
   update(id: string, input: UpdateRoleInput): Promise<SDKRole>;
   /** Deletes a role by id. */
   delete(id: string): Promise<void>;
+}
+
+export interface SDKPermission {
+  value: string;
+  roleNames: string[];
+}
+
+export interface PermissionListQuery extends ListPageQuery {
+  search?: string;
+}
+
+export interface PermissionsAPI {
+  /** Compatibility wrapper deriving permissions from role definitions. */
+  list(query?: PermissionListQuery): Promise<SDKPermission[]>;
 }
 
 export interface RoleListQuery extends ListPageQuery {
@@ -665,19 +692,403 @@ export interface UserListQuery extends ListPageQuery {
   search?: string;
 }
 
+export interface SDKTenant {
+  id: string;
+  name: string;
+  slug: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface CreateTenantInput {
+  name: string;
+  slug: string;
+}
+
+export interface UpdateTenantInput {
+  name?: string;
+  slug?: string;
+}
+
+export interface TenantListQuery extends ListPageQuery {
+  search?: string;
+}
+
+export interface TenantsAPI {
+  list(query?: TenantListQuery): Promise<SDKTenant[]>;
+  create(input: CreateTenantInput): Promise<SDKTenant>;
+  update(id: string, input: UpdateTenantInput): Promise<SDKTenant>;
+}
+
+export interface SDKSession {
+  id: string;
+  userId: string;
+  clientId?: string;
+  ip?: string;
+  userAgent?: string;
+  createdAt: string;
+  expiresAt?: string;
+}
+
+export interface SessionListQuery extends ListPageQuery {
+  userId?: string;
+}
+
+export interface SessionsAPI {
+  list(query?: SessionListQuery): Promise<SDKSession[]>;
+  revoke(id: string): Promise<void>;
+}
+
+export interface SDKConsent {
+  id: string;
+  userId: string;
+  clientId: string;
+  scope: string;
+  grantedAt?: string;
+  createdAt: string;
+}
+
+export interface ConsentListQuery extends ListPageQuery {
+  userId?: string;
+  clientId?: string;
+}
+
+export interface ConsentsAPI {
+  list(query?: ConsentListQuery): Promise<SDKConsent[]>;
+  revoke(id: string): Promise<void>;
+}
+
+export interface SDKDeviceRequest {
+  deviceCode: string;
+  userCode?: string;
+  clientId?: string;
+  status?: string;
+  createdAt?: string;
+  expiresAt?: string;
+}
+
+export interface SDKDeviceSession {
+  id: string;
+  userId?: string;
+  clientId?: string;
+  status?: string;
+  createdAt?: string;
+  expiresAt?: string;
+}
+
+export interface SDKDevicesResponse {
+  requests: SDKDeviceRequest[];
+  sessions: SDKDeviceSession[];
+}
+
+export interface DeviceListQuery extends ListPageQuery {
+  status?: string;
+}
+
+export interface DevicesAPI {
+  list(query?: DeviceListQuery): Promise<SDKDevicesResponse>;
+  revokeRequest(deviceCode: string): Promise<void>;
+  revokeSession(id: string): Promise<void>;
+}
+
+export interface SDKAuditEvent {
+  id: string;
+  actorId?: string;
+  actorType?: string;
+  action: string;
+  resource?: string;
+  createdAt: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AuditListQuery {
+  limit?: number;
+}
+
+export interface AuditAPI {
+  list(query?: AuditListQuery): Promise<SDKAuditEvent[]>;
+}
+
+export interface SDKAuthenticationFlow {
+  id: string;
+  name: string;
+  description?: string;
+  steps?: unknown[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateAuthenticationFlowInput {
+  name: string;
+  description?: string;
+  steps?: unknown[];
+}
+
+export interface UpdateAuthenticationFlowInput {
+  name?: string;
+  description?: string;
+  steps?: unknown[];
+}
+
+export interface AuthenticationFlowListQuery extends ListPageQuery {
+  search?: string;
+}
+
+export interface AuthenticationFlowsAPI {
+  list(query?: AuthenticationFlowListQuery): Promise<SDKAuthenticationFlow[]>;
+  create(input: CreateAuthenticationFlowInput): Promise<SDKAuthenticationFlow>;
+  update(id: string, input: UpdateAuthenticationFlowInput): Promise<SDKAuthenticationFlow>;
+  delete(id: string): Promise<void>;
+}
+
+export interface SDKUserAttributeDefinition {
+  id: string;
+  key: string;
+  name: string;
+  description?: string;
+  type?: string;
+  required?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateUserAttributeInput {
+  key: string;
+  name: string;
+  description?: string;
+  type?: string;
+  required?: boolean;
+}
+
+export interface UpdateUserAttributeInput {
+  name?: string;
+  description?: string;
+  type?: string;
+  required?: boolean;
+}
+
+export interface SetUserAttributeGroupAssignmentInput {
+  groupId: string;
+}
+
+export interface UserAttributeListQuery extends ListPageQuery {
+  search?: string;
+}
+
+export interface UserAttributesAPI {
+  list(query?: UserAttributeListQuery): Promise<SDKUserAttributeDefinition[]>;
+  create(input: CreateUserAttributeInput): Promise<SDKUserAttributeDefinition>;
+  update(id: string, input: UpdateUserAttributeInput): Promise<SDKUserAttributeDefinition>;
+  delete(id: string): Promise<void>;
+  setGroupAssignment(id: string, input: SetUserAttributeGroupAssignmentInput): Promise<void>;
+  removeGroupAssignment(id: string, groupId: string): Promise<void>;
+}
+
+export interface SDKPolicyDefinition {
+  id: string;
+  name: string;
+  description?: string;
+  statement?: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreatePolicyInput {
+  name: string;
+  description?: string;
+  statement?: Record<string, unknown>;
+}
+
+export interface UpdatePolicyInput {
+  name?: string;
+  description?: string;
+  statement?: Record<string, unknown>;
+}
+
+export interface SetPolicyAssignmentInput {
+  subjectType: string;
+  subjectId: string;
+}
+
+export interface RemovePolicyAssignmentInput {
+  subjectType: string;
+  subjectId: string;
+}
+
+export interface PolicyEvaluateInput {
+  subject?: Record<string, unknown>;
+  resource?: Record<string, unknown>;
+  action?: string;
+  context?: Record<string, unknown>;
+}
+
+export interface SDKPolicyDecisionLog {
+  id: string;
+  policyId?: string;
+  outcome: string;
+  createdAt: string;
+  details?: Record<string, unknown>;
+}
+
+export interface PolicyListQuery extends ListPageQuery {
+  search?: string;
+}
+
+export interface PolicyDecisionsListQuery {
+  limit?: number;
+}
+
+export interface PoliciesAPI {
+  list(query?: PolicyListQuery): Promise<SDKPolicyDefinition[]>;
+  create(input: CreatePolicyInput): Promise<SDKPolicyDefinition>;
+  update(id: string, input: UpdatePolicyInput): Promise<SDKPolicyDefinition>;
+  delete(id: string): Promise<void>;
+  setAssignment(id: string, input: SetPolicyAssignmentInput): Promise<void>;
+  removeAssignment(id: string, input: RemovePolicyAssignmentInput): Promise<void>;
+  evaluate(input: PolicyEvaluateInput): Promise<unknown>;
+  decisions(query?: PolicyDecisionsListQuery): Promise<SDKPolicyDecisionLog[]>;
+}
+
+export interface SDKEventHook {
+  id: string;
+  name: string;
+  url: string;
+  events: string[];
+  active?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateEventHookInput {
+  name: string;
+  url: string;
+  events: string[];
+  secret?: string;
+}
+
+export interface UpdateEventHookInput {
+  name?: string;
+  url?: string;
+  events?: string[];
+  active?: boolean;
+  secret?: string;
+}
+
+export interface SDKEventNotification {
+  id: string;
+  hookId?: string;
+  eventType: string;
+  status: string;
+  createdAt: string;
+  deliveredAt?: string;
+}
+
+export interface EventHookListQuery extends ListPageQuery {
+  search?: string;
+}
+
+export interface EventHookNotificationsListQuery {
+  limit?: number;
+}
+
+export interface EventHooksAPI {
+  list(query?: EventHookListQuery): Promise<SDKEventHook[]>;
+  create(input: CreateEventHookInput): Promise<SDKEventHook>;
+  update(id: string, input: UpdateEventHookInput): Promise<SDKEventHook>;
+  delete(id: string): Promise<void>;
+  test(id: string, payload?: Record<string, unknown>): Promise<unknown>;
+  types(): Promise<string[]>;
+  notifications(query?: EventHookNotificationsListQuery): Promise<SDKEventNotification[]>;
+}
+
+export interface SDKFederationProvider {
+  id: string;
+  type: string;
+  name: string;
+  config?: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateFederationProviderInput {
+  type: string;
+  name: string;
+  config?: Record<string, unknown>;
+}
+
+export interface UpdateFederationProviderInput {
+  name?: string;
+  config?: Record<string, unknown>;
+}
+
+export interface FederationProviderListQuery extends ListPageQuery {
+  search?: string;
+}
+
+export interface FederationAPI {
+  list(query?: FederationProviderListQuery): Promise<SDKFederationProvider[]>;
+  create(input: CreateFederationProviderInput): Promise<SDKFederationProvider>;
+  update(id: string, input: UpdateFederationProviderInput): Promise<SDKFederationProvider>;
+  delete(id: string): Promise<void>;
+}
+
+export interface SDKAdminSettings {
+  [key: string]: unknown;
+}
+
+export interface UpdateAdminSettingsInput {
+  [key: string]: unknown;
+}
+
+export interface SettingsAPI {
+  get(): Promise<SDKAdminSettings>;
+  update(input: UpdateAdminSettingsInput): Promise<SDKAdminSettings>;
+}
+
+export interface SDKRiskEvent {
+  id: string;
+  type: string;
+  severity?: string;
+  status?: string;
+  createdAt: string;
+  details?: Record<string, unknown>;
+}
+
+export interface RiskEventListQuery {
+  limit?: number;
+}
+
+export interface SecurityAPI {
+  riskEvents(query?: RiskEventListQuery): Promise<SDKRiskEvent[]>;
+}
+
 export interface AdminClient extends ClientInstance {
   accessReviews: AccessReviewsAPI;
   accessRequests: AccessRequestsAPI;
   apps: AppsAPI;
+  audit: AuditAPI;
+  authenticationFlows: AuthenticationFlowsAPI;
   clients: ClientsAPI;
+  consents: ConsentsAPI;
   connectors: ConnectorsAPI;
+  devices: DevicesAPI;
   elevations: ElevationsAPI;
+  eventHooks: EventHooksAPI;
+  federation: FederationAPI;
   groups: GroupsAPI;
+  permissions: PermissionsAPI;
+  policies: PoliciesAPI;
   provisioning: ReturnType<typeof import("../provisioning/index.js").createProvisioningAPI>;
+  resources: ResourcesAPI;
   roles: RolesAPI;
   saml: ReturnType<typeof import("../federation/index.js").createSamlAdminAPI>;
   scopes: ScopesAPI;
+  security: SecurityAPI;
+  sessions: SessionsAPI;
   serviceIdentities: ReturnType<typeof import("../workload/service-identities.js").createWorkloadAPI>;
+  settings: SettingsAPI;
+  tenants: TenantsAPI;
+  userAttributes: UserAttributesAPI;
   users: UsersAPI;
   /** Returns a cloned admin client with a new auth strategy. */
   withAuth(auth: NonNullable<ClientOptions["auth"]>): AdminClient;

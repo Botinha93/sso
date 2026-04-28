@@ -1,9 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createAuditAPI } from "../../src/admin/audit.js";
+import { createAuthenticationFlowsAPI } from "../../src/admin/authentication-flows.js";
 import { createAppsAPI } from "../../src/admin/apps.js";
 import { createClientsAPI } from "../../src/admin/clients.js";
+import { createConsentsAPI } from "../../src/admin/consents.js";
+import { createDevicesAPI } from "../../src/admin/devices.js";
+import { createEventHooksAPI } from "../../src/admin/event-hooks.js";
+import { createFederationAPI } from "../../src/admin/federation.js";
 import { createGroupsAPI } from "../../src/admin/groups.js";
+import { createPoliciesAPI } from "../../src/admin/policies.js";
 import { createRolesAPI } from "../../src/admin/roles.js";
 import { createScopesAPI } from "../../src/admin/scopes.js";
+import { createSecurityAPI } from "../../src/admin/security.js";
+import { createSessionsAPI } from "../../src/admin/sessions.js";
+import { createSettingsAPI } from "../../src/admin/settings.js";
+import { createTenantsAPI } from "../../src/admin/tenants.js";
+import { createUserAttributesAPI } from "../../src/admin/user-attributes.js";
 import { createUsersAPI } from "../../src/admin/users.js";
 import type { ClientInstance } from "../../src/core/types.js";
 
@@ -100,5 +112,52 @@ describe("core admin resource APIs", () => {
     expect(post).toHaveBeenCalledWith("/api/admin/scopes", {
       body: { name: "tickets.read", description: "read tickets" }
     });
+  });
+
+  it("new admin modules target expected endpoints", async () => {
+    get.mockResolvedValue([]);
+    post.mockResolvedValue({ id: "x1" });
+    put.mockResolvedValue({ id: "x1" });
+
+    const tenants = createTenantsAPI(client);
+    const sessions = createSessionsAPI(client);
+    const consents = createConsentsAPI(client);
+    const devices = createDevicesAPI(client);
+    const audit = createAuditAPI(client);
+    const flows = createAuthenticationFlowsAPI(client);
+    const userAttributes = createUserAttributesAPI(client);
+    const policies = createPoliciesAPI(client);
+    const eventHooks = createEventHooksAPI(client);
+    const federation = createFederationAPI(client);
+    const settings = createSettingsAPI(client);
+    const security = createSecurityAPI(client);
+
+    await tenants.create({ name: "Tenant 1", slug: "tenant-1" });
+    await sessions.revoke("sess-1");
+    await consents.revoke("cons-1");
+    await devices.revokeRequest("dev-code");
+    await devices.revokeSession("dev-sess-1");
+    await audit.list({ limit: 10 });
+    await flows.create({ name: "Default Flow" });
+    await userAttributes.setGroupAssignment("attr-1", { groupId: "g1" });
+    await policies.evaluate({ action: "read" });
+    await eventHooks.test("hook-1", { sample: true });
+    await federation.create({ name: "Google", type: "oidc" });
+    await settings.update({ security: { mfaRequired: true } });
+    await security.riskEvents({ limit: 5 });
+
+    expect(post).toHaveBeenCalledWith("/api/admin/tenants", { body: { name: "Tenant 1", slug: "tenant-1" } });
+    expect(del).toHaveBeenCalledWith("/api/admin/sessions/sess-1");
+    expect(del).toHaveBeenCalledWith("/api/admin/consents/cons-1");
+    expect(del).toHaveBeenCalledWith("/api/admin/devices/requests/dev-code");
+    expect(del).toHaveBeenCalledWith("/api/admin/devices/sessions/dev-sess-1");
+    expect(get).toHaveBeenCalledWith("/api/admin/audit", { query: { limit: 10 } });
+    expect(post).toHaveBeenCalledWith("/api/admin/authentication/flows", { body: { name: "Default Flow" } });
+    expect(put).toHaveBeenCalledWith("/api/admin/user-attributes/attr-1/groups", { body: { groupId: "g1" } });
+    expect(post).toHaveBeenCalledWith("/api/admin/policies/evaluate", { body: { action: "read" } });
+    expect(post).toHaveBeenCalledWith("/api/admin/events/hooks/hook-1/test", { body: { sample: true } });
+    expect(post).toHaveBeenCalledWith("/api/admin/federation/providers", { body: { name: "Google", type: "oidc" } });
+    expect(put).toHaveBeenCalledWith("/api/admin/settings", { body: { security: { mfaRequired: true } } });
+    expect(get).toHaveBeenCalledWith("/api/admin/security/risk-events", { query: { limit: 5 } });
   });
 });

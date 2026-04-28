@@ -137,6 +137,30 @@ class RolesAPI:
         self._client.delete(f"/api/admin/roles/{role_id}")
 
 
+class PermissionsAPI:
+    def __init__(self, client: NexusIDClient) -> None:
+        self._client = client
+
+    def list(self) -> list[dict[str, Any]]:
+        roles = cast(gm.GetApiAdminRolesResponse, self._client.get("/api/admin/roles"))
+        role_names_by_permission: dict[str, set[str]] = {}
+
+        for role in roles:
+            role_name = str(role.get("name", ""))
+            permissions = role.get("permissions")
+            if not isinstance(permissions, list):
+                continue
+            for permission in permissions:
+                permission_value = str(permission)
+                role_names = role_names_by_permission.setdefault(permission_value, set())
+                role_names.add(role_name)
+
+        return [
+            {"value": permission, "roleNames": sorted(role_names)}
+            for permission, role_names in sorted(role_names_by_permission.items(), key=lambda item: item[0])
+        ]
+
+
 class OAuthClientsAPI:
     def __init__(self, client: NexusIDClient) -> None:
         self._client = client
@@ -410,6 +434,20 @@ class ScopesAPI:
         self._client.delete(f"/api/admin/scopes/{scope_id}")
 
 
+class ResourcesAPI:
+    def __init__(self, client: NexusIDClient) -> None:
+        self._client = client
+
+    def list(self) -> gm.GetApiAdminScopesResponse:
+        return cast(gm.GetApiAdminScopesResponse, self._client.get("/api/admin/scopes"))
+
+    def create(self, payload: gm.PostApiAdminScopesRequestBody) -> gm.PostApiAdminScopesResponse:
+        return cast(gm.PostApiAdminScopesResponse, self._client.post("/api/admin/scopes", body=payload))
+
+    def delete(self, resource_id: str) -> None:
+        self._client.delete(f"/api/admin/scopes/{resource_id}")
+
+
 class TenantsAPI:
     def __init__(self, client: NexusIDClient) -> None:
         self._client = client
@@ -632,10 +670,12 @@ class AdminClient(NexusIDClient):
         self.elevations = ElevationsAPI(self)
         self.users = UsersAPI(self)
         self.roles = RolesAPI(self)
+        self.permissions = PermissionsAPI(self)
         self.role_assignments = RoleAssignmentsAPI(self)
         self.groups = GroupsAPI(self)
         self.clients = OAuthClientsAPI(self)
         self.scopes = ScopesAPI(self)
+        self.resources = ResourcesAPI(self)
         self.tenants = TenantsAPI(self)
         self.apps = AppsAPI(self)
         self.sessions = SessionsAPI(self)
