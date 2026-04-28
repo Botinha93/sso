@@ -144,6 +144,114 @@ export class SqliteDatabase {
     }
   }
 
+  private migrateLegacyServiceIdentitiesToUsers() {
+    const legacyRows = this.connection.prepare("SELECT * FROM service_identities").all() as Array<{
+      id: string;
+      name: string;
+      description?: string | null;
+      owner_id?: string | null;
+      app_id?: string | null;
+      status: string;
+      allowed_scopes_json: string;
+      allowed_audiences_json: string;
+      metadata_json?: string | null;
+      created_at: string;
+      updated_at: string;
+    }>;
+
+    if (legacyRows.length === 0) {
+      return;
+    }
+
+    const insert = this.connection.prepare(`
+      INSERT OR IGNORE INTO users (
+        id, app_id, external_source, external_id, is_service_user, avatar_url,
+        email, username, password_hash, given_name, family_name,
+        custom_attributes_json, active, created_at, updated_at
+      ) VALUES (
+        @id, @appId, NULL, NULL, 1, NULL,
+        @email, @username, @passwordHash, @givenName, @familyName,
+        @customAttributesJson, @active, @createdAt, @updatedAt
+      )
+    `);
+
+    const migrate = this.connection.transaction(() => {
+      for (const row of legacyRows) {
+        const customAttributes = {
+          "si.allowedScopes": row.allowed_scopes_json,
+          "si.allowedAudiences": row.allowed_audiences_json,
+          ...(row.owner_id ? { "si.ownerId": row.owner_id } : {}),
+          ...(row.metadata_json ? { "si.metadata": row.metadata_json } : {}),
+          "si.status": row.status
+        };
+
+        insert.run({
+          id: row.id,
+          appId: row.app_id ?? null,
+          email: `svc-${row.id}@service.local`,
+          username: `svc-${row.id}`,
+          passwordHash: `disabled-${nanoid()}`,
+          givenName: row.name,
+          familyName: row.description ?? "",
+          customAttributesJson: JSON.stringify(customAttributes),
+          active: row.status === "active" ? 1 : 0,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at
+        });
+      }
+    });
+
+    migrate();
+  }
+
+  private ensureServiceIdentityCredentialForeignKey() {
+    const foreignKeys = this.connection.prepare("PRAGMA foreign_key_list(service_identity_credentials)").all() as Array<{ table: string }>;
+    const referencesLegacyTable = foreignKeys.some((foreignKey) => foreignKey.table === "service_identities");
+    if (!referencesLegacyTable) {
+      return;
+    }
+
+    this.connection.exec("PRAGMA foreign_keys = OFF;");
+    try {
+      this.connection.exec(`
+        BEGIN;
+
+        CREATE TABLE service_identity_credentials_new (
+          id TEXT PRIMARY KEY,
+          service_identity_id TEXT NOT NULL,
+          client_id TEXT NOT NULL UNIQUE,
+          client_secret_hash TEXT NOT NULL,
+          expires_at TEXT,
+          revoked_at TEXT,
+          rotated_from_id TEXT,
+          last_used_at TEXT,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (service_identity_id) REFERENCES users(id)
+        );
+
+        INSERT INTO service_identity_credentials_new (
+          id, service_identity_id, client_id, client_secret_hash,
+          expires_at, revoked_at, rotated_from_id, last_used_at, created_at
+        )
+        SELECT
+          id, service_identity_id, client_id, client_secret_hash,
+          expires_at, revoked_at, rotated_from_id, last_used_at, created_at
+        FROM service_identity_credentials
+        WHERE service_identity_id IN (SELECT id FROM users);
+
+        DROP TABLE service_identity_credentials;
+        ALTER TABLE service_identity_credentials_new RENAME TO service_identity_credentials;
+
+        COMMIT;
+      `);
+    } catch (error) {
+      this.connection.exec("ROLLBACK;");
+      throw error;
+    } finally {
+      this.connection.exec("PRAGMA foreign_keys = ON;");
+    }
+  }
+
   migrate() {
     this.connection.exec(`
       CREATE TABLE IF NOT EXISTS apps (
@@ -786,6 +894,9 @@ export class SqliteDatabase {
         PRIMARY KEY (bucket, event)
       );
     `);
+
+    this.migrateLegacyServiceIdentitiesToUsers();
+    this.ensureServiceIdentityCredentialForeignKey();
 
     const userColumns = this.connection.prepare("PRAGMA table_info(users)").all() as Array<{ name: string }>;
     const hasCustomAttributesColumn = userColumns.some((column) => column.name === "custom_attributes_json");
