@@ -9,6 +9,7 @@ export interface SDKApp {
   icon?: string;
   imageUrl?: string;
   url?: string;
+  resources: string[];
   createdAt: string;
 }
 
@@ -17,6 +18,7 @@ export interface CreateAppInput {
   icon?: string;
   imageUrl?: string;
   name: string;
+  resources?: string[];
   url?: string;
 }
 
@@ -25,6 +27,7 @@ export interface UpdateAppInput {
   icon?: string;
   imageUrl?: string;
   name?: string;
+  resources?: string[];
   url?: string;
 }
 

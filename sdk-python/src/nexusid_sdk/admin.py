@@ -119,6 +119,23 @@ class OAuthClientsAPI:
         return cast(gm.PostApiAdminClientsResponse, self._client.post("/api/admin/clients", body=payload))
 
 
+class AppsAPI:
+    def __init__(self, client: NexusIDClient) -> None:
+        self._client = client
+
+    def list(self, **query: Any) -> list[dict[str, Any]]:
+        return cast(list[dict[str, Any]], self._client.get("/api/admin/apps", query=query or None))
+
+    def create(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return cast(dict[str, Any], self._client.post("/api/admin/apps", body=payload))
+
+    def update(self, app_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return cast(dict[str, Any], self._client.put(f"/api/admin/apps/{app_id}", body=payload))
+
+    def delete(self, app_id: str) -> None:
+        self._client.delete(f"/api/admin/apps/{app_id}")
+
+
 class ProvisioningTokensAPI:
     def __init__(self, client: NexusIDClient) -> None:
         self._client = client
@@ -336,6 +353,7 @@ class AdminClient(NexusIDClient):
         self.elevations = ElevationsAPI(self)
         self.users = UsersAPI(self)
         self.clients = OAuthClientsAPI(self)
+        self.apps = AppsAPI(self)
         self.provisioning = ProvisioningAPI(self)
         self.service_identities = ServiceIdentitiesAPI(self)
         self.connectors = ConnectorsAPI(self)
