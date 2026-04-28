@@ -433,6 +433,8 @@ export class AuthService {
       serviceIdentity,
       clientId: input.clientId,
       scope: requestedScope,
+      roles: await this.roleService.resolveNamesForUser(serviceIdentity.id),
+      permissions: await this.roleService.resolvePermissionsForUser(serviceIdentity.id),
       accessTokenId
     });
 

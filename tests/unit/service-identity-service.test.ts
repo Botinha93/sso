@@ -1,33 +1,56 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { ServiceIdentity, ServiceIdentityCredential } from "../../src/domain/models.js";
+import type { ServiceIdentityCredential, User } from "../../src/domain/models.js";
 import { ServiceIdentityService } from "../../src/services/service-identity-service.js";
 
-class InMemoryServiceIdentityRepository {
-  private readonly store = new Map<string, ServiceIdentity>();
+class InMemoryUserRepository {
+  private readonly store = new Map<string, User>();
 
-  async create(input: Omit<ServiceIdentity, "id" | "createdAt" | "updatedAt">): Promise<ServiceIdentity> {
+  async create(input: Omit<User, "id" | "createdAt" | "updatedAt">): Promise<User> {
     const now = new Date();
     const id = `si-${this.store.size + 1}`;
-    const created: ServiceIdentity = { id, ...input, createdAt: now, updatedAt: now };
+    const created: User = { id, ...input, createdAt: now, updatedAt: now };
     this.store.set(id, created);
     return created;
   }
 
-  async list(): Promise<ServiceIdentity[]> {
+  async list(): Promise<User[]> {
     return Array.from(this.store.values());
   }
 
-  async findById(id: string): Promise<ServiceIdentity | undefined> {
+  async findById(id: string): Promise<User | undefined> {
     return this.store.get(id);
   }
 
-  async update(id: string, input: Partial<Omit<ServiceIdentity, "id" | "createdAt">>): Promise<ServiceIdentity | undefined> {
+  async findByEmail(email: string): Promise<User | undefined> {
+    return Array.from(this.store.values()).find((user) => user.email.toLowerCase() === email.toLowerCase());
+  }
+
+  async findByUsername(username: string): Promise<User | undefined> {
+    return Array.from(this.store.values()).find((user) => user.username.toLowerCase() === username.toLowerCase());
+  }
+
+  async updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId" | "externalSource" | "externalId" | "isServiceUser" | "avatarUrl">>): Promise<User | undefined> {
     const existing = this.store.get(id);
     if (!existing) return undefined;
-    const updated: ServiceIdentity = { ...existing, ...input, updatedAt: new Date() };
+    const updated: User = { ...existing, ...input, updatedAt: new Date() };
     this.store.set(id, updated);
     return updated;
+  }
+
+  async setPasswordHash(id: string, passwordHash: string): Promise<void> {
+    const existing = this.store.get(id);
+    if (existing) this.store.set(id, { ...existing, passwordHash, updatedAt: new Date() });
+  }
+
+  async setActive(id: string, active: boolean): Promise<void> {
+    const existing = this.store.get(id);
+    if (existing) this.store.set(id, { ...existing, active, updatedAt: new Date() });
+  }
+
+  async setCustomAttributes(id: string, customAttributes: Record<string, string>): Promise<void> {
+    const existing = this.store.get(id);
+    if (existing) this.store.set(id, { ...existing, customAttributes, updatedAt: new Date() });
   }
 
   async delete(id: string): Promise<void> {
@@ -81,7 +104,7 @@ class InMemoryServiceIdentityCredentialRepository {
 }
 
 test("rotation revokes previous credential and keeps replacement active", async () => {
-  const repo = new InMemoryServiceIdentityRepository();
+  const repo = new InMemoryUserRepository();
   const credRepo = new InMemoryServiceIdentityCredentialRepository();
   const service = new ServiceIdentityService(repo as any, credRepo as any);
 
@@ -105,7 +128,7 @@ test("rotation revokes previous credential and keeps replacement active", async 
 });
 
 test("verifyCredential rejects expired and revoked credentials", async () => {
-  const repo = new InMemoryServiceIdentityRepository();
+  const repo = new InMemoryUserRepository();
   const credRepo = new InMemoryServiceIdentityCredentialRepository();
   const service = new ServiceIdentityService(repo as any, credRepo as any);
 

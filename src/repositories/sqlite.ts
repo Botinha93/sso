@@ -738,7 +738,7 @@ export class SqliteDatabase {
         rotated_from_id TEXT,
         last_used_at TEXT,
         created_at TEXT NOT NULL,
-        FOREIGN KEY (service_identity_id) REFERENCES service_identities(id)
+        FOREIGN KEY (service_identity_id) REFERENCES users(id)
       );
 
       CREATE TABLE IF NOT EXISTS connectors (

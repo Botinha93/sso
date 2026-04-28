@@ -1,13 +1,13 @@
 import { NavLink } from 'react-router-dom'
-import { 
-  LayoutDashboard, 
-  AppWindow, 
-  Users, 
+import {
+  LayoutDashboard,
+  AppWindow,
+  Users,
   UsersRound,
-  Shield, 
-  MonitorSmartphone, 
-  FileText, 
-  CheckSquare, 
+  Shield,
+  MonitorSmartphone,
+  FileText,
+  CheckSquare,
   Building2,
   Boxes,
   Network,
@@ -17,6 +17,9 @@ import {
   Gavel,
   CheckCircle2,
   ShieldAlert,
+  ShieldCheck,
+  History,
+  Tablet,
   BellRing,
   BarChart3,
   Settings2,
@@ -40,9 +43,9 @@ const navGroups = [
     items: [
       { path: '/access-governance', label: 'Access Governance', icon: CheckCircle2, permission: 'administration:view' },
       { path: '/elevations', label: 'Elevation Operations', icon: ShieldAlert, permission: 'administration:view' },
-      { path: '/elevation-sessions', label: 'Elevation Sessions', icon: ShieldAlert, permission: 'administration:view' },
-      { path: '/sessions', label: 'Sessions', icon: MonitorSmartphone, permission: 'sessions:view' },
-      { path: '/devices', label: 'Devices', icon: MonitorSmartphone, permission: 'sessions:view' },
+      { path: '/elevation-sessions', label: 'Elevation Sessions', icon: History, permission: 'administration:view' },
+      { path: '/sessions', label: 'Sessions', icon: ShieldCheck, permission: 'sessions:view' },
+      { path: '/devices', label: 'Devices', icon: Tablet, permission: 'sessions:view' },
       { path: '/events', label: 'Events', icon: BellRing, permission: 'events:view' },
       { path: '/audit', label: 'Audit Log', icon: FileText, permission: 'audit_log:view' },
     ]
@@ -102,7 +105,7 @@ const Sidebar = ({
       {/* Header */}
       <div className="border-b border-slate-800/80 px-6 py-5">
         <div className="flex items-center gap-3 text-slate-50">
-          <img src="/logo.svg" alt="NexusID" className="h-9 w-9 shrink-0 rounded-xl ring-1 ring-sky-400/30" />
+          <img src="/logo.svg" alt="NexusID" className="h-9 w-9 shrink-0 rounded-xl" />
           <div className="min-w-0">
             <div className="text-sm font-semibold tracking-tight text-slate-50">NexusID</div>
             <div className="text-[10px] text-slate-500">Identity Control</div>

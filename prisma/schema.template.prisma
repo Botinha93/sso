@@ -57,6 +57,7 @@ model User {
   active               Int
   createdAt            String  @map("created_at")
   updatedAt            String  @map("updated_at")
+  serviceIdentityCredentials ServiceIdentityCredential[]
 
   @@map("users")
 }
@@ -325,8 +326,6 @@ model ServiceIdentity {
   metadataJson             String?                           @map("metadata_json")
   createdAt                String                            @map("created_at")
   updatedAt                String                            @map("updated_at")
-  serviceIdentityCredentials ServiceIdentityCredential[]
-
   @@map("service_identities")
 }
 
@@ -340,7 +339,7 @@ model ServiceIdentityCredential {
   rotatedFromId       String?           @map("rotated_from_id")
   lastUsedAt          String?           @map("last_used_at")
   createdAt           String            @map("created_at")
-  serviceIdentity     ServiceIdentity   @relation(fields: [serviceIdentityId], references: [id], onDelete: Cascade)
+  serviceIdentity     User              @relation(fields: [serviceIdentityId], references: [id], onDelete: Cascade)
 
   @@index([serviceIdentityId])
   @@index([clientId])

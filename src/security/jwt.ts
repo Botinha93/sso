@@ -99,9 +99,11 @@ export class JwtService {
     serviceIdentity: ServiceIdentity;
     clientId: string;
     scope: string[];
+    roles: string[];
+    permissions: string[];
     accessTokenId: string;
   }) {
-    const { serviceIdentity, clientId, scope, accessTokenId } = params;
+    const { serviceIdentity, clientId, scope, roles, permissions, accessTokenId } = params;
     const now = Math.floor(Date.now() / 1000);
     const scopeValue = scope.join(" ");
 
@@ -109,7 +111,9 @@ export class JwtService {
       scope: scopeValue,
       client_id: clientId,
       service_identity_id: serviceIdentity.id,
-      actor_type: "service_identity"
+      actor_type: "service_identity",
+      roles,
+      permissions
     })
       .setProtectedHeader({ alg: "RS256", kid: this.keys.kid })
       .setIssuer(this.appConfig.issuer)

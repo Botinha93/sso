@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import Database from "better-sqlite3";
+import { decodeJwt } from "jose";
 import { createTestContext, extractCookie } from "../helpers/test-app.js";
 
 test("service identity CRUD and credential lifecycle", async (t) => {
@@ -34,6 +35,47 @@ test("service identity CRUD and credential lifecycle", async (t) => {
     "x-csrf-token": csrfToken,
   };
 
+  const directRoleResp = await app.inject({
+    method: "POST",
+    url: "/api/admin/roles",
+    payload: {
+      name: "report_reader",
+      description: "Can read service identity reports",
+      permissions: ["reports:read"],
+      scope: "platform"
+    },
+    headers: authHeaders
+  });
+  assert.equal(directRoleResp.statusCode, 201);
+  const directRole = directRoleResp.json();
+
+  const groupRoleResp = await app.inject({
+    method: "POST",
+    url: "/api/admin/roles",
+    payload: {
+      name: "report_operator",
+      description: "Can operate service identity reports",
+      permissions: ["reports:operate"],
+      scope: "platform"
+    },
+    headers: authHeaders
+  });
+  assert.equal(groupRoleResp.statusCode, 201);
+  const groupRole = groupRoleResp.json();
+
+  const groupResp = await app.inject({
+    method: "POST",
+    url: "/api/admin/groups",
+    payload: {
+      name: "report-workers",
+      description: "Report workload identities",
+      roleIds: [groupRole.id]
+    },
+    headers: authHeaders
+  });
+  assert.equal(groupResp.statusCode, 201);
+  const group = groupResp.json();
+
   // Create a service identity
   const createResp = await app.inject({
     method: "POST",
@@ -43,7 +85,9 @@ test("service identity CRUD and credential lifecycle", async (t) => {
       description: "Test worker service",
       status: "active",
       allowedScopes: ["read:reports"],
-      allowedAudiences: ["api.example.com"]
+      allowedAudiences: ["api.example.com"],
+      roleIds: [directRole.id],
+      groupIds: [group.id]
     },
     headers: authHeaders
   });
@@ -52,6 +96,8 @@ test("service identity CRUD and credential lifecycle", async (t) => {
   const identity = createResp.json();
   assert.equal(identity.name, "test-worker");
   assert.deepEqual(identity.allowedScopes, ["read:reports"]);
+  assert.deepEqual(identity.roleIds, [directRole.id]);
+  assert.deepEqual(identity.groupIds, [group.id]);
 
   // List service identities
   const listResp = await app.inject({
@@ -109,6 +155,10 @@ test("service identity CRUD and credential lifecycle", async (t) => {
   assert.ok(typeof tokenPayload.access_token === "string" && tokenPayload.access_token.length > 0);
   assert.equal(tokenPayload.token_type, "Bearer");
   assert.equal(tokenPayload.scope, "read:reports");
+  const tokenClaims = decodeJwt(tokenPayload.access_token) as { roles?: string[]; permissions?: string[]; service_identity_id?: string };
+  assert.equal(tokenClaims.service_identity_id, identity.id);
+  assert.deepEqual(tokenClaims.roles?.sort(), ["report_operator", "report_reader"]);
+  assert.deepEqual(tokenClaims.permissions?.sort(), ["reports:operate", "reports:read"]);
 
   const disallowedScopeResp = await app.inject({
     method: "POST",
@@ -161,7 +211,7 @@ test("service identity CRUD and credential lifecycle", async (t) => {
   const patchResp = await app.inject({
     method: "PATCH",
     url: `/api/admin/service-identities/${identity.id}`,
-    payload: { status: "suspended" },
+    payload: { status: "suspended", roleIds: [directRole.id], groupIds: [group.id] },
     headers: authHeaders
   });
 

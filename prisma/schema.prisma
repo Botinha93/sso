@@ -519,6 +519,7 @@ model users {
   totp_credentials       totp_credentials?        @ignore
   user_group_assignments user_group_assignments[]
   user_role_assignments  user_role_assignments[]  @ignore
+  service_identity_credentials service_identity_credentials[]
 }
 
 model elevation_requests {
@@ -617,7 +618,6 @@ model service_identities {
   metadata_json            String?
   created_at               String
   updated_at               String
-  service_identity_credentials service_identity_credentials[]
 }
 
 model service_identity_credentials {
@@ -630,7 +630,7 @@ model service_identity_credentials {
   rotated_from_id     String?
   last_used_at        String?
   created_at          String
-  service_identities  service_identities  @relation(fields: [service_identity_id], references: [id], onDelete: Cascade)
+  users               users               @relation(fields: [service_identity_id], references: [id], onDelete: Cascade)
 
   @@index([service_identity_id])
   @@index([client_id])

@@ -110,7 +110,7 @@ export const bootstrap = async (config: AppConfig) => {
   const pluginRuntimeService = new PluginRuntimeService(pluginService, auditRepository);
   eventHookService.setPluginRuntime(pluginRuntimeService);
   const serviceIdentityService = new ServiceIdentityService(
-    repositories.serviceIdentityRepository,
+    userRepository,
     repositories.serviceIdentityCredentialRepository
   );
 

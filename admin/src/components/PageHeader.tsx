@@ -12,10 +12,9 @@ interface PageHeaderProps {
 export function PageHeader({ eyebrow, title, description, action }: PageHeaderProps) {
   return (
     <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-      <div className="relative pl-4">
-        <div className="absolute left-0 top-0 h-full w-0.5 rounded-full bg-gradient-to-b from-sky-400 to-indigo-500" />
+      <div>
         {eyebrow && (
-          <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-[0.15em] text-sky-600">
+          <p className="mb-0.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
             {eyebrow}
           </p>
         )}
