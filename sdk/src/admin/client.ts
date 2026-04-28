@@ -15,7 +15,6 @@ import { createFederationAPI } from "./federation.js";
 import { createGroupsAPI } from "./groups.js";
 import { createPermissionsAPI } from "./permissions.js";
 import { createPoliciesAPI } from "./policies.js";
-import { createResourcesAPI } from "./resources.js";
 import { createRolesAPI } from "./roles.js";
 import { createScopesAPI } from "./scopes.js";
 import { createSecurityAPI } from "./security.js";
@@ -50,7 +49,6 @@ const createAdminClientInternal = (options: ClientOptions): AdminClient => {
     permissions: createPermissionsAPI(client),
     policies: createPoliciesAPI(client),
     provisioning: createProvisioningAPI(client),
-    resources: createResourcesAPI(client),
     roles: createRolesAPI(client),
     saml: createSamlAdminAPI(client),
     scopes: createScopesAPI(client),

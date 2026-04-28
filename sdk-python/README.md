@@ -51,7 +51,6 @@ print(users)
 - `auth.revoke_token(...)`
 - `admin.users.list(...)`
 - `admin.clients.list(...)`
-- `admin.resources.list(...)`
 - `admin.permissions.list()`
 - `admin.access_requests.create(...)`
 - `admin.elevations.create(...)`

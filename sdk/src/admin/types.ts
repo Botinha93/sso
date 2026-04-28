@@ -285,19 +285,6 @@ export interface ScopesAPI {
   delete(id: string): Promise<void>;
 }
 
-export interface ResourceListQuery extends ListPageQuery {
-  search?: string;
-}
-
-export interface ResourcesAPI {
-  /** Compatibility wrapper for resources backed by OAuth scopes. */
-  list(query?: ResourceListQuery): Promise<SDKOAuthScope[]>;
-  /** Compatibility create for resource scopes. */
-  create(input: CreateOAuthScopeInput): Promise<SDKOAuthScope>;
-  /** Compatibility delete for resource scopes. */
-  delete(id: string): Promise<void>;
-}
-
 export interface ScopeListQuery extends ListPageQuery {
   search?: string;
 }
@@ -1079,7 +1066,6 @@ export interface AdminClient extends ClientInstance {
   permissions: PermissionsAPI;
   policies: PoliciesAPI;
   provisioning: ReturnType<typeof import("../provisioning/index.js").createProvisioningAPI>;
-  resources: ResourcesAPI;
   roles: RolesAPI;
   saml: ReturnType<typeof import("../federation/index.js").createSamlAdminAPI>;
   scopes: ScopesAPI;

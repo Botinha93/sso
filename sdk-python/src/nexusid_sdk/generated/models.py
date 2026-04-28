@@ -1189,6 +1189,8 @@ class ServiceIdentityWithCredentials(TypedDict):
     updatedAt: str
     credentials: NotRequired[list[ServiceIdentityCredential]]
 
+AssignGroupRoleRequestBody: TypeAlias = "Any"
+AssignUserGroupRequestBody: TypeAlias = "Any"
 DeleteApiAccountMfaWebauthnCredentialsByCredentialIdResponse: TypeAlias = "None"
 DeleteApiAdminAuthenticationFlowsByIdResponse: TypeAlias = "None"
 DeleteApiAdminConnectorsByConnectorIdMappingsByMappingIdResponse: TypeAlias = "None"
@@ -1208,6 +1210,8 @@ GetApiAdminAccessRequestsResponse200: TypeAlias = "list[AccessRequest]"
 GetApiAdminAccessRequestsStalledResponse: TypeAlias = "GetApiAdminAccessRequestsStalledResponse200"
 GetApiAdminAccessRequestsStalledResponse200: TypeAlias = "list[GetApiAdminAccessRequestsStalledResponse200Item]"
 GetApiAdminAccessReviewsCampaignsByIdResponse: TypeAlias = "GetApiAdminAccessReviewsCampaignsByIdResponse200"
+GetApiAdminAppsResponse: TypeAlias = "Any"
+GetApiAdminAuditResponse: TypeAlias = "Any"
 GetApiAdminAuthenticationFlowsResponse: TypeAlias = "GetApiAdminAuthenticationFlowsResponse200"
 GetApiAdminAuthenticationFlowsResponse200: TypeAlias = "list[AuthenticationFlow]"
 GetApiAdminClientsResponse: TypeAlias = "GetApiAdminClientsResponse200"
@@ -1219,16 +1223,24 @@ GetApiAdminConnectorsByIdRunsResponse: TypeAlias = "GetApiAdminConnectorsByIdRun
 GetApiAdminConnectorsByIdRunsResponse200: TypeAlias = "list[ConnectorRun]"
 GetApiAdminConnectorsResponse: TypeAlias = "GetApiAdminConnectorsResponse200"
 GetApiAdminConnectorsResponse200: TypeAlias = "list[Connector]"
+GetApiAdminConsentsResponse: TypeAlias = "Any"
+GetApiAdminDevicesResponse: TypeAlias = "Any"
 GetApiAdminElevationsByIdResponse: TypeAlias = "GetApiAdminElevationsByIdResponse200"
 GetApiAdminElevationsByIdResponse200: TypeAlias = "ElevationRequest"
 GetApiAdminElevationsResponse: TypeAlias = "GetApiAdminElevationsResponse200"
 GetApiAdminElevationsResponse200: TypeAlias = "list[ElevationRequest]"
 GetApiAdminElevationsSessionsResponse: TypeAlias = "GetApiAdminElevationsSessionsResponse200"
 GetApiAdminElevationsSessionsResponse200: TypeAlias = "list[ElevationSession]"
+GetApiAdminEventHooksResponse: TypeAlias = "Any"
+GetApiAdminEventNotificationsResponse: TypeAlias = "Any"
+GetApiAdminEventTypesResponse: TypeAlias = "Any"
+GetApiAdminFederationProvidersResponse: TypeAlias = "Any"
+GetApiAdminGroupsResponse: TypeAlias = "Any"
 GetApiAdminMetricsAuthResponse: TypeAlias = "GetApiAdminMetricsAuthResponse200"
 GetApiAdminMetricsAuthResponse200: TypeAlias = "list[GetApiAdminMetricsAuthResponse200Item]"
 GetApiAdminPoliciesDecisionsResponse: TypeAlias = "GetApiAdminPoliciesDecisionsResponse200"
 GetApiAdminPoliciesDecisionsResponse200: TypeAlias = "list[GetApiAdminPoliciesDecisionsResponse200Item]"
+GetApiAdminPoliciesResponse: TypeAlias = "Any"
 GetApiAdminProvisioningDeprovisioningQueueResponse: TypeAlias = "GetApiAdminProvisioningDeprovisioningQueueResponse200"
 GetApiAdminProvisioningDeprovisioningQueueResponse200: TypeAlias = "list[GetApiAdminProvisioningDeprovisioningQueueResponse200Item]"
 GetApiAdminProvisioningJobsResponse: TypeAlias = "GetApiAdminProvisioningJobsResponse200"
@@ -1237,10 +1249,12 @@ GetApiAdminProvisioningMappingsResponse: TypeAlias = "GetApiAdminProvisioningMap
 GetApiAdminProvisioningMappingsResponse200: TypeAlias = "list[GetApiAdminProvisioningMappingsResponse200Item]"
 GetApiAdminProvisioningTokensResponse: TypeAlias = "GetApiAdminProvisioningTokensResponse200"
 GetApiAdminProvisioningTokensResponse200: TypeAlias = "list[GetApiAdminProvisioningTokensResponse200Item]"
+GetApiAdminRolesResponse: TypeAlias = "Any"
 GetApiAdminSamlAssertionsResponse: TypeAlias = "GetApiAdminSamlAssertionsResponse200"
 GetApiAdminSamlServiceProvidersByIdResponse: TypeAlias = "GetApiAdminSamlServiceProvidersByIdResponse200"
 GetApiAdminSamlServiceProvidersByIdResponse200: TypeAlias = "SamlServiceProvider"
 GetApiAdminSamlServiceProvidersResponse: TypeAlias = "GetApiAdminSamlServiceProvidersResponse200"
+GetApiAdminScopesResponse: TypeAlias = "Any"
 GetApiAdminSecurityRiskEventsResponse: TypeAlias = "GetApiAdminSecurityRiskEventsResponse200"
 GetApiAdminSecurityRiskEventsResponse200: TypeAlias = "list[GetApiAdminSecurityRiskEventsResponse200Item]"
 GetApiAdminServiceIdentitiesByIdResponse: TypeAlias = "GetApiAdminServiceIdentitiesByIdResponse200"
@@ -1248,6 +1262,10 @@ GetApiAdminServiceIdentitiesByIdResponse200: TypeAlias = "ServiceIdentityWithCre
 GetApiAdminServiceIdentitiesByIdUsageResponse: TypeAlias = "GetApiAdminServiceIdentitiesByIdUsageResponse200"
 GetApiAdminServiceIdentitiesResponse: TypeAlias = "GetApiAdminServiceIdentitiesResponse200"
 GetApiAdminServiceIdentitiesResponse200: TypeAlias = "list[ServiceIdentity]"
+GetApiAdminSessionsResponse: TypeAlias = "Any"
+GetApiAdminSettingsResponse: TypeAlias = "Any"
+GetApiAdminTenantsResponse: TypeAlias = "Any"
+GetApiAdminUserAttributesResponse: TypeAlias = "Any"
 GetApiAdminUsersResponse: TypeAlias = "GetApiAdminUsersResponse200"
 GetApiPortalMeResponse: TypeAlias = "GetApiPortalMeResponse200"
 GetOauthAuthorizeResponse: TypeAlias = "Any"
@@ -1272,6 +1290,8 @@ PatchApiAdminSamlServiceProvidersByIdResponse: TypeAlias = "PatchApiAdminSamlSer
 PatchApiAdminSamlServiceProvidersByIdResponse200: TypeAlias = "SamlServiceProvider"
 PatchApiAdminServiceIdentitiesByIdResponse: TypeAlias = "PatchApiAdminServiceIdentitiesByIdResponse200"
 PatchApiAdminServiceIdentitiesByIdResponse200: TypeAlias = "ServiceIdentity"
+PatchApiAdminUsersByIdRequestBody: TypeAlias = "Any"
+PatchApiAdminUsersByIdResponse: TypeAlias = "Any"
 PatchApiPortalProfileResponse: TypeAlias = "PatchApiPortalProfileResponse200"
 PatchScimV2GroupsByIdResponse: TypeAlias = "PatchScimV2GroupsByIdResponse200"
 PatchScimV2UsersByIdResponse: TypeAlias = "PatchScimV2UsersByIdResponse200"
@@ -1287,6 +1307,8 @@ PostApiAdminAccessRequestsResponse201: TypeAlias = "AccessRequest"
 PostApiAdminAccessReviewsCampaignsResponse: TypeAlias = "PostApiAdminAccessReviewsCampaignsResponse201"
 PostApiAdminAccessReviewsItemsByIdDecisionResponse: TypeAlias = "PostApiAdminAccessReviewsItemsByIdDecisionResponse200"
 PostApiAdminAccessReviewsItemsByIdDecisionResponse200: TypeAlias = "AccessReviewItem"
+PostApiAdminAppsRequestBody: TypeAlias = "Any"
+PostApiAdminAppsResponse: TypeAlias = "Any"
 PostApiAdminAuthenticationFlowsRequestBody: TypeAlias = "AuthenticationFlowCreate"
 PostApiAdminAuthenticationFlowsResponse: TypeAlias = "PostApiAdminAuthenticationFlowsResponse201"
 PostApiAdminAuthenticationFlowsResponse201: TypeAlias = "AuthenticationFlow"
@@ -1309,21 +1331,43 @@ PostApiAdminElevationsCheckResponse: TypeAlias = "PostApiAdminElevationsCheckRes
 PostApiAdminElevationsProcessExpirationsResponse: TypeAlias = "PostApiAdminElevationsProcessExpirationsResponse200"
 PostApiAdminElevationsResponse: TypeAlias = "PostApiAdminElevationsResponse201"
 PostApiAdminElevationsResponse201: TypeAlias = "ElevationRequest"
+PostApiAdminEventHooksRequestBody: TypeAlias = "Any"
+PostApiAdminEventHooksResponse: TypeAlias = "Any"
+PostApiAdminFederationProvidersRequestBody: TypeAlias = "Any"
+PostApiAdminFederationProvidersResponse: TypeAlias = "Any"
+PostApiAdminGroupRoleAssignmentsRequestBody: TypeAlias = "Any"
+PostApiAdminGroupsRequestBody: TypeAlias = "Any"
+PostApiAdminGroupsResponse: TypeAlias = "Any"
 PostApiAdminPoliciesEvaluateResponse: TypeAlias = "PostApiAdminPoliciesEvaluateResponse200"
+PostApiAdminPoliciesRequestBody: TypeAlias = "Any"
+PostApiAdminPoliciesResponse: TypeAlias = "Any"
 PostApiAdminProvisioningJobsReconcileResponse: TypeAlias = "PostApiAdminProvisioningJobsReconcileResponse202"
 PostApiAdminProvisioningMappingsResponse: TypeAlias = "PostApiAdminProvisioningMappingsResponse201"
 PostApiAdminProvisioningTokensResponse: TypeAlias = "PostApiAdminProvisioningTokensResponse201"
+PostApiAdminRoleAssignmentsRequestBody: TypeAlias = "Any"
+PostApiAdminRolesRequestBody: TypeAlias = "Any"
+PostApiAdminRolesResponse: TypeAlias = "Any"
 PostApiAdminSamlServiceProvidersByIdCertificatesRotateResponse: TypeAlias = "PostApiAdminSamlServiceProvidersByIdCertificatesRotateResponse200"
 PostApiAdminSamlServiceProvidersByIdCertificatesRotateResponse200: TypeAlias = "SamlServiceProvider"
 PostApiAdminSamlServiceProvidersByIdMetadataResponse: TypeAlias = "PostApiAdminSamlServiceProvidersByIdMetadataResponse200"
 PostApiAdminSamlServiceProvidersResponse: TypeAlias = "PostApiAdminSamlServiceProvidersResponse201"
 PostApiAdminSamlServiceProvidersResponse201: TypeAlias = "SamlServiceProvider"
+PostApiAdminScopesRequestBody: TypeAlias = "Any"
+PostApiAdminScopesResponse: TypeAlias = "Any"
 PostApiAdminServiceIdentitiesByIdCredentialsResponse: TypeAlias = "PostApiAdminServiceIdentitiesByIdCredentialsResponse201"
 PostApiAdminServiceIdentitiesByIdCredentialsResponse201: TypeAlias = "IssuedServiceIdentityCredential"
 PostApiAdminServiceIdentitiesByIdCredentialsRotateResponse: TypeAlias = "PostApiAdminServiceIdentitiesByIdCredentialsRotateResponse201"
 PostApiAdminServiceIdentitiesByIdCredentialsRotateResponse201: TypeAlias = "IssuedServiceIdentityCredential"
 PostApiAdminServiceIdentitiesResponse: TypeAlias = "PostApiAdminServiceIdentitiesResponse201"
 PostApiAdminServiceIdentitiesResponse201: TypeAlias = "ServiceIdentity"
+PostApiAdminTenantsRequestBody: TypeAlias = "Any"
+PostApiAdminTenantsResponse: TypeAlias = "Any"
+PostApiAdminUserAttributesRequestBody: TypeAlias = "Any"
+PostApiAdminUserAttributesResponse: TypeAlias = "Any"
+PostApiAdminUserGroupsRequestBody: TypeAlias = "Any"
+PostApiAdminUsersByIdResetPasswordRequestBody: TypeAlias = "Any"
+PostApiAdminUsersRequestBody: TypeAlias = "Any"
+PostApiAdminUsersResponse: TypeAlias = "Any"
 PostApiPortalAvatarResponse: TypeAlias = "PostApiPortalAvatarResponse200"
 PostApiPortalChangePasswordResponse: TypeAlias = "PostApiPortalChangePasswordResponse200"
 PostAuthLoginWebauthnBeginResponse: TypeAlias = "PostAuthLoginWebauthnBeginResponse200"
@@ -1342,16 +1386,41 @@ PostSamlSloResponse: TypeAlias = "PostSamlSloResponse200"
 PostSamlSsoResponse: TypeAlias = "PostSamlSsoResponse200"
 PostScimV2GroupsResponse: TypeAlias = "PostScimV2GroupsResponse201"
 PostScimV2UsersResponse: TypeAlias = "PostScimV2UsersResponse201"
+PutApiAdminAppsByIdRequestBody: TypeAlias = "Any"
+PutApiAdminAppsByIdResponse: TypeAlias = "Any"
 PutApiAdminAuthenticationFlowsByIdRequestBody: TypeAlias = "AuthenticationFlowUpdate"
 PutApiAdminAuthenticationFlowsByIdResponse: TypeAlias = "PutApiAdminAuthenticationFlowsByIdResponse200"
 PutApiAdminAuthenticationFlowsByIdResponse200: TypeAlias = "AuthenticationFlow"
+PutApiAdminClientsByIdRequestBody: TypeAlias = "Any"
+PutApiAdminClientsByIdResponse: TypeAlias = "Any"
+PutApiAdminEventHooksByIdRequestBody: TypeAlias = "Any"
+PutApiAdminEventHooksByIdResponse: TypeAlias = "Any"
+PutApiAdminFederationProvidersByIdRequestBody: TypeAlias = "Any"
+PutApiAdminFederationProvidersByIdResponse: TypeAlias = "Any"
+PutApiAdminGroupsByIdRequestBody: TypeAlias = "Any"
+PutApiAdminGroupsByIdResponse: TypeAlias = "Any"
+PutApiAdminPoliciesByIdAssignmentsRequestBody: TypeAlias = "Any"
+PutApiAdminPoliciesByIdRequestBody: TypeAlias = "Any"
+PutApiAdminPoliciesByIdResponse: TypeAlias = "Any"
+PutApiAdminRolesByIdRequestBody: TypeAlias = "Any"
+PutApiAdminRolesByIdResponse: TypeAlias = "Any"
+PutApiAdminSettingsRequestBody: TypeAlias = "Any"
+PutApiAdminSettingsResponse: TypeAlias = "Any"
+PutApiAdminTenantsRequestBody: TypeAlias = "Any"
+PutApiAdminTenantsResponse: TypeAlias = "Any"
+PutApiAdminUserAttributesByIdGroupsRequestBody: TypeAlias = "Any"
+PutApiAdminUserAttributesByIdRequestBody: TypeAlias = "Any"
+PutApiAdminUserAttributesByIdResponse: TypeAlias = "Any"
 PutScimV2GroupsByIdResponse: TypeAlias = "PutScimV2GroupsByIdResponse200"
 PutScimV2UsersByIdResponse: TypeAlias = "PutScimV2UsersByIdResponse200"
+RemovePolicyAssignmentRequestBody: TypeAlias = "Any"
 
 __all__ = [
     "AccessRequest",
     "AccessReviewCampaign",
     "AccessReviewItem",
+    "AssignGroupRoleRequestBody",
+    "AssignUserGroupRequestBody",
     "AuthenticationFlow",
     "AuthenticationFlowBase",
     "AuthenticationFlowCreate",
@@ -1402,6 +1471,8 @@ __all__ = [
     "GetApiAdminAccessReviewsCampaignsByIdPathParams",
     "GetApiAdminAccessReviewsCampaignsByIdResponse",
     "GetApiAdminAccessReviewsCampaignsByIdResponse200",
+    "GetApiAdminAppsResponse",
+    "GetApiAdminAuditResponse",
     "GetApiAdminAuthenticationFlowsResponse",
     "GetApiAdminAuthenticationFlowsResponse200",
     "GetApiAdminClientsQueryParams",
@@ -1419,6 +1490,8 @@ __all__ = [
     "GetApiAdminConnectorsByIdRunsResponse200",
     "GetApiAdminConnectorsResponse",
     "GetApiAdminConnectorsResponse200",
+    "GetApiAdminConsentsResponse",
+    "GetApiAdminDevicesResponse",
     "GetApiAdminElevationsByIdPathParams",
     "GetApiAdminElevationsByIdResponse",
     "GetApiAdminElevationsByIdResponse200",
@@ -1428,6 +1501,11 @@ __all__ = [
     "GetApiAdminElevationsSessionsQueryParams",
     "GetApiAdminElevationsSessionsResponse",
     "GetApiAdminElevationsSessionsResponse200",
+    "GetApiAdminEventHooksResponse",
+    "GetApiAdminEventNotificationsResponse",
+    "GetApiAdminEventTypesResponse",
+    "GetApiAdminFederationProvidersResponse",
+    "GetApiAdminGroupsResponse",
     "GetApiAdminMetricsAuthQueryParams",
     "GetApiAdminMetricsAuthResponse",
     "GetApiAdminMetricsAuthResponse200",
@@ -1436,6 +1514,7 @@ __all__ = [
     "GetApiAdminPoliciesDecisionsResponse",
     "GetApiAdminPoliciesDecisionsResponse200",
     "GetApiAdminPoliciesDecisionsResponse200Item",
+    "GetApiAdminPoliciesResponse",
     "GetApiAdminProvisioningDeprovisioningQueueQueryParams",
     "GetApiAdminProvisioningDeprovisioningQueueResponse",
     "GetApiAdminProvisioningDeprovisioningQueueResponse200",
@@ -1450,6 +1529,7 @@ __all__ = [
     "GetApiAdminProvisioningTokensResponse",
     "GetApiAdminProvisioningTokensResponse200",
     "GetApiAdminProvisioningTokensResponse200Item",
+    "GetApiAdminRolesResponse",
     "GetApiAdminSamlAssertionsQueryParams",
     "GetApiAdminSamlAssertionsResponse",
     "GetApiAdminSamlAssertionsResponse200",
@@ -1459,6 +1539,7 @@ __all__ = [
     "GetApiAdminSamlServiceProvidersQueryParams",
     "GetApiAdminSamlServiceProvidersResponse",
     "GetApiAdminSamlServiceProvidersResponse200",
+    "GetApiAdminScopesResponse",
     "GetApiAdminSecurityRiskEventsQueryParams",
     "GetApiAdminSecurityRiskEventsResponse",
     "GetApiAdminSecurityRiskEventsResponse200",
@@ -1472,6 +1553,10 @@ __all__ = [
     "GetApiAdminServiceIdentitiesByIdUsageResponse200CredentialsItem",
     "GetApiAdminServiceIdentitiesResponse",
     "GetApiAdminServiceIdentitiesResponse200",
+    "GetApiAdminSessionsResponse",
+    "GetApiAdminSettingsResponse",
+    "GetApiAdminTenantsResponse",
+    "GetApiAdminUserAttributesResponse",
     "GetApiAdminUsersQueryParams",
     "GetApiAdminUsersResponse",
     "GetApiAdminUsersResponse200",
@@ -1527,6 +1612,8 @@ __all__ = [
     "PatchApiAdminServiceIdentitiesByIdRequestBody",
     "PatchApiAdminServiceIdentitiesByIdResponse",
     "PatchApiAdminServiceIdentitiesByIdResponse200",
+    "PatchApiAdminUsersByIdRequestBody",
+    "PatchApiAdminUsersByIdResponse",
     "PatchApiPortalProfileRequestBody",
     "PatchApiPortalProfileResponse",
     "PatchApiPortalProfileResponse200",
@@ -1565,6 +1652,8 @@ __all__ = [
     "PostApiAdminAccessReviewsItemsByIdDecisionRequestBody",
     "PostApiAdminAccessReviewsItemsByIdDecisionResponse",
     "PostApiAdminAccessReviewsItemsByIdDecisionResponse200",
+    "PostApiAdminAppsRequestBody",
+    "PostApiAdminAppsResponse",
     "PostApiAdminAuthenticationFlowsRequestBody",
     "PostApiAdminAuthenticationFlowsResponse",
     "PostApiAdminAuthenticationFlowsResponse201",
@@ -1607,10 +1696,19 @@ __all__ = [
     "PostApiAdminElevationsRequestBody",
     "PostApiAdminElevationsResponse",
     "PostApiAdminElevationsResponse201",
+    "PostApiAdminEventHooksRequestBody",
+    "PostApiAdminEventHooksResponse",
+    "PostApiAdminFederationProvidersRequestBody",
+    "PostApiAdminFederationProvidersResponse",
+    "PostApiAdminGroupRoleAssignmentsRequestBody",
+    "PostApiAdminGroupsRequestBody",
+    "PostApiAdminGroupsResponse",
     "PostApiAdminPoliciesEvaluateRequestBody",
     "PostApiAdminPoliciesEvaluateResponse",
     "PostApiAdminPoliciesEvaluateResponse200",
     "PostApiAdminPoliciesEvaluateResponse200DecisionsItem",
+    "PostApiAdminPoliciesRequestBody",
+    "PostApiAdminPoliciesResponse",
     "PostApiAdminProvisioningJobsReconcileRequestBody",
     "PostApiAdminProvisioningJobsReconcileResponse",
     "PostApiAdminProvisioningJobsReconcileResponse202",
@@ -1620,6 +1718,9 @@ __all__ = [
     "PostApiAdminProvisioningTokensRequestBody",
     "PostApiAdminProvisioningTokensResponse",
     "PostApiAdminProvisioningTokensResponse201",
+    "PostApiAdminRoleAssignmentsRequestBody",
+    "PostApiAdminRolesRequestBody",
+    "PostApiAdminRolesResponse",
     "PostApiAdminSamlServiceProvidersByIdCertificatesRotatePathParams",
     "PostApiAdminSamlServiceProvidersByIdCertificatesRotateRequestBody",
     "PostApiAdminSamlServiceProvidersByIdCertificatesRotateResponse",
@@ -1632,6 +1733,8 @@ __all__ = [
     "PostApiAdminSamlServiceProvidersRequestBody",
     "PostApiAdminSamlServiceProvidersResponse",
     "PostApiAdminSamlServiceProvidersResponse201",
+    "PostApiAdminScopesRequestBody",
+    "PostApiAdminScopesResponse",
     "PostApiAdminServiceIdentitiesByIdCredentialsPathParams",
     "PostApiAdminServiceIdentitiesByIdCredentialsRequestBody",
     "PostApiAdminServiceIdentitiesByIdCredentialsResponse",
@@ -1643,6 +1746,14 @@ __all__ = [
     "PostApiAdminServiceIdentitiesRequestBody",
     "PostApiAdminServiceIdentitiesResponse",
     "PostApiAdminServiceIdentitiesResponse201",
+    "PostApiAdminTenantsRequestBody",
+    "PostApiAdminTenantsResponse",
+    "PostApiAdminUserAttributesRequestBody",
+    "PostApiAdminUserAttributesResponse",
+    "PostApiAdminUserGroupsRequestBody",
+    "PostApiAdminUsersByIdResetPasswordRequestBody",
+    "PostApiAdminUsersRequestBody",
+    "PostApiAdminUsersResponse",
     "PostApiPortalAvatarRequestBody",
     "PostApiPortalAvatarResponse",
     "PostApiPortalAvatarResponse200",
@@ -1701,16 +1812,39 @@ __all__ = [
     "PostScimV2GroupsResponse201",
     "PostScimV2UsersResponse",
     "PostScimV2UsersResponse201",
+    "PutApiAdminAppsByIdRequestBody",
+    "PutApiAdminAppsByIdResponse",
     "PutApiAdminAuthenticationFlowsByIdPathParams",
     "PutApiAdminAuthenticationFlowsByIdRequestBody",
     "PutApiAdminAuthenticationFlowsByIdResponse",
     "PutApiAdminAuthenticationFlowsByIdResponse200",
+    "PutApiAdminClientsByIdRequestBody",
+    "PutApiAdminClientsByIdResponse",
+    "PutApiAdminEventHooksByIdRequestBody",
+    "PutApiAdminEventHooksByIdResponse",
+    "PutApiAdminFederationProvidersByIdRequestBody",
+    "PutApiAdminFederationProvidersByIdResponse",
+    "PutApiAdminGroupsByIdRequestBody",
+    "PutApiAdminGroupsByIdResponse",
+    "PutApiAdminPoliciesByIdAssignmentsRequestBody",
+    "PutApiAdminPoliciesByIdRequestBody",
+    "PutApiAdminPoliciesByIdResponse",
+    "PutApiAdminRolesByIdRequestBody",
+    "PutApiAdminRolesByIdResponse",
+    "PutApiAdminSettingsRequestBody",
+    "PutApiAdminSettingsResponse",
+    "PutApiAdminTenantsRequestBody",
+    "PutApiAdminTenantsResponse",
+    "PutApiAdminUserAttributesByIdGroupsRequestBody",
+    "PutApiAdminUserAttributesByIdRequestBody",
+    "PutApiAdminUserAttributesByIdResponse",
     "PutScimV2GroupsByIdPathParams",
     "PutScimV2GroupsByIdResponse",
     "PutScimV2GroupsByIdResponse200",
     "PutScimV2UsersByIdPathParams",
     "PutScimV2UsersByIdResponse",
     "PutScimV2UsersByIdResponse200",
+    "RemovePolicyAssignmentRequestBody",
     "SamlAssertionAudit",
     "SamlServiceProvider",
     "ServiceIdentity",

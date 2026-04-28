@@ -7,6 +7,7 @@ const OPENAPI_PATH = path.join(ROOT, "openapi.yaml");
 const OUTPUT_DIR = path.join(ROOT, "sdk-python", "src", "nexusid_sdk", "generated");
 const OUTPUT_FILE = path.join(OUTPUT_DIR, "models.py");
 const OUTPUT_INIT = path.join(OUTPUT_DIR, "__init__.py");
+const PYTHON_SDK_DIR = path.join(ROOT, "sdk-python", "src", "nexusid_sdk");
 
 const HTTP_METHODS = ["get", "post", "put", "patch", "delete", "head", "options"];
 
@@ -42,7 +43,7 @@ const isObjectSchema = (schema) => {
   return Boolean(schema.properties || schema.allOf || schema.additionalProperties);
 };
 
-const createGenerator = (openapi) => {
+const createGenerator = (openapi, compatibilityAliases = []) => {
   const definitions = new Map();
   const usedNames = new Set();
 
@@ -342,6 +343,12 @@ const createGenerator = (openapi) => {
 
     generateOperationModels();
 
+    for (const aliasName of compatibilityAliases) {
+      if (!definitions.has(aliasName)) {
+        definitions.set(aliasName, { kind: "alias", target: "Any" });
+      }
+    }
+
     const aliases = [];
     const typedDicts = [];
 
@@ -404,10 +411,30 @@ const createGenerator = (openapi) => {
   return { generate };
 };
 
+const collectPythonSdkModelReferences = async () => {
+  const entries = await fs.readdir(PYTHON_SDK_DIR, { withFileTypes: true });
+  const names = new Set();
+
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith(".py")) {
+      continue;
+    }
+
+    const source = await fs.readFile(path.join(PYTHON_SDK_DIR, entry.name), "utf8");
+    const matches = source.matchAll(/\bgm\.([A-Za-z_][A-Za-z0-9_]*)\b/g);
+    for (const match of matches) {
+      names.add(match[1]);
+    }
+  }
+
+  return [...names].sort((left, right) => left.localeCompare(right));
+};
+
 const main = async () => {
   const raw = await fs.readFile(OPENAPI_PATH, "utf8");
   const openapi = parse(raw);
-  const generator = createGenerator(openapi);
+  const compatibilityAliases = await collectPythonSdkModelReferences();
+  const generator = createGenerator(openapi, compatibilityAliases);
   const output = generator.generate();
 
   await fs.mkdir(OUTPUT_DIR, { recursive: true });

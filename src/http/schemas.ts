@@ -343,12 +343,20 @@ export const createClientSchema = z.object({
   id: z.string().min(3),
   name: z.string().min(2),
   secret: z.string().min(16),
-  redirectUris: z.array(z.string().url()).min(1),
+  redirectUris: z.array(z.string().url()).default([]),
   allowedScopes: z.array(z.string()).min(1),
   grants: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"])).min(1),
   requirePkce: z.boolean().default(false),
   resources: z.array(z.string().min(1)).default([]),
   flowIds: z.array(z.string().min(1)).default([])
+}).superRefine((input, ctx) => {
+  if (input.grants.includes("authorization_code") && input.redirectUris.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["redirectUris"],
+      message: "redirectUris must include at least one URL when authorization_code grant is enabled"
+    });
+  }
 });
 
 export const updateClientSchema = z.object({

@@ -115,8 +115,6 @@ export type {
   SDKOAuthScope,
   SDKPolicyDecisionLog,
   SDKPolicyDefinition,
-    ResourceListQuery,
-    ResourcesAPI,
   SDKRiskEvent,
   SDKSession,
   SDKTenant,

@@ -128,7 +128,24 @@ class RolesAPI:
         return cast(gm.GetApiAdminRolesResponse, self._client.get("/api/admin/roles"))
 
     def create(self, payload: gm.PostApiAdminRolesRequestBody) -> gm.PostApiAdminRolesResponse:
-        return cast(gm.PostApiAdminRolesResponse, self._client.post("/api/admin/roles", body=payload))
+        body = dict(cast(dict[str, Any], payload))
+
+        name = body.get("name")
+        if not isinstance(name, str) or len(name.strip()) < 3:
+            raise ValueError("Role 'name' must be a string with at least 3 characters")
+
+        permissions = body.get("permissions")
+        if not isinstance(permissions, list) or len(permissions) < 1:
+            raise ValueError("Role 'permissions' must be a non-empty list")
+
+        # Server requires description and scope; provide sensible defaults for compatibility.
+        if "description" not in body or not isinstance(body.get("description"), str) or len(str(body.get("description", "")).strip()) < 3:
+            body["description"] = name.strip()
+
+        if "scope" not in body or body.get("scope") not in ("platform", "tenant"):
+            body["scope"] = "platform"
+
+        return cast(gm.PostApiAdminRolesResponse, self._client.post("/api/admin/roles", body=body))
 
     def update(self, role_id: str, payload: gm.PutApiAdminRolesByIdRequestBody) -> gm.PutApiAdminRolesByIdResponse:
         return cast(gm.PutApiAdminRolesByIdResponse, self._client.put(f"/api/admin/roles/{role_id}", body=payload))
@@ -169,7 +186,45 @@ class OAuthClientsAPI:
         return cast(gm.GetApiAdminClientsResponse, self._client.get("/api/admin/clients", query=query))
 
     def create(self, payload: gm.PostApiAdminClientsRequestBody) -> gm.PostApiAdminClientsResponse:
-        return cast(gm.PostApiAdminClientsResponse, self._client.post("/api/admin/clients", body=payload))
+        body = dict(cast(dict[str, Any], payload))
+
+        client_id = body.get("id")
+        if not isinstance(client_id, str) or len(client_id.strip()) < 3:
+            raise ValueError("Client 'id' must be a string with at least 3 characters")
+
+        name = body.get("name")
+        if not isinstance(name, str) or len(name.strip()) < 2:
+            raise ValueError("Client 'name' must be a string with at least 2 characters")
+
+        secret = body.get("secret")
+        if not isinstance(secret, str) or len(secret) < 16:
+            raise ValueError("Client 'secret' must be a string with at least 16 characters")
+
+        allowed_scopes = body.get("allowedScopes")
+        if not isinstance(allowed_scopes, list) or len(allowed_scopes) < 1:
+            raise ValueError("Client 'allowedScopes' must be a non-empty list")
+
+        grants = body.get("grants")
+        if not isinstance(grants, list) or len(grants) < 1:
+            raise ValueError("Client 'grants' must be a non-empty list")
+
+        redirect_uris = body.get("redirectUris")
+        if redirect_uris is None:
+            redirect_uris = []
+        if not isinstance(redirect_uris, list):
+            raise ValueError("Client 'redirectUris' must be a list of URLs")
+
+        # Older server deployments require at least one redirect URI for all grant types.
+        # For machine-to-machine clients this URI is not used, but keeps payloads compatible.
+        if len(redirect_uris) == 0 and "authorization_code" not in grants:
+            redirect_uris = ["https://example.invalid/oauth/callback"]
+
+        body["redirectUris"] = redirect_uris
+        body.setdefault("requirePkce", False)
+        body.setdefault("resources", [])
+        body.setdefault("flowIds", [])
+
+        return cast(gm.PostApiAdminClientsResponse, self._client.post("/api/admin/clients", body=body))
 
     def update(self, client_id: str, payload: gm.PutApiAdminClientsByIdRequestBody) -> gm.PutApiAdminClientsByIdResponse:
         return cast(gm.PutApiAdminClientsByIdResponse, self._client.put(f"/api/admin/clients/{client_id}", body=payload))
@@ -182,14 +237,14 @@ class AppsAPI:
     def __init__(self, client: NexusIDClient) -> None:
         self._client = client
 
-    def list(self, **query: Any) -> list[dict[str, Any]]:
-        return cast(list[dict[str, Any]], self._client.get("/api/admin/apps", query=query or None))
+    def list(self, **query: Any) -> gm.GetApiAdminAppsResponse:
+        return cast(gm.GetApiAdminAppsResponse, self._client.get("/api/admin/apps", query=query or None))
 
-    def create(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return cast(dict[str, Any], self._client.post("/api/admin/apps", body=payload))
+    def create(self, payload: gm.PostApiAdminAppsRequestBody) -> gm.PostApiAdminAppsResponse:
+        return cast(gm.PostApiAdminAppsResponse, self._client.post("/api/admin/apps", body=payload))
 
-    def update(self, app_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-        return cast(dict[str, Any], self._client.put(f"/api/admin/apps/{app_id}", body=payload))
+    def update(self, app_id: str, payload: gm.PutApiAdminAppsByIdRequestBody) -> gm.PutApiAdminAppsByIdResponse:
+        return cast(gm.PutApiAdminAppsByIdResponse, self._client.put(f"/api/admin/apps/{app_id}", body=payload))
 
     def delete(self, app_id: str) -> None:
         self._client.delete(f"/api/admin/apps/{app_id}")
@@ -434,20 +489,6 @@ class ScopesAPI:
         self._client.delete(f"/api/admin/scopes/{scope_id}")
 
 
-class ResourcesAPI:
-    def __init__(self, client: NexusIDClient) -> None:
-        self._client = client
-
-    def list(self) -> gm.GetApiAdminScopesResponse:
-        return cast(gm.GetApiAdminScopesResponse, self._client.get("/api/admin/scopes"))
-
-    def create(self, payload: gm.PostApiAdminScopesRequestBody) -> gm.PostApiAdminScopesResponse:
-        return cast(gm.PostApiAdminScopesResponse, self._client.post("/api/admin/scopes", body=payload))
-
-    def delete(self, resource_id: str) -> None:
-        self._client.delete(f"/api/admin/scopes/{resource_id}")
-
-
 class TenantsAPI:
     def __init__(self, client: NexusIDClient) -> None:
         self._client = client
@@ -675,7 +716,6 @@ class AdminClient(NexusIDClient):
         self.groups = GroupsAPI(self)
         self.clients = OAuthClientsAPI(self)
         self.scopes = ScopesAPI(self)
-        self.resources = ResourcesAPI(self)
         self.tenants = TenantsAPI(self)
         self.apps = AppsAPI(self)
         self.sessions = SessionsAPI(self)
