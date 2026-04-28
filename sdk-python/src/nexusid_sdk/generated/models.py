@@ -41,6 +41,398 @@ class AccessReviewItem(TypedDict):
     createdAt: str
     updatedAt: NotRequired[str]
 
+class Role(TypedDict):
+    id: str
+    appId: NotRequired[str]
+    name: str
+    description: str
+    permissions: list[str]
+    scope: Literal["platform", "tenant"]
+    createdAt: str
+
+class PostApiAdminRolesRequestBodyData(TypedDict):
+    name: str
+    description: str
+    permissions: list[str]
+    scope: Literal["platform", "tenant"]
+    appId: NotRequired[str]
+
+class PutApiAdminRolesByIdRequestBodyData(TypedDict, total=False):
+    name: str
+    description: str
+    permissions: list[str]
+    scope: Literal["platform", "tenant"]
+    appId: str
+
+class AssignGroupRoleRequestBody(TypedDict):
+    groupId: str
+    roleId: str
+
+class AssignRoleRequestBody(TypedDict):
+    userId: str
+    roleId: str
+    tenantId: NotRequired[str]
+
+class AssignUserGroupRequestBody(TypedDict):
+    userId: str
+    groupId: str
+
+class AuditEvent(TypedDict):
+    id: str
+    type: str
+    actorId: NotRequired[str]
+    actorType: Literal["user", "client", "system"]
+    clientId: NotRequired[str]
+    ip: NotRequired[str]
+    metadata: NotRequired[dict[str, Any]]
+    createdAt: str
+
+class Consent(TypedDict):
+    id: str
+    userId: str
+    clientId: str
+    scope: list[str]
+    createdAt: str
+    updatedAt: str
+
+class CreateAuthenticationFlowRequestBody(TypedDict):
+    name: str
+    description: str
+    grantTypes: list[str]
+    stages: list[dict[str, Any]]
+    designation: NotRequired[str]
+    enabled: NotRequired[bool]
+
+class CreateClientRequestBody(TypedDict):
+    id: str
+    name: str
+    secret: str
+    redirectUris: list[str]
+    allowedScopes: list[str]
+    grants: list[str]
+    requirePkce: NotRequired[bool]
+    appId: NotRequired[str]
+    resources: NotRequired[list[str]]
+    flowIds: NotRequired[list[str]]
+
+class CreateEventHookRequestBody(TypedDict):
+    eventType: str
+    targetUrl: str
+    method: NotRequired[Literal["POST", "PUT"]]
+    headers: NotRequired[dict[str, str]]
+    enabled: NotRequired[bool]
+
+class CreateFederationProviderRequestBody(TypedDict):
+    id: str
+    label: str
+    authorizationEndpoint: str
+    tokenEndpoint: str
+    userInfoEndpoint: str
+    clientId: str
+    clientSecret: str
+    scopes: NotRequired[list[str]]
+    enabled: NotRequired[bool]
+
+class CreateGroupRequestBody(TypedDict):
+    name: str
+    description: str
+    appId: NotRequired[str]
+    appIds: NotRequired[list[str]]
+    externalSource: NotRequired[str]
+    externalId: NotRequired[str]
+    customAttributes: NotRequired[dict[str, str]]
+    roleIds: NotRequired[list[str]]
+
+class CreatePolicyRequestBody(TypedDict):
+    key: str
+    name: str
+    description: str
+    stageBindings: NotRequired[list[str]]
+    category: NotRequired[Literal["authentication", "authorization"]]
+    effect: NotRequired[Literal["allow", "deny"]]
+    resourcePattern: NotRequired[str]
+    actionPattern: NotRequired[str]
+    javascriptCode: NotRequired[str]
+    enabled: NotRequired[bool]
+
+class CreateScopeRequestBody(TypedDict):
+    name: str
+    description: NotRequired[str]
+
+class CreateTenantRequestBody(TypedDict):
+    slug: str
+    name: str
+
+class CreateUserAttributeRequestBody(TypedDict):
+    key: str
+    name: str
+    description: str
+    type: Literal["text", "number", "boolean", "date", "json"]
+    enabled: NotRequired[bool]
+
+class CreateUserRequestBody(TypedDict):
+    email: str
+    username: str
+    password: str
+    givenName: str
+    familyName: str
+    isServiceUser: NotRequired[bool]
+    appId: NotRequired[str]
+    appIds: NotRequired[list[str]]
+    externalSource: NotRequired[str]
+    externalId: NotRequired[str]
+    avatarUrl: NotRequired[str]
+    customAttributes: NotRequired[dict[str, str]]
+    roleIds: NotRequired[list[str]]
+    groupIds: NotRequired[list[str]]
+
+class DeviceRequest(TypedDict):
+    deviceCode: str
+    userCode: str
+    clientId: str
+    clientName: str
+    scope: list[str]
+    createdAt: str
+    expiresAt: str
+    status: Literal["pending", "approved", "denied", "consumed"]
+    userId: NotRequired[str]
+    lastPolledAt: NotRequired[str]
+
+class DeviceSession(TypedDict):
+    id: str
+    clientId: str
+    clientName: str
+    userId: str
+    createdAt: str
+    expiresAt: str
+    revokedAt: NotRequired[str]
+    status: Literal["active", "expired", "revoked"]
+
+class DevicesResponse(TypedDict):
+    requests: list[DeviceRequest]
+    sessions: list[DeviceSession]
+
+class EventHook(TypedDict):
+    id: str
+    eventType: str
+    targetUrl: str
+    method: Literal["POST", "PUT"]
+    headers: dict[str, str]
+    enabled: bool
+    createdAt: str
+    updatedAt: str
+
+class EventNotification(TypedDict):
+    id: str
+    eventType: str
+    hookId: NotRequired[str]
+    payload: dict[str, Any]
+    status: Literal["delivered", "failed"]
+    responseStatus: NotRequired[int]
+    responseBody: NotRequired[str]
+    error: NotRequired[str]
+    createdAt: str
+
+class FederationProvider(TypedDict):
+    id: str
+    label: str
+    authorizationEndpoint: str
+    tokenEndpoint: str
+    userInfoEndpoint: str
+    clientId: str
+    scopes: list[str]
+    enabled: bool
+    hasSecret: NotRequired[bool]
+    secretPreview: NotRequired[str]
+    createdAt: str
+    updatedAt: str
+
+class Group(TypedDict):
+    id: str
+    name: str
+    description: str
+    appId: NotRequired[str]
+    appIds: NotRequired[list[str]]
+    externalSource: NotRequired[str]
+    externalId: NotRequired[str]
+    customAttributes: NotRequired[dict[str, str]]
+    createdAt: str
+
+class OAuthScope(TypedDict):
+    id: str
+    name: str
+    description: str
+    createdAt: str
+
+class PolicyDecisionLog(TypedDict):
+    id: str
+    userId: str
+    resource: str
+    action: str
+    allow: bool
+    deniedBy: list[str]
+    context: dict[str, Any]
+    source: Literal["policies_evaluate", "authorization_check"]
+    clientId: NotRequired[str]
+    tenantId: NotRequired[str]
+    ip: NotRequired[str]
+    createdAt: str
+
+class PolicyDefinition(TypedDict):
+    id: str
+    key: str
+    name: str
+    description: str
+    stageBindings: list[str]
+    enabled: bool
+    category: NotRequired[Literal["authentication", "authorization"]]
+    effect: NotRequired[Literal["allow", "deny"]]
+    resourcePattern: NotRequired[str]
+    actionPattern: NotRequired[str]
+    javascriptCode: NotRequired[str]
+    createdAt: str
+    updatedAt: str
+
+class RemovePolicyAssignmentRequestBody(TypedDict):
+    scopeType: Literal["global", "tenant", "group", "user"]
+    scopeId: NotRequired[str]
+
+class ResetUserPasswordRequestBody(TypedDict):
+    password: str
+
+class RiskEvent(TypedDict):
+    id: str
+    confidence: int
+    reason: str
+    decision: Literal["allow", "challenge", "block"]
+    userId: NotRequired[str]
+    ip: NotRequired[str]
+    geo: NotRequired[str]
+    metadata: NotRequired[dict[str, Any]]
+    createdAt: str
+
+class Session(TypedDict):
+    id: str
+    userId: str
+    clientId: str
+    createdAt: str
+    expiresAt: str
+    revokedAt: NotRequired[str]
+
+class SetPolicyAssignmentRequestBody(TypedDict):
+    scopeType: Literal["global", "tenant", "group", "user"]
+    enabled: bool
+    scopeId: NotRequired[str]
+    priority: NotRequired[int]
+    decisionStrategy: NotRequired[Literal["deny_overrides", "allow_overrides", "first_applicable"]]
+    config: NotRequired[dict[str, Any]]
+
+class SetUserAttributeGroupAssignmentRequestBody(TypedDict):
+    groupId: str
+    enabled: bool
+    value: NotRequired[str]
+
+class Tenant(TypedDict):
+    id: str
+    slug: str
+    name: str
+    active: bool
+    createdAt: str
+
+class UpdateAuthenticationFlowRequestBody(TypedDict, total=False):
+    name: str
+    description: str
+    designation: str
+    enabled: bool
+    grantTypes: list[str]
+    stages: list[dict[str, Any]]
+
+class UpdateClientRequestBody(TypedDict, total=False):
+    name: str
+    secret: str
+    redirectUris: list[str]
+    allowedScopes: list[str]
+    grants: list[str]
+    requirePkce: bool
+    appId: str
+    resources: list[str]
+    flowIds: list[str]
+
+class UpdateEventHookRequestBody(TypedDict, total=False):
+    eventType: str
+    targetUrl: str
+    method: Literal["POST", "PUT"]
+    headers: dict[str, str]
+    enabled: bool
+
+class UpdateFederationProviderRequestBody(TypedDict, total=False):
+    label: str
+    authorizationEndpoint: str
+    tokenEndpoint: str
+    userInfoEndpoint: str
+    clientId: str
+    clientSecret: str
+    scopes: list[str]
+    enabled: bool
+
+class UpdateGroupRequestBody(TypedDict, total=False):
+    name: str
+    description: str
+    appId: str
+    appIds: list[str]
+    externalSource: str
+    externalId: str
+    customAttributes: dict[str, str]
+
+class UpdatePolicyRequestBody(TypedDict, total=False):
+    key: str
+    name: str
+    description: str
+    category: Literal["authentication", "authorization"]
+    effect: Literal["allow", "deny"]
+    resourcePattern: str
+    actionPattern: str
+    stageBindings: list[str]
+    javascriptCode: str
+    enabled: bool
+
+class UpdateTenantRequestBody(TypedDict, total=False):
+    slug: str
+    name: str
+    active: bool
+
+class UpdateUserAttributeRequestBody(TypedDict, total=False):
+    key: str
+    name: str
+    description: str
+    type: Literal["text", "number", "boolean", "date", "json"]
+    enabled: bool
+
+class UpdateUserRequestBody(TypedDict, total=False):
+    email: str
+    username: str
+    givenName: str
+    familyName: str
+    active: bool
+    isServiceUser: bool
+    appId: str
+    appIds: list[str]
+    externalSource: str
+    externalId: str
+    avatarUrl: str
+    groupIds: list[str]
+    customAttributes: dict[str, str]
+
+class UserAttributeDefinition(TypedDict):
+    id: str
+    key: str
+    name: str
+    description: str
+    type: Literal["text", "number", "boolean", "date", "json"]
+    enabled: bool
+    createdAt: str
+    updatedAt: str
+
 class AuthenticationFlow(TypedDict):
     name: str
     description: str
@@ -1206,7 +1598,104 @@ GetApiAdminAccessRequestsStalledResponse200: TypeAlias = "list[GetApiAdminAccess
 GetApiAdminAccessReviewsCampaignsByIdResponse: TypeAlias = "GetApiAdminAccessReviewsCampaignsByIdResponse200"
 GetApiAdminAuthenticationFlowsResponse: TypeAlias = "GetApiAdminAuthenticationFlowsResponse200"
 GetApiAdminAuthenticationFlowsResponse200: TypeAlias = "list[AuthenticationFlow]"
+DeleteApiAdminClientsByIdResponse: TypeAlias = "None"
+DeleteApiAdminConsentsByIdResponse: TypeAlias = "None"
+DeleteApiAdminDevicesRequestsByDeviceCodeResponse: TypeAlias = "None"
+DeleteApiAdminDevicesSessionsByIdResponse: TypeAlias = "None"
+DeleteApiAdminFederationProvidersByIdResponse: TypeAlias = "None"
+DeleteApiAdminGroupRoleAssignmentsResponse: TypeAlias = "None"
+DeleteApiAdminGroupsByIdResponse: TypeAlias = "None"
+DeleteApiAdminPoliciesByIdAssignmentsResponse: TypeAlias = "None"
+DeleteApiAdminPoliciesByIdResponse: TypeAlias = "None"
+DeleteApiAdminRolesByIdResponse: TypeAlias = "None"
+DeleteApiAdminScopesByIdResponse: TypeAlias = "None"
+DeleteApiAdminSessionsByIdResponse: TypeAlias = "None"
+DeleteApiAdminUserAttributesByIdGroupsByGroupIdResponse: TypeAlias = "None"
+DeleteApiAdminUserAttributesByIdResponse: TypeAlias = "None"
+DeleteApiAdminUserGroupsResponse: TypeAlias = "None"
+GetApiAdminAuditResponse: TypeAlias = "list[AuditEvent]"
+GetApiAdminAuthenticationFlowsResponse: TypeAlias = "list[AuthenticationFlow]"
 GetApiAdminClientsResponse: TypeAlias = "GetApiAdminClientsResponse200"
+GetApiAdminConsentsResponse: TypeAlias = "list[Consent]"
+GetApiAdminDevicesResponse: TypeAlias = "DevicesResponse"
+GetApiAdminEventHooksResponse: TypeAlias = "list[EventHook]"
+GetApiAdminEventNotificationsResponse: TypeAlias = "list[EventNotification]"
+GetApiAdminEventTypesResponse: TypeAlias = "list[str]"
+GetApiAdminFederationProvidersResponse: TypeAlias = "list[FederationProvider]"
+GetApiAdminGroupsResponse: TypeAlias = "list[Group]"
+GetApiAdminPoliciesDecisionsResponse: TypeAlias = "list[PolicyDecisionLog]"
+GetApiAdminPoliciesResponse: TypeAlias = "list[PolicyDefinition]"
+GetApiAdminRolesResponse: TypeAlias = "GetApiAdminRolesResponse200"
+GetApiAdminRolesResponse200: TypeAlias = "list[Role]"
+GetApiAdminScopesResponse: TypeAlias = "list[OAuthScope]"
+GetApiAdminSecurityRiskEventsResponse: TypeAlias = "GetApiAdminSecurityRiskEventsResponse200"
+GetApiAdminSecurityRiskEventsResponse200: TypeAlias = "list[GetApiAdminSecurityRiskEventsResponse200Item]"
+GetApiAdminSessionsResponse: TypeAlias = "list[Session]"
+GetApiAdminTenantsResponse: TypeAlias = "list[Tenant]"
+GetApiAdminUserAttributesResponse: TypeAlias = "list[UserAttributeDefinition]"
+PostApiAdminAuthenticationFlowsRequestBody: TypeAlias = "CreateAuthenticationFlowRequestBody"
+PostApiAdminAuthenticationFlowsResponse: TypeAlias = "AuthenticationFlow"
+PostApiAdminClientsByIdResponse: TypeAlias = "None"
+PostApiAdminClientsResponse: TypeAlias = "PostApiAdminClientsResponse201"
+PostApiAdminClientsResponse201: TypeAlias = "OAuthClient"
+PostApiAdminCreateClientRequestBody: TypeAlias = "CreateClientRequestBody"
+PostApiAdminEventHooksByIdTestResponse: TypeAlias = "dict[str, Any]"
+PostApiAdminEventHooksRequestBody: TypeAlias = "CreateEventHookRequestBody"
+PostApiAdminEventHooksResponse: TypeAlias = "EventHook"
+PostApiAdminFederationProvidersRequestBody: TypeAlias = "CreateFederationProviderRequestBody"
+PostApiAdminFederationProvidersResponse: TypeAlias = "FederationProvider"
+PostApiAdminGroupRoleAssignmentsRequestBody: TypeAlias = "AssignGroupRoleRequestBody"
+PostApiAdminGroupRoleAssignmentsResponse: TypeAlias = "None"
+PostApiAdminGroupsRequestBody: TypeAlias = "CreateGroupRequestBody"
+PostApiAdminGroupsResponse: TypeAlias = "Group"
+PostApiAdminPoliciesEvaluateRequestBody: TypeAlias = "dict[str, Any]"
+PostApiAdminPoliciesRequestBody: TypeAlias = "CreatePolicyRequestBody"
+PostApiAdminPoliciesResponse: TypeAlias = "PolicyDefinition"
+PostApiAdminRoleAssignmentsRequestBody: TypeAlias = "AssignRoleRequestBody"
+PostApiAdminRoleAssignmentsResponse: TypeAlias = "None"
+PostApiAdminRolesRequestBody: TypeAlias = "PostApiAdminRolesRequestBodyData"
+PostApiAdminRolesResponse: TypeAlias = "PostApiAdminRolesResponse201"
+PostApiAdminRolesResponse201: TypeAlias = "Role"
+PostApiAdminScopesRequestBody: TypeAlias = "CreateScopeRequestBody"
+PostApiAdminScopesResponse: TypeAlias = "OAuthScope"
+PostApiAdminTenantsRequestBody: TypeAlias = "CreateTenantRequestBody"
+PostApiAdminTenantsResponse: TypeAlias = "Tenant"
+PostApiAdminUserAttributesRequestBody: TypeAlias = "CreateUserAttributeRequestBody"
+PostApiAdminUserAttributesResponse: TypeAlias = "UserAttributeDefinition"
+PostApiAdminUserGroupsRequestBody: TypeAlias = "AssignUserGroupRequestBody"
+PostApiAdminUserGroupsResponse: TypeAlias = "None"
+PostApiAdminUsersRequestBody: TypeAlias = "CreateUserRequestBody"
+PostApiAdminUsersResponse: TypeAlias = "dict[str, Any]"
+PatchApiAdminUsersByIdRequestBody: TypeAlias = "UpdateUserRequestBody"
+PatchApiAdminUsersByIdResponse: TypeAlias = "dict[str, Any]"
+PostApiAdminUsersByIdResetPasswordRequestBody: TypeAlias = "ResetUserPasswordRequestBody"
+PostApiAdminUsersByIdResetPasswordResponse: TypeAlias = "None"
+PutApiAdminAuthenticationFlowsByIdRequestBody: TypeAlias = "UpdateAuthenticationFlowRequestBody"
+PutApiAdminAuthenticationFlowsByIdResponse: TypeAlias = "AuthenticationFlow"
+PutApiAdminClientsByIdRequestBody: TypeAlias = "UpdateClientRequestBody"
+PutApiAdminClientsByIdResponse: TypeAlias = "OAuthClient"
+PutApiAdminEventHooksByIdRequestBody: TypeAlias = "UpdateEventHookRequestBody"
+PutApiAdminEventHooksByIdResponse: TypeAlias = "EventHook"
+PutApiAdminFederationProvidersByIdRequestBody: TypeAlias = "UpdateFederationProviderRequestBody"
+PutApiAdminFederationProvidersByIdResponse: TypeAlias = "FederationProvider"
+PutApiAdminGroupsByIdRequestBody: TypeAlias = "UpdateGroupRequestBody"
+PutApiAdminGroupsByIdResponse: TypeAlias = "Group"
+PutApiAdminPoliciesByIdAssignmentsRequestBody: TypeAlias = "SetPolicyAssignmentRequestBody"
+PutApiAdminPoliciesByIdAssignmentsResponse: TypeAlias = "None"
+PutApiAdminPoliciesByIdRequestBody: TypeAlias = "UpdatePolicyRequestBody"
+PutApiAdminPoliciesByIdResponse: TypeAlias = "PolicyDefinition"
+PutApiAdminRolesByIdRequestBody: TypeAlias = "PutApiAdminRolesByIdRequestBodyData"
+PutApiAdminRolesByIdResponse: TypeAlias = "PutApiAdminRolesByIdResponse200"
+PutApiAdminRolesByIdResponse200: TypeAlias = "Role"
+PutApiAdminSettingsRequestBody: TypeAlias = "dict[str, Any]"
+PutApiAdminSettingsResponse: TypeAlias = "dict[str, Any]"
+PutApiAdminTenantsRequestBody: TypeAlias = "UpdateTenantRequestBody"
+PutApiAdminTenantsResponse: TypeAlias = "Tenant"
+PutApiAdminUserAttributesByIdGroupsRequestBody: TypeAlias = "SetUserAttributeGroupAssignmentRequestBody"
+PutApiAdminUserAttributesByIdGroupsResponse: TypeAlias = "None"
+PutApiAdminUserAttributesByIdRequestBody: TypeAlias = "UpdateUserAttributeRequestBody"
+PutApiAdminUserAttributesByIdResponse: TypeAlias = "UserAttributeDefinition"
+GetApiAdminSettingsResponse: TypeAlias = "dict[str, Any]"
 GetApiAdminConnectorsByIdMappingsResponse: TypeAlias = "GetApiAdminConnectorsByIdMappingsResponse200"
 GetApiAdminConnectorsByIdMappingsResponse200: TypeAlias = "list[ConnectorMapping]"
 GetApiAdminConnectorsByIdResponse: TypeAlias = "GetApiAdminConnectorsByIdResponse200"
@@ -1509,6 +1998,143 @@ __all__ = [
     "GetWellKnownJwksJsonResponse200KeysItem",
     "GetWellKnownOpenidConfigurationResponse",
     "GetWellKnownOpenidConfigurationResponse200",
+    "Role",
+    "PostApiAdminRolesRequestBodyData",
+    "PutApiAdminRolesByIdRequestBodyData",
+    "GetApiAdminRolesResponse",
+    "GetApiAdminRolesResponse200",
+    "PostApiAdminRolesRequestBody",
+    "PostApiAdminRolesResponse",
+    "PostApiAdminRolesResponse201",
+    "PutApiAdminRolesByIdRequestBody",
+    "PutApiAdminRolesByIdResponse",
+    "PutApiAdminRolesByIdResponse200",
+    "DeleteApiAdminRolesByIdResponse",
+    # New TypedDicts
+    "AssignGroupRoleRequestBody",
+    "AssignRoleRequestBody",
+    "AssignUserGroupRequestBody",
+    "AuditEvent",
+    "Consent",
+    "CreateAuthenticationFlowRequestBody",
+    "CreateClientRequestBody",
+    "CreateEventHookRequestBody",
+    "CreateFederationProviderRequestBody",
+    "CreateGroupRequestBody",
+    "CreatePolicyRequestBody",
+    "CreateScopeRequestBody",
+    "CreateTenantRequestBody",
+    "CreateUserAttributeRequestBody",
+    "CreateUserRequestBody",
+    "DeviceRequest",
+    "DeviceSession",
+    "DevicesResponse",
+    "EventHook",
+    "EventNotification",
+    "FederationProvider",
+    "Group",
+    "OAuthScope",
+    "PolicyDecisionLog",
+    "PolicyDefinition",
+    "RemovePolicyAssignmentRequestBody",
+    "ResetUserPasswordRequestBody",
+    "RiskEvent",
+    "Session",
+    "SetPolicyAssignmentRequestBody",
+    "SetUserAttributeGroupAssignmentRequestBody",
+    "Tenant",
+    "UpdateAuthenticationFlowRequestBody",
+    "UpdateClientRequestBody",
+    "UpdateEventHookRequestBody",
+    "UpdateFederationProviderRequestBody",
+    "UpdateGroupRequestBody",
+    "UpdatePolicyRequestBody",
+    "UpdateTenantRequestBody",
+    "UpdateUserAttributeRequestBody",
+    "UpdateUserRequestBody",
+    "UserAttributeDefinition",
+    # New TypeAliases
+    "DeleteApiAdminClientsByIdResponse",
+    "DeleteApiAdminConsentsByIdResponse",
+    "DeleteApiAdminDevicesRequestsByDeviceCodeResponse",
+    "DeleteApiAdminDevicesSessionsByIdResponse",
+    "DeleteApiAdminFederationProvidersByIdResponse",
+    "DeleteApiAdminGroupRoleAssignmentsResponse",
+    "DeleteApiAdminGroupsByIdResponse",
+    "DeleteApiAdminPoliciesByIdAssignmentsResponse",
+    "DeleteApiAdminPoliciesByIdResponse",
+    "DeleteApiAdminScopesByIdResponse",
+    "DeleteApiAdminSessionsByIdResponse",
+    "DeleteApiAdminUserAttributesByIdGroupsByGroupIdResponse",
+    "DeleteApiAdminUserAttributesByIdResponse",
+    "DeleteApiAdminUserGroupsResponse",
+    "GetApiAdminAuditResponse",
+    "GetApiAdminAuthenticationFlowsResponse",
+    "GetApiAdminConsentsResponse",
+    "GetApiAdminDevicesResponse",
+    "GetApiAdminEventHooksResponse",
+    "GetApiAdminEventNotificationsResponse",
+    "GetApiAdminEventTypesResponse",
+    "GetApiAdminFederationProvidersResponse",
+    "GetApiAdminGroupsResponse",
+    "GetApiAdminPoliciesResponse",
+    "GetApiAdminScopesResponse",
+    "GetApiAdminSessionsResponse",
+    "GetApiAdminSettingsResponse",
+    "GetApiAdminTenantsResponse",
+    "GetApiAdminUserAttributesResponse",
+    "PatchApiAdminUsersByIdRequestBody",
+    "PatchApiAdminUsersByIdResponse",
+    "PostApiAdminAuthenticationFlowsRequestBody",
+    "PostApiAdminAuthenticationFlowsResponse",
+    "PostApiAdminCreateClientRequestBody",
+    "PostApiAdminEventHooksByIdTestResponse",
+    "PostApiAdminEventHooksRequestBody",
+    "PostApiAdminEventHooksResponse",
+    "PostApiAdminFederationProvidersRequestBody",
+    "PostApiAdminFederationProvidersResponse",
+    "PostApiAdminGroupRoleAssignmentsRequestBody",
+    "PostApiAdminGroupRoleAssignmentsResponse",
+    "PostApiAdminGroupsRequestBody",
+    "PostApiAdminGroupsResponse",
+    "PostApiAdminPoliciesRequestBody",
+    "PostApiAdminPoliciesResponse",
+    "PostApiAdminRoleAssignmentsRequestBody",
+    "PostApiAdminRoleAssignmentsResponse",
+    "PostApiAdminScopesRequestBody",
+    "PostApiAdminScopesResponse",
+    "PostApiAdminTenantsRequestBody",
+    "PostApiAdminTenantsResponse",
+    "PostApiAdminUserAttributesRequestBody",
+    "PostApiAdminUserAttributesResponse",
+    "PostApiAdminUserGroupsRequestBody",
+    "PostApiAdminUserGroupsResponse",
+    "PostApiAdminUsersRequestBody",
+    "PostApiAdminUsersResponse",
+    "PostApiAdminUsersByIdResetPasswordRequestBody",
+    "PostApiAdminUsersByIdResetPasswordResponse",
+    "PutApiAdminAuthenticationFlowsByIdRequestBody",
+    "PutApiAdminAuthenticationFlowsByIdResponse",
+    "PutApiAdminClientsByIdRequestBody",
+    "PutApiAdminClientsByIdResponse",
+    "PutApiAdminEventHooksByIdRequestBody",
+    "PutApiAdminEventHooksByIdResponse",
+    "PutApiAdminFederationProvidersByIdRequestBody",
+    "PutApiAdminFederationProvidersByIdResponse",
+    "PutApiAdminGroupsByIdRequestBody",
+    "PutApiAdminGroupsByIdResponse",
+    "PutApiAdminPoliciesByIdAssignmentsRequestBody",
+    "PutApiAdminPoliciesByIdAssignmentsResponse",
+    "PutApiAdminPoliciesByIdRequestBody",
+    "PutApiAdminPoliciesByIdResponse",
+    "PutApiAdminSettingsRequestBody",
+    "PutApiAdminSettingsResponse",
+    "PutApiAdminTenantsRequestBody",
+    "PutApiAdminTenantsResponse",
+    "PutApiAdminUserAttributesByIdGroupsRequestBody",
+    "PutApiAdminUserAttributesByIdGroupsResponse",
+    "PutApiAdminUserAttributesByIdRequestBody",
+    "PutApiAdminUserAttributesByIdResponse",
     "OAuthClient",
     "PatchApiAdminConnectorsByIdPathParams",
     "PatchApiAdminConnectorsByIdRequestBody",

@@ -107,6 +107,35 @@ class UsersAPI:
     def list(self, **query: Any) -> gm.GetApiAdminUsersResponse:
         return cast(gm.GetApiAdminUsersResponse, self._client.get("/api/admin/users", query=query))
 
+    def create(self, payload: gm.PostApiAdminUsersRequestBody) -> gm.PostApiAdminUsersResponse:
+        return cast(gm.PostApiAdminUsersResponse, self._client.post("/api/admin/users", body=payload))
+
+    def update(self, user_id: str, payload: gm.PatchApiAdminUsersByIdRequestBody) -> gm.PatchApiAdminUsersByIdResponse:
+        return cast(gm.PatchApiAdminUsersByIdResponse, self._client.patch(f"/api/admin/users/{user_id}", body=payload))
+
+    def reset_password(self, user_id: str, payload: gm.PostApiAdminUsersByIdResetPasswordRequestBody) -> None:
+        self._client.post(f"/api/admin/users/{user_id}/reset-password", body=payload)
+
+    def delete(self, user_id: str) -> None:
+        self._client.delete(f"/api/admin/users/{user_id}")
+
+
+class RolesAPI:
+    def __init__(self, client: NexusIDClient) -> None:
+        self._client = client
+
+    def list(self) -> gm.GetApiAdminRolesResponse:
+        return cast(gm.GetApiAdminRolesResponse, self._client.get("/api/admin/roles"))
+
+    def create(self, payload: gm.PostApiAdminRolesRequestBody) -> gm.PostApiAdminRolesResponse:
+        return cast(gm.PostApiAdminRolesResponse, self._client.post("/api/admin/roles", body=payload))
+
+    def update(self, role_id: str, payload: gm.PutApiAdminRolesByIdRequestBody) -> gm.PutApiAdminRolesByIdResponse:
+        return cast(gm.PutApiAdminRolesByIdResponse, self._client.put(f"/api/admin/roles/{role_id}", body=payload))
+
+    def delete(self, role_id: str) -> None:
+        self._client.delete(f"/api/admin/roles/{role_id}")
+
 
 class OAuthClientsAPI:
     def __init__(self, client: NexusIDClient) -> None:
@@ -117,6 +146,12 @@ class OAuthClientsAPI:
 
     def create(self, payload: gm.PostApiAdminClientsRequestBody) -> gm.PostApiAdminClientsResponse:
         return cast(gm.PostApiAdminClientsResponse, self._client.post("/api/admin/clients", body=payload))
+
+    def update(self, client_id: str, payload: gm.PutApiAdminClientsByIdRequestBody) -> gm.PutApiAdminClientsByIdResponse:
+        return cast(gm.PutApiAdminClientsByIdResponse, self._client.put(f"/api/admin/clients/{client_id}", body=payload))
+
+    def delete(self, client_id: str) -> None:
+        self._client.delete(f"/api/admin/clients/{client_id}")
 
 
 class AppsAPI:
@@ -332,6 +367,250 @@ class SamlAdminAPI:
         self.assertions = SamlAssertionAuditsAPI(client)
 
 
+class GroupsAPI:
+    def __init__(self, client: NexusIDClient) -> None:
+        self._client = client
+
+    def list(self) -> gm.GetApiAdminGroupsResponse:
+        return cast(gm.GetApiAdminGroupsResponse, self._client.get("/api/admin/groups"))
+
+    def create(self, payload: gm.PostApiAdminGroupsRequestBody) -> gm.PostApiAdminGroupsResponse:
+        return cast(gm.PostApiAdminGroupsResponse, self._client.post("/api/admin/groups", body=payload))
+
+    def update(self, group_id: str, payload: gm.PutApiAdminGroupsByIdRequestBody) -> gm.PutApiAdminGroupsByIdResponse:
+        return cast(gm.PutApiAdminGroupsByIdResponse, self._client.put(f"/api/admin/groups/{group_id}", body=payload))
+
+    def delete(self, group_id: str) -> None:
+        self._client.delete(f"/api/admin/groups/{group_id}")
+
+    def assign_role(self, payload: gm.PostApiAdminGroupRoleAssignmentsRequestBody) -> None:
+        self._client.post("/api/admin/group-role-assignments", body=payload)
+
+    def remove_role(self, payload: gm.AssignGroupRoleRequestBody) -> None:
+        self._client.delete("/api/admin/group-role-assignments", body=payload)
+
+    def assign_user(self, payload: gm.PostApiAdminUserGroupsRequestBody) -> None:
+        self._client.post("/api/admin/user-groups", body=payload)
+
+    def remove_user(self, payload: gm.AssignUserGroupRequestBody) -> None:
+        self._client.delete("/api/admin/user-groups", body=payload)
+
+
+class ScopesAPI:
+    def __init__(self, client: NexusIDClient) -> None:
+        self._client = client
+
+    def list(self) -> gm.GetApiAdminScopesResponse:
+        return cast(gm.GetApiAdminScopesResponse, self._client.get("/api/admin/scopes"))
+
+    def create(self, payload: gm.PostApiAdminScopesRequestBody) -> gm.PostApiAdminScopesResponse:
+        return cast(gm.PostApiAdminScopesResponse, self._client.post("/api/admin/scopes", body=payload))
+
+    def delete(self, scope_id: str) -> None:
+        self._client.delete(f"/api/admin/scopes/{scope_id}")
+
+
+class TenantsAPI:
+    def __init__(self, client: NexusIDClient) -> None:
+        self._client = client
+
+    def list(self) -> gm.GetApiAdminTenantsResponse:
+        return cast(gm.GetApiAdminTenantsResponse, self._client.get("/api/admin/tenants"))
+
+    def create(self, payload: gm.PostApiAdminTenantsRequestBody) -> gm.PostApiAdminTenantsResponse:
+        return cast(gm.PostApiAdminTenantsResponse, self._client.post("/api/admin/tenants", body=payload))
+
+    def update(self, tenant_id: str, payload: gm.PutApiAdminTenantsRequestBody) -> gm.PutApiAdminTenantsResponse:
+        return cast(gm.PutApiAdminTenantsResponse, self._client.put(f"/api/admin/tenants/{tenant_id}", body=payload))
+
+
+class SessionsAPI:
+    def __init__(self, client: NexusIDClient) -> None:
+        self._client = client
+
+    def list(self) -> gm.GetApiAdminSessionsResponse:
+        return cast(gm.GetApiAdminSessionsResponse, self._client.get("/api/admin/sessions"))
+
+    def revoke(self, session_id: str) -> None:
+        self._client.delete(f"/api/admin/sessions/{session_id}")
+
+
+class ConsentsAPI:
+    def __init__(self, client: NexusIDClient) -> None:
+        self._client = client
+
+    def list(self) -> gm.GetApiAdminConsentsResponse:
+        return cast(gm.GetApiAdminConsentsResponse, self._client.get("/api/admin/consents"))
+
+    def revoke(self, consent_id: str) -> None:
+        self._client.delete(f"/api/admin/consents/{consent_id}")
+
+
+class DevicesAPI:
+    def __init__(self, client: NexusIDClient) -> None:
+        self._client = client
+
+    def list(self) -> gm.GetApiAdminDevicesResponse:
+        return cast(gm.GetApiAdminDevicesResponse, self._client.get("/api/admin/devices"))
+
+    def revoke_request(self, device_code: str) -> None:
+        self._client.delete(f"/api/admin/devices/requests/{device_code}")
+
+    def revoke_session(self, session_id: str) -> None:
+        self._client.delete(f"/api/admin/devices/sessions/{session_id}")
+
+
+class AuditAPI:
+    def __init__(self, client: NexusIDClient) -> None:
+        self._client = client
+
+    def list(self, *, limit: int | None = None) -> gm.GetApiAdminAuditResponse:
+        query = {"limit": limit} if limit is not None else None
+        return cast(gm.GetApiAdminAuditResponse, self._client.get("/api/admin/audit", query=query))
+
+
+class AuthenticationFlowsAPI:
+    def __init__(self, client: NexusIDClient) -> None:
+        self._client = client
+
+    def list(self) -> gm.GetApiAdminAuthenticationFlowsResponse:
+        return cast(gm.GetApiAdminAuthenticationFlowsResponse, self._client.get("/api/admin/authentication/flows"))
+
+    def create(self, payload: gm.PostApiAdminAuthenticationFlowsRequestBody) -> gm.PostApiAdminAuthenticationFlowsResponse:
+        return cast(gm.PostApiAdminAuthenticationFlowsResponse, self._client.post("/api/admin/authentication/flows", body=payload))
+
+    def update(self, flow_id: str, payload: gm.PutApiAdminAuthenticationFlowsByIdRequestBody) -> gm.PutApiAdminAuthenticationFlowsByIdResponse:
+        return cast(gm.PutApiAdminAuthenticationFlowsByIdResponse, self._client.put(f"/api/admin/authentication/flows/{flow_id}", body=payload))
+
+    def delete(self, flow_id: str) -> None:
+        self._client.delete(f"/api/admin/authentication/flows/{flow_id}")
+
+
+class UserAttributesAPI:
+    def __init__(self, client: NexusIDClient) -> None:
+        self._client = client
+
+    def list(self) -> gm.GetApiAdminUserAttributesResponse:
+        return cast(gm.GetApiAdminUserAttributesResponse, self._client.get("/api/admin/user-attributes"))
+
+    def create(self, payload: gm.PostApiAdminUserAttributesRequestBody) -> gm.PostApiAdminUserAttributesResponse:
+        return cast(gm.PostApiAdminUserAttributesResponse, self._client.post("/api/admin/user-attributes", body=payload))
+
+    def update(self, attribute_id: str, payload: gm.PutApiAdminUserAttributesByIdRequestBody) -> gm.PutApiAdminUserAttributesByIdResponse:
+        return cast(gm.PutApiAdminUserAttributesByIdResponse, self._client.put(f"/api/admin/user-attributes/{attribute_id}", body=payload))
+
+    def delete(self, attribute_id: str) -> None:
+        self._client.delete(f"/api/admin/user-attributes/{attribute_id}")
+
+    def set_group_assignment(self, attribute_id: str, payload: gm.PutApiAdminUserAttributesByIdGroupsRequestBody) -> None:
+        self._client.put(f"/api/admin/user-attributes/{attribute_id}/groups", body=payload)
+
+    def remove_group_assignment(self, attribute_id: str, group_id: str) -> None:
+        self._client.delete(f"/api/admin/user-attributes/{attribute_id}/groups/{group_id}")
+
+
+class PoliciesAPI:
+    def __init__(self, client: NexusIDClient) -> None:
+        self._client = client
+
+    def list(self) -> gm.GetApiAdminPoliciesResponse:
+        return cast(gm.GetApiAdminPoliciesResponse, self._client.get("/api/admin/policies"))
+
+    def create(self, payload: gm.PostApiAdminPoliciesRequestBody) -> gm.PostApiAdminPoliciesResponse:
+        return cast(gm.PostApiAdminPoliciesResponse, self._client.post("/api/admin/policies", body=payload))
+
+    def update(self, policy_id: str, payload: gm.PutApiAdminPoliciesByIdRequestBody) -> gm.PutApiAdminPoliciesByIdResponse:
+        return cast(gm.PutApiAdminPoliciesByIdResponse, self._client.put(f"/api/admin/policies/{policy_id}", body=payload))
+
+    def delete(self, policy_id: str) -> None:
+        self._client.delete(f"/api/admin/policies/{policy_id}")
+
+    def set_assignment(self, policy_id: str, payload: gm.PutApiAdminPoliciesByIdAssignmentsRequestBody) -> None:
+        self._client.put(f"/api/admin/policies/{policy_id}/assignments", body=payload)
+
+    def remove_assignment(self, policy_id: str, payload: gm.RemovePolicyAssignmentRequestBody) -> None:
+        self._client.delete(f"/api/admin/policies/{policy_id}/assignments", body=payload)
+
+    def evaluate(self, payload: dict[str, Any]) -> Any:
+        return self._client.post("/api/admin/policies/evaluate", body=payload)
+
+    def decisions(self, *, limit: int | None = None) -> gm.GetApiAdminPoliciesDecisionsResponse:
+        query = {"limit": limit} if limit is not None else None
+        return cast(gm.GetApiAdminPoliciesDecisionsResponse, self._client.get("/api/admin/policies/decisions", query=query))
+
+
+class EventHooksAPI:
+    def __init__(self, client: NexusIDClient) -> None:
+        self._client = client
+
+    def list(self) -> gm.GetApiAdminEventHooksResponse:
+        return cast(gm.GetApiAdminEventHooksResponse, self._client.get("/api/admin/events/hooks"))
+
+    def create(self, payload: gm.PostApiAdminEventHooksRequestBody) -> gm.PostApiAdminEventHooksResponse:
+        return cast(gm.PostApiAdminEventHooksResponse, self._client.post("/api/admin/events/hooks", body=payload))
+
+    def update(self, hook_id: str, payload: gm.PutApiAdminEventHooksByIdRequestBody) -> gm.PutApiAdminEventHooksByIdResponse:
+        return cast(gm.PutApiAdminEventHooksByIdResponse, self._client.put(f"/api/admin/events/hooks/{hook_id}", body=payload))
+
+    def delete(self, hook_id: str) -> None:
+        self._client.delete(f"/api/admin/events/hooks/{hook_id}")
+
+    def test(self, hook_id: str, payload: dict[str, Any] | None = None) -> Any:
+        return self._client.post(f"/api/admin/events/hooks/{hook_id}/test", body=payload or {})
+
+    def types(self) -> gm.GetApiAdminEventTypesResponse:
+        return cast(gm.GetApiAdminEventTypesResponse, self._client.get("/api/admin/events/types"))
+
+    def notifications(self, *, limit: int | None = None) -> gm.GetApiAdminEventNotificationsResponse:
+        query = {"limit": limit} if limit is not None else None
+        return cast(gm.GetApiAdminEventNotificationsResponse, self._client.get("/api/admin/events/notifications", query=query))
+
+
+class FederationAPI:
+    def __init__(self, client: NexusIDClient) -> None:
+        self._client = client
+
+    def list(self) -> gm.GetApiAdminFederationProvidersResponse:
+        return cast(gm.GetApiAdminFederationProvidersResponse, self._client.get("/api/admin/federation/providers"))
+
+    def create(self, payload: gm.PostApiAdminFederationProvidersRequestBody) -> gm.PostApiAdminFederationProvidersResponse:
+        return cast(gm.PostApiAdminFederationProvidersResponse, self._client.post("/api/admin/federation/providers", body=payload))
+
+    def update(self, provider_id: str, payload: gm.PutApiAdminFederationProvidersByIdRequestBody) -> gm.PutApiAdminFederationProvidersByIdResponse:
+        return cast(gm.PutApiAdminFederationProvidersByIdResponse, self._client.put(f"/api/admin/federation/providers/{provider_id}", body=payload))
+
+    def delete(self, provider_id: str) -> None:
+        self._client.delete(f"/api/admin/federation/providers/{provider_id}")
+
+
+class SettingsAPI:
+    def __init__(self, client: NexusIDClient) -> None:
+        self._client = client
+
+    def get(self) -> gm.GetApiAdminSettingsResponse:
+        return cast(gm.GetApiAdminSettingsResponse, self._client.get("/api/admin/settings"))
+
+    def update(self, payload: gm.PutApiAdminSettingsRequestBody) -> gm.PutApiAdminSettingsResponse:
+        return cast(gm.PutApiAdminSettingsResponse, self._client.put("/api/admin/settings", body=payload))
+
+
+class SecurityAPI:
+    def __init__(self, client: NexusIDClient) -> None:
+        self._client = client
+
+    def risk_events(self, *, limit: int | None = None) -> gm.GetApiAdminSecurityRiskEventsResponse:
+        query = {"limit": limit} if limit is not None else None
+        return cast(gm.GetApiAdminSecurityRiskEventsResponse, self._client.get("/api/admin/security/risk-events", query=query))
+
+
+class RoleAssignmentsAPI:
+    def __init__(self, client: NexusIDClient) -> None:
+        self._client = client
+
+    def assign(self, payload: gm.PostApiAdminRoleAssignmentsRequestBody) -> None:
+        self._client.post("/api/admin/role-assignments", body=payload)
+
+
 class AdminClient(NexusIDClient):
     def __init__(
         self,
@@ -352,8 +631,24 @@ class AdminClient(NexusIDClient):
         self.access_requests = AccessRequestsAPI(self)
         self.elevations = ElevationsAPI(self)
         self.users = UsersAPI(self)
+        self.roles = RolesAPI(self)
+        self.role_assignments = RoleAssignmentsAPI(self)
+        self.groups = GroupsAPI(self)
         self.clients = OAuthClientsAPI(self)
+        self.scopes = ScopesAPI(self)
+        self.tenants = TenantsAPI(self)
         self.apps = AppsAPI(self)
+        self.sessions = SessionsAPI(self)
+        self.consents = ConsentsAPI(self)
+        self.devices = DevicesAPI(self)
+        self.audit = AuditAPI(self)
+        self.authentication_flows = AuthenticationFlowsAPI(self)
+        self.user_attributes = UserAttributesAPI(self)
+        self.policies = PoliciesAPI(self)
+        self.event_hooks = EventHooksAPI(self)
+        self.federation = FederationAPI(self)
+        self.settings = SettingsAPI(self)
+        self.security = SecurityAPI(self)
         self.provisioning = ProvisioningAPI(self)
         self.service_identities = ServiceIdentitiesAPI(self)
         self.connectors = ConnectorsAPI(self)
