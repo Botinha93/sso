@@ -101,6 +101,14 @@ class InMemoryServiceIdentityCredentialRepository {
     if (!existing) return;
     this.store.set(id, { ...existing, lastUsedAt: usedAt });
   }
+
+  async deleteByServiceIdentity(serviceIdentityId: string): Promise<void> {
+    for (const [id, credential] of this.store.entries()) {
+      if (credential.serviceIdentityId === serviceIdentityId) {
+        this.store.delete(id);
+      }
+    }
+  }
 }
 
 test("rotation revokes previous credential and keeps replacement active", async () => {

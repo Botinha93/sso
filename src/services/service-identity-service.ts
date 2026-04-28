@@ -187,6 +187,7 @@ export class ServiceIdentityService {
     await this.ensureServiceIdentityUser(id);
     const credentials = await this.credentialRepository.listByServiceIdentity(id);
     await Promise.all(credentials.filter((credential) => !credential.revokedAt).map((credential) => this.credentialRepository.revoke(credential.id, new Date())));
+    await this.credentialRepository.deleteByServiceIdentity(id);
     await this.userRepository.delete(id);
   }
 

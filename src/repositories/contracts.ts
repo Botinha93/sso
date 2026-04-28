@@ -402,6 +402,7 @@ export interface ServiceIdentityCredentialRepository {
   findByClientId(clientId: string): Awaitable<ServiceIdentityCredential | undefined>;
   revoke(id: string, revokedAt: Date): Awaitable<void>;
   touchLastUsed(id: string, usedAt: Date): Awaitable<void>;
+  deleteByServiceIdentity(serviceIdentityId: string): Awaitable<void>;
 }
 
 export interface ConnectorRepository {

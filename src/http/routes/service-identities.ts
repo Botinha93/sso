@@ -116,6 +116,8 @@ export function registerServiceIdentityRoutes(
   });
 
   app.delete("/api/admin/service-identities/:id", async (request: any, reply) => {
+    await syncRoleAssignments(request.params.id, []);
+    await syncGroupAssignments(request.params.id, []);
     await serviceIdentityService.deleteServiceIdentity(request.params.id);
     return reply.status(204).send();
   });

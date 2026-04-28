@@ -2852,6 +2852,10 @@ class PrismaServiceIdentityCredentialRepository implements ServiceIdentityCreden
   async touchLastUsed(id: string, usedAt: Date): Promise<void> {
     await this.prisma.$queryRaw`UPDATE service_identity_credentials SET last_used_at = ${usedAt.toISOString()} WHERE id = ${id}`;
   }
+
+  async deleteByServiceIdentity(serviceIdentityId: string): Promise<void> {
+    await this.prisma.$queryRaw`DELETE FROM service_identity_credentials WHERE service_identity_id = ${serviceIdentityId}`;
+  }
 }
 
 class PrismaConnectorRepository implements ConnectorRepository {
