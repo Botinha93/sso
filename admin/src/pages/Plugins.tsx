@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { CheckCircle2, FileArchive, ShieldAlert, Trash2, UploadCloud } from 'lucide-react'
+import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import {
   type PluginManifestDto,
   useDeletePlugin,
@@ -148,12 +149,11 @@ export default function Plugins() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold text-slate-900">Plugins</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Upload signed plugin bundles and validate manifest contracts before activation.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Extensibility"
+        title="Plugins"
+        description="Upload signed plugin bundles and validate manifest contracts before activation."
+      />
 
       <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
         Active plugins are executed by the runtime for matching declared hooks. Keep permissions and hooks minimal, and validate every bundle before activation.
@@ -295,9 +295,12 @@ export default function Plugins() {
         </div>
 
         {isLoading ? (
-          <p className="text-sm text-slate-500">Loading plugins...</p>
+          <TableSkeleton rows={3} />
         ) : plugins.length === 0 ? (
-          <p className="text-sm text-slate-500">No plugin bundles uploaded yet.</p>
+          <EmptyState
+            title="No plugin bundles uploaded yet"
+            description="Upload a plugin bundle to extend platform functionality."
+          />
         ) : (
           <div className="space-y-3">
             {plugins.map((plugin) => (

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import Editor from '@monaco-editor/react'
+import { PageHeader, TableSkeleton } from '../components/PageHeader'
 import {
   useCreatePolicy,
   useDeletePolicy,
@@ -353,17 +354,21 @@ export default function Policies() {
   const sortedPolicies = useMemo(() => [...policies].sort((a: any, b: any) => a.key.localeCompare(b.key)), [policies])
 
   if (isLoading) {
-    return <div className="p-6">Loading policies...</div>
+    return (
+      <div className="space-y-6">
+        <PageHeader eyebrow="Security" title="Policies" />
+        <TableSkeleton rows={4} />
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Policies</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Define policy behavior in JavaScript, then manage where each policy applies and its configuration separately.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Security"
+        title="Policies"
+        description="Define policy behavior in JavaScript, then manage where each policy applies and its configuration separately."
+      />
 
       <div className="flex gap-2 border-b border-slate-200">
         {[
@@ -691,7 +696,7 @@ now() // returns current ISO timestamp
           </div>
 
           {decisionsLoading ? (
-            <div className="text-center text-slate-500 py-8">Loading decisions...</div>
+            <TableSkeleton rows={4} />
           ) : decisions.length === 0 ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-slate-600">
               <p>No authorization decisions recorded yet.</p>

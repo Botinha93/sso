@@ -1,6 +1,7 @@
 import { Fragment, useDeferredValue, useMemo, useState } from 'react'
 import { BookText, Code2, Search, Server } from 'lucide-react'
 import { parse } from 'yaml'
+import { PageHeader } from '../components/PageHeader'
 
 import openApiSource from '../../../openapi.yaml?raw'
 
@@ -291,7 +292,7 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'GET', path: '/api/admin/service-identities/:id', auth: 'session', description: 'Returns a service identity with its credential history.' },
   { method: 'PATCH', path: '/api/admin/service-identities/:id', auth: 'session+csrf', description: 'Updates service identity status, scopes, or description.' },
   { method: 'DELETE', path: '/api/admin/service-identities/:id', auth: 'session+csrf', description: 'Deletes a service identity and all its credentials.' },
-  { method: 'POST', path: '/api/admin/service-identities/:id/credentials', auth: 'session+csrf', description: 'Issues a new credential (client_id + secret) for the service identity. Secret is shown only once.' },
+  { method: 'POST', path: '/api/admin/service-identities/:id/credentials', auth: 'session+csrf', description: 'Issues an OAuth client credential pair for the service identity. The client secret is shown only once and can be used with grant_type=client_credentials.' },
   { method: 'POST', path: '/api/admin/service-identities/:id/credentials/rotate', auth: 'session+csrf', description: 'Rotates a credential: issues a replacement and revokes the current one atomically.' },
   { method: 'DELETE', path: '/api/admin/service-identities/:id/credentials/:credentialId', auth: 'session+csrf', description: 'Revokes a specific credential immediately.' },
   { method: 'GET', path: '/api/admin/service-identities/:id/usage', auth: 'session', description: 'Returns credential usage telemetry including last-used timestamps and status.' },
@@ -842,7 +843,7 @@ const ADMIN_CONCEPT_GUIDES: ConceptGuide[] = [
   {
     id: 'workload-identity',
     title: 'Workload Identity: Non-Human Credentials Governance',
-    plainExplanation: 'Every automated process, background job, microservice, and integration script that needs to call a protected API is a workload identity — a non-human actor that needs credentials but has no human to log in interactively. Service identities model these actors explicitly: each has a name (describing the workload), an owner (the team accountable for it), a set of allowed scopes and audiences (constraining what it can request), and one or more credentials (client secrets or tokens) with expiry and rotation history. Rather than sharing a human user credential for automation (a common anti-pattern), each workload gets its own tightly scoped identity that can be independently rotated, revoked, and audited.',
+    plainExplanation: 'Every automated process, background job, microservice, and integration script that needs to call a protected API is a workload identity — a non-human actor that needs credentials but has no human to log in interactively. Service identities model these actors explicitly: each has a name (describing the workload), an owner (the team accountable for it), a set of allowed scopes and audiences (constraining what it can request), and one or more OAuth client credential pairs with expiry and rotation history. Workloads use the issued client ID and one-time client secret at /oauth/token with grant_type=client_credentials to receive access tokens. Rather than sharing a human user credential for automation (a common anti-pattern), each workload gets its own tightly scoped identity that can be independently rotated, revoked, and audited.',
     whyItMatters: 'Shared or unmanaged service credentials are one of the most common sources of credential sprawl and post-breach lateral movement. When a developer leaves and their personal token was being used by three CI pipelines, deactivating that account breaks three systems. When a service credential is never rotated, it becomes a long-lived attack surface — a credential leaked in a Git commit from two years ago may still be valid. Service identities solve this by making non-human credentials first-class objects with lifecycle management, rotation scheduling, last-used tracking, and explicit revocation. Blast radius is also constrained: a compromised service identity that is narrowly scoped can only reach the APIs it was authorized for, not everything a human admin can access.',
     whoDefinesIt: 'Platform admins create service identities, issue credentials, and define allowed scope and audience constraints. Service owners are responsible for credential rotation and reporting suspected compromise.',
     whereInAdmin: ['Service Identities view', 'Audit Log (credential issuance and rotation events)', 'Documentation view'],
@@ -851,7 +852,8 @@ const ADMIN_CONCEPT_GUIDES: ConceptGuide[] = [
       'Allowed scopes and audiences should be exactly what the workload needs — never grant broader access to make configuration easier.',
       'Credentials should have defined expiry and a rotation schedule — treat indefinite credentials as a security finding.',
       'Last-used timestamps help identify stale credentials: a service identity not used in 90+ days is a candidate for decommissioning.',
-      'Token exchange (RFC 8693) allows a service to request a narrowed downstream token from a broad subject token — use it to reduce scope at service-to-service boundaries.',
+      'Client credentials are the bootstrap path for service identities: the issued client ID and secret can request access tokens directly from /oauth/token within the identity policy.',
+      'Token exchange (RFC 8693) is optional and separate: use it when a service already has a subject token and needs a narrowed downstream token.',
       'Credential rotation should be zero-downtime: issue the new credential, update the workload, verify it works, then revoke the old one.',
       'Audit any service identity with credentials that have never been rotated since issuance — those are likely forgotten and unmonitored.'
     ]
@@ -2006,7 +2008,7 @@ const ENTITY_FIELD_TUTORIALS: EntityFieldGuide[] = [
     view: 'Service Identities',
     purpose: 'Defines a non-human principal used for machine-to-machine token issuance with explicit scope and audience boundaries.',
     whenToUse: 'Create a service identity when an integration or workload needs OAuth tokens without a human login journey.',
-    learnMore: ['workload-identity', 'token-exchange', 'scopes', 'audit-log'],
+    learnMore: ['workload-identity', 'client-id-secret', 'scopes', 'audit-log'],
     fields: [
       {
         field: 'Name',
@@ -2038,18 +2040,18 @@ const ENTITY_FIELD_TUTORIALS: EntityFieldGuide[] = [
   {
     entity: 'Service Identity Credential',
     view: 'Service Identities',
-    purpose: 'Represents a concrete client credential pair issued for a service identity with lifecycle and usage tracking.',
-    whenToUse: 'Issue a credential for deployment bootstrap, rotate on schedule, and revoke immediately on compromise or ownership change.',
-    learnMore: ['workload-identity', 'token-exchange', 'audit-log'],
+    purpose: 'Represents a concrete OAuth client ID and client secret issued for a service identity with lifecycle and usage tracking.',
+    whenToUse: 'Issue a credential pair for deployment bootstrap, use it with grant_type=client_credentials, rotate on schedule, and revoke immediately on compromise or ownership change.',
+    learnMore: ['workload-identity', 'client-id-secret', 'audit-log'],
     fields: [
       {
         field: 'Client ID',
-        meaning: 'Public identifier used by workload clients during token requests.',
+        meaning: 'Public OAuth client_id used by workload clients during token requests.',
         recommendation: 'Treat as non-secret but monitor for unexpected usage patterns.'
       },
       {
         field: 'Client Secret (one-time)',
-        meaning: 'Confidential value shown only once when issuing or rotating credentials.',
+        meaning: 'Confidential OAuth client_secret shown only once when issuing or rotating credentials.',
         recommendation: 'Store immediately in a secret manager; never rely on UI retrieval later.'
       },
       {
@@ -2545,12 +2547,12 @@ const API_TUTORIALS: TutorialSection[] = [
     title: 'Tutorial 2: Service-to-Service Authentication',
     goal: 'Issue an access token without user interaction.',
     steps: [
-      'Use a client that supports client_credentials grant.',
+      'Use either a registered OAuth client that supports client_credentials or a service identity credential pair.',
       'POST to the shared /oauth/token endpoint with grant_type=client_credentials, client_id, client_secret, and optional scope.',
       'Use returned access token in downstream API calls requiring bearer auth.',
       'Optionally validate token state with /oauth/introspect during troubleshooting.'
     ],
-    expectedResult: 'A valid bearer access token representing client identity is issued.'
+    expectedResult: 'A valid bearer access token representing the OAuth client or service identity is issued.'
   },
   {
     title: 'Tutorial 3: Device Authorization Flow',
@@ -3837,13 +3839,18 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
   if (route.path === '/api/admin/service-identities/:id/credentials' && route.method === 'POST') {
     return {
       parameters: params,
-      requestJson: prettyJson({ label: 'primary-credential' }),
+      requestJson: prettyJson({ expiresInDays: 90 }),
       expectedResponse: prettyJson({
-        id: 'cred_xxx',
-        clientId: 'svc_billing_worker',
-        clientSecret: 'svc_secret_xxx',
-        status: 'active',
-        createdAt: '2026-04-20T13:05:00.000Z'
+        credential: {
+          id: 'cred_xxx',
+          serviceIdentityId: 'svc_xxx',
+          clientId: 'svc_billing_worker',
+          expiresAt: '2026-07-19T13:05:00.000Z',
+          revokedAt: null,
+          lastUsedAt: null,
+          createdAt: '2026-04-20T13:05:00.000Z'
+        },
+        plainClientSecret: 'svc_secret_xxx'
       })
     }
   }
@@ -3851,15 +3858,19 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
   if (route.path === '/api/admin/service-identities/:id/credentials/rotate' && route.method === 'POST') {
     return {
       parameters: params,
-      requestJson: prettyJson({ reason: 'Routine rotation' }),
+      requestJson: prettyJson({ credentialId: 'cred_old_xxx', expiresInDays: 90 }),
       expectedResponse: prettyJson({
-        revokedCredentialId: 'cred_old_xxx',
         credential: {
           id: 'cred_new_xxx',
+          serviceIdentityId: 'svc_xxx',
           clientId: 'svc_billing_worker',
-          clientSecret: 'svc_secret_new_xxx',
-          status: 'active'
-        }
+          expiresAt: '2026-07-19T13:05:00.000Z',
+          revokedAt: null,
+          rotatedFromId: 'cred_old_xxx',
+          lastUsedAt: null,
+          createdAt: '2026-04-20T13:05:00.000Z'
+        },
+        plainClientSecret: 'svc_secret_new_xxx'
       })
     }
   }
@@ -5004,13 +5015,11 @@ export default function Documentation() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">Knowledge Base</p>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Platform Documentation</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-600">
-          Centralized documentation for API surface, admin system capabilities, and safe developer extension paths.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Knowledge Base"
+        title="Platform Documentation"
+        description="Centralized documentation for API surface, admin system capabilities, and safe developer extension paths."
+      />
 
       <div className="flex flex-wrap gap-2">
         <button

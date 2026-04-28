@@ -1,4 +1,5 @@
 import { Link2, Pencil, Plus, RefreshCw, Trash2, Users, X } from 'lucide-react'
+import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useMemo, useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
@@ -262,19 +263,19 @@ const Groups = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Access Control</p>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">User Groups</h2>
-        </div>
-        <button
-          onClick={() => setCreateModalOpen(true)}
-          className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 transition-colors"
-        >
-          <Plus size={14} />
-          New Group
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Access Control"
+        title="User Groups"
+        action={
+          <button
+            onClick={() => setCreateModalOpen(true)}
+            className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 active:scale-[0.98] transition-all"
+          >
+            <Plus size={14} />
+            New Group
+          </button>
+        }
+      />
 
       <div className="mb-4 max-w-sm">
         <label className={labelCls}>Filter by App</label>
@@ -297,9 +298,12 @@ const Groups = () => {
         </div>
 
         {isLoading ? (
-          <div className="p-10 text-center text-slate-400 text-sm">Loading groups...</div>
+          <TableSkeleton rows={5} />
         ) : filteredGroups.length === 0 ? (
-          <div className="p-10 text-center text-slate-400 text-sm">No groups created</div>
+          <EmptyState
+            title="No groups created"
+            description="Create a group to assign users, roles and attributes in bulk."
+          />
         ) : (
           <div className="divide-y divide-slate-100">
             {filteredGroups.map((group) => {

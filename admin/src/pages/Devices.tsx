@@ -1,4 +1,5 @@
 import { MonitorSmartphone, RefreshCw, ShieldOff } from 'lucide-react'
+import { PageHeader } from '../components/PageHeader'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useDevices, useRevokeDeviceRequest, useRevokeDeviceSession } from '../hooks/useApi'
@@ -60,22 +61,20 @@ export default function Devices() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">Device Access</p>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Devices</h1>
-          <p className="mt-2 max-w-3xl text-sm text-slate-600">
-            Monitor pending device authorization requests and revoke device-issued sessions from one place.
-          </p>
-        </div>
-        <button
-          onClick={() => refetch()}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900"
-        >
-          <RefreshCw size={14} />
-          Refresh
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Device Access"
+        title="Devices"
+        description="Monitor pending device authorization requests and revoke device-issued sessions from one place."
+        action={
+          <button
+            onClick={() => refetch()}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900"
+          >
+            <RefreshCw size={14} />
+            Refresh
+          </button>
+        }
+      />
 
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

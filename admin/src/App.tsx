@@ -115,17 +115,32 @@ function AppContent() {
                 </div>
 
                 <div className="flex min-w-0 flex-1 flex-col">
-                  <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur md:hidden">
+                  <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur">
                     <button
                       type="button"
                       aria-label="Open navigation menu"
                       onClick={() => setMobileNavOpen(true)}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 md:hidden"
                     >
                       <Menu size={18} />
                     </button>
-                    <p className="text-sm font-semibold text-slate-900">NexusID Admin</p>
-                    <div className="h-9 w-9" />
+                    <p className="text-sm font-semibold text-slate-900 md:hidden">NexusID Admin</p>
+                    <div className="hidden md:block" />
+                    <div className="flex items-center gap-3">
+                      {adminMe && (
+                        <>
+                          <div className="hidden md:block text-right">
+                            <p className="text-xs font-medium text-slate-900 leading-none">
+                              {(adminMe as any).givenName} {(adminMe as any).familyName}
+                            </p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">{(adminMe as any).email}</p>
+                          </div>
+                          <div className="h-8 w-8 shrink-0 rounded-full bg-gradient-to-br from-sky-400 to-indigo-500 flex items-center justify-center text-xs font-bold text-white shadow-sm">
+                            {((adminMe as any).givenName?.[0] ?? '').toUpperCase()}{((adminMe as any).familyName?.[0] ?? '').toUpperCase()}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </header>
 
                 <main className="min-w-0 flex-1 overflow-auto p-4 sm:p-5 lg:p-7">

@@ -1,4 +1,5 @@
 import { Building2, Pencil, Plus, RefreshCw } from 'lucide-react'
+import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
 import Modal from '../components/Modal'
 import { useCreateTenant, useTenants, useUpdateTenant } from '../hooks/useApi'
@@ -49,19 +50,19 @@ const Tenants = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Multi-Tenancy</p>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Organizations</h2>
-        </div>
-        <button
-          onClick={() => setCreateModalOpen(true)}
-          className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 transition-colors"
-        >
-          <Plus size={14} />
-          New Tenant
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Multi-Tenancy"
+        title="Organizations"
+        action={
+          <button
+            onClick={() => setCreateModalOpen(true)}
+            className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 active:scale-[0.98] transition-all"
+          >
+            <Plus size={14} />
+            New Tenant
+          </button>
+        }
+      />
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
@@ -72,8 +73,8 @@ const Tenants = () => {
           </button>
         </div>
         <div className="divide-y divide-slate-100">
-          {isLoading && <p className="p-10 text-center text-slate-400 text-sm">Loading…</p>}
-          {!isLoading && tenants.length === 0 && <p className="p-10 text-center text-slate-400 text-sm">No tenants yet.</p>}
+          {isLoading && <TableSkeleton rows={3} />}
+          {!isLoading && tenants.length === 0 && <EmptyState title="No organizations yet" description="Create a tenant to enable multi-tenancy." />}
           {tenants.map((tenant: any) => (
             <div key={tenant.id} className="flex items-center justify-between gap-4 px-5 py-3.5 hover:bg-slate-50/50 transition-colors">
               <div className="flex items-center gap-3 min-w-0">

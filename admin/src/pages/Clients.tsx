@@ -1,4 +1,5 @@
 import { Plus, RefreshCw, Trash2, Shield, ChevronRight, X, Pencil } from 'lucide-react'
+import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
@@ -211,19 +212,19 @@ const Clients = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">OAuth Clients</p>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Registered Applications</h2>
-        </div>
-        <button
-          onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true); setEditClient(null) }}
-          className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 transition-colors"
-        >
-          <Plus size={14} />
-          New Client
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="OAuth Clients"
+        title="Registered Applications"
+        action={
+          <button
+            onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true); setEditClient(null) }}
+            className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 active:scale-[0.98] transition-all"
+          >
+            <Plus size={14} />
+            New Client
+          </button>
+        }
+      />
 
       <div className="mb-4 max-w-sm">
         <label className={labelCls}>Filter by App</label>
@@ -246,9 +247,12 @@ const Clients = () => {
         </div>
 
         {isLoading ? (
-          <div className="p-10 text-center text-slate-400 text-sm">Loading clients…</div>
+          <TableSkeleton rows={5} />
         ) : !filteredClients?.length ? (
-          <div className="p-10 text-center text-slate-400 text-sm">No clients registered</div>
+          <EmptyState
+            title="No clients registered"
+            description="Register an OAuth client to start authorizing applications."
+          />
         ) : (
           <div className="divide-y divide-slate-100">
             {filteredClients.map((client: OAuthClient) => (

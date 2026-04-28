@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Clock3, ShieldAlert } from 'lucide-react'
+import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { type ElevationSessionDto, useElevationSessions } from '../hooks/useApi'
 
 const statusStyles: Record<ElevationSessionDto['status'], string> = {
@@ -25,25 +26,23 @@ export default function ElevationSessions() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">Governance</p>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Elevation Sessions</h1>
-          <p className="mt-2 max-w-3xl text-sm text-slate-600">
-            Inspect active and historical privileged sessions created through elevation approvals and emergency break-glass operations.
-          </p>
-        </div>
-        <select
-          value={status}
-          onChange={(event) => setStatus(event.target.value as ElevationSessionDto['status'] | 'all')}
-          className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
-        >
-          <option value="all">All statuses</option>
-          <option value="active">Active</option>
-          <option value="revoked">Revoked</option>
-          <option value="expired">Expired</option>
-        </select>
-      </div>
+      <PageHeader
+        eyebrow="Governance"
+        title="Elevation Sessions"
+        description="Inspect active and historical privileged sessions created through elevation approvals and emergency break-glass operations."
+        action={
+          <select
+            value={status}
+            onChange={(event) => setStatus(event.target.value as ElevationSessionDto['status'] | 'all')}
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+          >
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="revoked">Revoked</option>
+            <option value="expired">Expired</option>
+          </select>
+        }
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -70,12 +69,13 @@ export default function ElevationSessions() {
         </div>
 
         {isLoading ? (
-          <div className="px-4 py-8 text-sm text-slate-500">Loading elevation sessions...</div>
+          <TableSkeleton rows={4} />
         ) : sessions.length === 0 ? (
-          <div className="px-4 py-10 text-center text-sm text-slate-500">
-            <ShieldAlert className="mx-auto mb-2 h-5 w-5 text-slate-400" />
-            No elevation sessions found for this filter.
-          </div>
+          <EmptyState
+            icon={ShieldAlert}
+            title="No elevation sessions found"
+            description="Privilege escalation sessions will appear here."
+          />
         ) : (
           <div className="divide-y divide-slate-100">
             {sessions.map((session) => (

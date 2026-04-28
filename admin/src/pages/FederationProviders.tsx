@@ -1,4 +1,5 @@
 import { AppWindow, ChevronDown, ChevronUp, Pencil, Plus, RefreshCw, Shield, Trash2, Upload } from 'lucide-react'
+import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import type { Dispatch, SetStateAction } from 'react'
 import { useMemo, useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -467,19 +468,19 @@ const FederationProviders = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">User Federation</p>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Federation Providers</h2>
-        </div>
-        <button
-          onClick={openCreate}
-          className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 transition-colors"
-        >
-          <Plus size={14} />
-          New Provider
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="User Federation"
+        title="Federation Providers"
+        action={
+          <button
+            onClick={openCreate}
+            className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 active:scale-[0.98] transition-all"
+          >
+            <Plus size={14} />
+            New Provider
+          </button>
+        }
+      />
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
@@ -491,9 +492,12 @@ const FederationProviders = () => {
         </div>
 
         {isLoading ? (
-          <div className="p-10 text-center text-slate-400 text-sm">Loading providers…</div>
+          <TableSkeleton rows={4} />
         ) : providers.length === 0 ? (
-          <div className="p-10 text-center text-slate-400 text-sm">No federation providers configured</div>
+          <EmptyState
+            title="No federation providers configured"
+            description="Configure LDAP or SAML to sync users from external directories."
+          />
         ) : (
           <div className="divide-y divide-slate-100">
             {providers.map((provider) => (
@@ -568,9 +572,12 @@ const FederationProviders = () => {
         ) : null}
 
         {samlLoading ? (
-          <div className="p-10 text-center text-slate-400 text-sm">Loading SAML providers…</div>
+          <TableSkeleton rows={3} />
         ) : samlProviders.length === 0 ? (
-          <div className="p-10 text-center text-slate-400 text-sm">No SAML service providers configured</div>
+          <EmptyState
+            title="No SAML service providers configured"
+            description="Register a SAML service provider to enable SSO federation."
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-sm">

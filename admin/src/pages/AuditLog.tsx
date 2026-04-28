@@ -1,4 +1,5 @@
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, ClipboardList } from 'lucide-react'
+import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useAuditLog } from '../hooks/useApi'
 
 interface AuditEvent {
@@ -33,10 +34,7 @@ const AuditLog = () => {
 
   return (
     <div>
-      <div className="mb-8">
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Audit Trail</p>
-        <h2 className="text-2xl font-bold tracking-tight text-slate-900">System Activity Log</h2>
-      </div>
+      <PageHeader eyebrow="Audit Trail" title="System Activity Log" />
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
@@ -51,9 +49,12 @@ const AuditLog = () => {
         </div>
 
         {isLoading ? (
-          <div className="p-10 text-center text-slate-400 text-sm">Loading events…</div>
+          <TableSkeleton rows={6} />
         ) : !events?.length ? (
-          <div className="p-10 text-center text-slate-400 text-sm">No audit events recorded</div>
+          <EmptyState
+            title="No audit events recorded"
+            description="Authentication and administrative events will appear here."
+          />
         ) : (
           <div className="divide-y divide-slate-100">
             {events.map((event: AuditEvent) => (

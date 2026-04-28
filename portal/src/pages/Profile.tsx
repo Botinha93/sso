@@ -66,9 +66,16 @@ export default function Profile({ user }: Props) {
         <div className="mb-4 sm:hidden">
           <LanguageSelector />
         </div>
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-slate-900">{t('profile.accountSettings')}</h1>
-          <p className="text-sm text-slate-500 mt-1">{t('profile.manageSettings')}</p>
+        <div className="mb-8 flex items-center gap-4">
+          <div className="h-12 w-12 shrink-0 rounded-full bg-gradient-to-br from-sky-400 to-indigo-500 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+            {user.avatarUrl
+              ? <img src={user.avatarUrl} alt="avatar" className="h-full w-full object-cover rounded-full" />
+              : `${user.givenName?.[0] ?? ''}${user.familyName?.[0] ?? ''}`.toUpperCase()}
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">{t('profile.accountSettings')}</h1>
+            <p className="text-sm text-slate-500 mt-0.5">{user.email}</p>
+          </div>
         </div>
 
         <div className="flex flex-col gap-6 lg:flex-row">
@@ -86,9 +93,11 @@ export default function Profile({ user }: Props) {
                 onClick={() => setSection(item.key)}
                 className={`flex shrink-0 items-center gap-2.5 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-medium transition-colors lg:w-full ${
                   section === item.key
-                    ? 'bg-slate-900 text-white'
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : item.key === 'danger'
+                    ? 'text-red-500 hover:text-red-700 hover:bg-red-50'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                } ${item.key === 'danger' && section !== 'danger' ? 'text-red-500 hover:text-red-700 hover:bg-red-50' : ''}`}
+                }`}
               >
                 {item.icon}
                 {item.label}

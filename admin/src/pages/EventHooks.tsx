@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PageHeader } from '../components/PageHeader'
 import {
   useCreateEventHook,
   useDeleteEventHook,
@@ -43,15 +44,23 @@ export default function EventHooks() {
   })
 
   if (isLoading) {
-    return <div className="p-6">Loading event hooks...</div>
+    return (
+      <div className="space-y-6">
+        <PageHeader eyebrow="Automation" title="Events and Hooks" />
+        <div className="animate-pulse space-y-3">
+          {[1,2,3].map(i => <div key={i} className="h-16 rounded-xl bg-slate-100" />)}
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Events and Hooks</h1>
-        <p className="mt-1 text-sm text-slate-600">Dispatch platform events to webhooks and review delivery logs.</p>
-      </div>
+      <PageHeader
+        eyebrow="Automation"
+        title="Events and Hooks"
+        description="Dispatch platform events to webhooks and review delivery logs."
+      />
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="text-sm font-semibold text-slate-900">Create Hook</h2>

@@ -1,4 +1,5 @@
 import { ArrowUpRight, KeyRound, LogIn, MonitorSmartphone, ShieldCheck } from 'lucide-react'
+import { PageHeader } from '../components/PageHeader'
 
 const cards = [
   {
@@ -27,14 +28,11 @@ const cards = [
 export default function InteractionViews() {
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Authentication</p>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Interaction Views</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-600">
-          Quick access to the hosted OAuth and OIDC user-facing interaction screens. These views are normally opened by live protocol flows,
-          but can be launched here for manual validation.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Authentication"
+        title="Interaction Views"
+        description="Quick access to the hosted OAuth and OIDC user-facing interaction screens. These views are normally opened by live protocol flows, but can be launched here for manual validation."
+      />
 
       <div className="grid gap-4 md:grid-cols-3">
         {cards.map((card) => {

@@ -378,7 +378,15 @@ const Dashboard = () => {
   const sessionCoverage = userItems.length === 0 ? 0 : activeSessions / userItems.length
 
   if (allLoading) {
-    return <div className="text-sm text-slate-500">Loading dashboard...</div>
+    return (
+      <div className="space-y-6">
+        <div className="h-28 animate-pulse rounded-2xl bg-slate-100" />
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-slate-100" />)}
+        </div>
+        <div className="h-72 animate-pulse rounded-xl bg-slate-100" />
+      </div>
+    )
   }
 
   return (
@@ -391,17 +399,17 @@ const Dashboard = () => {
         </p>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-4">
         {operationLinks.map((item) => (
           <Link
             key={item.to}
             to={item.to}
-            className="group rounded-xl border border-slate-200 bg-white p-4 text-sm shadow-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
+            className="group rounded-xl border border-slate-200 bg-white p-4 text-sm shadow-sm transition-all hover:border-sky-200 hover:shadow-md"
           >
             <p className="font-semibold text-slate-900">{item.title}</p>
-            <p className="mt-1 text-xs text-slate-600">{item.description}</p>
-            <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-slate-700">
-              Open view <ArrowRight size={12} className="transition-transform group-hover:translate-x-0.5" />
+            <p className="mt-1 text-xs text-slate-500 leading-relaxed">{item.description}</p>
+            <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-sky-600">
+              Open <ArrowRight size={11} className="transition-transform group-hover:translate-x-1" />
             </span>
           </Link>
         ))}
@@ -414,27 +422,39 @@ const Dashboard = () => {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500"><Users size={14} /> Users</div>
-          <div className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{userItems.length}</div>
-          <p className="mt-1 text-xs text-slate-500">{activeUsers} active · {inactiveUsers} inactive</p>
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Users</p>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600"><Users size={15} /></div>
+          </div>
+          <div className="text-3xl font-bold tracking-tight text-slate-900">{userItems.length}</div>
+          <p className="mt-1 text-xs text-slate-400">{activeUsers} active · {inactiveUsers} inactive</p>
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500"><Activity size={14} /> Sessions</div>
-          <div className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{activeSessions}</div>
-          <p className="mt-1 text-xs text-slate-500">{revokedSessions} revoked · {sessionItems.length} total</p>
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Sessions</p>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-50 text-sky-600"><Activity size={15} /></div>
+          </div>
+          <div className="text-3xl font-bold tracking-tight text-slate-900">{activeSessions}</div>
+          <p className="mt-1 text-xs text-slate-400">{revokedSessions} revoked · {sessionItems.length} total</p>
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500"><AppWindow size={14} /> Clients</div>
-          <div className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{clientItems.length}</div>
-          <p className="mt-1 text-xs text-slate-500">{pkceClients} with PKCE · {clientResourcesCount} resources</p>
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Clients</p>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-600"><AppWindow size={15} /></div>
+          </div>
+          <div className="text-3xl font-bold tracking-tight text-slate-900">{clientItems.length}</div>
+          <p className="mt-1 text-xs text-slate-400">{pkceClients} with PKCE · {clientResourcesCount} resources</p>
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500"><Shield size={14} /> Access Model</div>
-          <div className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{roles.length}</div>
-          <p className="mt-1 text-xs text-slate-500">roles · {groups.length} groups · {tenants.length} tenants</p>
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Access Model</p>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><Shield size={15} /></div>
+          </div>
+          <div className="text-3xl font-bold tracking-tight text-slate-900">{roles.length}</div>
+          <p className="mt-1 text-xs text-slate-400">roles · {groups.length} groups · {tenants.length} tenants</p>
         </div>
       </div>
 
@@ -514,27 +534,39 @@ const Dashboard = () => {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500"><ShieldAlert size={14} /> Pending Access Requests</div>
-          <div className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{pendingAccessRequests}</div>
-          <p className="mt-1 text-xs text-slate-500">{approvedAccessRequests} approved · {accessRequestItems.length} total</p>
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Pending Requests</p>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600"><ShieldAlert size={15} /></div>
+          </div>
+          <div className="text-3xl font-bold tracking-tight text-slate-900">{pendingAccessRequests}</div>
+          <p className="mt-1 text-xs text-slate-400">{approvedAccessRequests} approved · {accessRequestItems.length} total</p>
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500"><Shield size={14} /> Elevation Sessions</div>
-          <div className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{activeElevationSessions}</div>
-          <p className="mt-1 text-xs text-slate-500">{pendingElevationRequests} pending requests</p>
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Elevation Sessions</p>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 text-rose-600"><Shield size={15} /></div>
+          </div>
+          <div className="text-3xl font-bold tracking-tight text-slate-900">{activeElevationSessions}</div>
+          <p className="mt-1 text-xs text-slate-400">{pendingElevationRequests} pending requests</p>
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500"><GitMerge size={14} /> Connectors</div>
-          <div className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{connectorItems.length}</div>
-          <p className="mt-1 text-xs text-slate-500">{activeConnectors} active · {failedConnectors} in error</p>
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Connectors</p>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600"><GitMerge size={15} /></div>
+          </div>
+          <div className="text-3xl font-bold tracking-tight text-slate-900">{connectorItems.length}</div>
+          <p className="mt-1 text-xs text-slate-400">{activeConnectors} active · {failedConnectors} in error</p>
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500"><AlertTriangle size={14} /> Risk Events</div>
-          <div className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{riskEventItems.length}</div>
-          <p className="mt-1 text-xs text-slate-500">{criticalRiskEvents} critical · {highRiskEvents} high</p>
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Risk Events</p>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-600"><AlertTriangle size={15} /></div>
+          </div>
+          <div className="text-3xl font-bold tracking-tight text-slate-900">{riskEventItems.length}</div>
+          <p className="mt-1 text-xs text-slate-400">{criticalRiskEvents} critical · {highRiskEvents} high</p>
         </div>
       </div>
 

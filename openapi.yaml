@@ -453,6 +453,7 @@ paths:
                     client_secret: { type: string }
                 - type: object
                   required: [grant_type, client_id, client_secret]
+                  description: Uses either a registered OAuth client with the client_credentials grant or an issued service identity OAuth client credential pair.
                   properties:
                     grant_type: { type: string, enum: [client_credentials] }
                     client_id: { type: string }
@@ -3272,7 +3273,7 @@ paths:
 
   /api/admin/service-identities/{id}/credentials:
     post:
-      summary: Issue new credential for service identity
+      summary: Issue OAuth client credentials for a service identity
       tags: [Workload Identity]
       parameters:
         - in: path
@@ -3292,27 +3293,28 @@ paths:
                   description: Number of days until credential expires (optional)
       responses:
         '201':
-          description: Credential issued with plainClientSecret (shown once only)
+          description: OAuth client credential pair issued with plainClientSecret (shown once only)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ServiceIdentityCredential'
+                $ref: '#/components/schemas/IssuedServiceIdentityCredential'
               example:
-                id: "cred_uuid112"
-                serviceIdentityId: "si_uuid123"
-                clientId: "si_uuid123"
+                credential:
+                  id: "cred_uuid112"
+                  serviceIdentityId: "si_uuid123"
+                  clientId: "svc_backend_worker"
+                  expiresAt: "2027-04-20T10:00:00Z"
+                  revokedAt: null
+                  rotatedFromId: null
+                  lastUsedAt: null
+                  createdAt: "2026-04-27T09:00:00Z"
                 plainClientSecret: "se4_c1i3nt_s3cr3t_abc123xyz789"
-                expiresAt: "2027-04-20T10:00:00Z"
-                revokedAt: null
-                rotatedFromId: null
-                lastUsedAt: null
-                createdAt: "2026-04-27T09:00:00Z"
         '404':
           description: Service identity not found
 
   /api/admin/service-identities/{id}/credentials/rotate:
     post:
-      summary: Rotate credential (issue new + revoke old)
+      summary: Rotate OAuth client credentials (issue new + revoke old)
       tags: [Workload Identity]
       parameters:
         - in: path
@@ -3337,21 +3339,22 @@ paths:
                   description: Number of days until new credential expires (optional)
       responses:
         '201':
-          description: New credential issued (old one revoked)
+          description: New OAuth client credential pair issued (old one revoked)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ServiceIdentityCredential'
+                $ref: '#/components/schemas/IssuedServiceIdentityCredential'
               example:
-                id: "cred_uuid113"
-                serviceIdentityId: "si_uuid123"
-                clientId: "si_uuid123"
+                credential:
+                  id: "cred_uuid113"
+                  serviceIdentityId: "si_uuid123"
+                  clientId: "svc_backend_worker"
+                  expiresAt: "2027-04-27T09:00:00Z"
+                  revokedAt: null
+                  rotatedFromId: "cred_uuid112"
+                  lastUsedAt: null
+                  createdAt: "2026-04-27T09:30:00Z"
                 plainClientSecret: "se4_n3w_c1i3nt_s3cr3t_def456uvw012"
-                expiresAt: "2027-04-27T09:00:00Z"
-                revokedAt: null
-                rotatedFromId: "cred_uuid112"
-                lastUsedAt: null
-                createdAt: "2026-04-27T09:30:00Z"
         '404':
           description: Service identity or credential not found
 
@@ -3954,6 +3957,7 @@ components:
         createdAt:
           type: string
           format: date-time
+          description: Creation timestamp
         updatedAt:
           type: string
           format: date-time
@@ -4067,13 +4071,13 @@ components:
           description: Associated service identity ID
         clientId:
           type: string
-          description: OAuth client identifier (machine username)
+          description: OAuth client_id issued for service identity client_credentials token requests
         clientSecretHash:
           type: string
           description: Hashed client secret (not exposed in responses)
         plainClientSecret:
           type: string
-          description: Plain client secret (shown only once on creation/rotation)
+          description: Plain OAuth client_secret (shown only once on creation/rotation)
         expiresAt:
           type: string
           format: date-time
@@ -4097,6 +4101,15 @@ components:
           type: string
           format: date-time
           description: Creation timestamp
+    IssuedServiceIdentityCredential:
+      type: object
+      required: [credential, plainClientSecret]
+      properties:
+        credential:
+          $ref: '#/components/schemas/ServiceIdentityCredential'
+        plainClientSecret:
+          type: string
+          description: One-time OAuth client_secret for grant_type=client_credentials token requests
     Connector:
       type: object
       required: [id, name, type, status, config, createdAt, updatedAt]

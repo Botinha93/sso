@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowUpRight, RefreshCw, Save, Sparkles, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { PageHeader, Skeleton } from '../components/PageHeader'
 import { useApps, useClients, useInstanceSettings, useUpdateInstanceSettings } from '../hooks/useApi'
 import ColorInput from '../components/ColorInput'
 
@@ -210,37 +211,42 @@ export default function UiCustomizations() {
   }
 
   if (isLoading) {
-    return <div className="p-6 text-slate-500">Loading customization settings...</div>
+    return (
+      <div className="space-y-6">
+        <PageHeader eyebrow="Branding And UX" title="UI Customizations" />
+        <div className="animate-pulse space-y-3">
+          {[1,2,3].map(i => <div key={i} className="h-24 rounded-xl bg-slate-100" />)}
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">Branding And UX</p>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Experience Customization</h1>
-          <p className="mt-2 max-w-3xl text-sm text-slate-600">
-            Configure titles, visual accents, logos, and backgrounds for hosted interaction surfaces. You can define global defaults and override by OAuth client or app.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => refetch()}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            <RefreshCw size={14} />
-            Refresh
-          </button>
-          <button
-            onClick={saveAll}
-            disabled={updateSettings.isPending}
-            className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
-          >
-            <Save size={14} />
-            {updateSettings.isPending ? 'Saving...' : 'Save All'}
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Branding And UX"
+        title="Experience Customization"
+        description="Configure titles, visual accents, logos, and backgrounds for hosted interaction surfaces. You can define global defaults and override by OAuth client or app."
+        action={
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => refetch()}
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              <RefreshCw size={14} />
+              Refresh
+            </button>
+            <button
+              onClick={saveAll}
+              disabled={updateSettings.isPending}
+              className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50 active:scale-[0.98] transition-all"
+            >
+              <Save size={14} />
+              {updateSettings.isPending ? 'Saving...' : 'Save All'}
+            </button>
+          </div>
+        }
+      />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className={sectionCls}>

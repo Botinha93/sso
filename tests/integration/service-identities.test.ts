@@ -93,6 +93,36 @@ test("service identity CRUD and credential lifecycle", async (t) => {
 
   const credentialId = issued.credential.id;
 
+  const tokenResp = await app.inject({
+    method: "POST",
+    url: "/oauth/token",
+    payload: {
+      grant_type: "client_credentials",
+      client_id: issued.credential.clientId,
+      client_secret: issued.plainClientSecret,
+      scope: "read:reports"
+    }
+  });
+
+  assert.equal(tokenResp.statusCode, 200);
+  const tokenPayload = tokenResp.json() as { access_token?: string; token_type?: string; scope?: string };
+  assert.ok(typeof tokenPayload.access_token === "string" && tokenPayload.access_token.length > 0);
+  assert.equal(tokenPayload.token_type, "Bearer");
+  assert.equal(tokenPayload.scope, "read:reports");
+
+  const disallowedScopeResp = await app.inject({
+    method: "POST",
+    url: "/oauth/token",
+    payload: {
+      grant_type: "client_credentials",
+      client_id: issued.credential.clientId,
+      client_secret: issued.plainClientSecret,
+      scope: "write:reports"
+    }
+  });
+
+  assert.equal(disallowedScopeResp.statusCode, 400);
+
   // Get usage
   const usageResp = await app.inject({
     method: "GET",

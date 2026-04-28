@@ -1,4 +1,5 @@
 import { Boxes, ExternalLink, Globe, Pencil, Plus, RefreshCw, Trash2, Users, Shield, Key, Server } from 'lucide-react'
+import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
@@ -368,19 +369,19 @@ const Apps = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Management Units</p>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Apps</h2>
-        </div>
-        <button
-          onClick={openCreate}
-          className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 transition-colors"
-        >
-          <Plus size={14} />
-          New App
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Management Units"
+        title="Apps"
+        action={
+          <button
+            onClick={openCreate}
+            className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 active:scale-[0.98] transition-all"
+          >
+            <Plus size={14} />
+            New App
+          </button>
+        }
+      />
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
@@ -392,9 +393,14 @@ const Apps = () => {
         </div>
 
         {isLoading ? (
-          <div className="p-10 text-center text-slate-400 text-sm">Loading apps...</div>
+          <TableSkeleton rows={5} />
         ) : (apps as AppItem[]).length === 0 ? (
-          <div className="p-10 text-center text-slate-400 text-sm">No apps created yet</div>
+          <EmptyState
+            icon={Boxes}
+            title="No apps created yet"
+            description="Create an app to group users, clients and roles."
+            action={<button onClick={openCreate} className="h-8 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-colors">New App</button>}
+          />
         ) : (
           <div className="divide-y divide-slate-100">
             {(apps as AppItem[]).map((app) => (

@@ -185,7 +185,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="h-9 w-full rounded-lg bg-slate-900 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:opacity-50"
+              className="h-9 w-full rounded-lg bg-slate-900 text-sm font-medium text-white transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-50"
             >
               {loading ? "Signing in…" : mfaTicket ? "Verify code" : "Sign in"}
             </button>

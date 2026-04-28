@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { BarChart3 } from 'lucide-react'
+import { PageHeader, TableSkeleton } from '../components/PageHeader'
 import { useAuthMetrics } from '../hooks/useApi'
 
 function toIsoHour(minutesAgo: number) {
@@ -40,34 +41,32 @@ export default function Metrics() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-400">Operations</p>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Authentication Metrics</h1>
-          <p className="mt-2 max-w-3xl text-sm text-slate-600">
-            Monitor authentication throughput trends and event distribution from the metrics rollup endpoint.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={rangeHours}
-            onChange={(event) => setRangeHours(event.target.value)}
-            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
-          >
-            <option value="1">Last 1 hour</option>
-            <option value="6">Last 6 hours</option>
-            <option value="24">Last 24 hours</option>
-            <option value="72">Last 72 hours</option>
-            <option value="168">Last 7 days</option>
-          </select>
-          <input
-            value={eventFilter}
-            onChange={(event) => setEventFilter(event.target.value)}
-            placeholder="Filter event (e.g. login_success)"
-            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
-          />
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Operations"
+        title="Authentication Metrics"
+        description="Monitor authentication throughput trends and event distribution from the metrics rollup endpoint."
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={rangeHours}
+              onChange={(event) => setRangeHours(event.target.value)}
+              className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+            >
+              <option value="1">Last 1 hour</option>
+              <option value="6">Last 6 hours</option>
+              <option value="24">Last 24 hours</option>
+              <option value="72">Last 72 hours</option>
+              <option value="168">Last 7 days</option>
+            </select>
+            <input
+              value={eventFilter}
+              onChange={(event) => setEventFilter(event.target.value)}
+              placeholder="Filter event (e.g. login_success)"
+              className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+            />
+          </div>
+        }
+      />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -93,7 +92,7 @@ export default function Metrics() {
         </div>
 
         {isLoading ? (
-          <div className="px-4 py-8 text-sm text-slate-500">Loading metrics...</div>
+          <TableSkeleton rows={5} />
         ) : Object.keys(totals.grouped).length === 0 ? (
           <div className="px-4 py-10 text-center text-sm text-slate-500">No metric data found for this filter.</div>
         ) : (

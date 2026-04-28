@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Eye, EyeOff, LogIn } from 'lucide-react'
+import { Eye, EyeOff, LogIn, ShieldCheck } from 'lucide-react'
 import LanguageSelector from '../components/LanguageSelector'
 import { useI18n } from '../i18n'
 
@@ -73,14 +73,16 @@ export default function Login() {
           <LanguageSelector />
         </div>
         <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-2xl mx-auto mb-4 overflow-hidden" style={{ backgroundColor: ui?.primaryColor ?? '#0f172a' }}>
-            {ui?.logoUrl ? <img src={ui.logoUrl} alt="Logo" className="h-full w-full object-cover" /> : '👤'}
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-2xl mx-auto mb-4 overflow-hidden shadow-md" style={{ backgroundColor: ui?.primaryColor ?? '#0f172a' }}>
+            {ui?.logoUrl
+              ? <img src={ui.logoUrl} alt="Logo" className="h-full w-full object-cover" />
+              : <ShieldCheck size={26} />}
           </div>
           <h1 className="text-2xl font-bold text-slate-900">{ui?.title ?? t('login.title')}</h1>
           <p className="text-sm text-slate-500 mt-1">{ui?.subtitle ?? t('login.subtitle')}</p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-lg p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
@@ -125,7 +127,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={pending}
-              className="w-full h-10 rounded-xl text-white text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-60 transition-colors"
+              className="w-full h-10 rounded-xl text-white text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-60 transition-all active:scale-[0.98]"
               style={{ backgroundColor: ui?.primaryColor ?? '#0f172a' }}
             >
               <LogIn size={15} />

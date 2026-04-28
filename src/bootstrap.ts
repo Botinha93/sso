@@ -109,7 +109,10 @@ export const bootstrap = async (config: AppConfig) => {
   const mediaService = new MediaService(mediaStorageRoot);
   const pluginRuntimeService = new PluginRuntimeService(pluginService, auditRepository);
   eventHookService.setPluginRuntime(pluginRuntimeService);
-  const serviceIdentityService = new ServiceIdentityService(userRepository);
+  const serviceIdentityService = new ServiceIdentityService(
+    repositories.serviceIdentityRepository,
+    repositories.serviceIdentityCredentialRepository
+  );
 
   const roleService = new RoleService(
     roleRepository,
@@ -437,7 +440,8 @@ export const bootstrap = async (config: AppConfig) => {
     tenantRepository,
     jwtService,
     auditRepository,
-    securityService
+    securityService,
+    serviceIdentityService
   );
   const oidcService = new OidcService(config, jwtService);
 

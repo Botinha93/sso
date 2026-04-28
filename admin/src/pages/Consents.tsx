@@ -1,4 +1,5 @@
-import { RefreshCw, Trash2 } from 'lucide-react'
+import { RefreshCw, Trash2, CheckSquare } from 'lucide-react'
+import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useConsents, useRevokeConsent } from '../hooks/useApi'
@@ -28,10 +29,7 @@ const Consents = () => {
 
   return (
     <div>
-      <div className="mb-8">
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Consent Management</p>
-        <h2 className="text-2xl font-bold tracking-tight text-slate-900">Granted Permissions</h2>
-      </div>
+      <PageHeader eyebrow="Consent Management" title="Granted Permissions" />
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
@@ -46,9 +44,12 @@ const Consents = () => {
         </div>
 
         {isLoading ? (
-          <div className="p-10 text-center text-slate-400 text-sm">Loading consents…</div>
+          <TableSkeleton rows={5} />
         ) : !consents?.length ? (
-          <div className="p-10 text-center text-slate-400 text-sm">No consents recorded</div>
+          <EmptyState
+            title="No consents recorded"
+            description="Granted OAuth consent scopes will appear here."
+          />
         ) : (
           <div className="divide-y divide-slate-100">
             {consents.map((consent: Consent) => (

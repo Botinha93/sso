@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { nanoid } from "nanoid";
-import { AuthenticationError, ValidationError } from "../core/errors.js";
+import { AppError, AuthenticationError, ValidationError } from "../core/errors.js";
 import type { OAuthClient, User } from "../domain/models.js";
 import type {
   AccessTokenRepository,
@@ -18,6 +18,7 @@ import { JwtService } from "../security/jwt.js";
 import { AuthenticationFlowService } from "./authentication-flow-service.js";
 import { RoleService } from "./role-service.js";
 import { SecurityService } from "./security-service.js";
+import { ServiceIdentityService } from "./service-identity-service.js";
 import { UserService } from "./user-service.js";
 
 interface DeviceAuthorizationRecord {
@@ -68,7 +69,8 @@ export class AuthService {
     private readonly tenantRepository: TenantRepository,
     readonly jwtService: JwtService,
     readonly auditRepository: AuditRepository,
-    private readonly securityService: SecurityService
+    private readonly securityService: SecurityService,
+    private readonly serviceIdentityService?: ServiceIdentityService
   ) {}
 
   async login(input: {
@@ -367,21 +369,27 @@ export class AuthService {
     scope?: string;
   }) {
     await this.authenticationFlowService.assertGrantSupported("client_credentials");
-    const client = await this.authenticateClient({
+    const client = await this.clientRepository.findById(input.clientId);
+
+    if (!client) {
+      return this.issueServiceIdentityClientCredentialsTokens(input);
+    }
+
+    const authenticatedClient = await this.authenticateClient({
       clientId: input.clientId,
       clientSecret: input.clientSecret
     });
 
-    if (!client.grants.includes("client_credentials")) {
+    if (!authenticatedClient.grants.includes("client_credentials")) {
       throw new AuthenticationError("Client does not support client_credentials grant");
     }
 
-    const requestedScope = input.scope ? input.scope.split(" ") : client.allowedScopes;
-    const allowedScope = requestedScope.filter((s) => client.allowedScopes.includes(s));
+    const requestedScope = input.scope ? input.scope.split(" ") : authenticatedClient.allowedScopes;
+    const allowedScope = requestedScope.filter((s) => authenticatedClient.allowedScopes.includes(s));
 
     const accessTokenId = nanoid();
     const { accessToken, expiresIn, tokenType } = await this.jwtService.issueClientCredentialsToken({
-      client,
+      client: authenticatedClient,
       scope: allowedScope,
       accessTokenId
     });
@@ -390,11 +398,57 @@ export class AuthService {
     await this.auditRepository.log({
       type: "token_issued",
       actorType: "client",
-      clientId: client.id,
+      clientId: authenticatedClient.id,
       metadata: { grant: "client_credentials", scope: allowedScope }
     });
 
     return { access_token: accessToken, token_type: tokenType, expires_in: expiresIn, scope: allowedScope.join(" ") };
+  }
+
+  private async issueServiceIdentityClientCredentialsTokens(input: {
+    clientId: string;
+    clientSecret: string;
+    scope?: string;
+  }) {
+    if (!this.serviceIdentityService) {
+      throw new AuthenticationError("Unknown client");
+    }
+
+    const serviceIdentity = await this.serviceIdentityService.verifyCredential(input.clientId, input.clientSecret);
+    if (!serviceIdentity) {
+      throw new AuthenticationError("Invalid client credentials");
+    }
+
+    const requestedScope = input.scope
+      ? input.scope.split(" ").map((scope) => scope.trim()).filter(Boolean)
+      : serviceIdentity.allowedScopes;
+    const allowedScopes = new Set(serviceIdentity.allowedScopes);
+
+    if (requestedScope.some((scope) => !allowedScopes.has(scope))) {
+      throw new AppError("Requested scope exceeds service identity policy", 400);
+    }
+
+    const accessTokenId = nanoid();
+    const { accessToken, expiresIn, tokenType } = await this.jwtService.issueServiceIdentityToken({
+      serviceIdentity,
+      clientId: input.clientId,
+      scope: requestedScope,
+      accessTokenId
+    });
+
+    await this.auditRepository.log({
+      type: "token_issued",
+      actorType: "client",
+      clientId: input.clientId,
+      metadata: {
+        grant: "client_credentials",
+        scope: requestedScope,
+        serviceIdentityId: serviceIdentity.id,
+        serviceIdentityClientId: input.clientId
+      }
+    });
+
+    return { access_token: accessToken, token_type: tokenType, expires_in: expiresIn, scope: requestedScope.join(" ") };
   }
 
   async issuePasswordGrantTokens(input: {

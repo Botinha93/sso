@@ -17,7 +17,9 @@ export interface SDKServiceIdentity {
 export interface SDKServiceIdentityCredential {
   id: string;
   serviceIdentityId: string;
+  /** OAuth client_id for service identity client_credentials token requests. */
   clientId: string;
+  /** Stored secret hash; the plain client_secret is returned only at issue/rotate time. */
   clientSecretHash: string;
   expiresAt?: string;
   revokedAt?: string;
@@ -81,13 +83,13 @@ export interface WorkloadAPI {
   getServiceIdentity(id: string): Promise<ServiceIdentityWithCredentials>;
   /** Retrieves usage metadata for credentials associated with a service identity. */
   getUsage(id: string): Promise<SDKServiceIdentityUsage[]>;
-  /** Issues a new credential for a service identity. */
+  /** Issues a new OAuth client_id/client_secret pair for service identity client_credentials token requests. */
   issueCredential(id: string, input?: ServiceIdentityCredentialIssueInput): Promise<SDKIssuedServiceIdentityCredential>;
   /** Lists service identities visible to the caller. */
   listServiceIdentities(): Promise<SDKServiceIdentity[]>;
   /** Revokes a specific credential on a service identity. */
   revokeCredential(id: string, credentialId: string): Promise<void>;
-  /** Rotates an existing credential and returns the new issued secret material. */
+  /** Rotates an existing OAuth credential pair and returns the new one-time client_secret. */
   rotateCredential(id: string, input: RotateServiceIdentityCredentialInput): Promise<SDKIssuedServiceIdentityCredential>;
   /** Updates mutable fields of a service identity. */
   updateServiceIdentity(id: string, input: UpdateServiceIdentityInput): Promise<SDKServiceIdentity>;

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Plus, RefreshCw, Trash2, Key, RotateCw, Copy, Eye, EyeOff, Pencil, X } from 'lucide-react'
+import { Plus, RefreshCw, Trash2, Key, RotateCw, Copy, Eye, EyeOff, Pencil, X, Bot } from 'lucide-react'
+import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
 import {
@@ -129,7 +130,7 @@ const CredentialsPanel = ({
 
       {newSecret && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-          <p className="text-sm font-semibold text-amber-900 mb-2">Save Client Secret. It is shown only once.</p>
+          <p className="text-sm font-semibold text-amber-900 mb-2">Save this OAuth client secret. It is shown only once.</p>
           <div className="space-y-2">
             <div>
               <p className="text-xs text-amber-700 mb-1">Client ID</p>
@@ -161,7 +162,10 @@ const CredentialsPanel = ({
 
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-slate-900">Credentials</h3>
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900">OAuth Client Credentials</h3>
+            <p className="mt-0.5 text-xs text-slate-500">Use these with /oauth/token and grant_type=client_credentials.</p>
+          </div>
           <div className="flex items-center gap-2">
             <input
               type="number"
@@ -178,7 +182,7 @@ const CredentialsPanel = ({
               className="h-8 px-3 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 disabled:opacity-50 inline-flex items-center gap-1.5"
             >
               <Key className="h-3.5 w-3.5" />
-              Issue Credential
+              Issue Client Secret
             </button>
           </div>
         </div>
@@ -347,19 +351,19 @@ const ServiceIdentities = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Machine Directory</p>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Service Identities</h2>
-        </div>
-        <button
-          onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }}
-          className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 transition-colors"
-        >
-          <Plus size={14} />
-          New Identity
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Machine Directory"
+        title="Service Identities"
+        action={
+          <button
+            onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }}
+            className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 active:scale-[0.98] transition-all"
+          >
+            <Plus size={14} />
+            New Identity
+          </button>
+        }
+      />
 
       <div className="mb-4 max-w-sm">
         <label className={labelCls}>Filter by Status</label>
@@ -381,9 +385,12 @@ const ServiceIdentities = () => {
         </div>
 
         {isLoading ? (
-          <div className="p-10 text-center text-slate-400 text-sm">Loading service identities…</div>
+          <TableSkeleton rows={5} />
         ) : filteredIdentities.length === 0 ? (
-          <div className="p-10 text-center text-slate-400 text-sm">No service identities registered</div>
+          <EmptyState
+            title="No service identities registered"
+            description="Create a machine identity, then issue an OAuth client ID and secret for client-credentials tokens."
+          />
         ) : (
           <div className="divide-y divide-slate-100">
             {filteredIdentities.map((identity) => (
@@ -483,7 +490,7 @@ const ServiceIdentities = () => {
               </select>
             </div>
             <div>
-              <label className={labelCls}>Allowed Scopes</label>
+              <label className={labelCls}>Token Scopes</label>
               <div className="rounded-lg border border-slate-200 p-2 max-h-[140px] overflow-auto bg-slate-50/40 space-y-1.5">
                 {(scopes as any[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No scopes defined.</p>}
                 {(scopes as any[]).map((scope: any) => (
@@ -501,7 +508,7 @@ const ServiceIdentities = () => {
             </div>
           </div>
           <div>
-            <label className={labelCls}>Allowed Audiences</label>
+            <label className={labelCls}>Token Audiences</label>
             <input
               className={fieldCls}
               value={formData.allowedAudiences}
@@ -594,7 +601,7 @@ const ServiceIdentities = () => {
               </select>
             </div>
             <div>
-              <label className={labelCls}>Allowed Scopes</label>
+              <label className={labelCls}>Token Scopes</label>
               <div className="rounded-lg border border-slate-200 p-2 max-h-[140px] overflow-auto bg-slate-50/40 space-y-1.5">
                 {(scopes as any[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No scopes defined.</p>}
                 {(scopes as any[]).map((scope: any) => (
@@ -612,7 +619,7 @@ const ServiceIdentities = () => {
             </div>
           </div>
           <div>
-            <label className={labelCls}>Allowed Audiences</label>
+            <label className={labelCls}>Token Audiences</label>
             <input
               className={fieldCls}
               value={editFormData.allowedAudiences}

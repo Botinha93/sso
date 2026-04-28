@@ -1,4 +1,5 @@
 import { ChevronRight, Plus, RefreshCw, Shield, Trash2 } from 'lucide-react'
+import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
@@ -238,19 +239,19 @@ const Roles = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Access Control</p>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Roles &amp; Permissions</h2>
-        </div>
-        <button
-          onClick={() => { setFormData({ ...EMPTY_FORM }); setCreateModalOpen(true) }}
-          className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 transition-colors"
-        >
-          <Plus size={14} />
-          New Role
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Access Control"
+        title="Roles & Permissions"
+        action={
+          <button
+            onClick={() => { setFormData({ ...EMPTY_FORM }); setCreateModalOpen(true) }}
+            className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 active:scale-[0.98] transition-all"
+          >
+            <Plus size={14} />
+            New Role
+          </button>
+        }
+      />
 
       <div className="mb-4 max-w-sm">
         <label className={labelCls}>Filter by App</label>
@@ -272,8 +273,8 @@ const Roles = () => {
           </button>
         </div>
         <div className="divide-y divide-slate-100">
-          {isLoading && <p className="p-10 text-center text-slate-400 text-sm">Loading…</p>}
-          {!isLoading && filteredRoles.length === 0 && <p className="p-10 text-center text-slate-400 text-sm">No roles yet.</p>}
+          {isLoading && <TableSkeleton rows={4} />}
+          {!isLoading && filteredRoles.length === 0 && <EmptyState title="No roles yet" description="Create a role to define a set of permissions." />}
           {filteredRoles.map((role: any) => (
             <div key={role.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50/50 transition-colors group">
               <div className="flex items-center gap-3 flex-1 min-w-0">

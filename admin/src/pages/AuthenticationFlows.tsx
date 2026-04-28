@@ -1,4 +1,5 @@
 import { Check, ClipboardList, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
@@ -175,19 +176,19 @@ const AuthenticationFlows = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Authentication</p>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Flows & Stages</h2>
-        </div>
-        <button
-          onClick={openCreate}
-          className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 transition-colors"
-        >
-          <Plus size={14} />
-          New Flow
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Authentication"
+        title="Flows & Stages"
+        action={
+          <button
+            onClick={openCreate}
+            className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 active:scale-[0.98] transition-all"
+          >
+            <Plus size={14} />
+            New Flow
+          </button>
+        }
+      />
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
@@ -199,9 +200,13 @@ const AuthenticationFlows = () => {
         </div>
 
         {isLoading ? (
-          <div className="p-10 text-center text-slate-400 text-sm">Loading flows...</div>
+          <TableSkeleton rows={4} />
         ) : flows.length === 0 ? (
-          <div className="p-10 text-center text-slate-400 text-sm">No authentication flows configured</div>
+          <EmptyState
+            icon={ClipboardList}
+            title="No authentication flows configured"
+            description="Create a flow to define how users authenticate."
+          />
         ) : (
           <div className="divide-y divide-slate-100">
             {flows.map((flow) => (

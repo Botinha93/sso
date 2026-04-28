@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Plus, RefreshCw, Trash2, Play, Settings2, GitMerge } from 'lucide-react'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
+import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import {
   useConnectors,
   useCreateConnector,
@@ -191,36 +192,33 @@ export default function Connectors() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Connectors</h1>
-          <p className="mt-1 text-sm text-slate-500">Manage external identity sources and sync execution.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => refetch()} className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
-            <RefreshCw className="h-4 w-4" />
-          </button>
-          <Link to="/metrics" className="inline-flex items-center rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
-            View Auth Metrics
-          </Link>
-          <button onClick={openCreate} className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700">
-            <Plus className="h-4 w-4" /> New Connector
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Data Sync"
+        title="Connectors"
+        description="Manage external identity sources and sync execution."
+        action={
+          <div className="flex items-center gap-2">
+            <button onClick={() => refetch()} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 shadow-sm transition-colors hover:bg-slate-50">
+              <RefreshCw className="h-3.5 w-3.5" />
+            </button>
+            <Link to="/metrics" className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 hover:bg-slate-50">View Auth Metrics</Link>
+            <button onClick={openCreate} className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 active:scale-[0.98] transition-all">
+              <Plus className="h-4 w-4" /> New Connector
+            </button>
+          </div>
+        }
+      />
 
       <>
           {isLoading ? (
-            <div className="flex items-center justify-center py-16 text-sm text-slate-500">Loading connectors…</div>
+            <TableSkeleton rows={4} />
           ) : !connectors.length ? (
-            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white py-16 text-center">
-              <GitMerge className="mb-3 h-8 w-8 text-slate-300" />
-              <p className="text-sm font-medium text-slate-500">No connectors yet</p>
-              <p className="mt-1 text-xs text-slate-400">Create a connector to sync users from an external source.</p>
-              <button onClick={openCreate} className="mt-4 flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700">
-                <Plus className="h-4 w-4" /> New Connector
-              </button>
-            </div>
+            <EmptyState
+              icon={GitMerge}
+              title="No connectors yet"
+              description="Create a connector to sync users from an external source."
+              action={<button onClick={openCreate} className="inline-flex h-8 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 transition-colors"><Plus className="h-3.5 w-3.5" /> New Connector</button>}
+            />
           ) : (
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
               <table className="w-full text-sm">

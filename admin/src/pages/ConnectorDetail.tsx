@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Play, RefreshCw } from 'lucide-react'
+import { PageHeader, Skeleton } from '../components/PageHeader'
 import {
   useConnector,
   useConnectorRuns,
@@ -19,7 +20,12 @@ export default function ConnectorDetail() {
   }
 
   if (isLoading) {
-    return <div className="text-sm text-slate-500">Loading connector...</div>
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-14 w-72" />
+        <Skeleton className="h-48" />
+      </div>
+    )
   }
 
   if (!connector) {
@@ -31,33 +37,31 @@ export default function ConnectorDetail() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <Link to="/connectors" className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700">
-            <ArrowLeft size={12} /> Back to connectors
-          </Link>
-          <h1 className="mt-1 text-2xl font-bold text-slate-900">{connector.name}</h1>
-          <p className="mt-1 text-sm text-slate-500">Connector detail for {connector.type.toUpperCase()} ({connector.id})</p>
-        </div>
-        <div className="flex items-center gap-2">
+      <PageHeader
+        eyebrow="Data Sync"
+        title={connector.name}
+        description={`Connector detail for ${connector.type.toUpperCase()} (${connector.id})`}
+        action={
+          <div className="flex items-center gap-2">
+            <Link to="/connectors" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 hover:bg-slate-50">
+              <ArrowLeft size={13} /> Back
+            </Link>
           <button
-            onClick={() => {
-              refetchRuns()
-              refetchMappings()
-            }}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
+            onClick={() => { refetchRuns(); refetchMappings() }}
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 hover:bg-slate-50"
           >
             <RefreshCw size={14} /> Refresh
           </button>
           <button
             onClick={() => triggerSync.mutate(id)}
             disabled={triggerSync.isPending}
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-50"
+            className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-3 text-sm text-white hover:bg-slate-800 active:scale-[0.98] transition-all disabled:opacity-50"
           >
             <Play size={14} /> {triggerSync.isPending ? 'Syncing…' : 'Trigger Sync'}
           </button>
         </div>
-      </div>
+        }
+      />
 
       <div className="grid gap-6 xl:grid-cols-2">
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

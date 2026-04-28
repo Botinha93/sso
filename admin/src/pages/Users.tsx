@@ -1,4 +1,5 @@
-import { KeyRound, Link2, Pencil, Plus, RefreshCw, Trash2, UserCheck, UserX, X } from 'lucide-react'
+import { KeyRound, Link2, Pencil, Plus, RefreshCw, Trash2, UserCheck, UserX, Users, X } from 'lucide-react'
+import { EmptyState, PageHeader, TableSkeleton } from '../components/PageHeader'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
@@ -367,19 +368,19 @@ const Users = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Identity Directory</p>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">User Management</h2>
-        </div>
-        <button
-          onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }}
-          className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 transition-colors"
-        >
-          <Plus size={14} />
-          New User
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Identity Directory"
+        title="User Management"
+        action={
+          <button
+            onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }}
+            className="h-9 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 active:scale-[0.98] transition-all"
+          >
+            <Plus size={14} />
+            New User
+          </button>
+        }
+      />
 
       <div className="mb-4 max-w-sm">
         <label className={labelCls}>Filter by App</label>
@@ -402,14 +403,18 @@ const Users = () => {
         </div>
 
         {isLoading ? (
-          <div className="p-10 text-center text-slate-400 text-sm">Loading users…</div>
+          <TableSkeleton rows={6} />
         ) : !filteredUsers?.length ? (
-          <div className="p-10 text-center text-slate-400 text-sm">No users registered</div>
+          <EmptyState icon={Users} title="No users registered" description="Create the first user to get started." action={<button onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }} className="h-8 px-4 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-colors">New User</button>} />
         ) : (
           <div className="divide-y divide-slate-100">
             {filteredUsers.map((user: User) => (
               <div key={user.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50/50 transition-colors gap-4">
-                <div className="space-y-0.5 flex-1 min-w-0">
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <div className="h-8 w-8 shrink-0 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center text-xs font-semibold text-slate-600 mt-0.5">
+                    {(user.givenName?.[0] ?? '').toUpperCase()}{(user.familyName?.[0] ?? '').toUpperCase()}
+                  </div>
+                  <div className="space-y-0.5 flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium text-slate-900">{user.givenName} {user.familyName}</p>
                     {(user.appIds ?? (user.appId ? [user.appId] : [])).length === 0 ? (
@@ -486,6 +491,7 @@ const Users = () => {
                       <span className="inline-flex items-center gap-1"><Link2 size={11} />Add</span>
                     </button>
                   </div>
+                </div>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button

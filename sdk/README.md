@@ -135,7 +135,7 @@ await auth.revokeToken({
 });
 ```
 
-When using service identity credentials for token exchange, pass `clientId` and `clientSecret` from the issued workload credential and keep `scope`/`audience` within that identity policy (`allowedScopes` and `allowedAudiences`).
+Service identity credentials are OAuth client credentials. Pass the issued `clientId` and one-time `plainClientSecret` to `/oauth/token` with `grant_type=client_credentials` to mint a service identity access token. Keep requested `scope` within that identity policy (`allowedScopes`); issued tokens are constrained to the identity audiences (`allowedAudiences`).
 
 ## Session Cookie Auth
 
@@ -285,6 +285,12 @@ const serviceIdentity = await admin.serviceIdentities.createServiceIdentity({
 
 const issued = await admin.serviceIdentities.issueCredential(serviceIdentity.id, {
   expiresInDays: 30
+});
+
+const workloadToken = await auth.exchangeClientCredentials({
+  clientId: issued.credential.clientId,
+  clientSecret: issued.plainClientSecret,
+  scope: ["connectors.sync"]
 });
 
 const usage = await admin.serviceIdentities.getUsage(serviceIdentity.id);

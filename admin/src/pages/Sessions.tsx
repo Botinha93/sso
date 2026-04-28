@@ -1,4 +1,5 @@
-import { RefreshCw, ShieldOff } from 'lucide-react'
+import { RefreshCw, ShieldOff, MonitorSmartphone } from 'lucide-react'
+import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useSessions, useRevokeSession } from '../hooks/useApi'
@@ -28,10 +29,7 @@ const Sessions = () => {
 
   return (
     <div>
-      <div className="mb-8">
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Session Management</p>
-        <h2 className="text-2xl font-bold tracking-tight text-slate-900">Active Sessions</h2>
-      </div>
+      <PageHeader eyebrow="Session Management" title="Active Sessions" />
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
@@ -46,9 +44,12 @@ const Sessions = () => {
         </div>
 
         {isLoading ? (
-          <div className="p-10 text-center text-slate-400 text-sm">Loading sessions…</div>
+          <TableSkeleton rows={5} />
         ) : !sessions?.length ? (
-          <div className="p-10 text-center text-slate-400 text-sm">No sessions found</div>
+          <EmptyState
+            title="No sessions found"
+            description="Active sessions will appear here once users authenticate."
+          />
         ) : (
           <div className="divide-y divide-slate-100">
             {sessions.map((session: Session) => {

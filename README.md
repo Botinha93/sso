@@ -180,7 +180,7 @@ The platform provides a comprehensive OpenAPI 3.0.3 specification with complete 
 
 **Workload Identity**
 - Service identity management
-- Machine-to-machine credential issuance and rotation
+- Machine-to-machine OAuth client ID/secret issuance and rotation
 - Credential usage telemetry
 
 **SAML**

@@ -1,4 +1,4 @@
-import { ExternalLink, LogOut, Settings, User } from 'lucide-react'
+import { ExternalLink, Grid3X3, LogOut, Settings } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import type { PortalUser } from '../hooks'
@@ -52,7 +52,7 @@ export default function Launcher({ user }: Props) {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-sm overflow-hidden" style={{ backgroundColor: ui?.primaryColor ?? '#0f172a' }}>
-              {ui?.logoUrl ? <img src={ui.logoUrl} alt="Logo" className="h-full w-full object-cover" /> : '👤'}
+            {ui?.logoUrl ? <img src={ui.logoUrl} alt="Logo" className="h-full w-full object-cover" /> : <Grid3X3 size={16} />}
             </div>
             <span className="text-sm font-semibold text-slate-900">{ui?.title ?? 'Account Portal'}</span>
           </div>
@@ -83,8 +83,8 @@ export default function Launcher({ user }: Props) {
         {/* Welcome */}
         <div className="mb-10">
           <div className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden">
-              {user.avatarUrl ? <img src={user.avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : <User size={20} className="text-slate-500" />}
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-400 to-indigo-500 flex items-center justify-center overflow-hidden text-white font-bold shadow-sm">
+              {user.avatarUrl ? <img src={user.avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : `${user.givenName?.[0] ?? ''}${user.email?.[0] ?? ''}`.toUpperCase()}
             </div>
             <div>
               <h1 className="text-xl font-bold text-slate-900">
@@ -116,11 +116,25 @@ export default function Launcher({ user }: Props) {
   )
 }
 
+function appColor(name: string): string {
+  const colors = [
+    'from-sky-400 to-blue-600',
+    'from-violet-400 to-indigo-600',
+    'from-emerald-400 to-teal-600',
+    'from-amber-400 to-orange-500',
+    'from-rose-400 to-pink-600',
+    'from-cyan-400 to-sky-600',
+  ]
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0
+  return colors[hash % colors.length]
+}
+
 function AppTile({ app }: { app: PortalUser['apps'][0] }) {
   const content = (
-    <div className="group bg-white rounded-2xl border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all p-5 flex flex-col items-center gap-3 cursor-pointer relative">
-      <div className="w-14 h-14 rounded-2xl bg-slate-100 group-hover:bg-slate-200 transition-colors flex items-center justify-center text-3xl">
-        {app.imageUrl ? <img src={app.imageUrl} alt={app.name} className="h-full w-full rounded-2xl object-cover" /> : (app.icon || '📦')}
+    <div className="group bg-white rounded-2xl border border-slate-200 hover:border-slate-300 hover:shadow-lg hover:scale-[1.02] transition-all p-5 flex flex-col items-center gap-3 cursor-pointer relative">
+      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center overflow-hidden bg-gradient-to-br ${appColor(app.name)} text-white text-2xl font-bold shadow-sm`}>
+        {app.imageUrl ? <img src={app.imageUrl} alt={app.name} className="h-full w-full rounded-2xl object-cover" /> : app.name[0]?.toUpperCase()}
       </div>
       <div className="text-center">
         <p className="text-sm font-semibold text-slate-900 leading-tight">{app.name}</p>

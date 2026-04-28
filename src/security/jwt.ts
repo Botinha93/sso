@@ -1,7 +1,7 @@
 import { jwtVerify, SignJWT } from "jose";
 import type { SigningKeys } from "./keys.js";
 import type { AppConfig } from "../core/config.js";
-import type { OAuthClient, TokenBundle, User } from "../domain/models.js";
+import type { OAuthClient, ServiceIdentity, TokenBundle, User } from "../domain/models.js";
 
 export class JwtService {
   constructor(
@@ -91,6 +91,38 @@ export class JwtService {
       .setIssuedAt(now)
       .setExpirationTime(now + this.appConfig.ttl.accessTokenSeconds)
       .sign(this.keys.privateKey);
+
+    return { accessToken, tokenType: "Bearer", expiresIn: this.appConfig.ttl.accessTokenSeconds, scope: scopeValue };
+  }
+
+  async issueServiceIdentityToken(params: {
+    serviceIdentity: ServiceIdentity;
+    clientId: string;
+    scope: string[];
+    accessTokenId: string;
+  }) {
+    const { serviceIdentity, clientId, scope, accessTokenId } = params;
+    const now = Math.floor(Date.now() / 1000);
+    const scopeValue = scope.join(" ");
+
+    let tokenBuilder = new SignJWT({
+      scope: scopeValue,
+      client_id: clientId,
+      service_identity_id: serviceIdentity.id,
+      actor_type: "service_identity"
+    })
+      .setProtectedHeader({ alg: "RS256", kid: this.keys.kid })
+      .setIssuer(this.appConfig.issuer)
+      .setSubject(serviceIdentity.id)
+      .setJti(accessTokenId)
+      .setIssuedAt(now)
+      .setExpirationTime(now + this.appConfig.ttl.accessTokenSeconds);
+
+    if (serviceIdentity.allowedAudiences.length > 0) {
+      tokenBuilder = tokenBuilder.setAudience(serviceIdentity.allowedAudiences);
+    }
+
+    const accessToken = await tokenBuilder.sign(this.keys.privateKey);
 
     return { accessToken, tokenType: "Bearer", expiresIn: this.appConfig.ttl.accessTokenSeconds, scope: scopeValue };
   }
