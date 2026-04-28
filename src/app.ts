@@ -9,10 +9,28 @@ import { registerRoutes } from "./http/routes.js";
 import { bootstrap } from "./bootstrap.js";
 import { hasSqlInjectionPayload } from "./http/sql-injection-guard.js";
 
+export const emitStartupConfigWarnings = async (
+  app: Pick<ReturnType<typeof Fastify>, "log">,
+  instanceSettingsService: { getSettings: () => Promise<{ allowImplicitFlow: boolean }> }
+) => {
+  const settings = await instanceSettingsService.getSettings();
+  if (settings.allowImplicitFlow) {
+    app.log.warn(
+      {
+        setting: "allowImplicitFlow",
+        value: true,
+        recommendation: "Disable allowImplicitFlow and use authorization_code + PKCE for user-facing apps."
+      },
+      "Startup security warning: implicit flow is enabled"
+    );
+  }
+};
+
 export const buildApp = async () => {
   const config = loadConfig();
   const app = Fastify({ logger: process.env.NODE_ENV !== "test", trustProxy: config.trustProxy });
   const services = await bootstrap(config);
+  await emitStartupConfigWarnings(app, services.instanceSettingsService);
 
   app.addHook("onClose", async () => {
     await services.dispose();

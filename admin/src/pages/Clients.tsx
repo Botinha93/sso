@@ -18,7 +18,7 @@ interface OAuthClient {
   createdAt: string
 }
 
-type GrantType = 'authorization_code' | 'client_credentials' | 'refresh_token' | 'password' | 'device_code'
+type GrantType = 'authorization_code' | 'client_credentials' | 'refresh_token' | 'password' | 'device_code' | 'token_exchange' | 'jwt_bearer' | 'saml2_bearer' | 'ciba'
 
 const GRANT_OPTIONS: Array<{ value: GrantType; label: string }> = [
   { value: 'authorization_code', label: 'Authorization Code' },
@@ -26,6 +26,10 @@ const GRANT_OPTIONS: Array<{ value: GrantType; label: string }> = [
   { value: 'client_credentials', label: 'Client Credentials' },
   { value: 'password', label: 'Password' },
   { value: 'device_code', label: 'Device Code' },
+  { value: 'token_exchange', label: 'Token Exchange (RFC 8693)' },
+  { value: 'jwt_bearer', label: 'JWT Bearer Assertion' },
+  { value: 'saml2_bearer', label: 'SAML 2.0 Bearer Assertion' },
+  { value: 'ciba', label: 'CIBA (Backchannel Authentication)' },
 ]
 
 const generateClientSecret = () => {

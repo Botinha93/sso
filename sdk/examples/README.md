@@ -3,6 +3,8 @@
 These examples show the intended usage shape for the TypeScript SDK.
 
 - `auth-flow.ts`: OAuth authorize URL, PKCE, token exchange, and revocation.
+- `assertion-ciba-auth.ts`: JWT bearer, SAML2 bearer, and CIBA (start/approve/exchange) flows.
+- `ciba-polling-negative-path.ts`: CIBA polling loop that handles `authorization_pending` and `slow_down` errors.
 - `browser-spa-auth.ts`: browser SPA auth flow with PKCE and callback token exchange.
 - `server-express-auth.ts`: server-side Express usage with session-cookie auth.
 - `admin-apps-users.ts`: app and user administration.

@@ -394,7 +394,7 @@ paths:
           name: response_type
           schema:
             type: string
-            enum: [code, token]
+            enum: [code, token, "code token"]
           required: true
         - in: query
           name: client_id
@@ -467,6 +467,36 @@ paths:
                     client_id: { type: string }
                     client_secret: { type: string }
                     scope: { type: string }
+                - type: object
+                  required: [grant_type, device_code, client_id, client_secret]
+                  properties:
+                    grant_type: { type: string, enum: ["urn:ietf:params:oauth:grant-type:device_code"] }
+                    device_code: { type: string }
+                    client_id: { type: string }
+                    client_secret: { type: string }
+                - type: object
+                  required: [grant_type, assertion, client_id, client_secret]
+                  properties:
+                    grant_type: { type: string, enum: ["urn:ietf:params:oauth:grant-type:jwt-bearer"] }
+                    assertion: { type: string }
+                    client_id: { type: string }
+                    client_secret: { type: string }
+                    scope: { type: string }
+                - type: object
+                  required: [grant_type, assertion, client_id, client_secret]
+                  properties:
+                    grant_type: { type: string, enum: ["urn:ietf:params:oauth:grant-type:saml2-bearer"] }
+                    assertion: { type: string }
+                    client_id: { type: string }
+                    client_secret: { type: string }
+                    scope: { type: string }
+                - type: object
+                  required: [grant_type, auth_req_id, client_id, client_secret]
+                  properties:
+                    grant_type: { type: string, enum: ["urn:openid:params:grant-type:ciba"] }
+                    auth_req_id: { type: string }
+                    client_id: { type: string }
+                    client_secret: { type: string }
       responses:
         '200':
           description: Access token and refresh token response
@@ -491,6 +521,74 @@ paths:
                   id_token:
                     type: string
                     description: OIDC ID token (for OIDC flows)
+  /oauth/ciba/authenticate:
+    post:
+      summary: Start CIBA authentication request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [client_id, client_secret, login_hint]
+              properties:
+                client_id:
+                  type: string
+                client_secret:
+                  type: string
+                login_hint:
+                  type: string
+                scope:
+                  type: string
+                binding_message:
+                  type: string
+                user_code:
+                  type: string
+      responses:
+        '200':
+          description: CIBA request accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [auth_req_id, expires_in, interval]
+                properties:
+                  auth_req_id:
+                    type: string
+                  expires_in:
+                    type: integer
+                  interval:
+                    type: integer
+  /oauth/ciba/approve:
+    post:
+      summary: Approve or deny CIBA authentication request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [auth_req_id, username, password, approve]
+              properties:
+                auth_req_id:
+                  type: string
+                username:
+                  type: string
+                password:
+                  type: string
+                approve:
+                  type: boolean
+      responses:
+        '200':
+          description: CIBA decision recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [approved, denied]
   /oauth/introspect:
     post:
       summary: Token introspection (RFC 7662)
@@ -663,12 +761,12 @@ paths:
                   type: array
                   items:
                     type: string
-                    enum: [authorization_code, client_credentials, refresh_token, password, device_code]
+                    enum: [authorization_code, client_credentials, refresh_token, password, device_code, token_exchange, jwt_bearer, saml2_bearer, ciba]
                 response_types:
                   type: array
                   items:
                     type: string
-                    enum: [code, token]
+                    enum: [code, token, "code token"]
                 scope:
                   type: string
       responses:

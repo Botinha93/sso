@@ -42,6 +42,11 @@ print(users)
 - `auth.exchange_authorization_code(...)`
 - `auth.exchange_refresh_token(...)`
 - `auth.exchange_client_credentials(...)`
+- `auth.exchange_jwt_bearer(...)`
+- `auth.exchange_saml2_bearer(...)`
+- `auth.start_ciba_authentication(...)`
+- `auth.approve_ciba_authentication(...)`
+- `auth.exchange_ciba_token(...)`
 - `auth.exchange_token(...)`
 - `auth.revoke_token(...)`
 - `admin.users.list(...)`
@@ -69,3 +74,9 @@ Regenerate after `openapi.yaml` changes:
 ```bash
 npm run generate:sdk:python:models
 ```
+
+## Examples
+
+- `examples/basic_usage.py`
+- `examples/assertion_ciba_auth.py`
+- `examples/ciba_polling_negative_path.py`

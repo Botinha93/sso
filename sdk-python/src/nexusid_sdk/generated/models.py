@@ -426,7 +426,7 @@ class GetApiPortalMeResponse200AppsItem(TypedDict):
     icon: NotRequired[str | None]
 
 class GetOauthAuthorizeQueryParams(TypedDict):
-    response_type: Literal["code", "token"]
+    response_type: Literal["code", "token", "code token"]
     client_id: str
     redirect_uri: str
     scope: str
@@ -926,8 +926,8 @@ class PostConnectRegisterRequestBody(TypedDict):
     app_id: NotRequired[str]
     client_name: str
     redirect_uris: list[str]
-    grant_types: NotRequired[list[Literal["authorization_code", "client_credentials", "refresh_token", "password", "device_code"]]]
-    response_types: NotRequired[list[Literal["code", "token"]]]
+    grant_types: NotRequired[list[Literal["authorization_code", "client_credentials", "refresh_token", "password", "device_code", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"]]]
+    response_types: NotRequired[list[Literal["code", "token", "code token"]]]
     scope: NotRequired[str]
 
 class PostConnectRegisterResponse201(TypedDict):
@@ -943,6 +943,28 @@ class PostOauthBackchannelLogoutRequestBody(TypedDict):
 
 class PostOauthBackchannelLogoutResponse200(TypedDict):
     revoked: NotRequired[bool]
+
+class PostOauthCibaApproveRequestBody(TypedDict):
+    auth_req_id: str
+    username: str
+    password: str
+    approve: bool
+
+class PostOauthCibaApproveResponse200(TypedDict):
+    status: NotRequired[Literal["approved", "denied"]]
+
+class PostOauthCibaAuthenticateRequestBody(TypedDict):
+    client_id: str
+    client_secret: str
+    login_hint: str
+    scope: NotRequired[str]
+    binding_message: NotRequired[str]
+    user_code: NotRequired[str]
+
+class PostOauthCibaAuthenticateResponse200(TypedDict):
+    auth_req_id: str
+    expires_in: int
+    interval: int
 
 class PostOauthIntrospectRequestBody(TypedDict):
     token: str
@@ -996,6 +1018,32 @@ class PostOauthTokenRequestBodyOption4(TypedDict):
     client_id: str
     client_secret: str
     scope: NotRequired[str]
+
+class PostOauthTokenRequestBodyOption5(TypedDict):
+    grant_type: Literal["urn:ietf:params:oauth:grant-type:device_code"]
+    device_code: str
+    client_id: str
+    client_secret: str
+
+class PostOauthTokenRequestBodyOption6(TypedDict):
+    grant_type: Literal["urn:ietf:params:oauth:grant-type:jwt-bearer"]
+    assertion: str
+    client_id: str
+    client_secret: str
+    scope: NotRequired[str]
+
+class PostOauthTokenRequestBodyOption7(TypedDict):
+    grant_type: Literal["urn:ietf:params:oauth:grant-type:saml2-bearer"]
+    assertion: str
+    client_id: str
+    client_secret: str
+    scope: NotRequired[str]
+
+class PostOauthTokenRequestBodyOption8(TypedDict):
+    grant_type: Literal["urn:openid:params:grant-type:ciba"]
+    auth_req_id: str
+    client_id: str
+    client_secret: str
 
 class PostOauthTokenResponse200(TypedDict):
     access_token: str
@@ -1278,9 +1326,11 @@ PostAuthLoginWebauthnBeginResponse: TypeAlias = "PostAuthLoginWebauthnBeginRespo
 PostAuthLoginWebauthnFinishResponse: TypeAlias = "PostAuthLoginWebauthnFinishResponse200"
 PostConnectRegisterResponse: TypeAlias = "PostConnectRegisterResponse201"
 PostOauthBackchannelLogoutResponse: TypeAlias = "PostOauthBackchannelLogoutResponse200"
+PostOauthCibaApproveResponse: TypeAlias = "PostOauthCibaApproveResponse200"
+PostOauthCibaAuthenticateResponse: TypeAlias = "PostOauthCibaAuthenticateResponse200"
 PostOauthIntrospectResponse: TypeAlias = "PostOauthIntrospectResponse200"
 PostOauthTokenExchangeResponse: TypeAlias = "PostOauthTokenExchangeResponse200"
-PostOauthTokenRequestBody: TypeAlias = "Union[PostOauthTokenRequestBodyOption1, PostOauthTokenRequestBodyOption2, PostOauthTokenRequestBodyOption3, PostOauthTokenRequestBodyOption4]"
+PostOauthTokenRequestBody: TypeAlias = "Union[PostOauthTokenRequestBodyOption1, PostOauthTokenRequestBodyOption2, PostOauthTokenRequestBodyOption3, PostOauthTokenRequestBodyOption4, PostOauthTokenRequestBodyOption5, PostOauthTokenRequestBodyOption6, PostOauthTokenRequestBodyOption7, PostOauthTokenRequestBodyOption8]"
 PostOauthTokenResponse: TypeAlias = "PostOauthTokenResponse200"
 PostOauthTokenRevokeResponse: TypeAlias = "PostOauthTokenRevokeResponse200"
 PostSamlAcsBySpIdResponse: TypeAlias = "PostSamlAcsBySpIdResponse200"
@@ -1606,6 +1656,12 @@ __all__ = [
     "PostOauthBackchannelLogoutRequestBody",
     "PostOauthBackchannelLogoutResponse",
     "PostOauthBackchannelLogoutResponse200",
+    "PostOauthCibaApproveRequestBody",
+    "PostOauthCibaApproveResponse",
+    "PostOauthCibaApproveResponse200",
+    "PostOauthCibaAuthenticateRequestBody",
+    "PostOauthCibaAuthenticateResponse",
+    "PostOauthCibaAuthenticateResponse200",
     "PostOauthIntrospectRequestBody",
     "PostOauthIntrospectResponse",
     "PostOauthIntrospectResponse200",
@@ -1617,6 +1673,10 @@ __all__ = [
     "PostOauthTokenRequestBodyOption2",
     "PostOauthTokenRequestBodyOption3",
     "PostOauthTokenRequestBodyOption4",
+    "PostOauthTokenRequestBodyOption5",
+    "PostOauthTokenRequestBodyOption6",
+    "PostOauthTokenRequestBodyOption7",
+    "PostOauthTokenRequestBodyOption8",
     "PostOauthTokenResponse",
     "PostOauthTokenResponse200",
     "PostOauthTokenRevokeRequestBody",

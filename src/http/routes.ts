@@ -27,6 +27,8 @@ import {
   createClientSchema,
   createScopeSchema,
   createAuthenticationFlowSchema,
+  cibaApprovalSchema,
+  cibaAuthenticationRequestSchema,
   deviceAuthorizationSchema,
   deviceVerificationSchema,
   dynamicClientRegistrationSchema,
@@ -918,7 +920,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
     const responseMode = input.response_mode ?? "query";
     const params: Record<string, string> = {};
-    if (input.response_type === "code") {
+    const responseTypes = new Set(input.response_type.split(" ").map((value) => value.trim()).filter(Boolean));
+
+    if (responseTypes.has("code")) {
       const authorizationCode = await deps.authService.createAuthorizationCode({
         clientId: input.client_id,
         userId: user.id,
@@ -928,7 +932,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         codeChallengeMethod: input.code_challenge_method as "S256" | undefined
       });
       params.code = authorizationCode.code;
-    } else {
+    }
+
+    if (responseTypes.has("token")) {
       const tenant = input.tenant ? (await deps.tenantService.listTenants()).find((item) => item.slug === input.tenant) : undefined;
       const token = await deps.authService.issueImplicitToken({
         userId: user.id,
@@ -943,6 +949,11 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       params.expires_in = String(token.expires_in);
       params.scope = token.scope;
     }
+
+    if (!responseTypes.has("code") && !responseTypes.has("token")) {
+      return reply.status(400).send({ error: "unsupported_response_type", error_description: "Unsupported response_type" });
+    }
+
     if (input.state) params.state = input.state;
 
     if (responseMode === "fragment") {
@@ -1046,6 +1057,41 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
         return response;
       }
+      if (parsed.data.grant_type === "urn:ietf:params:oauth:grant-type:jwt-bearer") {
+        return await deps.authService.issueJwtBearerGrantTokens({
+          assertion: parsed.data.assertion,
+          clientId: parsed.data.client_id,
+          clientSecret: parsed.data.client_secret,
+          scope: parsed.data.scope,
+          ip: request.ip,
+          userAgent: clientUserAgent(request)
+        });
+      }
+      if (parsed.data.grant_type === "urn:ietf:params:oauth:grant-type:saml2-bearer") {
+        return await deps.authService.issueSaml2BearerGrantTokens({
+          assertion: parsed.data.assertion,
+          clientId: parsed.data.client_id,
+          clientSecret: parsed.data.client_secret,
+          scope: parsed.data.scope,
+          ip: request.ip,
+          userAgent: clientUserAgent(request)
+        });
+      }
+      if (parsed.data.grant_type === "urn:openid:params:grant-type:ciba") {
+        const response = await deps.authService.exchangeCibaAuthenticationRequest({
+          authReqId: parsed.data.auth_req_id,
+          clientId: parsed.data.client_id,
+          clientSecret: parsed.data.client_secret,
+          ip: request.ip,
+          userAgent: clientUserAgent(request)
+        });
+
+        if ("error" in response) {
+          return reply.status(400).send(response);
+        }
+
+        return response;
+      }
     } catch (err) {
       if (parsed.data.grant_type === "password") {
         await deps.securityService.recordLoginFailure({
@@ -1093,6 +1139,15 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     }
     const { subject_token, subject_token_type, scope, audience, client_id, client_secret } = parsed.data;
 
+    try {
+      await deps.authenticationFlowService.assertGrantSupported("token_exchange");
+    } catch (error) {
+      if (error instanceof AppError) {
+        return reply.status(error.statusCode).send({ error: "invalid_request", error_description: error.message });
+      }
+      throw error;
+    }
+
     if (subject_token_type !== "urn:ietf:params:oauth:token-type:access_token" &&
         subject_token_type !== "urn:ietf:params:oauth:token-type:jwt") {
       return reply.status(400).send({ error: "invalid_request", error_description: "Unsupported subject_token_type" });
@@ -1119,6 +1174,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       try {
         const client = await deps.clientService.findClientById(client_id);
         if (client && client.secret === client_secret) {
+          if (!client.grants.includes("token_exchange")) {
+            return reply.status(401).send({ error: "invalid_client", error_description: "Client does not support token_exchange grant" });
+          }
           matchedClient = true;
           exchangeActor = { type: "client", id: client.id };
         }
@@ -1216,6 +1274,30 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       scope: input.scope
     });
     return reply.status(200).send(issued);
+  });
+
+  app.post("/oauth/ciba/authenticate", async (request, reply) => {
+    const input = cibaAuthenticationRequestSchema.parse(request.body);
+    const issued = await deps.authService.createCibaAuthenticationRequest({
+      clientId: input.client_id,
+      clientSecret: input.client_secret,
+      loginHint: input.login_hint,
+      scope: input.scope,
+      bindingMessage: input.binding_message,
+      userCode: input.user_code
+    });
+    return reply.status(200).send(issued);
+  });
+
+  app.post("/oauth/ciba/approve", async (request, reply) => {
+    const input = cibaApprovalSchema.parse(request.body);
+    const result = await deps.authService.approveCibaAuthenticationRequest({
+      authReqId: input.auth_req_id,
+      username: input.username,
+      password: input.password,
+      approve: input.approve
+    });
+    return reply.status(200).send(result);
   });
 
   app.post("/oauth/device/verify", async (request, reply) => {

@@ -248,7 +248,7 @@ export const bootstrap = async (config: AppConfig) => {
       description: "Default login pattern with optional OTP validation for configured users.",
       designation: "authentication",
       enabled: !hasActiveAuthenticationFlow,
-      grantTypes: ["authorization_code", "refresh_token", "password", "device_code"],
+      grantTypes: ["authorization_code", "refresh_token", "password", "device_code", "client_credentials", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"],
       stages: [
         { type: "password", required: true, order: 1 },
         { type: "mfa_totp", required: true, order: 2 },
@@ -263,7 +263,7 @@ export const bootstrap = async (config: AppConfig) => {
       description: "Authentication flow with risk-aware captcha challenge before credential checks.",
       designation: "authentication",
       enabled: false,
-      grantTypes: ["authorization_code", "refresh_token", "password", "device_code"],
+      grantTypes: ["authorization_code", "refresh_token", "password", "device_code", "client_credentials", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"],
       stages: [
         { type: "risk_check", required: true, order: 1 },
         { type: "captcha", required: true, order: 2 },

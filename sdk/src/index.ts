@@ -105,7 +105,12 @@ export type {
   AuthAPI,
   AuthorizationCodeTokenInput,
   BearerAuthConfig,
+  CibaApprovalInput,
+  CibaAuthenticationRequestInput,
+  CibaAuthenticationResponse,
+  CibaTokenInput,
   ClientCredentialsInput,
+  JwtBearerTokenInput,
   OAuthAudience,
   OAuthAuthorizeParams,
   OAuthResponseType,
@@ -115,6 +120,7 @@ export type {
   PKCEPair,
   RefreshTokenInput,
   RevokeTokenInput,
+  Saml2BearerTokenInput,
   SessionAuthConfig,
   TokenExchangeInput
 } from "./auth/types.js";

@@ -90,6 +90,122 @@ class AuthAPI:
             body=payload,
         ))
 
+    def exchange_jwt_bearer(
+        self,
+        *,
+        client_id: str,
+        client_secret: str,
+        assertion: str,
+        scope: str | list[str] | None = None,
+    ) -> gm.PostOauthTokenResponse:
+        payload: gm.PostOauthTokenRequestBodyOption5 = {
+            "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            "assertion": assertion,
+            "client_id": client_id,
+            "client_secret": client_secret,
+        }
+        serialized_scope = _serialize_scope(scope)
+        if serialized_scope is not None:
+            payload["scope"] = serialized_scope
+
+        return cast(gm.PostOauthTokenResponse, self._client.post(
+            "/oauth/token",
+            body=payload,
+        ))
+
+    def exchange_saml2_bearer(
+        self,
+        *,
+        client_id: str,
+        client_secret: str,
+        assertion: str,
+        scope: str | list[str] | None = None,
+    ) -> gm.PostOauthTokenResponse:
+        payload: gm.PostOauthTokenRequestBodyOption6 = {
+            "grant_type": "urn:ietf:params:oauth:grant-type:saml2-bearer",
+            "assertion": assertion,
+            "client_id": client_id,
+            "client_secret": client_secret,
+        }
+        serialized_scope = _serialize_scope(scope)
+        if serialized_scope is not None:
+            payload["scope"] = serialized_scope
+
+        return cast(gm.PostOauthTokenResponse, self._client.post(
+            "/oauth/token",
+            body=payload,
+        ))
+
+    def start_ciba_authentication(
+        self,
+        *,
+        client_id: str,
+        client_secret: str,
+        login_hint: str,
+        scope: str | list[str] | None = None,
+        binding_message: str | None = None,
+        user_code: str | None = None,
+    ) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "login_hint": login_hint,
+        }
+
+        serialized_scope = _serialize_scope(scope)
+        if serialized_scope is not None:
+            payload["scope"] = serialized_scope
+
+        if binding_message is not None:
+            payload["binding_message"] = binding_message
+
+        if user_code is not None:
+            payload["user_code"] = user_code
+
+        return cast(dict[str, object], self._client.post(
+            "/oauth/ciba/authenticate",
+            body=payload,
+        ))
+
+    def approve_ciba_authentication(
+        self,
+        *,
+        auth_req_id: str,
+        username: str,
+        password: str,
+        approve: bool = True,
+    ) -> dict[str, object]:
+        payload = {
+            "auth_req_id": auth_req_id,
+            "username": username,
+            "password": password,
+            "approve": approve,
+        }
+
+        return cast(dict[str, object], self._client.post(
+            "/oauth/ciba/approve",
+            body=payload,
+        ))
+
+    def exchange_ciba_token(
+        self,
+        *,
+        client_id: str,
+        client_secret: str,
+        auth_req_id: str,
+    ) -> gm.PostOauthTokenResponse:
+        payload: gm.PostOauthTokenRequestBodyOption7 = {
+            "grant_type": "urn:openid:params:grant-type:ciba",
+            "auth_req_id": auth_req_id,
+            "client_id": client_id,
+            "client_secret": client_secret,
+        }
+
+        return cast(gm.PostOauthTokenResponse, self._client.post(
+            "/oauth/token",
+            body=payload,
+        ))
+
     def exchange_token(
         self,
         *,

@@ -23,7 +23,7 @@ type StageType =
   | 'user_write'
   | 'user_login'
   | 'user_logout'
-type GrantType = 'authorization_code' | 'client_credentials' | 'refresh_token' | 'password' | 'device_code'
+type GrantType = 'authorization_code' | 'client_credentials' | 'refresh_token' | 'password' | 'device_code' | 'token_exchange' | 'jwt_bearer' | 'saml2_bearer' | 'ciba'
 type FlowDesignation = 'authentication' | 'authorization' | 'enrollment' | 'invalidation' | 'recovery' | 'stage_configuration' | 'unenrollment'
 
 interface AuthenticationStage {
@@ -58,6 +58,10 @@ const GRANT_OPTIONS: Array<{ value: GrantType; label: string }> = [
   { value: 'refresh_token', label: 'Refresh Token' },
   { value: 'password', label: 'Password' },
   { value: 'device_code', label: 'Device Code' },
+  { value: 'token_exchange', label: 'Token Exchange (RFC 8693)' },
+  { value: 'jwt_bearer', label: 'JWT Bearer Assertion' },
+  { value: 'saml2_bearer', label: 'SAML 2.0 Bearer Assertion' },
+  { value: 'ciba', label: 'CIBA (Backchannel Authentication)' },
 ]
 
 const STAGE_OPTIONS: Array<{ value: StageType; label: string }> = [

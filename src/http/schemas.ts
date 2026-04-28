@@ -160,7 +160,7 @@ export const webauthnLoginFinishSchema = z.object({
 });
 
 export const authorizeSchema = z.object({
-  response_type: z.enum(["code", "token"]),
+  response_type: z.enum(["code", "token", "code token"]),
   client_id: z.string().min(2),
   redirect_uri: z.string().url(),
   scope: z.string().min(1),
@@ -238,13 +238,55 @@ export const deviceCodeTokenSchema = z.object({
   client_secret: z.string().min(8)
 });
 
+export const jwtBearerTokenSchema = z.object({
+  grant_type: z.literal("urn:ietf:params:oauth:grant-type:jwt-bearer"),
+  assertion: z.string().min(16),
+  client_id: z.string().min(2),
+  client_secret: z.string().min(8),
+  scope: z.string().optional()
+});
+
+export const saml2BearerTokenSchema = z.object({
+  grant_type: z.literal("urn:ietf:params:oauth:grant-type:saml2-bearer"),
+  assertion: z.string().min(16),
+  client_id: z.string().min(2),
+  client_secret: z.string().min(8),
+  scope: z.string().optional()
+});
+
+export const cibaTokenSchema = z.object({
+  grant_type: z.literal("urn:openid:params:grant-type:ciba"),
+  auth_req_id: z.string().min(16),
+  client_id: z.string().min(2),
+  client_secret: z.string().min(8)
+});
+
 export const tokenSchema = z.discriminatedUnion("grant_type", [
   authorizationCodeTokenSchema,
   refreshTokenSchema,
   clientCredentialsSchema,
   passwordGrantSchema,
-  deviceCodeTokenSchema
+  deviceCodeTokenSchema,
+  jwtBearerTokenSchema,
+  saml2BearerTokenSchema,
+  cibaTokenSchema
 ]);
+
+export const cibaAuthenticationRequestSchema = z.object({
+  client_id: z.string().min(2),
+  client_secret: z.string().min(8),
+  login_hint: z.string().min(1),
+  scope: z.string().optional(),
+  binding_message: z.string().min(1).max(120).optional(),
+  user_code: z.string().min(4).max(20).optional()
+});
+
+export const cibaApprovalSchema = z.object({
+  auth_req_id: z.string().min(16),
+  username: z.string().min(1),
+  password: z.string().min(1),
+  approve: z.boolean().default(true)
+});
 
 export const deviceAuthorizationSchema = z.object({
   client_id: z.string().min(2),
@@ -300,7 +342,7 @@ export const createClientSchema = z.object({
   secret: z.string().min(16),
   redirectUris: z.array(z.string().url()).min(1),
   allowedScopes: z.array(z.string()).min(1),
-  grants: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code"])).min(1),
+  grants: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"])).min(1),
   requirePkce: z.boolean().default(false),
   resources: z.array(z.string().min(1)).default([]),
   flowIds: z.array(z.string().min(1)).default([])
@@ -312,7 +354,7 @@ export const updateClientSchema = z.object({
   secret: z.string().min(16).optional(),
   redirectUris: z.array(z.string().url()).optional(),
   allowedScopes: z.array(z.string()).optional(),
-  grants: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code"])).optional(),
+  grants: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"])).optional(),
   requirePkce: z.boolean().optional(),
   resources: z.array(z.string().min(1)).optional(),
   flowIds: z.array(z.string().min(1)).optional()
@@ -388,7 +430,7 @@ export const createAuthenticationFlowSchema = z.object({
   description: z.string().min(2),
   designation: z.enum(["authentication", "authorization", "enrollment", "invalidation", "recovery", "stage_configuration", "unenrollment"]).default("authentication"),
   enabled: z.boolean().default(false),
-  grantTypes: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code"])).min(1),
+  grantTypes: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"])).min(1),
   stages: z.array(authenticationStageSchema).min(1)
 });
 
@@ -397,7 +439,7 @@ export const updateAuthenticationFlowSchema = z.object({
   description: z.string().min(2).optional(),
   designation: z.enum(["authentication", "authorization", "enrollment", "invalidation", "recovery", "stage_configuration", "unenrollment"]).optional(),
   enabled: z.boolean().optional(),
-  grantTypes: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code"])).min(1).optional(),
+  grantTypes: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"])).min(1).optional(),
   stages: z.array(authenticationStageSchema).min(1).optional()
 });
 
@@ -405,8 +447,8 @@ export const dynamicClientRegistrationSchema = z.object({
   app_id: z.string().min(2).optional(),
   client_name: z.string().min(2).default("dynamic-client"),
   redirect_uris: z.array(z.string().url()).min(1),
-  grant_types: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code"])).optional(),
-  response_types: z.array(z.enum(["code", "token"])).optional(),
+  grant_types: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"])).optional(),
+  response_types: z.array(z.enum(["code", "token", "code token"])).optional(),
   scope: z.string().optional(),
   token_endpoint_auth_method: z.enum(["client_secret_post"]).default("client_secret_post")
 });

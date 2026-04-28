@@ -111,10 +111,12 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'GET', path: '/.well-known/openid-configuration', auth: 'public', description: 'OIDC discovery metadata document.' },
   { method: 'GET', path: '/.well-known/jwks.json', auth: 'public', description: 'JWKS document for token signature verification.' },
   { method: 'POST', path: '/connect/register', auth: 'public', description: 'Dynamic client registration endpoint.' },
-  { method: 'GET', path: '/oauth/authorize', auth: 'session', description: 'Authorization endpoint for code and implicit flows.' },
-  { method: 'POST', path: '/oauth/token', auth: 'client', description: 'Shared token endpoint for authorization_code, refresh_token, client_credentials, password, and device_code grants. Multi-app deployments still use this same endpoint.' },
+  { method: 'GET', path: '/oauth/authorize', auth: 'session', description: 'Authorization endpoint for authorization code (PKCE), implicit compatibility, and hybrid code+token response type.' },
+  { method: 'POST', path: '/oauth/token', auth: 'client', description: 'Shared token endpoint for authorization_code, refresh_token, client_credentials, password, device_code, jwt-bearer, saml2-bearer, and ciba grants.' },
   { method: 'POST', path: '/oauth/device/authorize', auth: 'client', description: 'Starts device authorization flow and returns user_code/device_code.' },
   { method: 'POST', path: '/oauth/device/verify', auth: 'public', description: 'User approval/denial endpoint for device flow verification.' },
+  { method: 'POST', path: '/oauth/ciba/authenticate', auth: 'client', description: 'Starts CIBA authentication and returns auth_req_id for polling mode.' },
+  { method: 'POST', path: '/oauth/ciba/approve', auth: 'public', description: 'Decoupled CIBA approval endpoint for authenticating and approving/denying an auth_req_id.' },
   { method: 'POST', path: '/oauth/introspect', auth: 'client', description: 'Token introspection endpoint.' },
   { method: 'POST', path: '/oauth/token/revoke', auth: 'client', description: 'RFC7009 token revocation endpoint.' },
   { method: 'GET', path: '/oauth/userinfo', auth: 'bearer', description: 'Returns user claims for the presented access token.' },
@@ -337,7 +339,7 @@ const OIDC_OAUTH_CONCEPTS = [
   },
   {
     title: 'Authorization Code, PKCE, And Token Exchange',
-    detail: 'Interactive clients start at /oauth/authorize and exchange code for tokens at /oauth/token. PKCE protects public clients by binding code usage to the initiating app. Even in multi-app deployments, token exchange still happens at this same shared /oauth/token endpoint.'
+    detail: 'Interactive clients start at /oauth/authorize and exchange code for tokens at /oauth/token. PKCE is required for modern public clients and strongly recommended for confidential clients. Token exchange is handled by a dedicated endpoint at /oauth/token/exchange.'
   },
   {
     title: 'Access, ID, And Refresh Tokens',
@@ -532,9 +534,35 @@ const ADMIN_CONCEPT_GUIDES: ConceptGuide[] = [
     ]
   },
   {
+    id: 'flow-selection-matrix',
+    title: 'Flow Selection Matrix (OAuth 2.1 + OIDC)',
+    plainExplanation: 'Use this as a practical chooser for new integrations. OAuth 2.1 guidance centers on authorization_code with PKCE for user-facing apps, client_credentials for machine identities, device_code for browserless devices, and refresh_token for session continuity. OpenID Connect uses the same authorization code pattern with the openid scope to add identity tokens and standardized claims.',
+    whyItMatters: 'Picking the wrong flow creates both security risk and operational friction. Deprecated flows like implicit and password grant increase credential/token exposure and are no longer recommended for new applications. A flow decision should be tied to app type, user presence, and trust boundary.',
+    whoDefinesIt: 'Admins and security architects choose allowed grant types per client and align authentication flow stages to the intended journey. Application owners implement the client behavior (PKCE, token handling, refresh logic).',
+    whereInAdmin: ['Clients view (grantTypes, requirePkce, allowedScopes)', 'Authentication Flows view', 'Documentation view'],
+    details: [
+      'Recommended for new apps (OAuth 2.1 baseline):',
+      'App type                     | Recommended flow                         | Notes',
+      'Browser SPA / Mobile         | authorization_code + PKCE               | Public client; no client secret in app binary/js.',
+      'Server-side web app          | authorization_code + PKCE               | Confidential client; secret + PKCE defense-in-depth.',
+      'Backend service (M2M)        | client_credentials                       | No end user; scope tightly to service resources.',
+      'Smart TV / CLI / IoT         | device_code                              | User approves on secondary trusted device.',
+      'Long-lived user sessions     | refresh_token                             | Rotate and revoke refresh tokens on risk events.',
+      'OIDC-specific:',
+      'OIDC code flow is authorization_code with openid scope and returns ID token from token endpoint.',
+      'Hybrid code+token response type and CIBA polling mode are supported for advanced enterprise scenarios.',
+      'Legacy or specialized extensions:',
+      'implicit is deprecated for new apps; use authorization_code + PKCE instead.',
+      'password (ROPC) is deprecated and should be avoided except for constrained legacy migrations with compensating controls.',
+      'token_exchange (RFC 8693) is for delegated service-to-service scope-down and audience narrowing.',
+      'JWT bearer / SAML bearer assertion grants are supported for enterprise assertion-exchange patterns.',
+      'access_token is a token type (what is issued), not a grant type (how issuance happens).'
+    ]
+  },
+  {
     id: 'grants',
     title: 'Grants: What They Mean And Who Defines Them',
-    plainExplanation: 'A grant type is the OAuth mechanism that a client uses to obtain tokens. Each grant type describes a different interaction model: authorization_code is for interactive browser-based logins where a user is present; client_credentials is for machine-to-machine API access with no human user; refresh_token lets applications silently renew access without re-prompting the user; device_code handles TVs and CLIs that cannot open a browser directly; password is a legacy direct credential grant that bypasses the browser entirely (generally discouraged). Each grant type comes with different security properties and recommendations.',
+    plainExplanation: 'A grant type is the OAuth mechanism that a client uses to obtain tokens. Each grant type describes a different interaction model: authorization_code is for interactive browser-based logins where a user is present; client_credentials is for machine-to-machine API access with no human user; refresh_token lets applications silently renew access without re-prompting the user; device_code handles TVs and CLIs that cannot open a browser directly; token_exchange is for delegated, scoped-down service-to-service token exchange (RFC 8693); password is a legacy direct credential grant that bypasses the browser entirely (generally discouraged). Each grant type comes with different security properties and recommendations.',
     whyItMatters: 'Enabling the wrong grant type on a client is a direct security risk. A server-side API client that also has authorization_code enabled could be misused to initiate interactive logins. A public mobile app with client_credentials enabled could exfiltrate long-lived tokens. The grant list on each client should contain exactly the types that application legitimately needs and nothing else.',
     whoDefinesIt: 'Admins configure allowed grant types per client. Authentication flows also have grantType allowlists — a grant must be enabled in both places to function.',
     whereInAdmin: ['Clients view (grantTypes field)', 'Authentication Flows view'],
@@ -544,6 +572,9 @@ const ADMIN_CONCEPT_GUIDES: ConceptGuide[] = [
       'client_credentials is the correct grant for background services and machine identities — no user involved.',
       'refresh_token enables silent token renewal; pair it with refresh token rotation for better security.',
       'device_code is for input-constrained devices (TVs, CLIs) that cannot open a browser.',
+      'token_exchange is used when one trusted service exchanges a subject token for a narrowed token for a downstream audience.',
+      'access_token is a token type (what gets issued), not a grant type (how it is issued).',
+      'OAuth 2.1 guidance deprecates implicit and password grant for new deployments; prefer authorization_code + PKCE.',
       'The password grant submits user credentials directly to the token endpoint — avoid it unless legacy system constraints make it unavoidable.',
       'A grant must be in both the client allowedGrants list and the authentication flow grantTypes list to work.'
     ]
@@ -2919,7 +2950,8 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
       expectedResponse: prettyJson({ access_token: 'eyJ...', token_type: 'Bearer', expires_in: 900, refresh_token: 'r_xxx', id_token: 'eyJ...' }),
       notes: [
         'This is the shared OAuth token endpoint for the platform; multi-app deployments do not use per-app token URLs.',
-        'App context is resolved from the client configuration and the user’s effective app access, not from a different token route.'
+        'App context is resolved from the client configuration and the user’s effective app access, not from a different token route.',
+        'Supported grant_type values include assertion and decoupled flows: urn:ietf:params:oauth:grant-type:jwt-bearer, urn:ietf:params:oauth:grant-type:saml2-bearer, and urn:openid:params:grant-type:ciba.'
       ]
     }
   }
@@ -4556,6 +4588,7 @@ function AdminDocs() {
     'refresh_token',
     'password',
     'device_code',
+    'token_exchange',
   ]
 
   const authFlowStageTypes = [

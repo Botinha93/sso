@@ -6,7 +6,7 @@ export interface PKCEPair {
   codeVerifier: string;
 }
 
-export type OAuthResponseType = "code" | "token";
+export type OAuthResponseType = "code" | "token" | "code token";
 
 export type OAuthScope = string | string[];
 
@@ -57,6 +57,48 @@ export interface ClientCredentialsInput {
   scope?: OAuthScope;
 }
 
+export interface JwtBearerTokenInput {
+  clientId: string;
+  clientSecret: string;
+  assertion: string;
+  scope?: OAuthScope;
+}
+
+export interface Saml2BearerTokenInput {
+  clientId: string;
+  clientSecret: string;
+  assertion: string;
+  scope?: OAuthScope;
+}
+
+export interface CibaAuthenticationRequestInput {
+  clientId: string;
+  clientSecret: string;
+  loginHint: string;
+  scope?: OAuthScope;
+  bindingMessage?: string;
+  userCode?: string;
+}
+
+export interface CibaAuthenticationResponse {
+  auth_req_id: string;
+  expires_in: number;
+  interval: number;
+}
+
+export interface CibaApprovalInput {
+  authReqId: string;
+  username: string;
+  password: string;
+  approve?: boolean;
+}
+
+export interface CibaTokenInput {
+  clientId: string;
+  clientSecret: string;
+  authReqId: string;
+}
+
 export interface RevokeTokenInput {
   token: string;
   tokenTypeHint?: OAuthTokenTypeHint;
@@ -87,6 +129,26 @@ export interface AuthAPI {
    * Use this for machine-to-machine integrations.
    */
   exchangeClientCredentials(input: ClientCredentialsInput): Promise<OAuthTokenResponse>;
+  /**
+   * Exchanges a JWT bearer assertion for an access token.
+   */
+  exchangeJwtBearer(input: JwtBearerTokenInput): Promise<OAuthTokenResponse>;
+  /**
+   * Exchanges a SAML2 bearer assertion for an access token.
+   */
+  exchangeSaml2Bearer(input: Saml2BearerTokenInput): Promise<OAuthTokenResponse>;
+  /**
+   * Starts a CIBA backchannel authentication request.
+   */
+  startCibaAuthentication(input: CibaAuthenticationRequestInput): Promise<CibaAuthenticationResponse>;
+  /**
+   * Approves or denies a CIBA auth request.
+   */
+  approveCibaAuthentication(input: CibaApprovalInput): Promise<{ status: "approved" | "denied" }>;
+  /**
+   * Polls CIBA token endpoint using auth_req_id.
+   */
+  exchangeCibaToken(input: CibaTokenInput): Promise<OAuthTokenResponse>;
   /**
    * Exchanges a refresh token for a new access token.
    */

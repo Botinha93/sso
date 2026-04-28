@@ -307,10 +307,11 @@ export class InstanceSettingsService {
     }
   }
 
-  async assertAuthorizeRequest(input: { responseType: "code" | "token"; codeChallengeMethod?: "S256" | "plain" }) {
+  async assertAuthorizeRequest(input: { responseType: "code" | "token" | "code token"; codeChallengeMethod?: "S256" | "plain" }) {
     const settings = await this.getSettings();
 
-    if (!settings.allowImplicitFlow && input.responseType === "token") {
+    const includesToken = input.responseType.split(" ").includes("token");
+    if (!settings.allowImplicitFlow && includesToken) {
       throw new ValidationError("Implicit flow is disabled by instance settings");
     }
 

@@ -15,6 +15,7 @@ export class OidcService {
       authorization_endpoint: `${issuer}/oauth/authorize`,
       token_endpoint: `${issuer}/oauth/token`,
       device_authorization_endpoint: `${issuer}/oauth/device/authorize`,
+      backchannel_authentication_endpoint: `${issuer}/oauth/ciba/authenticate`,
       registration_endpoint: `${issuer}/connect/register`,
       jwks_uri: `${issuer}/.well-known/jwks.json`,
       userinfo_endpoint: `${issuer}/oauth/userinfo`,
@@ -22,8 +23,9 @@ export class OidcService {
       frontchannel_logout_session_supported: true,
       backchannel_logout_supported: true,
       backchannel_logout_session_supported: true,
-      response_types_supported: ["code", "token"],
+      response_types_supported: ["code", "token", "code token"],
       response_modes_supported: ["query", "fragment", "form_post"],
+      backchannel_token_delivery_modes_supported: ["poll"],
       subject_types_supported: ["public"],
       id_token_signing_alg_values_supported: ["RS256"],
       token_endpoint_auth_methods_supported: ["client_secret_post"],
@@ -45,7 +47,10 @@ export class OidcService {
         "client_credentials",
         "password",
         "urn:ietf:params:oauth:grant-type:device_code",
-        "urn:ietf:params:oauth:grant-type:token-exchange"
+        "urn:ietf:params:oauth:grant-type:token-exchange",
+        "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        "urn:ietf:params:oauth:grant-type:saml2-bearer",
+        "urn:openid:params:grant-type:ciba"
       ],
       code_challenge_methods_supported: ["S256"]
     };

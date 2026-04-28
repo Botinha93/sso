@@ -18,7 +18,7 @@ const VALID_STAGE_TYPES: AuthenticationStageType[] = [
   "user_login",
   "user_logout"
 ];
-const VALID_GRANT_TYPES: GrantType[] = ["authorization_code", "client_credentials", "refresh_token", "password", "device_code"];
+const VALID_GRANT_TYPES: GrantType[] = ["authorization_code", "client_credentials", "refresh_token", "password", "device_code", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"];
 const VALID_DESIGNATIONS: FlowDesignation[] = [
   "authentication",
   "authorization",

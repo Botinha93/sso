@@ -1,6 +1,6 @@
 import type { ClientInstance, ClientOptions, ListPageQuery } from "../core/types.js";
 
-export type GrantType = "authorization_code" | "client_credentials" | "refresh_token" | "password" | "device_code";
+export type GrantType = "authorization_code" | "client_credentials" | "refresh_token" | "password" | "device_code" | "token_exchange" | "jwt_bearer" | "saml2_bearer" | "ciba";
 
 export interface SDKApp {
   id: string;

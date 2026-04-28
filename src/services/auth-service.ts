@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { nanoid } from "nanoid";
 import { AuthenticationError, ValidationError } from "../core/errors.js";
-import type { User } from "../domain/models.js";
+import type { OAuthClient, User } from "../domain/models.js";
 import type {
   AccessTokenRepository,
   AuditRepository,
@@ -33,8 +33,24 @@ interface DeviceAuthorizationRecord {
   lastPolledAt?: Date;
 }
 
+interface CibaAuthorizationRecord {
+  authReqId: string;
+  clientId: string;
+  scope: string[];
+  loginHint: string;
+  bindingMessage?: string;
+  userCode?: string;
+  createdAt: Date;
+  expiresAt: Date;
+  intervalSeconds: number;
+  status: "pending" | "approved" | "denied" | "consumed";
+  userId?: string;
+  lastPolledAt?: Date;
+}
+
 export class AuthService {
   private readonly deviceAuthorizations = new Map<string, DeviceAuthorizationRecord>();
+  private readonly cibaAuthorizations = new Map<string, CibaAuthorizationRecord>();
 
   constructor(
     private readonly userService: UserService,
@@ -149,9 +165,13 @@ export class AuthService {
     codeChallenge?: string;
     codeChallengeMethod?: "S256";
   }) {
-    this.authenticationFlowService.assertGrantSupported("authorization_code");
+    await this.authenticationFlowService.assertGrantSupported("authorization_code");
     const client = await this.requireClient(input.clientId);
     await this.assertClientSupportsActiveFlow(client);
+
+    if (!client.grants.includes("authorization_code")) {
+      throw new AuthenticationError("Client does not support authorization_code grant");
+    }
 
     if (!client.redirectUris.includes(input.redirectUri)) {
       throw new ValidationError("Invalid redirect_uri for client");
@@ -202,6 +222,10 @@ export class AuthService {
       clientId: input.clientId,
       clientSecret: input.clientSecret
     });
+
+    if (!client.grants.includes("authorization_code")) {
+      throw new AuthenticationError("Client does not support authorization_code grant");
+    }
 
     if (authorizationCode.clientId !== client.id || authorizationCode.redirectUri !== input.redirectUri) {
       throw new ValidationError("Authorization code does not match client request");
@@ -288,10 +312,15 @@ export class AuthService {
     clientId: string;
     clientSecret: string;
   }) {
+    await this.authenticationFlowService.assertGrantSupported("refresh_token");
     const client = await this.authenticateClient({
       clientId: input.clientId,
       clientSecret: input.clientSecret
     });
+
+    if (!client.grants.includes("refresh_token")) {
+      throw new AuthenticationError("Client does not support refresh_token grant");
+    }
 
     const payload = await this.jwtService.verifyAccessToken(input.refreshToken);
 
@@ -334,6 +363,7 @@ export class AuthService {
     clientSecret: string;
     scope?: string;
   }) {
+    await this.authenticationFlowService.assertGrantSupported("client_credentials");
     const client = await this.authenticateClient({
       clientId: input.clientId,
       clientSecret: input.clientSecret
@@ -380,6 +410,10 @@ export class AuthService {
       clientSecret: input.clientSecret
     });
     await this.assertClientSupportsActiveFlow(client);
+
+    if (!client.grants.includes("password")) {
+      throw new AuthenticationError("Client does not support password grant");
+    }
 
     const identifier = input.username.trim();
     await this.securityService.assertLoginAllowed(identifier);
@@ -438,7 +472,7 @@ export class AuthService {
     clientSecret: string;
     scope?: string;
   }) {
-    this.authenticationFlowService.assertGrantSupported("device_code");
+    await this.authenticationFlowService.assertGrantSupported("device_code");
     const client = await this.authenticateClient({
       clientId: input.clientId,
       clientSecret: input.clientSecret
@@ -476,6 +510,257 @@ export class AuthService {
       expires_in: expiresIn,
       interval
     };
+  }
+
+  async createCibaAuthenticationRequest(input: {
+    clientId: string;
+    clientSecret: string;
+    loginHint: string;
+    scope?: string;
+    bindingMessage?: string;
+    userCode?: string;
+  }) {
+    await this.authenticationFlowService.assertGrantSupported("ciba");
+    const client = await this.authenticateClient({
+      clientId: input.clientId,
+      clientSecret: input.clientSecret
+    });
+    await this.assertClientSupportsActiveFlow(client);
+
+    if (!client.grants.includes("ciba")) {
+      throw new AuthenticationError("Client does not support ciba grant");
+    }
+
+    const requestedScope = input.scope ? input.scope.split(" ") : client.allowedScopes;
+    const allowedScope = requestedScope.filter((scope) => client.allowedScopes.includes(scope));
+    const authReqId = nanoid(56);
+    const expiresIn = 600;
+    const interval = 5;
+
+    this.cibaAuthorizations.set(authReqId, {
+      authReqId,
+      clientId: client.id,
+      scope: allowedScope,
+      loginHint: input.loginHint.trim(),
+      bindingMessage: input.bindingMessage,
+      userCode: input.userCode,
+      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + expiresIn * 1000),
+      intervalSeconds: interval,
+      status: "pending"
+    });
+
+    return {
+      auth_req_id: authReqId,
+      expires_in: expiresIn,
+      interval
+    };
+  }
+
+  async approveCibaAuthenticationRequest(input: {
+    authReqId: string;
+    username: string;
+    password: string;
+    approve: boolean;
+  }) {
+    const record = this.cibaAuthorizations.get(input.authReqId);
+    if (!record || record.expiresAt.getTime() < Date.now()) {
+      throw new ValidationError("CIBA auth_req_id is invalid or expired");
+    }
+
+    if (record.status === "consumed") {
+      throw new ValidationError("CIBA auth_req_id already consumed");
+    }
+
+    const identifier = input.username.trim();
+    const user = await this.userService.findUserByEmail(identifier) ?? await this.userService.findUserByUsername(identifier);
+    if (!user || !user.active || !verifyPassword(input.password, user.passwordHash)) {
+      throw new AuthenticationError("Invalid credentials");
+    }
+
+    if (!input.approve) {
+      record.status = "denied";
+      record.userId = user.id;
+      return { status: "denied" as const };
+    }
+
+    record.status = "approved";
+    record.userId = user.id;
+    return { status: "approved" as const };
+  }
+
+  async exchangeCibaAuthenticationRequest(input: {
+    authReqId: string;
+    clientId: string;
+    clientSecret: string;
+    ip?: string;
+    userAgent?: string;
+  }) {
+    await this.authenticationFlowService.assertGrantSupported("ciba");
+    const client = await this.authenticateClient({
+      clientId: input.clientId,
+      clientSecret: input.clientSecret
+    });
+    await this.assertClientSupportsActiveFlow(client);
+
+    if (!client.grants.includes("ciba")) {
+      throw new AuthenticationError("Client does not support ciba grant");
+    }
+
+    const record = this.cibaAuthorizations.get(input.authReqId);
+    if (!record) {
+      return { error: "invalid_grant", error_description: "Unknown auth_req_id" } as const;
+    }
+
+    if (record.clientId !== client.id) {
+      return { error: "invalid_grant", error_description: "auth_req_id does not belong to this client" } as const;
+    }
+
+    if (record.expiresAt.getTime() < Date.now()) {
+      this.cibaAuthorizations.delete(input.authReqId);
+      return { error: "expired_token", error_description: "auth_req_id has expired" } as const;
+    }
+
+    const now = Date.now();
+    if (record.lastPolledAt && now - record.lastPolledAt.getTime() < record.intervalSeconds * 1000) {
+      record.lastPolledAt = new Date(now);
+      return { error: "slow_down", error_description: "Polling too quickly" } as const;
+    }
+    record.lastPolledAt = new Date(now);
+
+    if (record.status === "pending") {
+      return { error: "authorization_pending", error_description: "Authorization is pending" } as const;
+    }
+
+    if (record.status === "denied") {
+      this.cibaAuthorizations.delete(input.authReqId);
+      return { error: "access_denied", error_description: "End-user denied the request" } as const;
+    }
+
+    if (record.status === "consumed") {
+      return { error: "invalid_grant", error_description: "auth_req_id already consumed" } as const;
+    }
+
+    if (!record.userId) {
+      return { error: "invalid_grant", error_description: "Approved auth_req_id is missing user identity" } as const;
+    }
+
+    const user = await this.userService.findUserById(record.userId);
+    if (!user || !user.active) {
+      this.cibaAuthorizations.delete(input.authReqId);
+      return { error: "invalid_grant", error_description: "User not available" } as const;
+    }
+
+    const token = await this.issueUserScopedAccessToken({
+      user,
+      client,
+      scope: record.scope,
+      grant: "ciba",
+      ip: input.ip,
+      userAgent: input.userAgent
+    });
+
+    record.status = "consumed";
+    return token;
+  }
+
+  async issueJwtBearerGrantTokens(input: {
+    assertion: string;
+    clientId: string;
+    clientSecret: string;
+    scope?: string;
+    ip?: string;
+    userAgent?: string;
+  }) {
+    await this.authenticationFlowService.assertGrantSupported("jwt_bearer");
+    const client = await this.authenticateClient({
+      clientId: input.clientId,
+      clientSecret: input.clientSecret
+    });
+    await this.assertClientSupportsActiveFlow(client);
+
+    if (!client.grants.includes("jwt_bearer")) {
+      throw new AuthenticationError("Client does not support jwt_bearer grant");
+    }
+
+    let payload: Record<string, unknown>;
+    try {
+      payload = await this.jwtService.verifyAccessToken(input.assertion);
+    } catch {
+      throw new AuthenticationError("JWT bearer assertion validation failed");
+    }
+
+    const subject = typeof payload.sub === "string" ? payload.sub : undefined;
+    if (!subject) {
+      throw new ValidationError("JWT bearer assertion is missing subject");
+    }
+
+    const user = await this.userService.findUserById(subject);
+    if (!user || !user.active) {
+      throw new AuthenticationError("User not available for JWT bearer assertion");
+    }
+
+    const requestedScope = input.scope ? input.scope.split(" ").map((value) => value.trim()).filter(Boolean) : client.allowedScopes;
+    const allowedScope = requestedScope.filter((scope) => client.allowedScopes.includes(scope));
+
+    return this.issueUserScopedAccessToken({
+      user,
+      client,
+      scope: allowedScope,
+      grant: "jwt_bearer",
+      ip: input.ip,
+      userAgent: input.userAgent
+    });
+  }
+
+  async issueSaml2BearerGrantTokens(input: {
+    assertion: string;
+    clientId: string;
+    clientSecret: string;
+    scope?: string;
+    ip?: string;
+    userAgent?: string;
+  }) {
+    await this.authenticationFlowService.assertGrantSupported("saml2_bearer");
+    const client = await this.authenticateClient({
+      clientId: input.clientId,
+      clientSecret: input.clientSecret
+    });
+    await this.assertClientSupportsActiveFlow(client);
+
+    if (!client.grants.includes("saml2_bearer")) {
+      throw new AuthenticationError("Client does not support saml2_bearer grant");
+    }
+
+    const rawAssertion = input.assertion.includes("<")
+      ? input.assertion
+      : Buffer.from(input.assertion, "base64").toString("utf8");
+
+    const nameIdMatch = rawAssertion.match(/<(?:[A-Za-z0-9_:-]+:)?NameID[^>]*>([^<]+)<\/(?:[A-Za-z0-9_:-]+:)?NameID>/);
+    const subject = nameIdMatch?.[1]?.trim();
+    if (!subject) {
+      throw new ValidationError("SAML bearer assertion is missing NameID subject");
+    }
+
+    const user = await this.userService.findUserById(subject)
+      ?? await this.userService.findUserByEmail(subject)
+      ?? await this.userService.findUserByUsername(subject);
+
+    if (!user || !user.active) {
+      throw new AuthenticationError("User not available for SAML bearer assertion");
+    }
+
+    const requestedScope = input.scope ? input.scope.split(" ").map((value) => value.trim()).filter(Boolean) : client.allowedScopes;
+    const allowedScope = requestedScope.filter((scope) => client.allowedScopes.includes(scope));
+
+    return this.issueUserScopedAccessToken({
+      user,
+      client,
+      scope: allowedScope,
+      grant: "saml2_bearer",
+      ip: input.ip,
+      userAgent: input.userAgent
+    });
   }
 
   async verifyDeviceUserCode(input: {
@@ -633,6 +918,7 @@ export class AuthService {
     ip?: string;
     userAgent?: string;
   }) {
+    await this.authenticationFlowService.assertGrantSupported("authorization_code");
     const user = await this.userService.findUserById(input.userId);
     if (!user || !user.active) {
       throw new AuthenticationError("User is not available for implicit flow");
@@ -640,6 +926,10 @@ export class AuthService {
 
     const client = await this.requireClient(input.clientId);
     await this.assertClientSupportsActiveFlow(client);
+
+    if (!client.grants.includes("authorization_code")) {
+      throw new AuthenticationError("Client does not support authorization_code grant");
+    }
 
     const allowedScope = input.scope.filter((scope) => client.allowedScopes.includes(scope));
 
@@ -682,6 +972,63 @@ export class AuthService {
       actorType: "user",
       clientId: client.id,
       metadata: { grant: "implicit", scope: allowedScope }
+    });
+
+    return {
+      access_token: token.accessToken,
+      token_type: token.tokenType,
+      expires_in: token.expiresIn,
+      scope: token.scope
+    };
+  }
+
+  private async issueUserScopedAccessToken(input: {
+    user: User;
+    client: OAuthClient;
+    scope: string[];
+    grant: "jwt_bearer" | "saml2_bearer" | "ciba";
+    ip?: string;
+    userAgent?: string;
+  }) {
+    const session = await this.sessionRepository.create({
+      userId: input.user.id,
+      clientId: input.client.id,
+      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 8)
+    });
+
+    await this.securityService.observeSessionStart({
+      sessionId: session.id,
+      userId: input.user.id,
+      clientId: input.client.id,
+      ip: input.ip,
+      userAgent: input.userAgent
+    });
+
+    const accessTokenId = nanoid();
+    const token = await this.jwtService.issueUserAccessToken({
+      user: input.user,
+      client: input.client,
+      scope: input.scope,
+      roles: await this.roleService.resolveNamesForUser(input.user.id),
+      accessTokenId
+    });
+
+    await this.accessTokenRepository.create({
+      tokenId: accessTokenId,
+      userId: input.user.id,
+      clientId: input.client.id,
+      sessionId: session.id,
+      expiresAt: new Date(Date.now() + 1000 * 60 * 15)
+    });
+
+    await this.auditRepository.log({
+      type: "token_issued",
+      actorId: input.user.id,
+      actorType: "user",
+      clientId: input.client.id,
+      ip: input.ip,
+      metadata: { grant: input.grant, scope: input.scope }
     });
 
     return {
