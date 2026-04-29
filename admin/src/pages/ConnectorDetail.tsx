@@ -11,8 +11,8 @@ import {
 export default function ConnectorDetail() {
   const { id = '' } = useParams<{ id: string }>()
   const { data: connector, isLoading } = useConnector(id)
-  const { data: runsData, refetch: refetchRuns } = useConnectorRuns(id)
-  const { data: mappingsData, refetch: refetchMappings } = useConnectorMappings(id)
+  const { data: runsData, isFetching: isRunsRefreshing, refetch: refetchRuns } = useConnectorRuns(id)
+  const { data: mappingsData, isFetching: isMappingsRefreshing, refetch: refetchMappings } = useConnectorMappings(id)
   const triggerSync = useTriggerConnectorSync()
 
   if (!id) {
@@ -34,6 +34,7 @@ export default function ConnectorDetail() {
 
   const runs = runsData?.data ?? []
   const mappings = mappingsData?.data ?? []
+  const isRefreshing = isRunsRefreshing || isMappingsRefreshing
 
   return (
     <div className="space-y-6">
@@ -48,9 +49,10 @@ export default function ConnectorDetail() {
             </Link>
           <button
             onClick={() => { refetchRuns(); refetchMappings() }}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 hover:bg-slate-50"
+            disabled={isRefreshing}
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <RefreshCw size={14} /> Refresh
+            <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} /> Refresh
           </button>
           <button
             onClick={() => triggerSync.mutate(id)}

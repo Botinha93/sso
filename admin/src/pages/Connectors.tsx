@@ -58,7 +58,7 @@ const defaultConnectorForm = () => ({
 })
 
 export default function Connectors() {
-  const { data, isLoading, refetch } = useConnectors()
+  const { data, isLoading, isFetching, refetch } = useConnectors()
   const createConnector = useCreateConnector()
   const updateConnector = useUpdateConnector()
   const deleteConnector = useDeleteConnector()
@@ -198,8 +198,8 @@ export default function Connectors() {
         description="Manage external identity sources and sync execution."
         action={
           <div className="flex items-center gap-2">
-            <button onClick={() => refetch()} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 shadow-sm transition-colors hover:bg-slate-50">
-              <RefreshCw className="h-3.5 w-3.5" />
+            <button onClick={() => refetch()} disabled={isFetching} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 shadow-sm transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">
+              <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
             </button>
             <Link to="/metrics" className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 hover:bg-slate-50">View Auth Metrics</Link>
             <button onClick={openCreate} className="inline-flex h-9 items-center gap-2 rounded-lg bg-sky-600 px-4 text-sm font-medium text-white hover:bg-sky-500 active:scale-[0.98] transition-all">

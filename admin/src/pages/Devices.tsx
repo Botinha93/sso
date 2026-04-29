@@ -40,7 +40,7 @@ const statusTone = {
 const formatDate = (value?: string) => value ? new Date(value).toLocaleString() : 'Never'
 
 export default function Devices() {
-  const { data, isLoading, refetch } = useDevices()
+  const { data, isLoading, isFetching, refetch } = useDevices()
   const revokeRequest = useRevokeDeviceRequest()
   const revokeSession = useRevokeDeviceSession()
   const [requestToRevoke, setRequestToRevoke] = useState<string | null>(null)
@@ -68,9 +68,10 @@ export default function Devices() {
         action={
           <button
             onClick={() => refetch()}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900"
+            disabled={isFetching}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <RefreshCw size={14} />
+            <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </button>
         }

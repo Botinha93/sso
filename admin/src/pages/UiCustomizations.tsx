@@ -70,7 +70,7 @@ function isEmptyCustomization(customization: UiSurfaceCustomization) {
 }
 
 export default function UiCustomizations() {
-  const { data: settings, isLoading, refetch } = useInstanceSettings()
+  const { data: settings, isLoading, isFetching, refetch } = useInstanceSettings()
   const { data: clients = [] } = useClients()
   const { data: apps = [] } = useApps()
   const updateSettings = useUpdateInstanceSettings()
@@ -231,9 +231,10 @@ export default function UiCustomizations() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => refetch()}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              disabled={isFetching}
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <RefreshCw size={14} />
+              <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
               Refresh
             </button>
             <button

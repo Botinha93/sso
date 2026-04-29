@@ -35,7 +35,7 @@ const defaultForm = {
 }
 
 const UserAttributes = () => {
-  const { data, isLoading, refetch } = useUserAttributes()
+  const { data, isLoading, isFetching, refetch } = useUserAttributes()
 
   const createAttribute = useCreateUserAttribute()
   const updateAttribute = useUpdateUserAttribute()
@@ -130,8 +130,8 @@ const UserAttributes = () => {
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">Attribute Definitions</h4>
-          <button onClick={() => refetch()} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors">
-            <RefreshCw size={12} />
+          <button onClick={() => refetch()} disabled={isFetching} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
+            <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </button>
         </div>

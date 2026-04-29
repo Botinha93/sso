@@ -88,9 +88,9 @@ const defaultForm: SettingsForm = {
 
 export default function Administration() {
   const { data: adminMe } = useAdminMe()
-  const { data, isLoading, refetch } = useInstanceSettings()
+  const { data, isLoading, isFetching: isSettingsRefreshing, refetch } = useInstanceSettings()
   const { data: apps = [] } = useApps()
-  const { data: riskEvents, refetch: refetchRiskEvents } = useAdminRiskEvents(15)
+  const { data: riskEvents, isFetching: isRiskEventsRefreshing, refetch: refetchRiskEvents } = useAdminRiskEvents(15)
   const updateSettings = useUpdateInstanceSettings()
   const testEmail = useTestInstanceEmail()
   const testExternalDb = useTestExternalDatabaseConnection()
@@ -295,8 +295,8 @@ export default function Administration() {
         title="Administration"
         description="Configure instance-wide transport, browser, OAuth, and runtime attack controls. These settings affect how the server accepts requests, issues tokens, and reacts to suspicious authentication behavior."
         action={
-          <button onClick={() => refetch()} className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
-            <RefreshCw size={14} />
+          <button onClick={() => refetch()} disabled={isSettingsRefreshing} className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
+            <RefreshCw size={14} className={isSettingsRefreshing ? 'animate-spin' : ''} />
             Refresh
           </button>
         }
@@ -320,7 +320,10 @@ export default function Administration() {
             <div className={sectionIconCls}><ShieldCheck size={14} /></div>
             <h2 className="text-base font-semibold text-slate-900">Recent Security Risk Events</h2>
           </div>
-          <button onClick={() => refetchRiskEvents()} className="text-xs font-medium text-slate-500 hover:text-slate-700">Refresh</button>
+          <button onClick={() => refetchRiskEvents()} disabled={isRiskEventsRefreshing} className="text-xs font-medium text-slate-500 hover:text-slate-700 inline-flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-60">
+            <RefreshCw size={12} className={isRiskEventsRefreshing ? 'animate-spin' : ''} />
+            Refresh
+          </button>
         </div>
         <p className="mt-2 text-xs text-slate-500">Normalized risk telemetry derived from audit activity (login failures, lockouts, anomaly detections, protocol guardrails).</p>
         <div className="mt-4 divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">

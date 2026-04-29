@@ -233,9 +233,9 @@ const blankForm = {
 }
 
 const FederationProviders = () => {
-  const { data, isLoading, refetch } = useFederationProviders()
-  const { data: samlData, isLoading: samlLoading, refetch: refetchSamlProviders } = useSamlServiceProviders({ limit: 100, offset: 0 })
-  const { data: assertionsData, isLoading: assertionsLoading, refetch: refetchAssertions } = useSamlAssertions({ limit: 50 })
+  const { data, isLoading, isFetching: isProvidersRefreshing, refetch } = useFederationProviders()
+  const { data: samlData, isLoading: samlLoading, isFetching: isSamlProvidersRefreshing, refetch: refetchSamlProviders } = useSamlServiceProviders({ limit: 100, offset: 0 })
+  const { data: assertionsData, isLoading: assertionsLoading, isFetching: isAssertionsRefreshing, refetch: refetchAssertions } = useSamlAssertions({ limit: 50 })
   const createProvider = useCreateFederationProvider()
   const updateProvider = useUpdateFederationProvider()
   const deleteProvider = useDeleteFederationProvider()
@@ -485,8 +485,8 @@ const FederationProviders = () => {
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">Configured Providers</h4>
-          <button onClick={() => refetch()} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors">
-            <RefreshCw size={12} />
+          <button onClick={() => refetch()} disabled={isProvidersRefreshing} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
+            <RefreshCw size={12} className={isProvidersRefreshing ? 'animate-spin' : ''} />
             Refresh
           </button>
         </div>
@@ -556,8 +556,8 @@ const FederationProviders = () => {
             <p className="text-xs text-slate-500 mt-0.5">Manage SAML 2.0 service provider registrations, metadata, and certificates.</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => refetchSamlProviders()} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors">
-              <RefreshCw size={12} />
+            <button onClick={() => refetchSamlProviders()} disabled={isSamlProvidersRefreshing} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
+              <RefreshCw size={12} className={isSamlProvidersRefreshing ? 'animate-spin' : ''} />
               Refresh
             </button>
             <button onClick={openSamlSpCreate} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-sky-600 px-3 text-xs font-medium text-white hover:bg-sky-500 transition-colors">
@@ -663,8 +663,8 @@ const FederationProviders = () => {
                 <option key={sp.id} value={sp.id}>{sp.entityId}</option>
               ))}
             </select>
-            <button onClick={() => refetchAssertions()} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors">
-              <RefreshCw size={12} /> Refresh
+            <button onClick={() => refetchAssertions()} disabled={isAssertionsRefreshing} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
+              <RefreshCw size={12} className={isAssertionsRefreshing ? 'animate-spin' : ''} /> Refresh
             </button>
           </div>
         </div>

@@ -30,7 +30,7 @@ const eventBadge: Record<string, string> = {
 }
 
 const AuditLog = () => {
-  const { data: events, isLoading, refetch } = useAuditLog(200)
+  const { data: events, isLoading, isFetching, refetch } = useAuditLog(200)
 
   return (
     <div>
@@ -41,9 +41,10 @@ const AuditLog = () => {
           <h4 className="text-sm font-semibold text-slate-700">Events</h4>
           <button
             onClick={() => refetch()}
-            className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors"
+            disabled={isFetching}
+            className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <RefreshCw size={12} />
+            <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </button>
         </div>

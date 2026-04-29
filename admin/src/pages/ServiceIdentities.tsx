@@ -74,7 +74,7 @@ const CredentialsPanel = ({
   identity: ServiceIdentityDto
 }) => {
   const { data, refetch } = useServiceIdentity(identity.id)
-  const { data: usageData, refetch: refetchUsage } = useServiceIdentityUsage(identity.id)
+  const { data: usageData, isFetching: isUsageRefreshing, refetch: refetchUsage } = useServiceIdentityUsage(identity.id)
   const issueCredential = useIssueServiceIdentityCredential()
   const rotateCredential = useRotateServiceIdentityCredential()
   const revokeCredential = useRevokeServiceIdentityCredential()
@@ -234,7 +234,10 @@ const CredentialsPanel = ({
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-slate-900">Credential Usage Telemetry</h3>
-          <button onClick={() => refetchUsage()} className="text-xs text-slate-500 hover:text-slate-700">Refresh</button>
+          <button onClick={() => refetchUsage()} disabled={isUsageRefreshing} className="text-xs text-slate-500 hover:text-slate-700 inline-flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-60">
+            <RefreshCw size={12} className={isUsageRefreshing ? 'animate-spin' : ''} />
+            Refresh
+          </button>
         </div>
         {usage.length === 0 ? (
           <p className="text-sm text-slate-500">No usage telemetry available yet.</p>
@@ -277,7 +280,7 @@ const ServiceIdentities = () => {
   const [formData, setFormData] = useState(defaultForm)
   const [editFormData, setEditFormData] = useState(defaultForm)
 
-  const { data, isLoading, refetch } = useServiceIdentities()
+  const { data, isLoading, isFetching, refetch } = useServiceIdentities()
   const { data: scopes = [] } = useScopes()
   const { data: roles = [] } = useRoles()
   const { data: groups = [] } = useGroups()
@@ -378,8 +381,8 @@ const ServiceIdentities = () => {
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">All Service Identities</h4>
-          <button onClick={() => refetch()} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors">
-            <RefreshCw size={12} />
+          <button onClick={() => refetch()} disabled={isFetching} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
+            <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </button>
         </div>

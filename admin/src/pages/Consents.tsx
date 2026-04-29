@@ -14,7 +14,7 @@ interface Consent {
 }
 
 const Consents = () => {
-  const { data: consents, isLoading, refetch } = useConsents()
+  const { data: consents, isLoading, isFetching, refetch } = useConsents()
   const revokeConsent = useRevokeConsent()
   const [consentToRevoke, setConsentToRevoke] = useState<string | null>(null)
 
@@ -36,9 +36,10 @@ const Consents = () => {
           <h4 className="text-sm font-semibold text-slate-700">Consent Records</h4>
           <button
             onClick={() => refetch()}
-            className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors"
+            disabled={isFetching}
+            className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <RefreshCw size={12} />
+            <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </button>
         </div>

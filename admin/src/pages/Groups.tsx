@@ -118,7 +118,7 @@ const Groups = () => {
   const [rolePickerByGroup, setRolePickerByGroup] = useState<Record<string, string>>({})
   const [attributePicker, setAttributePicker] = useState<{ create: string; edit: string }>({ create: '', edit: '' })
 
-  const { data: groups = [], isLoading, refetch } = useGroups()
+  const { data: groups = [], isLoading, isFetching, refetch } = useGroups()
   const { data: apps = [] } = useApps()
   const { data: roles = [] } = useRoles()
   const { data: attributeDefinitions = [] } = useUserAttributes()
@@ -291,8 +291,8 @@ const Groups = () => {
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">All Groups</h4>
-          <button onClick={() => refetch()} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors">
-            <RefreshCw size={12} />
+          <button onClick={() => refetch()} disabled={isFetching} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
+            <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </button>
         </div>

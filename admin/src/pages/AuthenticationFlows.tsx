@@ -94,7 +94,7 @@ const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent p
 const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
 
 const AuthenticationFlows = () => {
-  const { data, isLoading, refetch } = useAuthenticationFlows()
+  const { data, isLoading, isFetching, refetch } = useAuthenticationFlows()
   const createFlow = useCreateAuthenticationFlow()
   const updateFlow = useUpdateAuthenticationFlow()
   const deleteFlow = useDeleteAuthenticationFlow()
@@ -193,8 +193,8 @@ const AuthenticationFlows = () => {
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">Configured Authentication Flows</h4>
-          <button onClick={() => refetch()} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors">
-            <RefreshCw size={12} />
+          <button onClick={() => refetch()} disabled={isFetching} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
+            <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </button>
         </div>
