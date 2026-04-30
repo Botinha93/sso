@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useInitializeSetup } from '../hooks/useApi'
+import Button from '../components/ui/Button'
+import Input from '../components/ui/Input'
 
 const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
 const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
@@ -98,22 +100,20 @@ const Setup = () => {
           {databaseProvider === 'sqlite' ? (
             <div>
               <label className={labelCls}>SQLite Database Path</label>
-              <input
+              <Input
                 type="text"
                 value={databasePath}
                 onChange={e => setDatabasePath(e.target.value)}
-                className={fieldCls}
                 placeholder="./data/sso.sqlite"
               />
             </div>
           ) : (
             <div>
               <label className={labelCls}>External Database URL</label>
-              <input
+              <Input
                 type="text"
                 value={externalDatabaseUrl}
                 onChange={e => setExternalDatabaseUrl(e.target.value)}
-                className={fieldCls}
                 placeholder={databaseProvider === 'postgresql' ? 'postgresql://user:pass@host:5432/sso' : 'mysql://user:pass@host:3306/sso'}
               />
             </div>
@@ -121,11 +121,10 @@ const Setup = () => {
 
           <div>
             <label className={labelCls}>Administrator Name</label>
-            <input
+            <Input
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
-              className={fieldCls}
               placeholder="Platform Administrator"
               autoFocus
             />
@@ -133,55 +132,52 @@ const Setup = () => {
 
           <div>
             <label className={labelCls}>Administrator Email</label>
-            <input
+            <Input
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              className={fieldCls}
               placeholder="admin@yourcompany.com"
             />
           </div>
 
           <div>
             <label className={labelCls}>Administrator Username</label>
-            <input
+            <Input
               type="text"
               value={username}
               onChange={e => setUsername(e.target.value)}
-              className={fieldCls}
               placeholder="admin"
             />
           </div>
 
           <div>
             <label className={labelCls}>Password</label>
-            <input
+            <Input
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              className={fieldCls}
               placeholder="••••••••"
             />
           </div>
 
           <div>
             <label className={labelCls}>Confirm Password</label>
-            <input
+            <Input
               type="password"
               value={confirm}
               onChange={e => setConfirm(e.target.value)}
-              className={fieldCls}
               placeholder="••••••••"
             />
           </div>
 
-          <button
+          <Button
+            variant="primary"
             type="submit"
+            className="w-full"
             disabled={initializeSetup.isPending}
-            className="h-9 w-full rounded-lg bg-sky-600 text-sm font-medium text-white transition-colors hover:bg-sky-500 disabled:opacity-50"
           >
             {initializeSetup.isPending ? 'Initializing…' : 'Initialize Installation'}
-          </button>
+          </Button>
         </form>
       </div>
     </div>

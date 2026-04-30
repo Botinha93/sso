@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ShieldCheck, AlertCircle, KeyRound } from "lucide-react";
+import Button from '../components/ui/Button'
 
 const SCOPE_LABELS: Record<string, string> = {
   openid: "Verify your identity (OpenID Connect)",
@@ -141,20 +142,22 @@ export default function Consent() {
           )}
 
           <div className="flex gap-3">
-            <button
+            <Button
+              variant="primary"
+              className="flex-1"
               onClick={handleApprove}
               disabled={loading}
-              className="h-9 flex-1 rounded-lg bg-sky-600 text-sm font-medium text-white transition-colors hover:bg-sky-500 disabled:opacity-50"
             >
               {loading ? "Approving…" : "Allow access"}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="secondary"
+              className="flex-1"
               onClick={handleDeny}
               disabled={loading}
-              className="h-9 flex-1 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
             >
               Deny
-            </button>
+            </Button>
           </div>
 
           <p className="text-center text-xs text-slate-400">

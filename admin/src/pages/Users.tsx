@@ -113,7 +113,7 @@ const AttributeValueField = ({
   }
 
   if (attribute?.type === 'date') {
-    return <input type="date" value={value} onChange={(e) => onChange(e.target.value)} className={fieldCls} />
+    return <Input type="date" value={value} onChange={(e) => onChange(e.target.value)} />
   }
 
   if (attribute?.type === 'json') {
@@ -128,11 +128,10 @@ const AttributeValueField = ({
   }
 
   return (
-    <input
+    <Input
       type={attribute?.type === 'number' ? 'number' : 'text'}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className={fieldCls}
       placeholder={attribute?.description || attribute?.name || 'Value'}
     />
   )
@@ -400,10 +399,10 @@ const Users = () => {
       <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">All Users</h4>
-          <button onClick={() => refetch()} disabled={isFetching} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
+          <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
-          </button>
+          </Button>
         </div>
 
         {isLoading ? (
@@ -460,7 +459,9 @@ const Users = () => {
                     {(user.groups ?? []).map((groupName) => (
                       <StatusBadge key={groupName} tone="info">
                         {groupName}
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           className="text-sky-500 hover:text-red-600"
                           onClick={() => {
                             const group = (groups as GroupItem[]).find((g) => g.name === groupName)
@@ -470,7 +471,7 @@ const Users = () => {
                           title="Remove from group"
                         >
                           <X size={11} />
-                        </button>
+                        </Button>
                       </StatusBadge>
                     ))}
                   </div>
@@ -487,49 +488,56 @@ const Users = () => {
                           <option key={group.id} value={group.id}>{group.name}</option>
                         ))}
                     </select>
-                    <button
-                      className="h-8 px-2.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       disabled={!groupPickerByUser[user.id] || assignUserGroup.isPending}
                       onClick={() => assignUserGroup.mutate({ userId: user.id, groupId: groupPickerByUser[user.id] })}
                     >
                       <span className="inline-flex items-center gap-1"><Link2 size={11} />Add</span>
-                    </button>
+                    </Button>
                   </div>
                 </div>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="hover:bg-amber-50 hover:text-amber-700"
                     onClick={() => handleOpenReset(user)}
                     disabled={resetUserPassword.isPending}
-                    className="p-1.5 rounded-lg hover:bg-amber-50 text-slate-400 hover:text-amber-700 transition-colors"
                     title="Reset password"
                   >
                     <KeyRound size={14} />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => handleEdit(user)}
                     disabled={updateUser.isPending}
-                    className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
                     title="Edit user"
                   >
                     <Pencil size={14} />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => handleToggleActive(user)}
                     disabled={updateUser.isPending}
-                    className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
                     title={user.active ? 'Deactivate' : 'Activate'}
                   >
                     {user.active ? <UserCheck size={14} /> : <UserX size={14} />}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="hover:bg-red-50 hover:text-red-600"
                     onClick={() => handleDelete(user.id, user.email)}
                     disabled={deleteUser.isPending}
-                    className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
                     title="Delete user"
                   >
                     <Trash2 size={14} />
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}
@@ -593,14 +601,16 @@ const Users = () => {
                           <p className="text-sm font-medium text-slate-900">{attribute?.name ?? key}</p>
                           <p className="text-xs text-slate-500 font-mono">{key}</p>
                         </div>
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="hover:bg-red-50 hover:text-red-600"
                           onClick={() => removeAttribute('create', key)}
-                          className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
                           title="Remove attribute"
                         >
                           <X size={12} />
-                        </button>
+                        </Button>
                       </div>
                       <AttributeValueField
                         attribute={attribute}
@@ -726,14 +736,16 @@ const Users = () => {
                           <p className="text-sm font-medium text-slate-900">{attribute?.name ?? key}</p>
                           <p className="text-xs text-slate-500 font-mono">{key}</p>
                         </div>
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="hover:bg-red-50 hover:text-red-600"
                           onClick={() => removeAttribute('edit', key)}
-                          className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
                           title="Remove attribute"
                         >
                           <X size={12} />
-                        </button>
+                        </Button>
                       </div>
                       <AttributeValueField
                         attribute={attribute}

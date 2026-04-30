@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Play, RefreshCw } from 'lucide-react'
 import { PageHeader, Skeleton } from '../components/PageHeader'
+import Button from '../components/ui/Button'
 import {
   useConnector,
   useConnectorRuns,
@@ -47,20 +48,20 @@ export default function ConnectorDetail() {
             <Link to="/connectors" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 hover:bg-slate-50">
               <ArrowLeft size={13} /> Back
             </Link>
-          <button
+          <Button
+            variant="secondary"
             onClick={() => { refetchRuns(); refetchMappings() }}
             disabled={isRefreshing}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} /> Refresh
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
             onClick={() => triggerSync.mutate(id)}
             disabled={triggerSync.isPending}
-            className="inline-flex h-9 items-center gap-2 rounded-lg bg-sky-600 px-3 text-sm text-white hover:bg-sky-500 active:scale-[0.98] transition-all disabled:opacity-50"
           >
             <Play size={14} /> {triggerSync.isPending ? 'Syncing…' : 'Trigger Sync'}
-          </button>
+          </Button>
         </div>
         }
       />

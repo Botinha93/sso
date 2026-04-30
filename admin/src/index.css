@@ -230,6 +230,74 @@
     background: linear-gradient(90deg, transparent, var(--semantic-skeleton-highlight), transparent);
     animation: auth-skeleton-shimmer 1.25s infinite;
   }
+
+  .code-block {
+    @apply overflow-auto rounded-lg border border-slate-800 bg-slate-950 p-3 text-[11px] leading-relaxed text-slate-100;
+  }
+
+  .code-block code {
+    font-family: var(--font-mono);
+    white-space: pre;
+    display: block;
+  }
+
+  .code-block .token.comment,
+  .code-block .token.prolog,
+  .code-block .token.doctype,
+  .code-block .token.cdata {
+    color: #94a3b8;
+  }
+
+  .code-block .token.punctuation {
+    color: #cbd5e1;
+  }
+
+  .code-block .token.property,
+  .code-block .token.tag,
+  .code-block .token.constant,
+  .code-block .token.symbol,
+  .code-block .token.deleted {
+    color: #7dd3fc;
+  }
+
+  .code-block .token.boolean,
+  .code-block .token.number {
+    color: #fbbf24;
+  }
+
+  .code-block .token.selector,
+  .code-block .token.attr-name,
+  .code-block .token.string,
+  .code-block .token.char,
+  .code-block .token.builtin,
+  .code-block .token.inserted {
+    color: #86efac;
+  }
+
+  .code-block .token.operator,
+  .code-block .token.entity,
+  .code-block .token.url,
+  .code-block .language-css .token.string,
+  .code-block .style .token.string {
+    color: #fda4af;
+  }
+
+  .code-block .token.atrule,
+  .code-block .token.attr-value,
+  .code-block .token.keyword {
+    color: #c4b5fd;
+  }
+
+  .code-block .token.function,
+  .code-block .token.class-name {
+    color: #93c5fd;
+  }
+
+  .code-block .token.regex,
+  .code-block .token.important,
+  .code-block .token.variable {
+    color: #fcd34d;
+  }
 }
 
 @layer base {

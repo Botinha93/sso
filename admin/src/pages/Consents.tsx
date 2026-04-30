@@ -3,6 +3,7 @@ import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import StatusBadge from '../components/ui/StatusBadge'
+import Button from '../components/ui/Button'
 import { useConsents, useRevokeConsent } from '../hooks/useApi'
 
 interface Consent {
@@ -35,14 +36,15 @@ const Consents = () => {
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">Consent Records</h4>
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => refetch()}
             disabled={isFetching}
-            className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
           >
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
-          </button>
+          </Button>
         </div>
 
         {isLoading ? (
@@ -68,14 +70,16 @@ const Consents = () => {
                   </div>
                   <p className="text-xs text-slate-400">Granted {new Date(consent.createdAt).toLocaleString()}</p>
                 </div>
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hover:bg-red-50 hover:text-red-600"
                   onClick={() => handleRevoke(consent.id)}
                   disabled={revokeConsent.isPending}
-                  className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
                   title="Revoke consent"
                 >
                   <Trash2 size={14} />
-                </button>
+                </Button>
               </div>
             ))}
           </div>

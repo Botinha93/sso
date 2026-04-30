@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom'
 import { PageHeader, PageHeaderSkeleton, Skeleton } from '../components/PageHeader'
 import { useApps, useClients, useInstanceSettings, useUpdateInstanceSettings } from '../hooks/useApi'
 import ColorInput from '../components/ColorInput'
+import Button from '../components/ui/Button'
+import Input from '../components/ui/Input'
 
 type UiSurface = 'admin_login' | 'consent' | 'portal_login' | 'portal_launcher'
 
@@ -226,22 +228,14 @@ export default function UiCustomizations() {
         description="Configure titles, visual accents, logos, and backgrounds for hosted interaction surfaces. You can define global defaults and override by OAuth client or app."
         action={
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => refetch()}
-              disabled={isFetching}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
+            <Button variant="secondary" onClick={() => refetch()} disabled={isFetching}>
               <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
               Refresh
-            </button>
-            <button
-              onClick={saveAll}
-              disabled={updateSettings.isPending}
-              className="inline-flex h-9 items-center gap-2 rounded-lg bg-sky-600 px-4 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-50 active:scale-[0.98] transition-all"
-            >
+            </Button>
+            <Button variant="primary" onClick={saveAll} disabled={updateSettings.isPending}>
               <Save size={14} />
               {updateSettings.isPending ? 'Saving...' : 'Save All'}
-            </button>
+            </Button>
           </div>
         }
       />
@@ -256,14 +250,14 @@ export default function UiCustomizations() {
               <label className={labelCls}>Scope</label>
               <div className="grid grid-cols-3 gap-2">
                 {(['default', 'client', 'app'] as Scope[]).map((value) => (
-                  <button
+                  <Button
                     key={value}
-                    type="button"
                     onClick={() => setScope(value)}
-                    className={`h-9 rounded-lg border text-sm font-medium capitalize transition-colors ${scope === value ? 'border-slate-900 bg-sky-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                    className={`capitalize ${scope === value ? 'border-slate-900 bg-sky-600 text-white hover:bg-sky-500' : ''}`}
+                    variant={scope === value ? 'primary' : 'secondary'}
                   >
                     {value}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -296,31 +290,31 @@ export default function UiCustomizations() {
               <label className={labelCls}>Surface</label>
               <div className="grid grid-cols-2 gap-2">
                 {surfaces.map((item) => (
-                  <button
+                  <Button
                     key={item.key}
-                    type="button"
                     onClick={() => setSurface(item.key)}
-                    className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${surface === item.key ? 'border-slate-900 bg-sky-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                    variant={surface === item.key ? 'primary' : 'secondary'}
+                    className={`justify-start text-left ${surface === item.key ? 'border-slate-900 bg-sky-600 text-white hover:bg-sky-500' : ''}`}
                   >
                     {item.label}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
 
             <div>
               <label className={labelCls}>Title</label>
-              <input value={draft.title ?? ''} onChange={(e) => setDraft((v) => ({ ...v, title: e.target.value }))} className={fieldCls} placeholder="Welcome back" />
+              <Input value={draft.title ?? ''} onChange={(e) => setDraft((v) => ({ ...v, title: e.target.value }))} placeholder="Welcome back" />
             </div>
 
             <div>
               <label className={labelCls}>Subtitle</label>
-              <input value={draft.subtitle ?? ''} onChange={(e) => setDraft((v) => ({ ...v, subtitle: e.target.value }))} className={fieldCls} placeholder="Sign in with your enterprise account" />
+              <Input value={draft.subtitle ?? ''} onChange={(e) => setDraft((v) => ({ ...v, subtitle: e.target.value }))} placeholder="Sign in with your enterprise account" />
             </div>
 
             <div>
               <label className={labelCls}>Logo URL</label>
-              <input value={draft.logoUrl ?? ''} onChange={(e) => setDraft((v) => ({ ...v, logoUrl: e.target.value }))} className={fieldCls} placeholder="https://example.com/logo.svg" />
+              <Input value={draft.logoUrl ?? ''} onChange={(e) => setDraft((v) => ({ ...v, logoUrl: e.target.value }))} placeholder="https://example.com/logo.svg" />
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -357,22 +351,14 @@ export default function UiCustomizations() {
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={saveScopedCustomization}
-                className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
+              <Button variant="secondary" onClick={saveScopedCustomization}>
                 <Sparkles size={14} />
                 Apply To Scope
-              </button>
-              <button
-                type="button"
-                onClick={clearScopedCustomization}
-                className="inline-flex h-9 items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 text-sm font-medium text-rose-700 hover:bg-rose-100"
-              >
+              </Button>
+              <Button variant="danger" onClick={clearScopedCustomization}>
                 <Trash2 size={14} />
                 Clear Draft
-              </button>
+              </Button>
             </div>
           </div>
         </section>

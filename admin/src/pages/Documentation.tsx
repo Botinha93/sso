@@ -2,7 +2,11 @@ import { Fragment, useDeferredValue, useMemo, useState } from 'react'
 import { BookText, Code2, Search, Server } from 'lucide-react'
 import { parse } from 'yaml'
 import { PageHeader } from '../components/PageHeader'
+import Button from '../components/ui/Button'
+import CodeBlock from '../components/ui/CodeBlock'
+import Input from '../components/ui/Input'
 
+/*@ts-ignore*/
 import openApiSource from '../../../openapi.yaml?raw'
 
 type DocArea = 'api' | 'admin' | 'dev'
@@ -4411,20 +4415,20 @@ function ApiDocs() {
           with the existing operator notes retained as supplemental context.
         </p>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-          <input
+          <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Filter by method, path, auth, or description"
-            className="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
           />
           {query.trim() ? (
-            <button
+            <Button
+              variant="secondary"
               type="button"
               onClick={() => setQuery('')}
-              className="h-9 shrink-0 rounded-lg border border-slate-200 px-3 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+              className="shrink-0"
             >
               Clear
-            </button>
+            </Button>
           ) : null}
         </div>
         <p className="mt-2 text-xs text-slate-500">
@@ -4466,12 +4470,13 @@ function ApiDocs() {
                     <td className="px-4 py-3 text-xs text-slate-500">{route.auth}</td>
                     <td className="px-4 py-3 text-slate-600">{route.description}</td>
                     <td className="px-4 py-3">
-                      <button
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => setExpandedRoute(isOpen ? null : key)}
-                        className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                       >
                         {isOpen ? 'Hide' : 'Show'}
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                   {isOpen ? (
@@ -4492,11 +4497,15 @@ function ApiDocs() {
                           </div>
                           <div>
                             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Request Body</p>
-                            <pre className="mt-2 overflow-auto rounded-lg border border-slate-200 bg-white p-3 text-[11px] text-slate-700">{requestBody ?? 'N/A for this endpoint'}</pre>
+                            <CodeBlock
+                              code={requestBody ?? 'N/A for this endpoint'}
+                              language="json"
+                              className="mt-2"
+                            />
                           </div>
                           <div>
                             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Responses</p>
-                            <pre className="mt-2 overflow-auto rounded-lg border border-slate-200 bg-white p-3 text-[11px] text-slate-700">{responses}</pre>
+                            <CodeBlock code={responses} language="json" className="mt-2" />
                           </div>
                           {notes.length ? (
                             <div>
@@ -4623,22 +4632,24 @@ function AdminDocs() {
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Documentation Menu</p>
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               type="button"
               onClick={() => setMenuOpen((open) => !open)}
-              className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 lg:hidden"
+              className="lg:hidden"
             >
               {menuOpen ? 'Hide' : 'Show'}
-            </button>
+            </Button>
           </div>
           <div className="relative mt-3">
             <Search size={14} className="pointer-events-none absolute left-3 top-2.5 text-slate-400" />
-            <input
+            <Input
               type="text"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search pages, entities, concepts"
-              className="h-9 w-full rounded-lg border border-slate-200 bg-transparent pl-9 pr-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+              className="pl-9"
             />
           </div>
 
@@ -4958,11 +4969,11 @@ function DevDocs() {
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Manifest Example</p>
-            <pre className="mt-2 overflow-auto rounded-lg border border-emerald-200 bg-white p-3 text-[11px] text-slate-700">{pluginManifestExample}</pre>
+            <CodeBlock code={pluginManifestExample} language="json" className="mt-2" />
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Entrypoint Example</p>
-            <pre className="mt-2 overflow-auto rounded-lg border border-emerald-200 bg-white p-3 text-[11px] text-slate-700">{pluginRuntimeExample}</pre>
+            <CodeBlock code={pluginRuntimeExample} language="javascript" className="mt-2" />
           </div>
         </div>
       </div>
@@ -5022,27 +5033,27 @@ export default function Documentation() {
       />
 
       <div className="flex flex-wrap gap-2">
-        <button
+        <Button
+          variant={area === 'api' ? 'primary' : 'secondary'}
           onClick={() => setArea('api')}
-          className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${area === 'api' ? 'bg-sky-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
         >
           <Server size={14} />
           API Documentation
-        </button>
-        <button
+        </Button>
+        <Button
+          variant={area === 'admin' ? 'primary' : 'secondary'}
           onClick={() => setArea('admin')}
-          className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${area === 'admin' ? 'bg-sky-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
         >
           <BookText size={14} />
           Admin Documentation
-        </button>
-        <button
+        </Button>
+        <Button
+          variant={area === 'dev' ? 'primary' : 'secondary'}
           onClick={() => setArea('dev')}
-          className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${area === 'dev' ? 'bg-sky-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
         >
           <Code2 size={14} />
           Dev Documentation
-        </button>
+        </Button>
       </div>
 
       {area === 'api' ? <ApiDocs /> : null}

@@ -2,6 +2,9 @@ import { useMemo, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { CheckCircle2, FileArchive, ShieldAlert, Trash2, UploadCloud } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
+import Button from '../components/ui/Button'
+import CodeBlock from '../components/ui/CodeBlock'
+import Input from '../components/ui/Input'
 import {
   type PluginManifestDto,
   useDeletePlugin,
@@ -51,6 +54,8 @@ export default function Plugins() {
       homepage: manifest.homepage?.trim() || undefined
     }
   }, [hooksText, manifest, permissionsText])
+
+  const manifestPreview = useMemo(() => JSON.stringify(parsedManifest, null, 2), [parsedManifest])
 
   const readFileAsBase64 = async (file: File): Promise<string> => {
     return await new Promise((resolve, reject) => {
@@ -169,19 +174,19 @@ export default function Plugins() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelCls}>Plugin ID</label>
-              <input className={fieldCls} value={manifest.id} onChange={(e) => setManifest((prev) => ({ ...prev, id: e.target.value }))} placeholder="acme.audit-enricher" />
+              <Input value={manifest.id} onChange={(e) => setManifest((prev) => ({ ...prev, id: e.target.value }))} placeholder="acme.audit-enricher" />
             </div>
             <div>
               <label className={labelCls}>Version</label>
-              <input className={fieldCls} value={manifest.version} onChange={(e) => setManifest((prev) => ({ ...prev, version: e.target.value }))} placeholder="1.0.0" />
+              <Input value={manifest.version} onChange={(e) => setManifest((prev) => ({ ...prev, version: e.target.value }))} placeholder="1.0.0" />
             </div>
             <div>
               <label className={labelCls}>Name</label>
-              <input className={fieldCls} value={manifest.name} onChange={(e) => setManifest((prev) => ({ ...prev, name: e.target.value }))} placeholder="ACME Audit Enricher" />
+              <Input value={manifest.name} onChange={(e) => setManifest((prev) => ({ ...prev, name: e.target.value }))} placeholder="ACME Audit Enricher" />
             </div>
             <div>
               <label className={labelCls}>Entrypoint</label>
-              <input className={fieldCls} value={manifest.entrypoint} onChange={(e) => setManifest((prev) => ({ ...prev, entrypoint: e.target.value }))} placeholder="dist/index.js" />
+              <Input value={manifest.entrypoint} onChange={(e) => setManifest((prev) => ({ ...prev, entrypoint: e.target.value }))} placeholder="dist/index.js" />
             </div>
           </div>
 
@@ -198,17 +203,17 @@ export default function Plugins() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelCls}>Permissions (comma separated)</label>
-              <input className={fieldCls} value={permissionsText} onChange={(e) => setPermissionsText(e.target.value)} placeholder="events:emit, users:read" />
+              <Input value={permissionsText} onChange={(e) => setPermissionsText(e.target.value)} placeholder="events:emit, users:read" />
             </div>
             <div>
               <label className={labelCls}>Hooks (comma separated)</label>
-              <input className={fieldCls} value={hooksText} onChange={(e) => setHooksText(e.target.value)} placeholder="user.created, auth.login.success" />
+              <Input value={hooksText} onChange={(e) => setHooksText(e.target.value)} placeholder="user.created, auth.login.success" />
             </div>
           </div>
 
           <div>
             <label className={labelCls}>Homepage (optional)</label>
-            <input className={fieldCls} value={manifest.homepage ?? ''} onChange={(e) => setManifest((prev) => ({ ...prev, homepage: e.target.value }))} placeholder="https://plugins.example.com/acme-audit-enricher" />
+            <Input value={manifest.homepage ?? ''} onChange={(e) => setManifest((prev) => ({ ...prev, homepage: e.target.value }))} placeholder="https://plugins.example.com/acme-audit-enricher" />
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -226,20 +231,20 @@ export default function Plugins() {
           {message ? <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p> : null}
 
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-            <button
+            <Button
+              variant="outline"
               onClick={handleValidate}
               disabled={validatePlugin.isPending}
-              className="h-9 rounded-lg border border-slate-300 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             >
               {validatePlugin.isPending ? 'Validating...' : 'Validate'}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
               onClick={handleUpload}
               disabled={uploadPlugin.isPending}
-              className="h-9 rounded-lg bg-sky-600 px-4 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-60"
             >
               {uploadPlugin.isPending ? 'Uploading...' : 'Upload Plugin'}
-            </button>
+            </Button>
           </div>
         </section>
 
@@ -247,6 +252,11 @@ export default function Plugins() {
           <div className="flex items-center gap-2">
             <CheckCircle2 size={16} className="text-slate-500" />
             <h3 className="text-base font-semibold text-slate-900">Validation Results</h3>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Manifest Preview</p>
+            <CodeBlock code={manifestPreview} language="json" className="mt-2" />
           </div>
 
           {!validationResult ? (
@@ -312,13 +322,14 @@ export default function Plugins() {
                     <p className="mt-1 text-xs text-slate-500 break-all">SHA-256: {plugin.bundleChecksum}</p>
                     <p className="mt-1 text-xs text-slate-500">Hooks: {plugin.hooks.join(', ') || 'none'} | Permissions: {plugin.permissions.join(', ') || 'none'}</p>
                   </div>
-                  <button
+                  <Button
+                    variant="danger"
+                    size="sm"
                     onClick={() => handleDelete(plugin.id)}
                     disabled={deletePlugin.isPending}
-                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-rose-200 px-3 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-60"
                   >
                     <Trash2 size={13} /> Remove
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}

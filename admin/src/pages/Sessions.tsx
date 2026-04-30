@@ -2,6 +2,7 @@ import { RefreshCw, ShieldOff, MonitorSmartphone } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
+import Button from '../components/ui/Button'
 import { useSessions, useRevokeSession } from '../hooks/useApi'
 
 interface Session {
@@ -34,14 +35,15 @@ const Sessions = () => {
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">All Sessions</h4>
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => refetch()}
             disabled={isFetching}
-            className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
           >
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
-          </button>
+          </Button>
         </div>
 
         {isLoading ? (
@@ -78,14 +80,16 @@ const Sessions = () => {
                       <span className="text-xs px-2 py-0.5 rounded-md bg-green-50 text-green-700 border border-green-100">Active</span>
                     )}
                     {!isRevoked && !isExpired && (
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="hover:bg-red-50 hover:text-red-600"
                         onClick={() => handleRevoke(session.id)}
                         disabled={revokeSession.isPending}
-                        className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
                         title="Revoke session"
                       >
                         <ShieldOff size={14} />
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>

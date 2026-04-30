@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { BarChart3 } from 'lucide-react'
 import { PageHeader, TableSkeleton } from '../components/PageHeader'
 import StatusBadge from '../components/ui/StatusBadge'
+import Input from '../components/ui/Input'
 import { useAuthMetrics } from '../hooks/useApi'
 
 function toIsoHour(minutesAgo: number) {
@@ -59,11 +60,10 @@ export default function Metrics() {
               <option value="72">Last 72 hours</option>
               <option value="168">Last 7 days</option>
             </select>
-            <input
+            <Input
               value={eventFilter}
               onChange={(event) => setEventFilter(event.target.value)}
               placeholder="Filter event (e.g. login_success)"
-              className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
             />
           </div>
         }

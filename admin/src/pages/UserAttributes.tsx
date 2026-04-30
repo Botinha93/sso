@@ -4,6 +4,9 @@ import { useMemo, useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/ui/StatusBadge'
+import Button from '../components/ui/Button'
+import Input from '../components/ui/Input'
+import Card from '../components/ui/Card'
 import {
   useCreateUserAttribute,
   useDeleteUserAttribute,
@@ -118,23 +121,20 @@ const UserAttributes = () => {
         eyebrow="User Profile Schema"
         title="User Attributes"
         action={
-          <button
-            onClick={openCreate}
-            className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-sky-500 active:scale-[0.98] transition-all"
-          >
+          <Button variant="primary" onClick={openCreate}>
             <Plus size={14} />
             New Attribute
-          </button>
+          </Button>
         }
       />
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">Attribute Definitions</h4>
-          <button onClick={() => refetch()} disabled={isFetching} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
+          <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
-          </button>
+          </Button>
         </div>
 
         {isLoading ? (
@@ -155,14 +155,15 @@ const UserAttributes = () => {
                         <h5 className="text-sm font-medium text-slate-900">{attribute.name}</h5>
                         <StatusBadge tone="neutral" mono>{attribute.key}</StatusBadge>
                         <StatusBadge tone="accent" mono>{attribute.type}</StatusBadge>
-                        <button
+                        <Button
+                          variant="secondary"
+                          size="sm"
                           onClick={() => toggleGlobalEnabled(attribute)}
-                          className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"
                           title="Toggle globally for all users"
                         >
                           {attribute.enabled ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
                           {attribute.enabled ? 'Global On' : 'Global Off'}
-                        </button>
+                        </Button>
                       </div>
                       <p className="text-xs text-slate-500">{attribute.description}</p>
                       <p className="mt-2 text-xs text-slate-400">
@@ -170,29 +171,32 @@ const UserAttributes = () => {
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => openEdit(attribute)}
-                        className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
                         title="Edit attribute"
                       >
                         <Pencil size={14} />
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="hover:bg-red-50 hover:text-red-600"
                         onClick={() => onDelete(attribute)}
                         disabled={deleteAttribute.isPending}
-                        className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors disabled:opacity-40"
                         title="Delete attribute"
                       >
                         <Trash2 size={14} />
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </div>
               )
             })}
           </div>
-        )}
-      </div>
+        )}      
+      </Card>
 
       <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title="Create User Attribute">
         <AttributeForm
@@ -245,7 +249,7 @@ function AttributeForm({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label className={labelCls}>Attribute Key</label>
-          <input className={`${fieldCls} font-mono`} value={form.key} onChange={(e) => setForm((prev) => ({ ...prev, key: e.target.value }))} placeholder="department" />
+          <Input className="font-mono" value={form.key} onChange={(e) => setForm((prev) => ({ ...prev, key: e.target.value }))} placeholder="department" />
         </div>
         <div>
           <label className={labelCls}>Type</label>
@@ -258,20 +262,20 @@ function AttributeForm({
       </div>
       <div>
         <label className={labelCls}>Display Name</label>
-        <input className={fieldCls} value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="Department" />
+        <Input value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="Department" />
       </div>
       <div>
         <label className={labelCls}>Description</label>
-        <input className={fieldCls} value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} placeholder="Business unit for user segmentation" />
+        <Input value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} placeholder="Business unit for user segmentation" />
       </div>
       <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
         <input type="checkbox" className="rounded border-slate-300" checked={form.enabled} onChange={(e) => setForm((prev) => ({ ...prev, enabled: e.target.checked }))} />
         Enabled for all users
       </label>
       <div className="flex justify-end">
-        <button onClick={onSubmit} disabled={pending || !form.key || !form.name || !form.description} className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors">
+        <Button variant="primary" onClick={onSubmit} disabled={pending || !form.key || !form.name || !form.description}>
           {submitLabel}
-        </button>
+        </Button>
       </div>
     </div>
   )

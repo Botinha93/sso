@@ -4,6 +4,9 @@ import { useMemo, useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/ui/StatusBadge'
+import Button from '../components/ui/Button'
+import Input from '../components/ui/Input'
+import Card from '../components/ui/Card'
 import {
   useAssignRoleToGroup,
   useCreateGroup,
@@ -76,7 +79,7 @@ const AttributeValueField = ({
   }
 
   if (attribute?.type === 'date') {
-    return <input type="date" value={value} onChange={(e) => onChange(e.target.value)} className={fieldCls} />
+    return <Input type="date" value={value} onChange={(e) => onChange(e.target.value)} />
   }
 
   if (attribute?.type === 'json') {
@@ -91,11 +94,10 @@ const AttributeValueField = ({
   }
 
   return (
-    <input
+    <Input
       type={attribute?.type === 'number' ? 'number' : 'text'}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className={fieldCls}
       placeholder={attribute?.description || attribute?.name || 'Value'}
     />
   )
@@ -268,13 +270,10 @@ const Groups = () => {
         eyebrow="Access Control"
         title="User Groups"
         action={
-          <button
-            onClick={() => setCreateModalOpen(true)}
-            className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-sky-500 active:scale-[0.98] transition-all"
-          >
+          <Button variant="primary" onClick={() => setCreateModalOpen(true)}>
             <Plus size={14} />
             New Group
-          </button>
+          </Button>
         }
       />
 
@@ -289,13 +288,13 @@ const Groups = () => {
         </select>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">All Groups</h4>
-          <button onClick={() => refetch()} disabled={isFetching} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
+          <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
-          </button>
+          </Button>
         </div>
 
         {isLoading ? (
@@ -348,13 +347,15 @@ const Groups = () => {
                         {group.roleIds.map((roleId) => (
                           <StatusBadge key={roleId} tone="neutral">
                             {roleNameById.get(roleId) ?? roleId}
-                            <button
-                              className="text-slate-400 hover:text-red-600"
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-4 w-4 text-slate-400 hover:text-red-600"
                               onClick={() => removeRole.mutate({ groupId: group.id, roleId })}
                               title="Remove role"
                             >
                               <X size={11} />
-                            </button>
+                            </Button>
                           </StatusBadge>
                         ))}
                       </div>
@@ -372,32 +373,36 @@ const Groups = () => {
                             ))
                           )}
                         </select>
-                        <button
-                          className="h-9 px-3 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
+                        <Button
+                          variant="outline"
+                          size="sm"
                           disabled={!pickerValue || assignRole.isPending}
                           onClick={() => onAttachRole(group)}
                         >
-                          <span className="inline-flex items-center gap-1"><Link2 size={12} />Attach</span>
-                        </button>
+                          <Link2 size={12} />Attach
+                        </Button>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => onEditGroup(group)}
                         disabled={updateGroup.isPending}
-                        className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
                         title="Edit group"
                       >
                         <Pencil size={14} />
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="hover:bg-red-50 hover:text-red-600"
                         onClick={() => onDeleteGroup(group)}
                         disabled={deleteGroup.isPending}
-                        className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
                         title="Delete group"
                       >
                         <Trash2 size={14} />
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -405,7 +410,7 @@ const Groups = () => {
             })}
           </div>
         )}
-      </div>
+      </Card>
 
       <Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Create New Group">
         <div className="space-y-4">
@@ -428,21 +433,19 @@ const Groups = () => {
           </div>
           <div>
             <label className={labelCls}>Group Name</label>
-            <input
+            <Input
               type="text"
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
-              className={fieldCls}
               placeholder="Support Team"
             />
           </div>
           <div>
             <label className={labelCls}>Description</label>
-            <input
+            <Input
               type="text"
               value={groupDescription}
               onChange={(e) => setGroupDescription(e.target.value)}
-              className={fieldCls}
               placeholder="Handles user onboarding and support escalations"
             />
           </div>
@@ -461,14 +464,15 @@ const Groups = () => {
                           <p className="text-sm font-medium text-slate-900">{attribute?.name ?? key}</p>
                           <p className="text-xs text-slate-500 font-mono">{key}</p>
                         </div>
-                        <button
-                          type="button"
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="hover:bg-red-50 hover:text-red-600"
                           onClick={() => removeAttribute('create', key)}
-                          className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
                           title="Remove attribute"
                         >
                           <X size={12} />
-                        </button>
+                        </Button>
                       </div>
                       <AttributeValueField
                         attribute={attribute}
@@ -492,14 +496,13 @@ const Groups = () => {
                       <option key={attribute.id} value={attribute.key}>{attribute.name}</option>
                     ))}
                 </select>
-                <button
-                  type="button"
+                <Button
+                  variant="outline"
                   onClick={() => addAttribute('create')}
                   disabled={!attributePicker.create}
-                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
                   Add
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -521,19 +524,16 @@ const Groups = () => {
             </div>
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button
-              onClick={() => setCreateModalOpen(false)}
-              className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-            >
+            <Button variant="secondary" onClick={() => setCreateModalOpen(false)}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
               onClick={onCreateGroup}
               disabled={createGroup.isPending || !groupName || !groupDescription}
-              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
             >
               {createGroup.isPending ? 'Creating...' : 'Create Group'}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -559,21 +559,19 @@ const Groups = () => {
           </div>
           <div>
             <label className={labelCls}>Group Name</label>
-            <input
+            <Input
               type="text"
               value={editGroupName}
               onChange={(e) => setEditGroupName(e.target.value)}
-              className={fieldCls}
               placeholder="Support Team"
             />
           </div>
           <div>
             <label className={labelCls}>Description</label>
-            <input
+            <Input
               type="text"
               value={editGroupDescription}
               onChange={(e) => setEditGroupDescription(e.target.value)}
-              className={fieldCls}
               placeholder="Handles user onboarding and support escalations"
             />
           </div>
@@ -592,14 +590,15 @@ const Groups = () => {
                           <p className="text-sm font-medium text-slate-900">{attribute?.name ?? key}</p>
                           <p className="text-xs text-slate-500 font-mono">{key}</p>
                         </div>
-                        <button
-                          type="button"
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="hover:bg-red-50 hover:text-red-600"
                           onClick={() => removeAttribute('edit', key)}
-                          className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
                           title="Remove attribute"
                         >
                           <X size={12} />
-                        </button>
+                        </Button>
                       </div>
                       <AttributeValueField
                         attribute={attribute}
@@ -623,31 +622,27 @@ const Groups = () => {
                       <option key={attribute.id} value={attribute.key}>{attribute.name}</option>
                     ))}
                 </select>
-                <button
-                  type="button"
+                <Button
+                  variant="outline"
                   onClick={() => addAttribute('edit')}
                   disabled={!attributePicker.edit}
-                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
                   Add
-                </button>
+                </Button>
               </div>
             </div>
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button
-              onClick={() => setEditModalOpen(false)}
-              className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-            >
+            <Button variant="secondary" onClick={() => setEditModalOpen(false)}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
               onClick={onSaveGroupEdit}
               disabled={updateGroup.isPending || !editGroupName || !editGroupDescription}
-              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
             >
               {updateGroup.isPending ? 'Saving…' : 'Save Changes'}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

@@ -244,10 +244,10 @@ const Clients = () => {
       <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">All Clients</h4>
-          <button onClick={() => refetch()} disabled={isFetching} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
+          <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
-          </button>
+          </Button>
         </div>
 
         {isLoading ? (
@@ -294,28 +294,34 @@ const Clients = () => {
                   </p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="opacity-0 group-hover:opacity-100 hover:bg-sky-50 hover:text-sky-600"
                     onClick={() => handleEdit(client)}
-                    className="p-1.5 rounded-lg hover:bg-sky-50 text-slate-400 hover:text-sky-600 transition-colors opacity-0 group-hover:opacity-100"
                     title="Edit client"
                   >
                     <Pencil size={14} />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="opacity-0 group-hover:opacity-100 hover:bg-violet-50 hover:text-violet-600"
                     onClick={() => { setResourcesClient(client); setNewResource('') }}
-                    className="p-1.5 rounded-lg hover:bg-violet-50 text-slate-400 hover:text-violet-600 transition-colors opacity-0 group-hover:opacity-100"
                     title="Manage resources"
                   >
                     <ChevronRight size={14} />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="hover:bg-red-50 hover:text-red-600"
                     onClick={() => handleDelete(client.id)}
                     disabled={deleteClient.isPending}
-                    className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors shrink-0"
                     title="Delete client"
                   >
                     <Trash2 size={14} />
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}
@@ -342,7 +348,7 @@ const Clients = () => {
                 value={formData.id}
                 onChange={e => setFormData(f => ({ ...f, id: e.target.value }))}
                 disabled={!!editClient}
-                className={`${fieldCls} font-mono ${editClient ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
+                className={`font-mono ${editClient ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
                 placeholder="my-app"
               />
             </div>
@@ -353,7 +359,7 @@ const Clients = () => {
                   type="text"
                   value={formData.secret}
                   onChange={e => setFormData(f => ({ ...f, secret: e.target.value }))}
-                  className={`${fieldCls} font-mono`}
+                  className="font-mono"
                   placeholder={editClient ? 'Leave blank to keep current secret' : 'Auto-generated secret'}
                 />
                 {!editClient ? (
@@ -447,7 +453,7 @@ const Clients = () => {
                 type="text"
                 value={newScopeName}
                 onChange={e => setNewScopeName(e.target.value)}
-                className={`${fieldCls} font-mono`}
+                className="font-mono"
                 placeholder="PDV"
               />
               <Input
@@ -477,14 +483,16 @@ const Clients = () => {
                       <p className="truncate text-xs font-mono text-slate-700">{scope.name}</p>
                       <p className="truncate text-[11px] text-slate-500">{scope.description || 'No description'}</p>
                     </div>
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="ml-2 hover:bg-red-50 hover:text-red-600"
                       onClick={() => handleDeleteScope(scope)}
                       disabled={deleteScope.isPending}
-                      className="ml-2 rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
                       title="Delete scope"
                     >
                       <Trash2 size={12} />
-                    </button>
+                    </Button>
                   </div>
                 ))
               )}
@@ -528,7 +536,7 @@ const Clients = () => {
               value={newResource}
               onChange={e => setNewResource(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleAddResource() }}
-              className={`${fieldCls} font-mono flex-1`}
+              className="font-mono flex-1"
               placeholder="invoices"
             />
             <Button
@@ -547,12 +555,14 @@ const Clients = () => {
             {(resourcesClient?.resources ?? []).map(r => (
               <div key={r} className="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
                 <span className="text-sm font-mono text-slate-700">{r}</span>
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hover:text-red-600"
                   onClick={() => handleRemoveResource(r)}
-                  className="text-slate-400 hover:text-red-600 transition-colors"
                 >
                   <X size={13} />
-                </button>
+                </Button>
               </div>
             ))}
           </div>

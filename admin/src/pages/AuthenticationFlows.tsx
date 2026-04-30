@@ -4,6 +4,9 @@ import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/ui/StatusBadge'
+import Button from '../components/ui/Button'
+import Input from '../components/ui/Input'
+import Card from '../components/ui/Card'
 import {
   useAuthenticationFlows,
   useCreateAuthenticationFlow,
@@ -181,23 +184,20 @@ const AuthenticationFlows = () => {
         eyebrow="Authentication"
         title="Flows & Stages"
         action={
-          <button
-            onClick={openCreate}
-            className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-sky-500 active:scale-[0.98] transition-all"
-          >
+          <Button variant="primary" onClick={openCreate}>
             <Plus size={14} />
             New Flow
-          </button>
+          </Button>
         }
       />
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">Configured Authentication Flows</h4>
-          <button onClick={() => refetch()} disabled={isFetching} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
+          <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
-          </button>
+          </Button>
         </div>
 
         {isLoading ? (
@@ -244,27 +244,30 @@ const AuthenticationFlows = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => openEdit(flow)}
-                    className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
                     title="Edit flow"
                   >
                     <Pencil size={14} />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="hover:bg-red-50 hover:text-red-600"
                     onClick={() => onDelete(flow)}
                     disabled={deleteFlow.isPending}
-                    className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors disabled:opacity-40"
                     title="Delete flow"
                   >
                     <Trash2 size={14} />
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </Card>
 
       <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title="Create Authentication Flow">
         <FlowForm
@@ -348,11 +351,11 @@ function FlowForm({
     <div className="space-y-4">
       <div>
         <label className={labelCls}>Flow Name</label>
-        <input className={fieldCls} value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="High assurance login" />
+        <Input value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="High assurance login" />
       </div>
       <div>
         <label className={labelCls}>Description</label>
-        <input className={fieldCls} value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} placeholder="Federation + consent + optional MFA" />
+        <Input value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} placeholder="Federation + consent + optional MFA" />
       </div>
       <div>
         <label className={labelCls}>Designation</label>
@@ -399,8 +402,8 @@ function FlowForm({
                 {enabled ? (
                   <div className="inline-flex items-center gap-1">
                     <span className="text-xs text-slate-500 font-mono">#{order + 1}</span>
-                    <button type="button" onClick={() => moveStage(option.value, -1)} className="h-6 px-2 rounded border border-slate-200 text-xs text-slate-600 hover:bg-slate-100">Up</button>
-                    <button type="button" onClick={() => moveStage(option.value, 1)} className="h-6 px-2 rounded border border-slate-200 text-xs text-slate-600 hover:bg-slate-100">Down</button>
+                    <Button variant="outline" size="sm" onClick={() => moveStage(option.value, -1)}>Up</Button>
+                    <Button variant="outline" size="sm" onClick={() => moveStage(option.value, 1)}>Down</Button>
                   </div>
                 ) : (
                   <span className="text-xs text-slate-400">Disabled</span>
@@ -422,9 +425,13 @@ function FlowForm({
       </label>
 
       <div className="flex justify-end">
-        <button onClick={onSubmit} disabled={pending || !form.name || !form.description || form.stages.length === 0 || form.grantTypes.length === 0} className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors">
+        <Button
+          variant="primary"
+          onClick={onSubmit}
+          disabled={pending || !form.name || !form.description || form.stages.length === 0 || form.grantTypes.length === 0}
+        >
           {submitLabel}
-        </button>
+        </Button>
       </div>
     </div>
   )

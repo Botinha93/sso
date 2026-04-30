@@ -3,6 +3,7 @@ import { PageHeader } from '../components/PageHeader'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import StatusBadge from '../components/ui/StatusBadge'
+import Button from '../components/ui/Button'
 import { useDevices, useRevokeDeviceRequest, useRevokeDeviceSession } from '../hooks/useApi'
 
 interface DeviceRequest {
@@ -67,14 +68,14 @@ export default function Devices() {
         title="Devices"
         description="Monitor pending device authorization requests and revoke device-issued sessions from one place."
         action={
-          <button
+          <Button
+            variant="secondary"
             onClick={() => refetch()}
             disabled={isFetching}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
             Refresh
-          </button>
+          </Button>
         }
       />
 
@@ -135,14 +136,16 @@ export default function Devices() {
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="hover:bg-rose-50 hover:text-rose-600"
                     onClick={() => setRequestToRevoke(request.deviceCode)}
                     disabled={revokeRequest.isPending}
-                    className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
                     title="Revoke device request"
                   >
                     <ShieldOff size={14} />
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}
@@ -184,14 +187,16 @@ export default function Devices() {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {session.status === 'active' ? (
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="hover:bg-rose-50 hover:text-rose-600"
                       onClick={() => setSessionToRevoke(session.id)}
                       disabled={revokeSession.isPending}
-                      className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
                       title="Revoke device session"
                     >
                       <ShieldOff size={14} />
-                    </button>
+                    </Button>
                   ) : null}
                 </div>
               </div>

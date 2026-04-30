@@ -3,6 +3,8 @@ import { AlertTriangle, ArrowRight, Lock, Mail, Network, RefreshCw, ShieldCheck 
 import { Link } from 'react-router-dom'
 import StatusBadge from '../components/ui/StatusBadge'
 import { PageHeader, PageHeaderSkeleton } from '../components/PageHeader'
+import Button from '../components/ui/Button'
+import Input from '../components/ui/Input'
 import {
   useAdminMe,
   useAdminRiskEvents,
@@ -293,10 +295,10 @@ export default function Administration() {
         title="Administration"
         description="Configure instance-wide transport, browser, OAuth, and runtime attack controls. These settings affect how the server accepts requests, issues tokens, and reacts to suspicious authentication behavior."
         action={
-          <button onClick={() => refetch()} disabled={isSettingsRefreshing} className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
+          <Button variant="secondary" onClick={() => refetch()} disabled={isSettingsRefreshing}>
             <RefreshCw size={14} className={isSettingsRefreshing ? 'animate-spin' : ''} />
             Refresh
-          </button>
+          </Button>
         }
       />
 
@@ -318,10 +320,10 @@ export default function Administration() {
             <div className={sectionIconCls}><ShieldCheck size={14} /></div>
             <h2 className="text-base font-semibold text-slate-900">Recent Security Risk Events</h2>
           </div>
-          <button onClick={() => refetchRiskEvents()} disabled={isRiskEventsRefreshing} className="text-xs font-medium text-slate-500 hover:text-slate-700 inline-flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-60">
+          <Button variant="ghost" size="sm" onClick={() => refetchRiskEvents()} disabled={isRiskEventsRefreshing}>
             <RefreshCw size={12} className={isRiskEventsRefreshing ? 'animate-spin' : ''} />
             Refresh
-          </button>
+          </Button>
         </div>
         <p className="mt-2 text-xs text-slate-500">Normalized risk telemetry derived from audit activity (login failures, lockouts, anomaly detections, protocol guardrails).</p>
         <div className="mt-4 divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
@@ -401,20 +403,18 @@ export default function Administration() {
             {form.databaseProvider === 'sqlite' ? (
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">SQLite Database Path</label>
-                <input
+                <Input
                   value={form.databasePath}
                   onChange={(e) => setForm((v) => ({ ...v, databasePath: e.target.value }))}
-                  className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
                   placeholder="./data/sso.sqlite"
                 />
               </div>
             ) : (
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">External Database URL</label>
-                <input
+                <Input
                   value={form.externalDatabaseUrl}
                   onChange={(e) => setForm((v) => ({ ...v, externalDatabaseUrl: e.target.value }))}
-                  className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
                   placeholder={form.databaseProvider === 'postgresql' ? 'postgresql://user:pass@host:5432/sso' : 'mysql://user:pass@host:3306/sso'}
                 />
               </div>
@@ -426,20 +426,20 @@ export default function Administration() {
 
             {form.databaseProvider !== 'sqlite' ? (
               <div className="flex flex-wrap gap-2">
-                <button
+                <Button
+                  variant="outline"
                   onClick={testDatabaseConnection}
                   disabled={testExternalDb.isPending || !form.externalDatabaseUrl}
-                  className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
                 >
                   {testExternalDb.isPending ? 'Testing…' : 'Test Connection'}
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="primary"
                   onClick={migrateFromSqlite}
                   disabled={migrateDatabase.isPending || !form.externalDatabaseUrl}
-                  className="inline-flex h-9 items-center rounded-lg bg-sky-600 px-3 text-sm font-medium text-white transition-colors hover:bg-sky-500 disabled:opacity-50"
                 >
                   {migrateDatabase.isPending ? 'Migrating…' : 'Migrate From SQLite'}
-                </button>
+                </Button>
               </div>
             ) : null}
           </div>
@@ -561,52 +561,48 @@ export default function Administration() {
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Login Failure Window</label>
-              <input
+              <Input
                 type="number"
                 min={1}
                 max={1440}
                 value={form.loginFailureWindowMinutes}
                 onChange={(e) => setForm((v) => ({ ...v, loginFailureWindowMinutes: Number(e.target.value || 1) }))}
-                className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
               />
               <p className="mt-2 text-xs text-slate-500">How long failed logins are counted before the counter resets, in minutes.</p>
             </div>
 
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Lockout Threshold</label>
-              <input
+              <Input
                 type="number"
                 min={1}
                 max={100}
                 value={form.loginLockoutThreshold}
                 onChange={(e) => setForm((v) => ({ ...v, loginLockoutThreshold: Number(e.target.value || 1) }))}
-                className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
               />
               <p className="mt-2 text-xs text-slate-500">Number of failed logins allowed before the account is temporarily locked.</p>
             </div>
 
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Lockout Duration</label>
-              <input
+              <Input
                 type="number"
                 min={1}
                 max={1440}
                 value={form.loginLockoutDurationMinutes}
                 onChange={(e) => setForm((v) => ({ ...v, loginLockoutDurationMinutes: Number(e.target.value || 1) }))}
-                className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
               />
               <p className="mt-2 text-xs text-slate-500">How long the lockout remains active after the threshold is reached, in minutes.</p>
             </div>
 
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Session Anomaly Concurrency</label>
-              <input
+              <Input
                 type="number"
                 min={1}
                 max={100}
                 value={form.sessionAnomalyConcurrencyThreshold}
                 onChange={(e) => setForm((v) => ({ ...v, sessionAnomalyConcurrencyThreshold: Number(e.target.value || 1) }))}
-                className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
               />
               <p className="mt-2 text-xs text-slate-500">Raises a session anomaly event when a user exceeds this many concurrent active sessions.</p>
             </div>
@@ -639,11 +635,10 @@ export default function Administration() {
 
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">From Address</label>
-              <input
+              <Input
                 type="email"
                 value={form.emailFrom}
                 onChange={(e) => setForm((v) => ({ ...v, emailFrom: e.target.value }))}
-                className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
                 placeholder="no-reply@example.com"
               />
             </div>
@@ -651,22 +646,20 @@ export default function Administration() {
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">SMTP Host</label>
-                <input
+                <Input
                   value={form.smtpHost}
                   onChange={(e) => setForm((v) => ({ ...v, smtpHost: e.target.value }))}
                   disabled={form.emailTransport !== 'smtp'}
-                  className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 disabled:bg-slate-50"
                   placeholder="smtp.example.com"
                 />
               </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">SMTP Port</label>
-                <input
+                <Input
                   type="number"
                   value={form.smtpPort}
                   onChange={(e) => setForm((v) => ({ ...v, smtpPort: Number(e.target.value || 587) }))}
                   disabled={form.emailTransport !== 'smtp'}
-                  className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 disabled:bg-slate-50"
                 />
               </div>
             </div>
@@ -688,21 +681,19 @@ export default function Administration() {
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">SMTP Username</label>
-                <input
+                <Input
                   value={form.smtpUser}
                   onChange={(e) => setForm((v) => ({ ...v, smtpUser: e.target.value }))}
                   disabled={form.emailTransport !== 'smtp'}
-                  className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 disabled:bg-slate-50"
                 />
               </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">SMTP Password</label>
-                <input
+                <Input
                   type="password"
                   value={form.smtpPass}
                   onChange={(e) => setForm((v) => ({ ...v, smtpPass: e.target.value }))}
                   disabled={form.emailTransport !== 'smtp'}
-                  className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 disabled:bg-slate-50"
                 />
               </div>
             </div>
@@ -710,20 +701,20 @@ export default function Administration() {
             <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Send Test Email</label>
               <div className="flex flex-wrap gap-2">
-                <input
+                <Input
                   type="email"
                   value={form.testEmailTo}
                   onChange={(e) => setForm((v) => ({ ...v, testEmailTo: e.target.value }))}
-                  className="h-9 min-w-[240px] flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+                  className="min-w-[240px] flex-1"
                   placeholder="you@example.com"
                 />
-                <button
+                <Button
+                  variant="outline"
                   onClick={sendTestEmail}
                   disabled={testEmail.isPending || !form.testEmailTo}
-                  className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
                 >
                   {testEmail.isPending ? 'Sending…' : 'Send Test'}
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -772,13 +763,13 @@ export default function Administration() {
       ) : null}
 
       <div className="flex justify-end">
-        <button
+        <Button
+          variant="primary"
           onClick={save}
           disabled={updateSettings.isPending}
-          className="inline-flex h-10 items-center rounded-lg bg-sky-600 px-4 text-sm font-medium text-white transition-colors hover:bg-sky-500 disabled:opacity-50"
         >
           {updateSettings.isPending ? 'Saving…' : 'Save Instance Settings'}
-        </button>
+        </Button>
       </div>
     </div>
   )

@@ -2,6 +2,10 @@ import { useMemo, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import { PageHeader, PageHeaderSkeleton, TableSkeleton } from '../components/PageHeader'
 import StatusBadge from '../components/ui/StatusBadge'
+import Button from '../components/ui/Button'
+import Card from '../components/ui/Card'
+import CodeBlock from '../components/ui/CodeBlock'
+import Input from '../components/ui/Input'
 import {
   useCreatePolicy,
   useDeletePolicy,
@@ -178,8 +182,7 @@ function AssignmentConfigEditor({
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">Scope ID</label>
-            <input
-              className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+            <Input
               placeholder={draft.scopeType === 'global' ? 'Not required for global scope' : `Enter ${draft.scopeType} id`}
               value={draft.scopeId}
               disabled={draft.scopeType === 'global'}
@@ -197,13 +200,13 @@ function AssignmentConfigEditor({
               Fields are generated from the default config shape for <span className="font-mono">{policyKey}</span>.
             </p>
           </div>
-          <button
-            type="button"
-            className="rounded border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => onDraftChange({ ...draft, rawMode: !draft.rawMode })}
           >
             {draft.rawMode ? 'Use Generated Fields' : 'Edit Raw JSON'}
-          </button>
+          </Button>
         </div>
 
         {draft.rawMode ? (
@@ -215,13 +218,9 @@ function AssignmentConfigEditor({
               placeholder="{}"
             />
             <div className="flex justify-end">
-              <button
-                type="button"
-                className="rounded bg-sky-600 px-3 py-1.5 text-xs font-medium text-white"
-                onClick={applyRawConfig}
-              >
+              <Button variant="primary" size="sm" onClick={applyRawConfig}>
                 Apply JSON
-              </button>
+              </Button>
             </div>
           </div>
         ) : fieldEntries.length === 0 ? (
@@ -253,9 +252,8 @@ function AssignmentConfigEditor({
                 return (
                   <div key={key}>
                     <label className="mb-1 block text-xs font-medium text-slate-600">{humanizeFieldName(key)}</label>
-                    <input
+                    <Input
                       type="number"
-                      className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
                       value={String(value)}
                       onChange={(e) => updateConfigValue(key, Number(e.target.value))}
                     />
@@ -267,9 +265,8 @@ function AssignmentConfigEditor({
                 return (
                   <div key={key}>
                     <label className="mb-1 block text-xs font-medium text-slate-600">{humanizeFieldName(key)}</label>
-                    <input
+                    <Input
                       type="text"
-                      className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
                       value={String(value)}
                       onChange={(e) => updateConfigValue(key, e.target.value)}
                     />
@@ -282,9 +279,8 @@ function AssignmentConfigEditor({
                 return (
                   <div key={key} className="md:col-span-2">
                     <label className="mb-1 block text-xs font-medium text-slate-600">{humanizeFieldName(key)}</label>
-                    <input
+                    <Input
                       type="text"
-                      className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
                       value={current}
                       onChange={(e) => {
                         const items = e.target.value
@@ -393,12 +389,12 @@ export default function Policies() {
 
       {activeTab === 'definitions' ? (
         <div className="space-y-6">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
+          <Card className="p-4 space-y-4">
             <h2 className="text-sm font-semibold text-slate-900">Create Policy Definition</h2>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <input className="rounded border px-3 py-2" placeholder="key" value={newPolicy.key} onChange={(e) => setNewPolicy((v) => ({ ...v, key: e.target.value }))} />
-              <input className="rounded border px-3 py-2" placeholder="name" value={newPolicy.name} onChange={(e) => setNewPolicy((v) => ({ ...v, name: e.target.value }))} />
-              <input className="rounded border px-3 py-2" placeholder="description" value={newPolicy.description} onChange={(e) => setNewPolicy((v) => ({ ...v, description: e.target.value }))} />
+              <Input placeholder="key" value={newPolicy.key} onChange={(e) => setNewPolicy((v) => ({ ...v, key: e.target.value }))} />
+              <Input placeholder="name" value={newPolicy.name} onChange={(e) => setNewPolicy((v) => ({ ...v, name: e.target.value }))} />
+              <Input placeholder="description" value={newPolicy.description} onChange={(e) => setNewPolicy((v) => ({ ...v, description: e.target.value }))} />
             </div>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -452,8 +448,8 @@ export default function Policies() {
             </div>
 
             <div className="flex justify-end">
-              <button
-                className="rounded bg-sky-600 px-4 py-2 text-sm font-medium text-white"
+              <Button
+                variant="primary"
                 onClick={async () => {
                   await createPolicy.mutateAsync({
                     ...newPolicy,
@@ -464,15 +460,17 @@ export default function Policies() {
                 }}
               >
                 Add
-              </button>
+              </Button>
             </div>
-          </div>
+          </Card>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <Card className="p-4">
             <h2 className="text-sm font-semibold text-slate-900">JavaScript Policy Interface</h2>
             <p className="mt-1 text-sm text-slate-600">Available objects/functions in server-side policy scripts:</p>
-            <pre className="mt-3 overflow-x-auto rounded bg-slate-900 p-3 text-xs text-slate-100">
-{`policy.key
+            <CodeBlock
+              className="mt-3 text-xs"
+              language="javascript"
+              code={`policy.key
 policy.name
 policy.stage
 policy.assignment.enabled
@@ -498,8 +496,8 @@ now() // returns current ISO timestamp
 // false
 // "error message"
 // { allow: false, message: "error message" }`}
-            </pre>
-          </div>
+            />
+          </Card>
 
           <PolicyDecisionSimulator />
 
@@ -512,20 +510,26 @@ now() // returns current ISO timestamp
               }
 
               return (
-                <div key={policy.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <Card key={policy.id} className="p-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-base font-semibold text-slate-900">{policy.name}</h3>
                     <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-700">{policy.key}</span>
                     <span className="rounded bg-indigo-100 px-2 py-0.5 font-mono text-xs text-indigo-700">{policy.category ?? 'authentication'}</span>
-                    <button
-                      className={`rounded px-2 py-1 text-xs ${policy.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}`}
+                    <Button
+                      variant={policy.enabled ? 'secondary' : 'ghost'}
+                      size="sm"
                       onClick={() => updatePolicy.mutate({ id: policy.id, enabled: !policy.enabled })}
                     >
                       {policy.enabled ? 'Enabled' : 'Disabled'}
-                    </button>
-                    <button className="ml-auto rounded bg-rose-100 px-2 py-1 text-xs text-rose-700" onClick={() => deletePolicy.mutate(policy.id)}>
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      className="ml-auto"
+                      onClick={() => deletePolicy.mutate(policy.id)}
+                    >
                       Delete
-                    </button>
+                    </Button>
                   </div>
                   <p className="mt-2 text-sm text-slate-600">{policy.description}</p>
 
@@ -591,8 +595,9 @@ now() // returns current ISO timestamp
                       }))}
                     />
                     <div className="mt-2 flex justify-end">
-                      <button
-                        className="rounded bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white"
+                      <Button
+                        variant="primary"
+                        size="sm"
                         onClick={async () => {
                           await updatePolicy.mutateAsync({
                             id: policy.id,
@@ -603,28 +608,28 @@ now() // returns current ISO timestamp
                         }}
                       >
                         Save Definition
-                      </button>
+                      </Button>
                     </div>
                   </div>
-                </div>
+                </Card>
               )
             })}
           </div>
         </div>
       ) : activeTab === 'configuration' ? (
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <Card className="p-4">
             <h2 className="text-base font-semibold text-slate-900">Policy Configuration</h2>
             <p className="mt-1 text-sm text-slate-600">
               Choose where a policy applies first, then fill in the generated configuration fields derived from its default JSON structure.
             </p>
-          </div>
+          </Card>
 
           {sortedPolicies.map((policy: any) => {
             const draft = assignmentDrafts[policy.id] ?? createAssignmentDraft(policy.key)
 
             return (
-              <div key={policy.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <Card key={policy.id} className="p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-base font-semibold text-slate-900">{policy.name}</h3>
                   <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-700">{policy.key}</span>
@@ -642,8 +647,8 @@ now() // returns current ISO timestamp
                     onDraftChange={(next) => setAssignmentDrafts((prev) => ({ ...prev, [policy.id]: next }))}
                   />
                   <div className="mt-4 flex justify-end">
-                    <button
-                      className="rounded bg-sky-600 px-4 py-2 text-sm font-medium text-white"
+                    <Button
+                      variant="primary"
                       onClick={async () => {
                         await setAssignment.mutateAsync({
                           id: policy.id,
@@ -655,7 +660,7 @@ now() // returns current ISO timestamp
                       }}
                     >
                       Upsert Assignment
-                    </button>
+                    </Button>
                   </div>
                 </div>
 
@@ -671,8 +676,10 @@ now() // returns current ISO timestamp
                         <span className="rounded bg-slate-100 px-2 py-0.5 font-mono">{assignment.scopeType}</span>
                         <span className="font-mono text-slate-500">{assignment.scopeId || 'global'}</span>
                         <span className="min-w-0 flex-1 truncate text-slate-600">{summarizeConfig(assignment.config ?? {})}</span>
-                        <button
-                          className="ml-auto rounded bg-rose-100 px-2 py-1 text-rose-700"
+                      <Button
+                          variant="danger"
+                          size="sm"
+                          className="ml-auto"
                           onClick={() => removeAssignment.mutate({
                             id: policy.id,
                             scopeType: assignment.scopeType,
@@ -680,21 +687,21 @@ now() // returns current ISO timestamp
                           })}
                         >
                           Remove
-                        </button>
+                        </Button>
                       </div>
                     ))
                   )}
                 </div>
-              </div>
+              </Card>
             )
           })}
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <Card className="p-4">
             <h2 className="text-base font-semibold text-slate-900">Authorization Decision History</h2>
             <p className="mt-1 text-sm text-slate-600">View recent policy evaluation decisions for audit and debugging purposes.</p>
-          </div>
+          </Card>
 
           {decisionsLoading ? (
             <TableSkeleton rows={4} />

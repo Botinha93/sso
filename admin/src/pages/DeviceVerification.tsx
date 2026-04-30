@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 import { AlertCircle, CheckCircle2, MonitorSmartphone, ShieldCheck, XCircle } from 'lucide-react'
+import Button from '../components/ui/Button'
+import Input from '../components/ui/Input'
 
 type SubmissionState = 'idle' | 'approved' | 'denied'
 
@@ -97,11 +99,11 @@ export default function DeviceVerification() {
 
           <div>
             <label className={labelCls}>User Code</label>
-            <input
+            <Input
               type="text"
               value={userCode}
               onChange={(event) => setUserCode(event.target.value.toUpperCase())}
-              className={`${fieldCls} font-mono tracking-[0.2em] uppercase`}
+              className="font-mono tracking-[0.2em] uppercase"
               placeholder="ABCD-1234"
               autoFocus={!userCode}
             />
@@ -109,41 +111,41 @@ export default function DeviceVerification() {
 
           <div>
             <label className={labelCls}>Email or Username</label>
-            <input
+            <Input
               type="text"
               value={username}
               onChange={(event) => setUsername(event.target.value)}
-              className={fieldCls}
               placeholder="admin@example.com or admin"
             />
           </div>
 
           <div>
             <label className={labelCls}>Password</label>
-            <input
+            <Input
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className={fieldCls}
               placeholder="••••••••"
             />
           </div>
 
           <div className="flex gap-3">
-            <button
+            <Button
+              variant="primary"
+              className="flex-1"
               onClick={() => submit(true)}
               disabled={loading || !userCode.trim() || !username.trim() || !password}
-              className="h-9 flex-1 rounded-lg bg-sky-600 text-sm font-medium text-white transition-colors hover:bg-sky-500 disabled:opacity-50"
             >
               {loading ? 'Submitting…' : 'Approve'}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="secondary"
+              className="flex-1"
               onClick={() => submit(false)}
               disabled={loading || !userCode.trim() || !username.trim() || !password}
-              className="h-9 flex-1 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
             >
               Deny
-            </button>
+            </Button>
           </div>
         </div>
       </div>
