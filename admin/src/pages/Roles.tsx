@@ -3,6 +3,9 @@ import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
+import Button from '../components/ui/Button'
+import Card from '../components/ui/Card'
+import Input from '../components/ui/Input'
 import { useRoles, useCreateRole, useUpdateRole, useDeleteRole, useApps, useClients } from '../hooks/useApi'
 
 const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
@@ -243,13 +246,14 @@ const Roles = () => {
         eyebrow="Access Control"
         title="Roles & Permissions"
         action={
-          <button
+          <Button
             onClick={() => { setFormData({ ...EMPTY_FORM }); setCreateModalOpen(true) }}
-            className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-sky-500 active:scale-[0.98] transition-all"
+            variant="primary"
+            className="h-9 rounded-lg"
           >
             <Plus size={14} />
             New Role
-          </button>
+          </Button>
         }
       />
 
@@ -264,13 +268,13 @@ const Roles = () => {
         </select>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">All Roles</h4>
-          <button onClick={() => refetch()} disabled={isFetching} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
+          <Button onClick={() => refetch()} disabled={isFetching} variant="ghost" size="sm" className="text-xs text-slate-500 hover:text-slate-900">
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
-          </button>
+          </Button>
         </div>
         <div className="divide-y divide-slate-100">
           {isLoading && <TableSkeleton rows={4} />}
@@ -291,24 +295,28 @@ const Roles = () => {
                 </div>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                <button
+                <Button
                   onClick={() => openEdit(role)}
-                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors opacity-0 group-hover:opacity-100"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-700 opacity-0 group-hover:opacity-100"
                   title="Edit permissions"
                 >
                   <ChevronRight size={14} />
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={() => setRoleToDelete(role)}
-                  className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"
                 >
                   <Trash2 size={14} />
-                </button>
+                </Button>
               </div>
             </div>
           ))}
         </div>
-      </div>
+      </Card>
 
       {/* Create modal */}
       <Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Create New Role">
@@ -325,7 +333,7 @@ const Roles = () => {
             </div>
             <div>
               <label className={labelCls}>Role Name</label>
-              <input type="text" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} className={`${fieldCls} font-mono`} placeholder="application_user" />
+              <Input type="text" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} className={`${fieldCls} font-mono`} placeholder="application_user" />
             </div>
             <div>
               <label className={labelCls}>Scope</label>
@@ -337,23 +345,24 @@ const Roles = () => {
           </div>
           <div>
             <label className={labelCls}>Description</label>
-            <input type="text" value={formData.description} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} className={fieldCls} placeholder="Role description" />
+            <Input type="text" value={formData.description} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} className={fieldCls} placeholder="Role description" />
           </div>
           <div>
             <label className={labelCls}>Permissions <span className="text-slate-400 normal-case font-normal">(click header to toggle column, resource name to toggle row)</span></label>
             <PermissionMatrix permissions={formData.permissions} onChange={perms => setFormData(p => ({ ...p, permissions: perms }))} appResources={appResources} />
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setCreateModalOpen(false)} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+            <Button onClick={() => setCreateModalOpen(false)} variant="secondary" className="h-9 rounded-lg">
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleCreate}
               disabled={createRole.isPending || !formData.name || !formData.permissions.length}
-              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
+              variant="primary"
+              className="h-9 rounded-lg"
             >
               {createRole.isPending ? 'Creating…' : 'Create Role'}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -373,7 +382,7 @@ const Roles = () => {
             </div>
             <div>
               <label className={labelCls}>Role Name</label>
-              <input type="text" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} className={`${fieldCls} font-mono`} />
+              <Input type="text" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} className={`${fieldCls} font-mono`} />
             </div>
             <div>
               <label className={labelCls}>Scope</label>
@@ -385,23 +394,24 @@ const Roles = () => {
           </div>
           <div>
             <label className={labelCls}>Description</label>
-            <input type="text" value={formData.description} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} className={fieldCls} />
+            <Input type="text" value={formData.description} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} className={fieldCls} />
           </div>
           <div>
             <label className={labelCls}>Permissions</label>
             <PermissionMatrix permissions={formData.permissions} onChange={perms => setFormData(p => ({ ...p, permissions: perms }))} appResources={appResources} />
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setEditRole(null)} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+            <Button onClick={() => setEditRole(null)} variant="secondary" className="h-9 rounded-lg">
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleUpdate}
               disabled={updateRole.isPending || !formData.name}
-              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
+              variant="primary"
+              className="h-9 rounded-lg"
             >
               {updateRole.isPending ? 'Saving…' : 'Save Changes'}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

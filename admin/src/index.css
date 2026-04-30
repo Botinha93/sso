@@ -17,18 +17,6 @@
   --color-indigo-400: #818cf8;
 }
 
-@layer base {
-  html,
-  body,
-  #root {
-    height: 100%;
-  }
-
-  body {
-    @apply min-h-screen bg-slate-100 text-slate-700 font-sans antialiased;
-  }
-}
-
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -51,7 +39,6 @@
 
 @theme inline {
     --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -125,6 +112,24 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+
+    /* Shared semantic contract (admin + portal) */
+    --semantic-bg-page: radial-gradient(circle at top left, rgba(14, 165, 233, 0.14), transparent 28%), linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+    --semantic-bg-surface: #ffffff;
+    --semantic-text-primary: #0f172a;
+    --semantic-text-muted: #64748b;
+    --semantic-border-subtle: #e2e8f0;
+    --semantic-focus-ring: rgba(14, 165, 233, 0.45);
+    --semantic-skeleton-base: #e2e8f0;
+    --semantic-skeleton-highlight: #f8fafc;
+
+    /* Admin shell composition constants */
+    --admin-shell-padding-mobile: 1rem;
+    --admin-shell-padding-sm: 1.25rem;
+    --admin-shell-padding-lg: 1.75rem;
+    --admin-shell-max-width: 80rem;
+    --admin-shell-stack-gap: 1.5rem;
+    --admin-shell-header-gap: 2rem;
 }
 
 .dark {
@@ -159,17 +164,90 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
+
+    --semantic-bg-page: linear-gradient(180deg, #0f172a 0%, #111827 100%);
+    --semantic-bg-surface: #111827;
+    --semantic-text-primary: #e2e8f0;
+    --semantic-text-muted: #94a3b8;
+    --semantic-border-subtle: #334155;
+    --semantic-focus-ring: rgba(56, 189, 248, 0.55);
+    --semantic-skeleton-base: #1e293b;
+    --semantic-skeleton-highlight: #334155;
+}
+
+@keyframes auth-skeleton-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@layer components {
+  .admin-shell-main {
+    padding: var(--admin-shell-padding-mobile);
+  }
+
+  @media (min-width: 640px) {
+    .admin-shell-main {
+      padding: var(--admin-shell-padding-sm);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .admin-shell-main {
+      padding: var(--admin-shell-padding-lg);
+    }
+  }
+
+  .admin-shell-content {
+    margin-inline: auto;
+    max-width: var(--admin-shell-max-width);
+  }
+
+  .admin-page-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--admin-shell-stack-gap);
+  }
+
+  .admin-page-header {
+    margin-bottom: var(--admin-shell-header-gap);
+  }
+
+  .auth-skeleton {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.75rem;
+    background: var(--semantic-skeleton-base);
+  }
+
+  .auth-skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, var(--semantic-skeleton-highlight), transparent);
+    animation: auth-skeleton-shimmer 1.25s infinite;
+  }
 }
 
 @layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
   * {
     @apply border-border outline-ring/50;
     }
-  body {
-    @apply bg-background text-foreground;
+  :focus-visible {
+    @apply outline-none ring-2 ring-sky-500/40 ring-offset-2 ring-offset-white;
     }
-  html {
-    @apply font-sans antialiased;
+  body {
+    @apply min-h-screen text-foreground font-sans antialiased;
+    background: var(--semantic-bg-page);
     }
   #root {
     @apply min-h-full;

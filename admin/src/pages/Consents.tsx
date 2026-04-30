@@ -2,6 +2,7 @@ import { RefreshCw, Trash2, CheckSquare } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
+import StatusBadge from '../components/ui/StatusBadge'
 import { useConsents, useRevokeConsent } from '../hooks/useApi'
 
 interface Consent {
@@ -62,7 +63,7 @@ const Consents = () => {
                   </p>
                   <div className="flex gap-1 flex-wrap mt-1">
                     {consent.scope.map((s) => (
-                      <span key={s} className="text-xs px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 font-mono border border-slate-200">{s}</span>
+                      <StatusBadge key={s} tone="neutral" mono>{s}</StatusBadge>
                     ))}
                   </div>
                   <p className="text-xs text-slate-400">Granted {new Date(consent.createdAt).toLocaleString()}</p>

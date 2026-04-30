@@ -3,6 +3,10 @@ import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
+import Button from '../components/ui/Button'
+import Input, { inputBaseClassName } from '../components/ui/Input'
+import Card from '../components/ui/Card'
+import StatusBadge from '../components/ui/StatusBadge'
 import { useClients, useCreateClient, useDeleteClient, useUpdateClient, useScopes, useCreateScope, useDeleteScope, useAuthenticationFlows, useApps } from '../hooks/useApi'
 
 interface OAuthClient {
@@ -63,7 +67,7 @@ const formFromClient = (client: OAuthClient) => ({
   flowIds: [...(client.flowIds ?? [])]
 })
 
-const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
+const fieldCls = inputBaseClassName
 const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
 
 const Clients = () => {
@@ -216,13 +220,13 @@ const Clients = () => {
         eyebrow="OAuth Clients"
         title="Registered Applications"
         action={
-          <button
+          <Button
             onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true); setEditClient(null) }}
-            className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-sky-500 active:scale-[0.98] transition-all"
+            variant="primary"
           >
             <Plus size={14} />
             New Client
-          </button>
+          </Button>
         }
       />
 
@@ -237,7 +241,7 @@ const Clients = () => {
         </select>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">All Clients</h4>
           <button onClick={() => refetch()} disabled={isFetching} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
@@ -260,29 +264,29 @@ const Clients = () => {
                 <div className="space-y-0.5 flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h5 className="text-sm font-medium text-slate-900">{client.name}</h5>
-                    <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
+                    <StatusBadge tone="accent">
                       {client.appId ? appNameById.get(client.appId) ?? 'App' : 'No App'}
-                    </span>
+                    </StatusBadge>
                     {client.requirePkce && (
-                      <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-100 flex items-center gap-1">
+                      <StatusBadge tone="info">
                         <Shield size={9} />PKCE
-                      </span>
+                      </StatusBadge>
                     )}
                     {(client.resources?.length ?? 0) > 0 && (
-                      <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-violet-50 text-violet-700 border border-violet-100">
+                      <StatusBadge tone="accent">
                         {client.resources.length} resource{client.resources.length !== 1 ? 's' : ''}
-                      </span>
+                      </StatusBadge>
                     )}
                     {(client.flowIds?.length ?? 0) > 0 && (
-                      <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100">
+                      <StatusBadge tone="success">
                         {client.flowIds.length} flow{client.flowIds.length !== 1 ? 's' : ''}
-                      </span>
+                      </StatusBadge>
                     )}
                   </div>
                   <p className="text-xs text-slate-500 font-mono">{client.id}</p>
                   <div className="flex gap-1 flex-wrap">
                     {client.grants.map(g => (
-                      <span key={g} className="text-xs px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 font-mono">{g}</span>
+                      <StatusBadge key={g} tone="neutral" mono>{g}</StatusBadge>
                     ))}
                   </div>
                   <p className="text-xs text-slate-400 truncate">
@@ -317,7 +321,7 @@ const Clients = () => {
             ))}
           </div>
         )}
-      </div>
+      </Card>
 
       <Modal isOpen={createModalOpen || !!editClient} onClose={closeClientModal} title={editClient ? `Edit OAuth Client: ${editClient.name}` : 'Create OAuth Client'}>
         <div className="space-y-4">
@@ -333,7 +337,7 @@ const Clients = () => {
             </div>
             <div>
               <label className={labelCls}>Client ID</label>
-              <input
+              <Input
                 type="text"
                 value={formData.id}
                 onChange={e => setFormData(f => ({ ...f, id: e.target.value }))}
@@ -345,7 +349,7 @@ const Clients = () => {
             <div>
               <label className={labelCls}>{editClient ? 'Rotate Client Secret' : 'Client Secret'}</label>
               <div className="flex gap-2">
-                <input
+                <Input
                   type="text"
                   value={formData.secret}
                   onChange={e => setFormData(f => ({ ...f, secret: e.target.value }))}
@@ -353,13 +357,15 @@ const Clients = () => {
                   placeholder={editClient ? 'Leave blank to keep current secret' : 'Auto-generated secret'}
                 />
                 {!editClient ? (
-                  <button
+                  <Button
                     type="button"
                     onClick={() => setFormData((f) => ({ ...f, secret: generateClientSecret() }))}
-                    className="h-9 shrink-0 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                    size="md"
+                    variant="secondary"
+                    className="shrink-0 px-3 text-xs"
                   >
                     Regenerate
-                  </button>
+                  </Button>
                 ) : null}
               </div>
               {!editClient ? (
@@ -369,7 +375,7 @@ const Clients = () => {
           </div>
           <div>
             <label className={labelCls}>Client Name</label>
-            <input type="text" value={formData.name} onChange={e => setFormData(f => ({ ...f, name: e.target.value }))} className={fieldCls} placeholder="My Application" />
+            <Input type="text" value={formData.name} onChange={e => setFormData(f => ({ ...f, name: e.target.value }))} placeholder="My Application" />
           </div>
           <div>
             <label className={labelCls}>Redirect URIs (one per line)</label>
@@ -437,29 +443,29 @@ const Clients = () => {
           <div className="rounded-lg border border-slate-200 p-3 bg-slate-50/40 space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Create Scope</p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <input
+              <Input
                 type="text"
                 value={newScopeName}
                 onChange={e => setNewScopeName(e.target.value)}
                 className={`${fieldCls} font-mono`}
                 placeholder="PDV"
               />
-              <input
+              <Input
                 type="text"
                 value={newScopeDescription}
                 onChange={e => setNewScopeDescription(e.target.value)}
-                className={fieldCls}
                 placeholder="Sales point system"
               />
             </div>
             <div className="flex justify-end">
-              <button
+              <Button
                 onClick={handleCreateScope}
                 disabled={createScope.isPending || !newScopeName.trim()}
-                className="h-8 px-3 rounded-lg bg-sky-600 text-white text-xs font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
+                variant="primary"
+                size="sm"
               >
                 {createScope.isPending ? 'Adding…' : 'Add Scope'}
-              </button>
+              </Button>
             </div>
             <div className="space-y-1.5">
               {scopes.length === 0 ? (
@@ -494,20 +500,20 @@ const Clients = () => {
             Require PKCE (recommended for public clients)
           </label>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={closeClientModal} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+            <Button onClick={closeClientModal} variant="secondary">
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={editClient ? handleUpdate : handleCreate}
               disabled={
                 editClient
                   ? updateClient.isPending || !formData.name || formData.allowedScopes.length === 0 || formData.grants.length === 0
                   : createClient.isPending || !formData.id || !formData.name || !formData.secret || formData.allowedScopes.length === 0 || formData.grants.length === 0
               }
-              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
+              variant="primary"
             >
               {editClient ? (updateClient.isPending ? 'Saving…' : 'Save Changes') : (createClient.isPending ? 'Creating…' : 'Create Client')}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -517,7 +523,7 @@ const Clients = () => {
         <div className="space-y-4">
           <p className="text-xs text-slate-500">Define the resource identifiers for this client. These appear as selectable resources in the role permission matrix.</p>
           <div className="flex gap-2">
-            <input
+            <Input
               type="text"
               value={newResource}
               onChange={e => setNewResource(e.target.value)}
@@ -525,13 +531,14 @@ const Clients = () => {
               className={`${fieldCls} font-mono flex-1`}
               placeholder="invoices"
             />
-            <button
+            <Button
               onClick={handleAddResource}
               disabled={!newResource.trim() || updateClient.isPending}
-              className="h-9 px-3 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors shrink-0"
+              variant="primary"
+              className="shrink-0 px-3"
             >
               <Plus size={14} />
-            </button>
+            </Button>
           </div>
           <div className="space-y-1.5">
             {(resourcesClient?.resources ?? []).length === 0 && (
@@ -550,9 +557,9 @@ const Clients = () => {
             ))}
           </div>
           <div className="flex justify-end pt-1">
-            <button onClick={() => setResourcesClient(null)} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+            <Button onClick={() => setResourcesClient(null)} variant="secondary">
               Done
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

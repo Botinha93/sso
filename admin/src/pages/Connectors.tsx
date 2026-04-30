@@ -4,6 +4,7 @@ import { Plus, RefreshCw, Trash2, Play, Settings2, GitMerge } from 'lucide-react
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
+import StatusBadge from '../components/ui/StatusBadge'
 import {
   useConnectors,
   useCreateConnector,
@@ -37,15 +38,15 @@ const presetFromSchedule = (schedule?: string | null): SchedulePreset => {
 }
 
 const ConnectorStatusBadge = ({ status }: { status: ConnectorDto['status'] }) => {
-  const styles: Record<string, string> = {
-    active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    inactive: 'bg-slate-50 text-slate-600 border-slate-200',
-    error: 'bg-red-50 text-red-700 border-red-200'
+  const toneByStatus: Record<string, 'success' | 'neutral' | 'danger'> = {
+    active: 'success',
+    inactive: 'neutral',
+    error: 'danger'
   }
   return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${styles[status] ?? styles.inactive}`}>
+    <StatusBadge tone={toneByStatus[status] ?? 'neutral'}>
       {status}
-    </span>
+    </StatusBadge>
   )
 }
 

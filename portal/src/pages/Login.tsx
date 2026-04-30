@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Eye, EyeOff, LogIn, ShieldCheck } from 'lucide-react'
 import LanguageSelector from '../components/LanguageSelector'
+import Button from '../components/ui/Button'
+import Card from '../components/ui/Card'
+import Input from '../components/ui/Input'
 import { useI18n } from '../i18n'
 
-const fieldCls = 'h-10 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
+const fieldCls = 'h-10 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 focus-visible:ring-sky-500/40'
 const portalHome = import.meta.env.BASE_URL
 
 interface UiCustomization {
@@ -15,6 +18,32 @@ interface UiCustomization {
   backgroundCss?: string
 }
 
+function LoginLoadingSkeleton() {
+  return (
+    <div className="w-full max-w-sm" aria-hidden>
+      <div className="mb-4 flex justify-end">
+        <div className="auth-skeleton h-8 w-28 rounded-lg" />
+      </div>
+      <div className="mb-8 text-center">
+        <div className="auth-skeleton mx-auto mb-4 h-14 w-14 rounded-2xl" />
+        <div className="auth-skeleton mx-auto h-6 w-40" />
+        <div className="auth-skeleton mx-auto mt-2 h-4 w-52" />
+      </div>
+      <Card className="space-y-4 rounded-2xl p-6 shadow-lg">
+        <div className="space-y-2">
+          <div className="auth-skeleton h-3 w-28" />
+          <div className="auth-skeleton h-10 w-full" />
+        </div>
+        <div className="space-y-2">
+          <div className="auth-skeleton h-3 w-20" />
+          <div className="auth-skeleton h-10 w-full" />
+        </div>
+        <div className="auth-skeleton h-10 w-full" />
+        </Card>
+    </div>
+  )
+}
+
 export default function Login() {
   const { t } = useI18n()
   const [username, setUsername] = useState('')
@@ -23,6 +52,7 @@ export default function Login() {
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
   const [ui, setUi] = useState<UiCustomization | null>(null)
+  const [uiLoading, setUiLoading] = useState(true)
 
   useEffect(() => {
     void (async () => {
@@ -37,6 +67,8 @@ export default function Login() {
         setUi(json?.customization ?? null)
       } catch {
         // Customization is optional.
+      } finally {
+        setUiLoading(false)
       }
     })()
   }, [])
@@ -67,7 +99,10 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: ui?.backgroundCss ?? 'linear-gradient(to bottom right, #f1f5f9, #e2e8f0)' }}>
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: ui?.backgroundCss ?? 'var(--semantic-bg-page)' }}>
+      {uiLoading ? (
+        <LoginLoadingSkeleton />
+      ) : (
       <div className="w-full max-w-sm">
         <div className="mb-4 flex justify-end">
           <LanguageSelector />
@@ -82,14 +117,14 @@ export default function Login() {
           <p className="text-sm text-slate-500 mt-1">{ui?.subtitle ?? t('login.subtitle')}</p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-lg p-6">
+        <Card className="rounded-2xl p-6 shadow-lg">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
                 {t('login.usernameOrEmail')}
               </label>
-              <input
-                className={fieldCls}
+              <Input
+                className={`${fieldCls} h-10 rounded-xl px-3.5`}
                 value={username}
                 onChange={e => setUsername(e.target.value)}
                 autoFocus
@@ -102,21 +137,24 @@ export default function Login() {
                 {t('login.password')}
               </label>
               <div className="relative">
-                <input
+                <Input
                   type={showPw ? 'text' : 'password'}
-                  className={`${fieldCls} pr-10`}
+                  className={`${fieldCls} h-10 rounded-xl px-3.5 pr-10`}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   autoComplete="current-password"
                   required
                 />
-                <button
-                  type="button"
+                <Button
                   onClick={() => setShowPw(p => !p)}
-                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-700 transition-colors"
+                  aria-label={showPw ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPw}
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-2 top-1.5 h-7 w-7 rounded-md text-slate-400 hover:text-slate-700"
                 >
                   {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -124,18 +162,19 @@ export default function Login() {
               <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>
             )}
 
-            <button
+            <Button
               type="submit"
               disabled={pending}
-              className="w-full h-10 rounded-xl text-white text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-60 transition-all active:scale-[0.98]"
+              className="h-10 w-full rounded-xl"
               style={{ backgroundColor: ui?.primaryColor ?? '#0f172a' }}
             >
               <LogIn size={15} />
               {pending ? t('login.signingIn') : t('login.signIn')}
-            </button>
+            </Button>
           </form>
-        </div>
+        </Card>
       </div>
+      )}
     </div>
   )
 }

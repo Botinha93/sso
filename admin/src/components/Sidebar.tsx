@@ -132,10 +132,10 @@ const Sidebar = ({
                       to={item.path}
                       onClick={onNavigate}
                       className={({ isActive }) =>
-                        `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all ${
+                        `group flex items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-sm transition-colors ${
                           isActive
-                            ? 'bg-slate-50 text-slate-950 shadow-sm ring-1 ring-white/70'
-                            : 'text-slate-400 hover:bg-sky-500/80 hover:text-slate-50'
+                            ? 'border-slate-700/80 bg-slate-800 text-slate-100'
+                            : 'text-slate-400 hover:border-slate-700/70 hover:bg-slate-800/80 hover:text-slate-100'
                         }`
                       }
                     >
@@ -153,8 +153,9 @@ const Sidebar = ({
       {/* Footer */}
       <div className="border-t border-slate-800/80 px-3 py-4">
         <button
+          type="button"
           onClick={handleLogout}
-          className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-400 transition-all hover:bg-sky-500/80 hover:text-slate-50"
+          className="group flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-sm text-slate-400 transition-colors hover:border-slate-700/70 hover:bg-slate-800/80 hover:text-slate-100"
         >
           <LogOut size={15} strokeWidth={2} className="opacity-70 transition-transform group-hover:scale-110" />
           Sign out

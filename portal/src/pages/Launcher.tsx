@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import type { PortalUser } from '../hooks'
 import LanguageSelector from '../components/LanguageSelector'
+import Button from '../components/ui/Button'
+import Card from '../components/ui/Card'
 import { useI18n } from '../i18n'
 
 interface Props {
@@ -57,21 +59,22 @@ export default function Launcher({ user }: Props) {
             <span className="text-sm font-semibold text-slate-900">{ui?.title ?? 'Account Portal'}</span>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <Link
-              to="/profile"
-              className="h-8 px-2 sm:px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-1.5 transition-colors"
-            >
-              <Settings size={14} />
-              <span className="hidden sm:inline">{t('launcher.settings')}</span>
+            <Link to="/profile">
+              <Button variant="ghost" size="sm" className="px-2 sm:px-3 text-slate-600 hover:text-slate-900">
+                <Settings size={14} />
+                <span className="hidden sm:inline">{t('launcher.settings')}</span>
+              </Button>
             </Link>
             <LanguageSelector className="hidden sm:inline-flex" />
-            <button
+            <Button
               onClick={handleLogout}
-              className="h-8 px-2 sm:px-3 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-1.5 transition-colors"
+              variant="ghost"
+              size="sm"
+              className="px-2 sm:px-3 text-slate-600 hover:text-slate-900"
             >
               <LogOut size={14} />
               <span className="hidden sm:inline">{t('common.signOut')}</span>
-            </button>
+            </Button>
           </div>
         </div>
       </header>
@@ -132,7 +135,7 @@ function appColor(name: string): string {
 
 function AppTile({ app }: { app: PortalUser['apps'][0] }) {
   const content = (
-    <div className="group bg-white rounded-2xl border border-slate-200 hover:border-slate-300 hover:shadow-lg hover:scale-[1.02] transition-all p-5 flex flex-col items-center gap-3 cursor-pointer relative">
+    <Card className="group cursor-pointer rounded-2xl p-5 transition-all hover:scale-[1.02] hover:border-slate-300 hover:shadow-lg flex flex-col items-center gap-3 relative">
       <div className={`w-14 h-14 rounded-2xl flex items-center justify-center overflow-hidden bg-gradient-to-br ${appColor(app.name)} text-white text-2xl font-bold shadow-sm`}>
         {app.imageUrl ? <img src={app.imageUrl} alt={app.name} className="h-full w-full rounded-2xl object-cover" /> : app.name[0]?.toUpperCase()}
       </div>
@@ -145,7 +148,7 @@ function AppTile({ app }: { app: PortalUser['apps'][0] }) {
       {app.url && (
         <ExternalLink size={12} className="absolute top-3 right-3 text-slate-300 group-hover:text-slate-500 transition-colors" />
       )}
-    </div>
+    </Card>
   )
 
   if (app.url) {

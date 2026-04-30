@@ -29,6 +29,7 @@ import {
   useTenants,
   useUsers
 } from '../hooks/useApi'
+import { PageHeaderSkeleton, PageHeroHeader } from '../components/PageHeader'
 
 interface UserItem {
   id: string
@@ -380,7 +381,7 @@ const Dashboard = () => {
   if (allLoading) {
     return (
       <div className="space-y-6">
-        <div className="h-28 animate-pulse rounded-2xl bg-slate-100" />
+        <PageHeaderSkeleton blocks={1} />
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           {[...Array(4)].map((_, i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-slate-100" />)}
         </div>
@@ -391,13 +392,11 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-sky-200/70 bg-[linear-gradient(135deg,#f0f9ff_0%,#ecfeff_45%,#f8fafc_100%)] p-6 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-600">Control Center</p>
-        <h2 className="mt-1 text-3xl font-bold tracking-tight text-slate-900">Identity Usage Dashboard</h2>
-        <p className="mt-2 max-w-3xl text-sm text-slate-600">
-          Live view of account growth, authentication activity, consent behavior, and client-level traffic distribution.
-        </p>
-      </div>
+      <PageHeroHeader
+        eyebrow="Control Center"
+        title="Identity Usage Dashboard"
+        description="Live view of account growth, authentication activity, consent behavior, and client-level traffic distribution."
+      />
 
       <div className="grid gap-3 md:grid-cols-4">
         {operationLinks.map((item) => (

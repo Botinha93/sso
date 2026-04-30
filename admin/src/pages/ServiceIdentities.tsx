@@ -3,6 +3,10 @@ import { Plus, RefreshCw, Trash2, Key, RotateCw, Copy, Eye, EyeOff, Pencil } fro
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
+import StatusBadge from '../components/ui/StatusBadge'
+import Button from '../components/ui/Button'
+import Card from '../components/ui/Card'
+import Input from '../components/ui/Input'
 import {
   useServiceIdentities,
   useCreateServiceIdentity,
@@ -39,16 +43,16 @@ interface NewSecretInfo {
 }
 
 const statusBadge = (status: ServiceIdentityDto['status']) => {
-  const styles: Record<ServiceIdentityDto['status'], string> = {
-    active: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-    inactive: 'bg-slate-100 text-slate-600 border-slate-200',
-    suspended: 'bg-red-50 text-red-600 border-red-100'
+  const tones: Record<ServiceIdentityDto['status'], 'success' | 'neutral' | 'danger'> = {
+    active: 'success',
+    inactive: 'neutral',
+    suspended: 'danger'
   }
 
   return (
-    <span className={`text-xs px-1.5 py-0.5 rounded-md border ${styles[status]}`}>
+    <StatusBadge tone={tones[status]}>
       {status}
-    </span>
+    </StatusBadge>
   )
 }
 
@@ -136,9 +140,9 @@ const CredentialsPanel = ({
               <p className="text-xs text-amber-700 mb-1">Client ID</p>
               <div className="flex items-center gap-2">
                 <code className="flex-1 rounded bg-white border border-amber-200 px-2 py-1 text-xs font-mono text-slate-800">{newSecret.clientId}</code>
-                <button onClick={() => navigator.clipboard.writeText(newSecret.clientId)} className="p-1 text-amber-600 hover:text-amber-800">
+                <Button onClick={() => navigator.clipboard.writeText(newSecret.clientId)} variant="ghost" size="icon" className="h-6 w-6 p-1 text-amber-600 hover:text-amber-800">
                   <Copy className="h-3.5 w-3.5" />
-                </button>
+                </Button>
               </div>
             </div>
             <div>
@@ -147,16 +151,16 @@ const CredentialsPanel = ({
                 <code className="flex-1 rounded bg-white border border-amber-200 px-2 py-1 text-xs font-mono text-slate-800">
                   {secretVisible ? newSecret.plainClientSecret : '••••••••••••••••••••••••••••••••'}
                 </code>
-                <button onClick={() => setSecretVisible((prev) => !prev)} className="p-1 text-amber-600 hover:text-amber-800">
+                <Button onClick={() => setSecretVisible((prev) => !prev)} variant="ghost" size="icon" className="h-6 w-6 p-1 text-amber-600 hover:text-amber-800">
                   {secretVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                </button>
-                <button onClick={() => navigator.clipboard.writeText(newSecret.plainClientSecret)} className="p-1 text-amber-600 hover:text-amber-800">
+                </Button>
+                <Button onClick={() => navigator.clipboard.writeText(newSecret.plainClientSecret)} variant="ghost" size="icon" className="h-6 w-6 p-1 text-amber-600 hover:text-amber-800">
                   <Copy className="h-3.5 w-3.5" />
-                </button>
+                </Button>
               </div>
             </div>
           </div>
-          <button onClick={() => setNewSecret(null)} className="mt-3 text-xs text-amber-700 underline">Dismiss</button>
+          <Button onClick={() => setNewSecret(null)} variant="ghost" size="sm" className="mt-3 h-auto px-0 text-xs text-amber-700 underline">Dismiss</Button>
         </div>
       )}
 
@@ -167,7 +171,7 @@ const CredentialsPanel = ({
             <p className="mt-0.5 text-xs text-slate-500">Use these with /oauth/token and grant_type=client_credentials.</p>
           </div>
           <div className="flex items-center gap-2">
-            <input
+            <Input
               type="number"
               min="1"
               max="3650"
@@ -176,14 +180,16 @@ const CredentialsPanel = ({
               placeholder="Expires (days)"
               className="h-8 w-28 rounded-lg border border-slate-200 px-2 text-xs text-slate-700"
             />
-            <button
+            <Button
               onClick={handleIssueCredential}
               disabled={issueCredential.isPending}
-              className="h-8 px-3 rounded-lg bg-sky-600 text-white text-xs font-medium hover:bg-sky-500 disabled:opacity-50 inline-flex items-center gap-1.5"
+              variant="primary"
+              size="sm"
+              className="h-8 rounded-lg text-xs"
             >
               <Key className="h-3.5 w-3.5" />
               Issue Client Secret
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -208,20 +214,24 @@ const CredentialsPanel = ({
                   </div>
                   {!isRevoked && (
                     <div className="flex items-center gap-1">
-                      <button
+                      <Button
                         onClick={() => handleRotate(cred.id)}
                         title="Rotate credential"
-                        className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-700"
                       >
                         <RotateCw className="h-3.5 w-3.5" />
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         onClick={() => setCredentialToRevoke(cred.id)}
                         title="Revoke credential"
-                        className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -234,10 +244,10 @@ const CredentialsPanel = ({
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-slate-900">Credential Usage Telemetry</h3>
-          <button onClick={() => refetchUsage()} disabled={isUsageRefreshing} className="text-xs text-slate-500 hover:text-slate-700 inline-flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-60">
+          <Button onClick={() => refetchUsage()} disabled={isUsageRefreshing} variant="ghost" size="sm" className="text-xs text-slate-500 hover:text-slate-700">
             <RefreshCw size={12} className={isUsageRefreshing ? 'animate-spin' : ''} />
             Refresh
-          </button>
+          </Button>
         </div>
         {usage.length === 0 ? (
           <p className="text-sm text-slate-500">No usage telemetry available yet.</p>
@@ -249,9 +259,7 @@ const CredentialsPanel = ({
                   <p className="text-xs font-mono text-slate-700">{entry.clientId}</p>
                   <p className="text-xs text-slate-500">{entry.lastUsedAt ? `Last used ${new Date(entry.lastUsedAt).toLocaleString()}` : 'Never used'}</p>
                 </div>
-                <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${entry.status === 'active' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : entry.status === 'expired' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
-                  {entry.status}
-                </span>
+                <StatusBadge tone={entry.status === 'active' ? 'success' : entry.status === 'expired' ? 'warning' : 'danger'}>{entry.status}</StatusBadge>
               </div>
             ))}
           </div>
@@ -358,13 +366,14 @@ const ServiceIdentities = () => {
         eyebrow="Machine Directory"
         title="Service Identities"
         action={
-          <button
+          <Button
             onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }}
-            className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-sky-500 active:scale-[0.98] transition-all"
+            variant="primary"
+            className="h-9 rounded-lg"
           >
             <Plus size={14} />
             New Identity
-          </button>
+          </Button>
         }
       />
 
@@ -378,13 +387,13 @@ const ServiceIdentities = () => {
         </select>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">All Service Identities</h4>
-          <button onClick={() => refetch()} disabled={isFetching} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
+          <Button onClick={() => refetch()} disabled={isFetching} variant="ghost" size="sm" className="text-xs text-slate-500 hover:text-slate-900">
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
-          </button>
+          </Button>
         </div>
 
         {isLoading ? (
@@ -407,14 +416,14 @@ const ServiceIdentities = () => {
                   {identity.allowedScopes.length > 0 && (
                     <div className="flex gap-1 flex-wrap">
                       {identity.allowedScopes.map((scope) => (
-                        <span key={scope} className="text-xs px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">{scope}</span>
+                        <StatusBadge key={scope} tone="neutral">{scope}</StatusBadge>
                       ))}
                     </div>
                   )}
                   {identity.allowedAudiences.length > 0 && (
                     <div className="flex gap-1 flex-wrap">
                       {identity.allowedAudiences.map((audience) => (
-                        <span key={audience} className="text-xs px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">{audience}</span>
+                        <StatusBadge key={audience} tone="accent">{audience}</StatusBadge>
                       ))}
                     </div>
                   )}
@@ -427,43 +436,49 @@ const ServiceIdentities = () => {
                   <p className="text-xs text-slate-400 font-mono">Created {new Date(identity.createdAt).toLocaleDateString()}</p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  <button
+                  <Button
                     onClick={() => {
                       setIdentityToManage(identity)
                       setManageModalOpen(true)
                     }}
-                    className="h-8 px-2.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                    variant="secondary"
+                    size="sm"
+                    className="h-8 rounded-lg text-xs"
                   >
                     Manage Credentials
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => handleEdit(identity)}
                     disabled={updateIdentity.isPending}
-                    className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-700"
                     title="Edit identity"
                   >
                     <Pencil size={14} />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => setIdentityToDelete(identity)}
                     disabled={deleteIdentity.isPending}
-                    className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors disabled:opacity-40"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
                     title="Delete identity"
                   >
                     <Trash2 size={14} />
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </Card>
 
       <Modal isOpen={createModalOpen} onClose={() => { setCreateModalOpen(false); setFormData(defaultForm()) }} title="Create Service Identity">
         <div className="space-y-4">
           <div>
             <label className={labelCls}>Name</label>
-            <input
+            <Input
               className={fieldCls}
               value={formData.name}
               onChange={e => setFormData(f => ({ ...f, name: e.target.value }))}
@@ -472,7 +487,7 @@ const ServiceIdentities = () => {
           </div>
           <div>
             <label className={labelCls}>Description</label>
-            <input
+            <Input
               className={fieldCls}
               value={formData.description}
               onChange={e => setFormData(f => ({ ...f, description: e.target.value }))}
@@ -512,7 +527,7 @@ const ServiceIdentities = () => {
           </div>
           <div>
             <label className={labelCls}>Token Audiences</label>
-            <input
+            <Input
               className={fieldCls}
               value={formData.allowedAudiences}
               onChange={e => setFormData(f => ({ ...f, allowedAudiences: e.target.value }))}
@@ -556,16 +571,17 @@ const ServiceIdentities = () => {
             </div>
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => { setCreateModalOpen(false); setFormData(defaultForm()) }} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+            <Button onClick={() => { setCreateModalOpen(false); setFormData(defaultForm()) }} variant="secondary" className="h-9 rounded-lg">
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleCreate}
               disabled={!formData.name || createIdentity.isPending}
-              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
+              variant="primary"
+              className="h-9 rounded-lg"
             >
               {createIdentity.isPending ? 'Creating…' : 'Create Identity'}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -574,7 +590,7 @@ const ServiceIdentities = () => {
         <div className="space-y-4">
           <div>
             <label className={labelCls}>Name</label>
-            <input
+            <Input
               className={fieldCls}
               value={editFormData.name}
               onChange={e => setEditFormData(f => ({ ...f, name: e.target.value }))}
@@ -583,7 +599,7 @@ const ServiceIdentities = () => {
           </div>
           <div>
             <label className={labelCls}>Description</label>
-            <input
+            <Input
               className={fieldCls}
               value={editFormData.description}
               onChange={e => setEditFormData(f => ({ ...f, description: e.target.value }))}
@@ -623,7 +639,7 @@ const ServiceIdentities = () => {
           </div>
           <div>
             <label className={labelCls}>Token Audiences</label>
-            <input
+            <Input
               className={fieldCls}
               value={editFormData.allowedAudiences}
               onChange={e => setEditFormData(f => ({ ...f, allowedAudiences: e.target.value }))}
@@ -667,16 +683,17 @@ const ServiceIdentities = () => {
             </div>
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => { setEditModalOpen(false); setIdentityToEdit(null) }} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+            <Button onClick={() => { setEditModalOpen(false); setIdentityToEdit(null) }} variant="secondary" className="h-9 rounded-lg">
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSaveEdit}
               disabled={!editFormData.name || updateIdentity.isPending}
-              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
+              variant="primary"
+              className="h-9 rounded-lg"
             >
               {updateIdentity.isPending ? 'Saving…' : 'Save Changes'}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

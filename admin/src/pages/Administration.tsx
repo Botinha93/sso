@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, ArrowRight, Lock, Mail, Network, RefreshCw, ShieldCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { PageHeader } from '../components/PageHeader'
+import StatusBadge from '../components/ui/StatusBadge'
+import { PageHeader, PageHeaderSkeleton } from '../components/PageHeader'
 import {
   useAdminMe,
   useAdminRiskEvents,
@@ -280,10 +281,7 @@ export default function Administration() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader eyebrow="Instance Controls" title="Administration" />
-        <div className="animate-pulse space-y-4">
-          {[1,2,3].map(i => <div key={i} className="h-32 rounded-xl bg-slate-100" />)}
-        </div>
+        <PageHeaderSkeleton blocks={3} />
       </div>
     )
   }
@@ -549,7 +547,7 @@ export default function Administration() {
 
             <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-700">
               <p className="font-medium text-slate-900">Token signing algorithm</p>
-              <div className="mt-2 inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-mono text-emerald-700">RS256</div>
+              <div className="mt-2"><StatusBadge tone="success" mono>RS256</StatusBadge></div>
               <p className="mt-2 text-slate-600">Tokens are currently signed using RS256. This implementation remains enforced server-side.</p>
             </div>
           </div>

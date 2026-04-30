@@ -3,6 +3,7 @@ import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useMemo, useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
+import StatusBadge from '../components/ui/StatusBadge'
 import {
   useCreateUserAttribute,
   useDeleteUserAttribute,
@@ -152,8 +153,8 @@ const UserAttributes = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <h5 className="text-sm font-medium text-slate-900">{attribute.name}</h5>
-                        <span className="text-xs px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 font-mono">{attribute.key}</span>
-                        <span className="text-xs px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100 font-mono">{attribute.type}</span>
+                        <StatusBadge tone="neutral" mono>{attribute.key}</StatusBadge>
+                        <StatusBadge tone="accent" mono>{attribute.type}</StatusBadge>
                         <button
                           onClick={() => toggleGlobalEnabled(attribute)}
                           className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-100"

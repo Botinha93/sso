@@ -1,5 +1,6 @@
 import { X } from 'lucide-react'
 import { createPortal } from 'react-dom'
+import { useEffect, useRef } from 'react'
 
 interface ModalProps {
   isOpen: boolean
@@ -17,14 +18,89 @@ const sizeClass: Record<NonNullable<ModalProps['size']>, string> = {
 }
 
 const Modal = ({ isOpen, onClose, title, children, size = 'lg' }: ModalProps) => {
+  const modalRef = useRef<HTMLDivElement | null>(null)
+  const lastFocusedRef = useRef<HTMLElement | null>(null)
+  const titleIdRef = useRef(`modal-title-${Math.random().toString(36).slice(2, 10)}`)
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    lastFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+
+    const getTabbables = () => {
+      if (!modalRef.current) return [] as HTMLElement[]
+      return Array.from(
+        modalRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((element) => !element.hasAttribute('disabled') && element.tabIndex !== -1)
+    }
+
+    const focusFirst = () => {
+      const tabbables = getTabbables()
+      if (tabbables.length > 0) {
+        tabbables[0].focus()
+      } else {
+        modalRef.current?.focus()
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+      if (event.key !== 'Tab') return
+
+      const tabbables = getTabbables()
+      if (tabbables.length === 0) {
+        event.preventDefault()
+        return
+      }
+
+      const first = tabbables[0]
+      const last = tabbables[tabbables.length - 1]
+      const active = document.activeElement as HTMLElement | null
+
+      if (event.shiftKey) {
+        if (active === first || !modalRef.current?.contains(active)) {
+          event.preventDefault()
+          last.focus()
+        }
+        return
+      }
+
+      if (active === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', handleKeyDown)
+    requestAnimationFrame(focusFirst)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+      lastFocusedRef.current?.focus()
+    }
+  }, [isOpen, onClose])
+
   if (!isOpen) return null
 
   return createPortal(
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4" onClick={onClose}>
-      <div className={`bg-white border border-slate-200 rounded-2xl shadow-lg w-full ${sizeClass[size]} max-h-[92vh] overflow-auto`} onClick={e => e.stopPropagation()}>
+      <div
+        ref={modalRef}
+        tabIndex={-1}
+        aria-modal="true"
+        role="dialog"
+        aria-labelledby={titleIdRef.current}
+        className={`bg-white border border-slate-200 rounded-2xl shadow-lg w-full ${sizeClass[size]} max-h-[92vh] overflow-auto`}
+        onClick={e => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70 rounded-t-2xl">
-          <h4 className="font-semibold text-slate-900">{title}</h4>
-          <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors">
+          <h4 id={titleIdRef.current} className="font-semibold text-slate-900">{title}</h4>
+          <button type="button" onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-700 focus-visible:ring-sky-500/40">
             <X size={14} />
           </button>
         </div>

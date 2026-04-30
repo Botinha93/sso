@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
 import { Clock3, ShieldAlert } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
+import StatusBadge from '../components/ui/StatusBadge'
 import { type ElevationSessionDto, useElevationSessions } from '../hooks/useApi'
 
-const statusStyles: Record<ElevationSessionDto['status'], string> = {
-  active: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  revoked: 'bg-rose-100 text-rose-800 border-rose-200',
-  expired: 'bg-slate-100 text-slate-700 border-slate-200'
+const statusStyles: Record<ElevationSessionDto['status'], 'success' | 'danger' | 'neutral'> = {
+  active: 'success',
+  revoked: 'danger',
+  expired: 'neutral'
 }
 
 export default function ElevationSessions() {
@@ -86,9 +87,7 @@ export default function ElevationSessions() {
                     <span className="mx-1 text-slate-400">→</span>
                     <span className="font-mono">{session.action}</span>
                   </p>
-                  <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusStyles[session.status]}`}>
-                    {session.status}
-                  </span>
+                  <StatusBadge tone={statusStyles[session.status]}>{session.status}</StatusBadge>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                   <span className="font-mono">session {session.id.slice(0, 12)}...</span>

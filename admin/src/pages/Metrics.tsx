@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { BarChart3 } from 'lucide-react'
 import { PageHeader, TableSkeleton } from '../components/PageHeader'
+import StatusBadge from '../components/ui/StatusBadge'
 import { useAuthMetrics } from '../hooks/useApi'
 
 function toIsoHour(minutesAgo: number) {
@@ -102,9 +103,7 @@ export default function Metrics() {
               .map(([event, count]) => (
                 <div key={event} className="flex items-center justify-between px-4 py-3">
                   <p className="text-sm text-slate-800">{event}</p>
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
-                    {count.toLocaleString()}
-                  </span>
+                  <StatusBadge tone="neutral">{count.toLocaleString()}</StatusBadge>
                 </div>
               ))}
           </div>

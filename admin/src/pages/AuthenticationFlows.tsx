@@ -3,6 +3,7 @@ import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
+import StatusBadge from '../components/ui/StatusBadge'
 import {
   useAuthenticationFlows,
   useCreateAuthenticationFlow,
@@ -217,28 +218,28 @@ const AuthenticationFlows = () => {
                       <ClipboardList size={14} className="text-slate-500" />
                     </div>
                     <h5 className="text-sm font-medium text-slate-900">{flow.name}</h5>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 uppercase tracking-wider">{flow.designation}</span>
+                    <StatusBadge tone="neutral" className="uppercase tracking-wider">{flow.designation}</StatusBadge>
                     {flow.enabled && (
-                      <span className="text-xs px-1.5 py-0.5 rounded-md border bg-emerald-50 text-emerald-700 border-emerald-100 inline-flex items-center gap-1">
+                      <StatusBadge tone="success">
                         <Check size={10} /> Active
-                      </span>
+                      </StatusBadge>
                     )}
                   </div>
                   <p className="text-xs text-slate-500 mb-2">{flow.description}</p>
                   <div className="flex flex-wrap gap-1 mb-2">
                     {flow.grantTypes.map((grantType) => (
-                      <span key={`${flow.id}-grant-${grantType}`} className="text-xs px-1.5 py-0.5 rounded-md bg-violet-50 text-violet-700 border border-violet-100 font-mono">
+                      <StatusBadge key={`${flow.id}-grant-${grantType}`} tone="accent" mono>
                         {grantType}
-                      </span>
+                      </StatusBadge>
                     ))}
                   </div>
                   <div className="flex flex-wrap gap-1">
                     {[...flow.stages]
                       .sort((a, b) => a.order - b.order)
                       .map((stage) => (
-                        <span key={`${flow.id}-${stage.type}`} className="text-xs px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 font-mono">
+                        <StatusBadge key={`${flow.id}-${stage.type}`} tone="neutral" mono>
                           {stage.order}. {stage.type}
-                        </span>
+                        </StatusBadge>
                       ))}
                   </div>
                 </div>

@@ -1,43 +1,52 @@
-import { ReactElement, useEffect, useState } from 'react'
+import { ReactElement, Suspense, lazy, useEffect, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import { Menu } from 'lucide-react'
 import Sidebar from './components/Sidebar'
-import Dashboard from './pages/Dashboard'
-import Clients from './pages/Clients'
-import Users from './pages/Users'
-import Groups from './pages/Groups'
-import Roles from './pages/Roles'
-import Sessions from './pages/Sessions'
-import AuditLog from './pages/AuditLog'
-import Consents from './pages/Consents'
-import Tenants from './pages/Tenants'
-import Apps from './pages/Apps'
-import FederationProviders from './pages/FederationProviders'
-import AuthenticationFlows from './pages/AuthenticationFlows'
-import Devices from './pages/Devices'
-import InteractionViews from './pages/InteractionViews'
-import UiCustomizations from './pages/UiCustomizations'
-import UserAttributes from './pages/UserAttributes'
-import Policies from './pages/Policies'
-import EventHooks from './pages/EventHooks'
-import Administration from './pages/Administration'
-import AccessGovernance from './pages/AccessGovernance'
-import Elevations from './pages/Elevations'
-import ElevationSessions from './pages/ElevationSessions'
-import ServiceIdentities from './pages/ServiceIdentities'
-import Connectors from './pages/Connectors'
-import Plugins from './pages/Plugins'
-import ConnectorDetail from './pages/ConnectorDetail'
-import Metrics from './pages/Metrics'
-import Documentation from './pages/Documentation'
-import Login from './pages/Login'
-import Consent from './pages/Consent'
-import DeviceVerification from './pages/DeviceVerification'
-import Setup from './pages/Setup'
 import { useAdminMe, useSetupStatus } from './hooks/useApi'
 
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Clients = lazy(() => import('./pages/Clients'))
+const Users = lazy(() => import('./pages/Users'))
+const Groups = lazy(() => import('./pages/Groups'))
+const Roles = lazy(() => import('./pages/Roles'))
+const Sessions = lazy(() => import('./pages/Sessions'))
+const AuditLog = lazy(() => import('./pages/AuditLog'))
+const Consents = lazy(() => import('./pages/Consents'))
+const Tenants = lazy(() => import('./pages/Tenants'))
+const Apps = lazy(() => import('./pages/Apps'))
+const FederationProviders = lazy(() => import('./pages/FederationProviders'))
+const AuthenticationFlows = lazy(() => import('./pages/AuthenticationFlows'))
+const Devices = lazy(() => import('./pages/Devices'))
+const InteractionViews = lazy(() => import('./pages/InteractionViews'))
+const UiCustomizations = lazy(() => import('./pages/UiCustomizations'))
+const UserAttributes = lazy(() => import('./pages/UserAttributes'))
+const Policies = lazy(() => import('./pages/Policies'))
+const EventHooks = lazy(() => import('./pages/EventHooks'))
+const Administration = lazy(() => import('./pages/Administration'))
+const AccessGovernance = lazy(() => import('./pages/AccessGovernance'))
+const Elevations = lazy(() => import('./pages/Elevations'))
+const ElevationSessions = lazy(() => import('./pages/ElevationSessions'))
+const ServiceIdentities = lazy(() => import('./pages/ServiceIdentities'))
+const Connectors = lazy(() => import('./pages/Connectors'))
+const Plugins = lazy(() => import('./pages/Plugins'))
+const ConnectorDetail = lazy(() => import('./pages/ConnectorDetail'))
+const Metrics = lazy(() => import('./pages/Metrics'))
+const Documentation = lazy(() => import('./pages/Documentation'))
+const Login = lazy(() => import('./pages/Login'))
+const Consent = lazy(() => import('./pages/Consent'))
+const DeviceVerification = lazy(() => import('./pages/DeviceVerification'))
+const Setup = lazy(() => import('./pages/Setup'))
+
 const queryClient = new QueryClient()
+
+function FullScreenLoader({ label }: { label: string }) {
+  return <div className="h-screen grid place-items-center text-slate-500">{label}</div>
+}
+
+function SectionLoader() {
+  return <div className="h-[50vh] grid place-items-center text-slate-500">Loading page…</div>
+}
 
 function App() {
   return (
@@ -61,14 +70,16 @@ function AppContent() {
   const hasPermission = (perm: string) => permissions.includes('*:*') || permissions.includes(perm)
 
   if (setupLoading) {
-    return <div className="h-screen grid place-items-center text-slate-500">Loading setup…</div>
+    return <FullScreenLoader label="Loading setup…" />
   }
 
   if ((setupStatus as any)?.requiresSetup) {
     return (
-      <Routes>
-        <Route path="*" element={<Setup />} />
-      </Routes>
+      <Suspense fallback={<FullScreenLoader label="Loading setup…" />}>
+        <Routes>
+          <Route path="*" element={<Setup />} />
+        </Routes>
+      </Suspense>
     )
   }
 
@@ -78,7 +89,7 @@ function AppContent() {
     !location.pathname.startsWith('/consent') &&
     !location.pathname.startsWith('/oauth/device/verify')
   ) {
-    return <div className="h-screen grid place-items-center text-slate-500">Loading session…</div>
+    return <FullScreenLoader label="Loading session…" />
   }
 
   const require = (perm: string, element: ReactElement) => hasPermission(perm)
@@ -89,6 +100,7 @@ function AppContent() {
 
   return (
     <div className="flex h-screen overflow-hidden">
+      <Suspense fallback={<FullScreenLoader label="Loading page…" />}>
       <Routes location={location}>
         <Route path="/login" element={<Login />} />
         <Route path="/consent" element={<Consent />} />
@@ -127,8 +139,9 @@ function AppContent() {
                     <p className="ml-3 text-sm font-semibold text-slate-900">NexusID Admin</p>
                   </div>
 
-                <main className="min-w-0 flex-1 overflow-auto p-4 sm:p-5 lg:p-7">
-                  <div className="mx-auto max-w-7xl">
+                <main className="admin-shell-main min-w-0 flex-1 overflow-auto">
+                  <div className="admin-shell-content admin-page-stack">
+                    <Suspense fallback={<SectionLoader />}>
                     <Routes location={location}>
                       <Route path="/" element={require('users:view', <Dashboard />)} />
                       <Route path="/dashboard" element={require('users:view', <Dashboard />)} />
@@ -160,6 +173,7 @@ function AppContent() {
                       <Route path="/metrics" element={require('connectors:view', <Metrics />)} />
                       <Route path="/documentation" element={require('users:view', <Documentation />)} />
                     </Routes>
+                    </Suspense>
                   </div>
                 </main>
                 </div>
@@ -170,6 +184,7 @@ function AppContent() {
           }
         />
       </Routes>
+      </Suspense>
     </div>
   )
 }

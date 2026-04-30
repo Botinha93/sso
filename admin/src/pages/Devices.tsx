@@ -2,6 +2,7 @@ import { MonitorSmartphone, RefreshCw, ShieldOff } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
+import StatusBadge from '../components/ui/StatusBadge'
 import { useDevices, useRevokeDeviceRequest, useRevokeDeviceSession } from '../hooks/useApi'
 
 interface DeviceRequest {
@@ -29,12 +30,12 @@ interface DeviceSession {
 }
 
 const statusTone = {
-  pending: 'bg-amber-50 text-amber-700 border-amber-100',
-  approved: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-  denied: 'bg-rose-50 text-rose-700 border-rose-100',
-  active: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-  expired: 'bg-slate-100 text-slate-500 border-slate-200',
-  revoked: 'bg-rose-50 text-rose-700 border-rose-100'
+  pending: 'warning',
+  approved: 'success',
+  denied: 'danger',
+  active: 'success',
+  expired: 'neutral',
+  revoked: 'danger'
 } as const
 
 const formatDate = (value?: string) => value ? new Date(value).toLocaleString() : 'Never'
@@ -117,7 +118,7 @@ export default function Devices() {
                 <div className="min-w-0 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-medium text-slate-900">{request.clientName}</p>
-                    <span className={`rounded-md border px-2 py-0.5 text-xs ${statusTone[request.status]}`}>{request.status}</span>
+                    <StatusBadge tone={statusTone[request.status]}>{request.status}</StatusBadge>
                   </div>
                   <p className="text-xs text-slate-500 font-mono">User code {request.userCode} · Device {request.deviceCode.slice(0, 16)}…</p>
                   <p className="text-xs text-slate-500">
@@ -129,7 +130,7 @@ export default function Devices() {
                   </p>
                   <div className="flex flex-wrap gap-1 pt-1">
                     {request.scope.map((scope) => (
-                      <span key={scope} className="rounded-md border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-xs font-mono text-slate-600">{scope}</span>
+                      <StatusBadge key={scope} tone="neutral" mono>{scope}</StatusBadge>
                     ))}
                   </div>
                 </div>
@@ -169,7 +170,7 @@ export default function Devices() {
                   <div className="flex flex-wrap items-center gap-2">
                     <MonitorSmartphone size={16} className="text-slate-400" />
                     <p className="text-sm font-medium text-slate-900">{session.clientName}</p>
-                    <span className={`rounded-md border px-2 py-0.5 text-xs ${statusTone[session.status]}`}>{session.status}</span>
+                    <StatusBadge tone={statusTone[session.status]}>{session.status}</StatusBadge>
                   </div>
                   <p className="text-xs text-slate-500 font-mono">Session {session.id.slice(0, 16)}…</p>
                   <p className="text-xs text-slate-500">

@@ -4,6 +4,10 @@ import type { Dispatch, SetStateAction } from 'react'
 import { useMemo, useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
+import StatusBadge from '../components/ui/StatusBadge'
+import Button from '../components/ui/Button'
+import Card from '../components/ui/Card'
+import Input from '../components/ui/Input'
 import {
   useCreateFederationProvider,
   useDeleteFederationProvider,
@@ -178,22 +182,24 @@ function TemplatePicker({ onSelect }: { onSelect: (t: ProviderTemplate) => void 
   const [open, setOpen] = useState(true)
   return (
     <div className="rounded-xl border border-slate-200 overflow-hidden mb-5">
-      <button
+      <Button
         type="button"
         onClick={() => setOpen(p => !p)}
-        className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors text-sm font-semibold text-slate-700"
+        variant="ghost"
+        className="h-auto w-full justify-between rounded-none bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
       >
         <span>Start from a template</span>
         {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-      </button>
+      </Button>
       {open && (
         <div className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2 xl:grid-cols-4">
           {PROVIDER_TEMPLATES.map((t) => (
-            <button
+            <Button
               key={t.id}
               type="button"
               onClick={() => onSelect(t)}
-              className="flex flex-col items-center gap-1.5 p-2.5 rounded-lg border border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition-colors group"
+              variant="ghost"
+              className="h-auto flex-col gap-1.5 rounded-lg border border-slate-200 p-2.5 hover:border-slate-400 hover:bg-slate-50 group"
               title={`Use ${t.label} template`}
             >
               <img
@@ -203,17 +209,18 @@ function TemplatePicker({ onSelect }: { onSelect: (t: ProviderTemplate) => void 
                 onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
               />
               <span className="text-xs text-slate-600 group-hover:text-slate-900 font-medium text-center leading-tight">{t.label}</span>
-            </button>
+            </Button>
           ))}
-          <button
+          <Button
             type="button"
             onClick={() => setOpen(false)}
-            className="flex flex-col items-center gap-1.5 p-2.5 rounded-lg border border-dashed border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition-colors group"
+            variant="ghost"
+            className="h-auto flex-col gap-1.5 rounded-lg border border-dashed border-slate-200 p-2.5 hover:border-slate-400 hover:bg-slate-50 group"
             title="Start blank"
           >
             <Plus size={18} className="text-slate-400 group-hover:text-slate-700" />
             <span className="text-xs text-slate-500 group-hover:text-slate-800 font-medium text-center leading-tight">Custom</span>
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -472,23 +479,24 @@ const FederationProviders = () => {
         eyebrow="User Federation"
         title="Federation Providers"
         action={
-          <button
+          <Button
             onClick={openCreate}
-            className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-sky-500 active:scale-[0.98] transition-all"
+            variant="primary"
+            className="h-9 rounded-lg"
           >
             <Plus size={14} />
             New Provider
-          </button>
+          </Button>
         }
       />
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">Configured Providers</h4>
-          <button onClick={() => refetch()} disabled={isProvidersRefreshing} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
+          <Button onClick={() => refetch()} disabled={isProvidersRefreshing} variant="ghost" size="sm" className="text-xs text-slate-500 hover:text-slate-900">
             <RefreshCw size={12} className={isProvidersRefreshing ? 'animate-spin' : ''} />
             Refresh
-          </button>
+          </Button>
         </div>
 
         {isLoading ? (
@@ -508,12 +516,12 @@ const FederationProviders = () => {
                       <AppWindow size={14} className="text-slate-500" />
                     </div>
                     <h5 className="text-sm font-medium text-slate-900">{provider.label}</h5>
-                    <span className={`text-xs px-1.5 py-0.5 rounded-md border ${provider.enabled ? 'bg-green-50 text-green-700 border-green-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                    <StatusBadge tone={provider.enabled ? 'success' : 'neutral'}>
                       {provider.enabled ? 'Enabled' : 'Disabled'}
-                    </span>
-                    <span className={`text-xs px-1.5 py-0.5 rounded-md border ${provider.source === 'env' ? 'bg-sky-50 text-sky-700 border-sky-100' : 'bg-violet-50 text-violet-700 border-violet-100'}`}>
+                    </StatusBadge>
+                    <StatusBadge tone={provider.source === 'env' ? 'info' : 'accent'}>
                       {provider.source.toUpperCase()}
-                    </span>
+                    </StatusBadge>
                   </div>
                   <p className="text-xs text-slate-500 font-mono">{provider.id}</p>
                   <p className="text-xs text-slate-500 truncate">auth: {provider.authorizationEndpoint}</p>
@@ -521,49 +529,53 @@ const FederationProviders = () => {
                   <p className="text-xs text-slate-500 truncate">userinfo: {provider.userInfoEndpoint}</p>
                   <div className="flex gap-1 flex-wrap mt-1">
                     {provider.scopes.map((scope) => (
-                      <span key={scope} className="text-xs px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 font-mono">{scope}</span>
+                      <StatusBadge key={scope} tone="neutral" mono>{scope}</StatusBadge>
                     ))}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button
+                  <Button
                     onClick={() => openEdit(provider)}
                     disabled={provider.source === 'env'}
-                    className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors disabled:opacity-40"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-700"
                     title={provider.source === 'env' ? 'Environment providers are read-only' : 'Edit provider'}
                   >
                     <Pencil size={14} />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => onDelete(provider)}
                     disabled={provider.source === 'env' || deleteProvider.isPending}
-                    className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors disabled:opacity-40"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"
                     title={provider.source === 'env' ? 'Environment providers are read-only' : 'Delete provider'}
                   >
                     <Trash2 size={14} />
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </Card>
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden mt-8">
+      <Card className="mt-8 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <div>
             <h4 className="text-sm font-semibold text-slate-700">SAML Service Providers</h4>
             <p className="text-xs text-slate-500 mt-0.5">Manage SAML 2.0 service provider registrations, metadata, and certificates.</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => refetchSamlProviders()} disabled={isSamlProvidersRefreshing} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
+            <Button onClick={() => refetchSamlProviders()} disabled={isSamlProvidersRefreshing} variant="ghost" size="sm" className="text-xs text-slate-500 hover:text-slate-900">
               <RefreshCw size={12} className={isSamlProvidersRefreshing ? 'animate-spin' : ''} />
               Refresh
-            </button>
-            <button onClick={openSamlSpCreate} className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-sky-600 px-3 text-xs font-medium text-white hover:bg-sky-500 transition-colors">
+            </Button>
+            <Button onClick={openSamlSpCreate} variant="primary" size="sm" className="h-8 rounded-lg text-xs">
               <Plus size={12} />
               Add SP
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -598,43 +610,53 @@ const FederationProviders = () => {
                       <p className="font-mono text-xs text-slate-600 break-all">{provider.acsUrl}</p>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${provider.enabled ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-600'}`}>
+                      <StatusBadge tone={provider.enabled ? 'success' : 'neutral'}>
                         {provider.enabled ? 'enabled' : 'disabled'}
-                      </span>
+                      </StatusBadge>
                     </td>
                     <td className="px-4 py-3 text-xs text-slate-500">{new Date(provider.updatedAt).toLocaleString()}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1.5">
-                        <button
+                        <Button
                           onClick={() => openMetadataUpload(provider)}
-                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                          variant="secondary"
+                          size="sm"
+                          className="h-7 rounded-md px-2 text-xs text-slate-600"
                         >
                           <Upload size={12} /> Metadata
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           onClick={() => openCertificateRotate(provider, 'signing')}
-                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                          variant="secondary"
+                          size="sm"
+                          className="h-7 rounded-md px-2 text-xs text-slate-600"
                         >
                           <Shield size={12} /> Rotate Signing
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           onClick={() => openCertificateRotate(provider, 'encryption')}
-                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                          variant="secondary"
+                          size="sm"
+                          className="h-7 rounded-md px-2 text-xs text-slate-600"
                         >
                           <Shield size={12} /> Rotate Encryption
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           onClick={() => openSamlSpEdit(provider)}
-                          className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                          variant="secondary"
+                          size="sm"
+                          className="h-7 rounded-md px-2 text-xs text-slate-600"
                         >
                           <Pencil size={12} /> Edit
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           onClick={() => setSamlSpDeleteTarget(provider)}
-                          className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-white px-2 py-1 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                          variant="danger"
+                          size="sm"
+                          className="h-7 rounded-md border border-rose-200 bg-white px-2 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                         >
                           <Trash2 size={12} /> Delete
-                        </button>
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -643,10 +665,10 @@ const FederationProviders = () => {
             </table>
           </div>
         )}
-      </div>
+      </Card>
 
       {/* SAML Assertions Audit Log */}
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden mt-8">
+      <Card className="mt-8 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <div>
             <h4 className="text-sm font-semibold text-slate-700">SAML Assertion Audit Log</h4>
@@ -663,9 +685,9 @@ const FederationProviders = () => {
                 <option key={sp.id} value={sp.id}>{sp.entityId}</option>
               ))}
             </select>
-            <button onClick={() => refetchAssertions()} disabled={isAssertionsRefreshing} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
+            <Button onClick={() => refetchAssertions()} disabled={isAssertionsRefreshing} variant="ghost" size="sm" className="text-xs text-slate-500 hover:text-slate-900">
               <RefreshCw size={12} className={isAssertionsRefreshing ? 'animate-spin' : ''} /> Refresh
-            </button>
+            </Button>
           </div>
         </div>
         {assertionsLoading ? (
@@ -696,7 +718,7 @@ const FederationProviders = () => {
             </table>
           </div>
         )}
-      </div>
+      </Card>
 
       <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title="Create Federation Provider">
         <TemplatePicker onSelect={applyTemplate} />
@@ -750,13 +772,14 @@ const FederationProviders = () => {
             Overwrite manually configured SAML fields with parsed metadata values
           </label>
           <div className="flex justify-end">
-            <button
+            <Button
               onClick={submitMetadataUpload}
               disabled={uploadSamlMetadata.isPending || !metadataXml.trim()}
-              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
+              variant="primary"
+              className="h-9 rounded-lg"
             >
               {uploadSamlMetadata.isPending ? 'Uploading…' : 'Upload Metadata'}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -786,13 +809,14 @@ const FederationProviders = () => {
             />
           </div>
           <div className="flex justify-end">
-            <button
+            <Button
               onClick={submitCertificateRotation}
               disabled={rotateSamlCertificate.isPending || !certificatePem.trim()}
-              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
+              variant="primary"
+              className="h-9 rounded-lg"
             >
               {rotateSamlCertificate.isPending ? 'Rotating…' : 'Rotate Certificate'}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -830,47 +854,47 @@ function ProviderForm({
       {showId && (
         <div>
           <label className={labelCls}>Provider ID</label>
-          <input className={`${fieldCls} font-mono`} value={form.id} onChange={(e) => setForm((p) => ({ ...p, id: e.target.value }))} placeholder="google" />
+          <Input className={`${fieldCls} font-mono`} value={form.id} onChange={(e) => setForm((p) => ({ ...p, id: e.target.value }))} placeholder="google" />
         </div>
       )}
       <div>
         <label className={labelCls}>Label</label>
-        <input className={fieldCls} value={form.label} onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))} placeholder="Google Workspace" />
+        <Input className={fieldCls} value={form.label} onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))} placeholder="Google Workspace" />
       </div>
       <div>
         <label className={labelCls}>Authorization Endpoint</label>
-        <input className={`${fieldCls} font-mono`} value={form.authorizationEndpoint} onChange={(e) => setForm((p) => ({ ...p, authorizationEndpoint: e.target.value }))} placeholder="https://accounts.google.com/o/oauth2/v2/auth" />
+        <Input className={`${fieldCls} font-mono`} value={form.authorizationEndpoint} onChange={(e) => setForm((p) => ({ ...p, authorizationEndpoint: e.target.value }))} placeholder="https://accounts.google.com/o/oauth2/v2/auth" />
       </div>
       <div>
         <label className={labelCls}>Token Endpoint</label>
-        <input className={`${fieldCls} font-mono`} value={form.tokenEndpoint} onChange={(e) => setForm((p) => ({ ...p, tokenEndpoint: e.target.value }))} placeholder="https://oauth2.googleapis.com/token" />
+        <Input className={`${fieldCls} font-mono`} value={form.tokenEndpoint} onChange={(e) => setForm((p) => ({ ...p, tokenEndpoint: e.target.value }))} placeholder="https://oauth2.googleapis.com/token" />
       </div>
       <div>
         <label className={labelCls}>UserInfo Endpoint</label>
-        <input className={`${fieldCls} font-mono`} value={form.userInfoEndpoint} onChange={(e) => setForm((p) => ({ ...p, userInfoEndpoint: e.target.value }))} placeholder="https://openidconnect.googleapis.com/v1/userinfo" />
+        <Input className={`${fieldCls} font-mono`} value={form.userInfoEndpoint} onChange={(e) => setForm((p) => ({ ...p, userInfoEndpoint: e.target.value }))} placeholder="https://openidconnect.googleapis.com/v1/userinfo" />
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label className={labelCls}>Client ID</label>
-          <input className={`${fieldCls} font-mono`} value={form.clientId} onChange={(e) => setForm((p) => ({ ...p, clientId: e.target.value }))} />
+          <Input className={`${fieldCls} font-mono`} value={form.clientId} onChange={(e) => setForm((p) => ({ ...p, clientId: e.target.value }))} />
         </div>
         <div>
           <label className={labelCls}>Client Secret</label>
-          <input className={`${fieldCls} font-mono`} value={form.clientSecret} onChange={(e) => setForm((p) => ({ ...p, clientSecret: e.target.value }))} placeholder="Leave empty to keep existing" />
+          <Input className={`${fieldCls} font-mono`} value={form.clientSecret} onChange={(e) => setForm((p) => ({ ...p, clientSecret: e.target.value }))} placeholder="Leave empty to keep existing" />
         </div>
       </div>
       <div>
         <label className={labelCls}>Scopes</label>
-        <input className={`${fieldCls} font-mono`} value={form.scopes} onChange={(e) => setForm((p) => ({ ...p, scopes: e.target.value }))} placeholder="openid profile email" />
+        <Input className={`${fieldCls} font-mono`} value={form.scopes} onChange={(e) => setForm((p) => ({ ...p, scopes: e.target.value }))} placeholder="openid profile email" />
       </div>
       <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
         <input type="checkbox" className="rounded border-slate-300" checked={form.enabled} onChange={(e) => setForm((p) => ({ ...p, enabled: e.target.checked }))} />
         Provider is enabled
       </label>
       <div className="flex justify-end">
-        <button onClick={onSubmit} disabled={pending} className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors">
+        <Button onClick={onSubmit} disabled={pending} variant="primary" className="h-9 rounded-lg">
           {submitLabel}
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -896,15 +920,15 @@ function SamlSpForm({
       {error ? <p className="rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-xs text-rose-700">{error}</p> : null}
       <div>
         <label className={labelCls}>Entity ID</label>
-        <input className={`${fieldCls} font-mono`} value={form.entityId} onChange={e => setForm(p => ({ ...p, entityId: e.target.value }))} placeholder="https://sp.example.com/saml/metadata" required />
+        <Input className={`${fieldCls} font-mono`} value={form.entityId} onChange={e => setForm(p => ({ ...p, entityId: e.target.value }))} placeholder="https://sp.example.com/saml/metadata" required />
       </div>
       <div>
         <label className={labelCls}>ACS URL</label>
-        <input className={`${fieldCls} font-mono`} value={form.acsUrl} onChange={e => setForm(p => ({ ...p, acsUrl: e.target.value }))} placeholder="https://sp.example.com/saml/acs" required />
+        <Input className={`${fieldCls} font-mono`} value={form.acsUrl} onChange={e => setForm(p => ({ ...p, acsUrl: e.target.value }))} placeholder="https://sp.example.com/saml/acs" required />
       </div>
       <div>
         <label className={labelCls}>SLO URL (optional)</label>
-        <input className={`${fieldCls} font-mono`} value={form.sloUrl} onChange={e => setForm(p => ({ ...p, sloUrl: e.target.value }))} placeholder="https://sp.example.com/saml/slo" />
+        <Input className={`${fieldCls} font-mono`} value={form.sloUrl} onChange={e => setForm(p => ({ ...p, sloUrl: e.target.value }))} placeholder="https://sp.example.com/saml/slo" />
       </div>
       <div>
         <label className={labelCls}>Name ID Format</label>
@@ -919,9 +943,9 @@ function SamlSpForm({
         Service provider is enabled
       </label>
       <div className="flex justify-end">
-        <button onClick={onSubmit} disabled={pending} className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors">
+        <Button onClick={onSubmit} disabled={pending} variant="primary" className="h-9 rounded-lg">
           {submitLabel}
-        </button>
+        </Button>
       </div>
     </div>
   )

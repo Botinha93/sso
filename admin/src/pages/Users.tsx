@@ -3,6 +3,10 @@ import { EmptyState, PageHeader, TableSkeleton } from '../components/PageHeader'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
+import Button from '../components/ui/Button'
+import Input, { inputBaseClassName } from '../components/ui/Input'
+import Card from '../components/ui/Card'
+import StatusBadge from '../components/ui/StatusBadge'
 import {
   useUsers,
   useCreateUser,
@@ -82,7 +86,7 @@ const defaultResetForm = () => ({
   confirmPassword: ''
 })
 
-const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
+const fieldCls = inputBaseClassName
 const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
 
 const defaultValueForAttribute = (type?: AttributeType) => {
@@ -372,13 +376,13 @@ const Users = () => {
         eyebrow="Identity Directory"
         title="User Management"
         action={
-          <button
+          <Button
             onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }}
-            className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-sky-500 active:scale-[0.98] transition-all"
+            variant="primary"
           >
             <Plus size={14} />
             New User
-          </button>
+          </Button>
         }
       />
 
@@ -393,7 +397,7 @@ const Users = () => {
         </select>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">All Users</h4>
           <button onClick={() => refetch()} disabled={isFetching} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
@@ -405,7 +409,7 @@ const Users = () => {
         {isLoading ? (
           <TableSkeleton rows={6} />
         ) : !filteredUsers?.length ? (
-          <EmptyState icon={Users} title="No users registered" description="Create the first user to get started." action={<button onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }} className="h-8 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 transition-colors">New User</button>} />
+          <EmptyState icon={Users} title="No users registered" description="Create the first user to get started." action={<Button size="sm" variant="primary" onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }}>New User</Button>} />
         ) : (
           <div className="divide-y divide-slate-100">
             {filteredUsers.map((user: User) => (
@@ -418,43 +422,43 @@ const Users = () => {
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium text-slate-900">{user.givenName} {user.familyName}</p>
                     {(user.appIds ?? (user.appId ? [user.appId] : [])).length === 0 ? (
-                      <span className="text-xs px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
+                      <StatusBadge tone="accent">
                         No Apps
-                      </span>
+                      </StatusBadge>
                     ) : (
                       (user.appIds ?? (user.appId ? [user.appId] : [])).map((assignedAppId) => (
-                        <span key={assignedAppId} className="text-xs px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
+                        <StatusBadge key={assignedAppId} tone="accent">
                           {appNameById.get(assignedAppId) ?? 'App'}
                           {(user.inheritedAppIds ?? []).includes(assignedAppId) && !(user.directAppIds ?? []).includes(assignedAppId) ? ' via group' : ''}
-                        </span>
+                        </StatusBadge>
                       ))
                     )}
 
                     {!user.active && (
-                      <span className="text-xs px-1.5 py-0.5 rounded-md bg-red-50 text-red-600 border border-red-100">Inactive</span>
+                      <StatusBadge tone="danger">Inactive</StatusBadge>
                     )}
                   </div>
                   <p className="text-xs text-slate-500">{user.email} · @{user.username}</p>
                   {user.roles.length > 0 && (
                     <div className="flex gap-1 flex-wrap">
                       {user.roles.map(r => (
-                        <span key={r} className="text-xs px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">{r}</span>
+                        <StatusBadge key={r} tone="neutral">{r}</StatusBadge>
                       ))}
                     </div>
                   )}
                   {user.customAttributes && Object.keys(user.customAttributes).length > 0 && (
                     <div className="flex gap-1 flex-wrap">
                       {Object.entries(user.customAttributes).map(([key, value]) => (
-                        <span key={key} className="text-xs px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-100 font-mono">
+                        <StatusBadge key={key} tone="warning" mono>
                           {attributeByKey.get(key)?.name ?? key}: {value}
                           {user.inheritedCustomAttributes?.[key] === value && !user.directCustomAttributes?.[key] ? ' via group' : ''}
-                        </span>
+                        </StatusBadge>
                       ))}
                     </div>
                   )}
                   <div className="flex gap-1 flex-wrap">
                     {(user.groups ?? []).map((groupName) => (
-                      <span key={groupName} className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-100">
+                      <StatusBadge key={groupName} tone="info">
                         {groupName}
                         <button
                           className="text-sky-500 hover:text-red-600"
@@ -467,7 +471,7 @@ const Users = () => {
                         >
                           <X size={11} />
                         </button>
-                      </span>
+                      </StatusBadge>
                     ))}
                   </div>
                   <div className="mt-2 flex items-center gap-2 max-w-sm">
@@ -531,7 +535,7 @@ const Users = () => {
             ))}
           </div>
         )}
-      </div>
+      </Card>
 
       <Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Create New User">
         <div className="space-y-4">
@@ -555,24 +559,24 @@ const Users = () => {
             </div>
             <div>
               <label className={labelCls}>First Name</label>
-              <input type="text" value={formData.givenName} onChange={e => setFormData(f => ({ ...f, givenName: e.target.value }))} className={fieldCls} placeholder="Jane" />
+              <Input type="text" value={formData.givenName} onChange={e => setFormData(f => ({ ...f, givenName: e.target.value }))} placeholder="Jane" />
             </div>
             <div>
               <label className={labelCls}>Last Name</label>
-              <input type="text" value={formData.familyName} onChange={e => setFormData(f => ({ ...f, familyName: e.target.value }))} className={fieldCls} placeholder="Doe" />
+              <Input type="text" value={formData.familyName} onChange={e => setFormData(f => ({ ...f, familyName: e.target.value }))} placeholder="Doe" />
             </div>
           </div>
           <div>
             <label className={labelCls}>Email Address</label>
-            <input type="email" value={formData.email} onChange={e => setFormData(f => ({ ...f, email: e.target.value }))} className={fieldCls} placeholder="jane@example.com" />
+            <Input type="email" value={formData.email} onChange={e => setFormData(f => ({ ...f, email: e.target.value }))} placeholder="jane@example.com" />
           </div>
           <div>
             <label className={labelCls}>Username</label>
-            <input type="text" value={formData.username} onChange={e => setFormData(f => ({ ...f, username: e.target.value }))} className={`${fieldCls} font-mono`} placeholder="janedoe" />
+            <Input type="text" value={formData.username} onChange={e => setFormData(f => ({ ...f, username: e.target.value }))} className="font-mono" placeholder="janedoe" />
           </div>
           <div>
             <label className={labelCls}>Password</label>
-            <input type="password" value={formData.password} onChange={e => setFormData(f => ({ ...f, password: e.target.value }))} className={fieldCls} placeholder="Min 8 characters" />
+            <Input type="password" value={formData.password} onChange={e => setFormData(f => ({ ...f, password: e.target.value }))} placeholder="Min 8 characters" />
           </div>
           <div>
             <label className={labelCls}>Custom Attributes</label>
@@ -620,14 +624,15 @@ const Users = () => {
                       <option key={attribute.id} value={attribute.key}>{attribute.name}</option>
                     ))}
                 </select>
-                <button
+                <Button
                   type="button"
                   onClick={() => addAttribute('create')}
                   disabled={!attributePicker.create}
-                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  size="md"
+                  variant="secondary"
                 >
                   Add
-                </button>
+                </Button>
               </div>
             </div>
             {createFormError && <p className="mt-1 text-xs text-red-600">{createFormError}</p>}
@@ -650,16 +655,16 @@ const Users = () => {
             </div>
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setCreateModalOpen(false)} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+            <Button onClick={() => setCreateModalOpen(false)} variant="secondary">
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleCreate}
               disabled={createUser.isPending || !formData.email || !formData.username || !formData.password}
-              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
+              variant="primary"
             >
               {createUser.isPending ? 'Creating…' : 'Create User'}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -691,20 +696,20 @@ const Users = () => {
             </div>
             <div>
               <label className={labelCls}>First Name</label>
-              <input type="text" value={editFormData.givenName} onChange={e => setEditFormData(f => ({ ...f, givenName: e.target.value }))} className={fieldCls} placeholder="Jane" />
+              <Input type="text" value={editFormData.givenName} onChange={e => setEditFormData(f => ({ ...f, givenName: e.target.value }))} placeholder="Jane" />
             </div>
             <div>
               <label className={labelCls}>Last Name</label>
-              <input type="text" value={editFormData.familyName} onChange={e => setEditFormData(f => ({ ...f, familyName: e.target.value }))} className={fieldCls} placeholder="Doe" />
+              <Input type="text" value={editFormData.familyName} onChange={e => setEditFormData(f => ({ ...f, familyName: e.target.value }))} placeholder="Doe" />
             </div>
           </div>
           <div>
             <label className={labelCls}>Email Address</label>
-            <input type="email" value={editFormData.email} onChange={e => setEditFormData(f => ({ ...f, email: e.target.value }))} className={fieldCls} placeholder="jane@example.com" />
+            <Input type="email" value={editFormData.email} onChange={e => setEditFormData(f => ({ ...f, email: e.target.value }))} placeholder="jane@example.com" />
           </div>
           <div>
             <label className={labelCls}>Username</label>
-            <input type="text" value={editFormData.username} onChange={e => setEditFormData(f => ({ ...f, username: e.target.value }))} className={`${fieldCls} font-mono`} placeholder="janedoe" />
+            <Input type="text" value={editFormData.username} onChange={e => setEditFormData(f => ({ ...f, username: e.target.value }))} className="font-mono" placeholder="janedoe" />
           </div>
           <div>
             <label className={labelCls}>Direct Custom Attributes</label>
@@ -752,14 +757,14 @@ const Users = () => {
                       <option key={attribute.id} value={attribute.key}>{attribute.name}</option>
                     ))}
                 </select>
-                <button
+                <Button
                   type="button"
                   onClick={() => addAttribute('edit')}
                   disabled={!attributePicker.edit}
-                  className="h-9 px-3 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  variant="secondary"
                 >
                   Add
-                </button>
+                </Button>
               </div>
               {userToEdit && userToEdit.inheritedCustomAttributes && Object.keys(userToEdit.inheritedCustomAttributes).length > 0 && (
                 <div className="rounded-lg border border-dashed border-slate-200 p-3">
@@ -777,16 +782,16 @@ const Users = () => {
             {editFormError && <p className="mt-1 text-xs text-red-600">{editFormError}</p>}
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setEditModalOpen(false)} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+            <Button onClick={() => setEditModalOpen(false)} variant="secondary">
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSaveEdit}
               disabled={updateUser.isPending || !editFormData.email || !editFormData.username || !editFormData.givenName || !editFormData.familyName}
-              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
+              variant="primary"
             >
               {updateUser.isPending ? 'Saving…' : 'Save Changes'}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -798,36 +803,34 @@ const Users = () => {
           </p>
           <div>
             <label className={labelCls}>New Password</label>
-            <input
+            <Input
               type="password"
               value={resetFormData.password}
               onChange={(e) => setResetFormData((f) => ({ ...f, password: e.target.value }))}
-              className={fieldCls}
               placeholder="Min 8 characters"
             />
           </div>
           <div>
             <label className={labelCls}>Confirm Password</label>
-            <input
+            <Input
               type="password"
               value={resetFormData.confirmPassword}
               onChange={(e) => setResetFormData((f) => ({ ...f, confirmPassword: e.target.value }))}
-              className={fieldCls}
               placeholder="Repeat new password"
             />
           </div>
           {resetFormError && <p className="text-xs text-red-600">{resetFormError}</p>}
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setResetModalOpen(false)} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+            <Button onClick={() => setResetModalOpen(false)} variant="secondary">
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleResetPassword}
               disabled={resetUserPassword.isPending || !resetFormData.password || !resetFormData.confirmPassword}
-              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
+              variant="primary"
             >
               {resetUserPassword.isPending ? 'Resetting…' : 'Reset Password'}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

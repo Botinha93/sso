@@ -3,6 +3,7 @@ import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useMemo, useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
+import StatusBadge from '../components/ui/StatusBadge'
 import {
   useAssignRoleToGroup,
   useCreateGroup,
@@ -319,14 +320,14 @@ const Groups = () => {
                         </div>
                         <h5 className="text-sm font-medium text-slate-900">{group.name}</h5>
                         {(group.appIds ?? (group.appId ? [group.appId] : [])).length === 0 ? (
-                          <span className="text-xs px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
+                          <StatusBadge tone="accent">
                             No Apps
-                          </span>
+                          </StatusBadge>
                         ) : (
                           (group.appIds ?? (group.appId ? [group.appId] : [])).map((assignedAppId) => (
-                            <span key={assignedAppId} className="text-xs px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
+                            <StatusBadge key={assignedAppId} tone="accent">
                               {appNameById.get(assignedAppId) ?? 'App'}
-                            </span>
+                            </StatusBadge>
                           ))
                         )}
                       </div>
@@ -334,18 +335,18 @@ const Groups = () => {
                       {group.customAttributes && Object.keys(group.customAttributes).length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           {Object.entries(group.customAttributes).map(([key, value]) => (
-                            <span key={key} className="text-xs px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-100 font-mono">
+                            <StatusBadge key={key} tone="warning" mono>
                               {attributeByKey.get(key)?.name ?? key}: {value}
-                            </span>
+                            </StatusBadge>
                           ))}
                         </div>
                       )}
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {group.roleIds.length === 0 && (
-                          <span className="text-xs px-1.5 py-0.5 rounded-md border border-slate-200 bg-slate-100 text-slate-500">No roles</span>
+                          <StatusBadge tone="neutral">No roles</StatusBadge>
                         )}
                         {group.roleIds.map((roleId) => (
-                          <span key={roleId} className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-md border border-slate-200 bg-slate-100 text-slate-600">
+                          <StatusBadge key={roleId} tone="neutral">
                             {roleNameById.get(roleId) ?? roleId}
                             <button
                               className="text-slate-400 hover:text-red-600"
@@ -354,7 +355,7 @@ const Groups = () => {
                             >
                               <X size={11} />
                             </button>
-                          </span>
+                          </StatusBadge>
                         ))}
                       </div>
                       <div className="mt-3 flex items-center gap-2 max-w-md">

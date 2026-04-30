@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowUpRight, RefreshCw, Save, Sparkles, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { PageHeader, Skeleton } from '../components/PageHeader'
+import { PageHeader, PageHeaderSkeleton, Skeleton } from '../components/PageHeader'
 import { useApps, useClients, useInstanceSettings, useUpdateInstanceSettings } from '../hooks/useApi'
 import ColorInput from '../components/ColorInput'
 
@@ -213,10 +213,7 @@ export default function UiCustomizations() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader eyebrow="Branding And UX" title="UI Customizations" />
-        <div className="animate-pulse space-y-3">
-          {[1,2,3].map(i => <div key={i} className="h-24 rounded-xl bg-slate-100" />)}
-        </div>
+        <PageHeaderSkeleton blocks={3} />
       </div>
     )
   }

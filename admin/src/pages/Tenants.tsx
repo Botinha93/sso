@@ -2,6 +2,9 @@ import { Building2, Pencil, Plus, RefreshCw } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
 import Modal from '../components/Modal'
+import Button from '../components/ui/Button'
+import Card from '../components/ui/Card'
+import Input from '../components/ui/Input'
 import { useCreateTenant, useTenants, useUpdateTenant } from '../hooks/useApi'
 
 const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
@@ -54,23 +57,24 @@ const Tenants = () => {
         eyebrow="Multi-Tenancy"
         title="Organizations"
         action={
-          <button
+          <Button
             onClick={() => setCreateModalOpen(true)}
-            className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-sky-500 active:scale-[0.98] transition-all"
+            variant="primary"
+            className="h-9 rounded-lg"
           >
             <Plus size={14} />
             New Tenant
-          </button>
+          </Button>
         }
       />
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">All Tenants</h4>
-          <button onClick={() => refetch()} disabled={isFetching} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
+          <Button onClick={() => refetch()} disabled={isFetching} variant="ghost" size="sm" className="text-xs text-slate-500 hover:text-slate-900">
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
-          </button>
+          </Button>
         </div>
         <div className="divide-y divide-slate-100">
           {isLoading && <TableSkeleton rows={3} />}
@@ -86,40 +90,43 @@ const Tenants = () => {
                   <p className="text-xs text-slate-500 font-mono">{tenant.slug}</p>
                 </div>
               </div>
-              <button
+              <Button
                 onClick={() => openEditTenant(tenant)}
                 disabled={updateTenant.isPending}
-                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-700"
                 title="Edit tenant"
               >
                 <Pencil size={14} />
-              </button>
+              </Button>
             </div>
           ))}
         </div>
-      </div>
+      </Card>
 
       <Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Create New Tenant">
         <div className="space-y-4">
           <div>
             <label className={labelCls}>Organization Name</label>
-            <input type="text" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} className={fieldCls} placeholder="Acme Corp" />
+            <Input type="text" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} className={fieldCls} placeholder="Acme Corp" />
           </div>
           <div>
             <label className={labelCls}>Identifier Slug</label>
-            <input type="text" value={formData.slug} onChange={e => setFormData(p => ({ ...p, slug: e.target.value }))} className={`${fieldCls} font-mono`} placeholder="acme-corp" />
+            <Input type="text" value={formData.slug} onChange={e => setFormData(p => ({ ...p, slug: e.target.value }))} className={`${fieldCls} font-mono`} placeholder="acme-corp" />
           </div>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setCreateModalOpen(false)} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+            <Button onClick={() => setCreateModalOpen(false)} variant="secondary" className="h-9 rounded-lg">
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleCreate}
               disabled={createTenant.isPending || !formData.name || !formData.slug}
-              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
+              variant="primary"
+              className="h-9 rounded-lg"
             >
               {createTenant.isPending ? 'Creating…' : 'Create Tenant'}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -128,11 +135,11 @@ const Tenants = () => {
         <div className="space-y-4">
           <div>
             <label className={labelCls}>Organization Name</label>
-            <input type="text" value={editFormData.name} onChange={e => setEditFormData(p => ({ ...p, name: e.target.value }))} className={fieldCls} placeholder="Acme Corp" />
+            <Input type="text" value={editFormData.name} onChange={e => setEditFormData(p => ({ ...p, name: e.target.value }))} className={fieldCls} placeholder="Acme Corp" />
           </div>
           <div>
             <label className={labelCls}>Identifier Slug</label>
-            <input type="text" value={editFormData.slug} onChange={e => setEditFormData(p => ({ ...p, slug: e.target.value }))} className={`${fieldCls} font-mono`} placeholder="acme-corp" />
+            <Input type="text" value={editFormData.slug} onChange={e => setEditFormData(p => ({ ...p, slug: e.target.value }))} className={`${fieldCls} font-mono`} placeholder="acme-corp" />
           </div>
           <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
             <input
@@ -144,16 +151,17 @@ const Tenants = () => {
             Tenant is active
           </label>
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => setEditModalOpen(false)} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
+            <Button onClick={() => setEditModalOpen(false)} variant="secondary" className="h-9 rounded-lg">
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSaveEdit}
               disabled={updateTenant.isPending || !editFormData.name || !editFormData.slug}
-              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
+              variant="primary"
+              className="h-9 rounded-lg"
             >
               {updateTenant.isPending ? 'Saving…' : 'Save Changes'}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

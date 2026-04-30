@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PageHeader } from '../components/PageHeader'
+import { PageHeader, PageHeaderSkeleton } from '../components/PageHeader'
 import {
   useCreateEventHook,
   useDeleteEventHook,
@@ -46,10 +46,7 @@ export default function EventHooks() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader eyebrow="Automation" title="Events and Hooks" />
-        <div className="animate-pulse space-y-3">
-          {[1,2,3].map(i => <div key={i} className="h-16 rounded-xl bg-slate-100" />)}
-        </div>
+        <PageHeaderSkeleton blocks={3} />
       </div>
     )
   }

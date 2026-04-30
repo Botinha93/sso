@@ -3,6 +3,9 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { PortalUser } from '../hooks'
 import LanguageSelector from '../components/LanguageSelector'
+import Button from '../components/ui/Button'
+import Card from '../components/ui/Card'
+import Input from '../components/ui/Input'
 import { useI18n } from '../i18n'
 import {
   usePortalChangePassword,
@@ -52,12 +55,14 @@ export default function Profile({ user }: Props) {
           </Link>
           <div className="flex items-center gap-2">
             <LanguageSelector className="hidden sm:inline-flex" />
-            <button
+            <Button
               onClick={handleLogout}
-              className="h-8 px-3 rounded-lg text-sm font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+              variant="ghost"
+              size="sm"
+              className="text-slate-500 hover:text-slate-900"
             >
               {t('common.signOut')}
-            </button>
+            </Button>
           </div>
         </div>
       </header>
@@ -88,20 +93,21 @@ export default function Profile({ user }: Props) {
               { key: 'totp', label: t('profile.nav.twoFactor'), icon: <ShieldCheck size={14} /> },
               { key: 'danger', label: t('profile.nav.account'), icon: <AlertTriangle size={14} /> },
             ] as { key: Section; label: string; icon: React.ReactNode }[]).map(item => (
-              <button
+              <Button
                 key={item.key}
                 onClick={() => setSection(item.key)}
-                className={`flex shrink-0 items-center gap-2.5 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-medium transition-colors lg:w-full ${
+                variant={section === item.key ? 'primary' : item.key === 'danger' ? 'danger' : 'ghost'}
+                className={`flex h-auto shrink-0 items-center gap-2.5 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-medium transition-colors lg:w-full ${
                   section === item.key
-                    ? 'bg-slate-900 text-white shadow-sm'
+                    ? 'shadow-sm'
                     : item.key === 'danger'
-                    ? 'text-red-500 hover:text-red-700 hover:bg-red-50'
+                    ? 'bg-transparent text-red-500 hover:text-red-700 hover:bg-red-50'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
                 {item.icon}
                 {item.label}
-              </button>
+              </Button>
             ))}
             </div>
           </nav>
@@ -168,17 +174,17 @@ function ProfileSection({ user }: { user: PortalUser }) {
   const setAttrVal = (i: number, v: string) => setCustomAttrs(p => p.map((pair, idx) => idx === i ? [pair[0], v] : pair))
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
+    <Card className="rounded-2xl p-6 space-y-5">
       <h2 className="text-base font-semibold text-slate-900">{t('profile.profileSection.title')}</h2>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className={labelCls}>{t('profile.profileSection.firstName')}</label>
-          <input className={fieldCls} value={form.givenName} onChange={e => setForm(p => ({ ...p, givenName: e.target.value }))} />
+          <Input className={fieldCls} value={form.givenName} onChange={e => setForm(p => ({ ...p, givenName: e.target.value }))} />
         </div>
         <div>
           <label className={labelCls}>{t('profile.profileSection.lastName')}</label>
-          <input className={fieldCls} value={form.familyName} onChange={e => setForm(p => ({ ...p, familyName: e.target.value }))} />
+          <Input className={fieldCls} value={form.familyName} onChange={e => setForm(p => ({ ...p, familyName: e.target.value }))} />
         </div>
       </div>
 
@@ -188,7 +194,7 @@ function ProfileSection({ user }: { user: PortalUser }) {
           <div className="h-14 w-14 rounded-full bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center text-sm font-semibold text-slate-600">
             {form.avatarUrl ? <img src={form.avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : initials}
           </div>
-          <input
+          <Input
             type="file"
             accept="image/*"
             className={`${fieldCls} pt-1.5`}
@@ -208,39 +214,42 @@ function ProfileSection({ user }: { user: PortalUser }) {
         </div>
         <div className="flex flex-wrap gap-2">
           {((defaultAvatars as any)?.items ?? []).map((item: any) => (
-            <button
+            <Button
               key={item.key}
-              type="button"
               onClick={() => setForm((prev) => ({ ...prev, avatarUrl: item.url }))}
-              className="h-10 w-10 rounded-full overflow-hidden border border-slate-200 hover:ring-2 hover:ring-slate-300"
+              variant="secondary"
+              size="icon"
+              className="h-10 w-10 rounded-full overflow-hidden border border-slate-200 p-0 hover:ring-2 hover:ring-slate-300"
               title={item.label}
             >
               <img src={item.url} alt={item.label} className="h-full w-full object-cover" />
-            </button>
+            </Button>
           ))}
         </div>
       </div>
 
       <div>
         <label className={labelCls}>{t('profile.profileSection.emailAddress')}</label>
-        <input type="email" className={fieldCls} value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
+        <Input type="email" className={fieldCls} value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
       </div>
 
       <div>
         <label className={labelCls}>{t('profile.profileSection.username')}</label>
-        <input className={fieldCls} value={form.username} onChange={e => setForm(p => ({ ...p, username: e.target.value }))} />
+        <Input className={fieldCls} value={form.username} onChange={e => setForm(p => ({ ...p, username: e.target.value }))} />
       </div>
 
       {/* Custom Attributes */}
       <div>
         <div className="flex items-center justify-between mb-2">
           <label className={labelCls}>{t('profile.profileSection.customAttributes')}</label>
-          <button
+          <Button
             onClick={addAttr}
-            className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-900 transition-colors"
+            variant="ghost"
+            size="sm"
+            className="text-xs text-slate-500 hover:text-slate-900"
           >
             <Plus size={12} /> {t('profile.profileSection.add')}
-          </button>
+          </Button>
         </div>
         {customAttrs.length === 0 ? (
           <p className="text-xs text-slate-400 italic">{t('profile.profileSection.noCustomAttributes')}</p>
@@ -248,21 +257,21 @@ function ProfileSection({ user }: { user: PortalUser }) {
           <div className="space-y-2">
             {customAttrs.map(([key, val], i) => (
               <div key={i} className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-                <input
+                <Input
                   className={`${fieldCls} font-mono`}
                   value={key}
                   onChange={e => setAttrKey(i, e.target.value)}
                   placeholder={t('profile.profileSection.keyPlaceholder')}
                 />
-                <input
+                <Input
                   className={fieldCls}
                   value={val}
                   onChange={e => setAttrVal(i, e.target.value)}
                   placeholder={t('profile.profileSection.valuePlaceholder')}
                 />
-                <button onClick={() => removeAttr(i)} className="self-end text-slate-400 hover:text-red-500 transition-colors shrink-0 sm:self-center">
+                <Button onClick={() => removeAttr(i)} variant="ghost" size="icon" className="self-end text-slate-400 hover:text-red-500 shrink-0 sm:self-center">
                   <X size={14} />
-                </button>
+                </Button>
               </div>
             ))}
           </div>
@@ -279,16 +288,17 @@ function ProfileSection({ user }: { user: PortalUser }) {
             <Check size={14} /> {t('profile.profileSection.saved')}
           </span>
         )}
-        <button
+        <Button
           onClick={handleSave}
           disabled={update.isPending}
-          className="h-9 px-4 rounded-xl bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 disabled:opacity-60 transition-colors"
+          variant="primary"
+          className="h-9 rounded-xl"
         >
           {update.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
           {t('profile.profileSection.saveChanges')}
-        </button>
+        </Button>
       </div>
-    </div>
+    </Card>
   )
 }
 
@@ -405,14 +415,14 @@ function TotpSection() {
 
   if (statusLoading) {
     return (
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+      <Card className="rounded-2xl p-6">
         <p className="text-sm text-slate-500">{t('profile.totp.loading')}</p>
-      </div>
+      </Card>
     )
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
+    <Card className="rounded-2xl p-6 space-y-5">
       <div>
         <h2 className="text-base font-semibold text-slate-900">{t('profile.totp.title')}</h2>
         <p className="text-sm text-slate-500 mt-1">
@@ -434,24 +444,26 @@ function TotpSection() {
       {mfaEnabled ? (
         <div className="space-y-3">
           <p className="text-sm text-slate-600">{t('profile.totp.disableHint')}</p>
-          <button
+          <Button
             onClick={handleDisable}
             disabled={disable.isPending}
-            className="h-9 px-4 rounded-xl border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 disabled:opacity-60 transition-colors"
+            variant="danger"
+            className="h-9 rounded-xl border border-red-200 bg-transparent text-red-600 hover:bg-red-50"
           >
             {disable.isPending ? t('profile.totp.disabling') : t('profile.totp.disable')}
-          </button>
+          </Button>
         </div>
       ) : (
         <div className="space-y-4">
           {!enrollment ? (
-            <button
+            <Button
               onClick={handleStartEnrollment}
               disabled={enroll.isPending}
-              className="h-9 px-4 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-60 transition-colors"
+              variant="primary"
+              className="h-9 rounded-xl"
             >
               {enroll.isPending ? t('profile.totp.starting') : t('profile.totp.startSetup')}
-            </button>
+            </Button>
           ) : (
             <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div>
@@ -462,26 +474,28 @@ function TotpSection() {
               <div>
                 <label className={labelCls}>{t('profile.totp.secret')}</label>
                 <div className="flex flex-col gap-2 sm:flex-row">
-                  <input readOnly value={enrollment.secret} className={`${fieldCls} font-mono`} />
-                  <button
+                  <Input readOnly value={enrollment.secret} className={`${fieldCls} font-mono`} />
+                  <Button
                     onClick={() => copy(enrollment.secret)}
-                    className="h-9 px-3 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-100 transition-colors"
+                    variant="secondary"
+                    className="h-9 rounded-xl"
                   >
                     {t('profile.totp.copy')}
-                  </button>
+                  </Button>
                 </div>
               </div>
 
               <div>
                 <label className={labelCls}>{t('profile.totp.otpAuthUri')}</label>
                 <div className="flex flex-col gap-2 sm:flex-row">
-                  <input readOnly value={enrollment.otpauthUri} className={`${fieldCls} font-mono text-xs`} />
-                  <button
+                  <Input readOnly value={enrollment.otpauthUri} className={`${fieldCls} font-mono text-xs`} />
+                  <Button
                     onClick={() => copy(enrollment.otpauthUri)}
-                    className="h-9 px-3 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-100 transition-colors"
+                    variant="secondary"
+                    className="h-9 rounded-xl"
                   >
                     {t('profile.totp.copy')}
-                  </button>
+                  </Button>
                 </div>
               </div>
 
@@ -491,29 +505,31 @@ function TotpSection() {
               </div>
 
               <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-                <input
+                <Input
                   value={verificationCode}
                   onChange={(e) => setVerificationCode(e.target.value.replace(/\D+/g, '').slice(0, 8))}
                   placeholder={t('profile.totp.codePlaceholder')}
                   className={`${fieldCls} tracking-[0.18em] font-mono sm:max-w-[220px]`}
                 />
-                <button
+                <Button
                   onClick={handleVerify}
                   disabled={verify.isPending || verificationCode.trim().length < 6}
-                  className="h-9 px-4 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-60 transition-colors"
+                  variant="primary"
+                  className="h-9 rounded-xl"
                 >
                   {verify.isPending ? t('profile.totp.verifying') : t('profile.totp.enable')}
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={() => {
                     setEnrollment(null)
                     setVerificationCode('')
                     setError('')
                   }}
-                  className="h-9 px-3 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-100 transition-colors"
+                  variant="secondary"
+                  className="h-9 rounded-xl"
                 >
                   {t('profile.common.cancel')}
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -526,13 +542,14 @@ function TotpSection() {
           <p className="text-xs text-slate-500 mt-1">{t('profile.passkeys.subtitle')}</p>
         </div>
 
-        <button
+        <Button
           onClick={handleAddPasskey}
           disabled={passkeyBegin.isPending || passkeyFinish.isPending}
-          className="h-9 px-4 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-60 transition-colors"
+          variant="primary"
+          className="h-9 rounded-xl"
         >
           {passkeyBegin.isPending || passkeyFinish.isPending ? t('profile.passkeys.registering') : t('profile.passkeys.register')}
-        </button>
+        </Button>
 
         {passkeys && passkeys.length > 0 ? (
             <div className="space-y-2">
@@ -542,13 +559,15 @@ function TotpSection() {
                   <p className="text-xs font-mono text-slate-700 truncate">{credential.credentialId}</p>
                   <p className="text-xs text-slate-500">{t('profile.passkeys.signCount', { count: String(credential.signCount) })} {credential.transports.length > 0 ? `• ${credential.transports.join(', ')}` : ''}</p>
                 </div>
-                <button
+                <Button
                   onClick={() => handleDeletePasskey(credential.credentialId)}
                   disabled={passkeyDelete.isPending}
-                  className="h-8 px-3 rounded-lg border border-red-200 text-red-600 text-xs font-medium hover:bg-red-50 disabled:opacity-60 transition-colors"
+                  variant="danger"
+                  size="sm"
+                  className="border border-red-200 bg-transparent text-red-600 hover:bg-red-50"
                 >
                   {t('profile.common.remove')}
-                </button>
+                </Button>
               </div>
             ))}
           </div>
@@ -556,7 +575,7 @@ function TotpSection() {
           <p className="text-xs text-slate-500">{t('profile.passkeys.none')}</p>
         )}
       </div>
-    </div>
+    </Card>
   )
 }
 
@@ -589,28 +608,28 @@ function PasswordSection() {
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-6">
+    <Card className="rounded-2xl p-6">
       <h2 className="text-base font-semibold text-slate-900 mb-5">{t('profile.password.title')}</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className={labelCls}>{t('profile.password.currentPassword')}</label>
           <div className="relative">
-            <input
+            <Input
               type={showCur ? 'text' : 'password'}
               className={`${fieldCls} pr-9`}
               value={form.currentPassword}
               onChange={e => setForm(p => ({ ...p, currentPassword: e.target.value }))}
               required
             />
-            <button type="button" onClick={() => setShowCur(p => !p)} className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-700">
+            <Button type="button" onClick={() => setShowCur(p => !p)} variant="ghost" size="icon" className="absolute right-2 top-1.5 h-7 w-7 text-slate-400 hover:text-slate-700">
               {showCur ? <EyeOff size={14} /> : <Eye size={14} />}
-            </button>
+            </Button>
           </div>
         </div>
         <div>
           <label className={labelCls}>{t('profile.password.newPassword')}</label>
           <div className="relative">
-            <input
+            <Input
               type={showNew ? 'text' : 'password'}
               className={`${fieldCls} pr-9`}
               value={form.newPassword}
@@ -618,14 +637,14 @@ function PasswordSection() {
               required
               minLength={8}
             />
-            <button type="button" onClick={() => setShowNew(p => !p)} className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-700">
+            <Button type="button" onClick={() => setShowNew(p => !p)} variant="ghost" size="icon" className="absolute right-2 top-1.5 h-7 w-7 text-slate-400 hover:text-slate-700">
               {showNew ? <EyeOff size={14} /> : <Eye size={14} />}
-            </button>
+            </Button>
           </div>
         </div>
         <div>
           <label className={labelCls}>{t('profile.password.confirmNewPassword')}</label>
-          <input
+          <Input
             type="password"
             className={fieldCls}
             value={form.confirmPassword}
@@ -645,17 +664,18 @@ function PasswordSection() {
         )}
 
         <div className="flex justify-end pt-2 border-t border-slate-100">
-          <button
+          <Button
             type="submit"
             disabled={change.isPending}
-            className="h-9 px-4 rounded-xl bg-slate-900 text-white text-sm font-medium flex items-center gap-2 hover:bg-slate-800 disabled:opacity-60 transition-colors"
+            variant="primary"
+            className="h-9 rounded-xl"
           >
             {change.isPending ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} />}
             {t('profile.password.updateButton')}
-          </button>
+          </Button>
         </div>
       </form>
-    </div>
+    </Card>
   )
 }
 
@@ -684,7 +704,7 @@ function DangerSection({ user, onDeleted }: { user: PortalUser; onDeleted: () =>
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+      <Card className="rounded-2xl p-6">
         <h2 className="text-base font-semibold text-slate-900 mb-1">{t('profile.danger.accountInformation')}</h2>
         <p className="text-sm text-slate-500 mb-4">{t('profile.danger.accountDetails')}</p>
         <div className="space-y-2 text-sm">
@@ -701,9 +721,9 @@ function DangerSection({ user, onDeleted }: { user: PortalUser; onDeleted: () =>
             <span className="text-slate-800 break-all sm:text-right">{user.email}</span>
           </div>
         </div>
-      </div>
+      </Card>
 
-      <div className="bg-white rounded-2xl border border-red-200 p-6">
+      <Card className="rounded-2xl border-red-200 p-6">
         <div className="flex items-start gap-3 mb-4">
           <AlertTriangle size={18} className="text-red-500 mt-0.5 shrink-0" />
           <div>
@@ -715,19 +735,20 @@ function DangerSection({ user, onDeleted }: { user: PortalUser; onDeleted: () =>
         </div>
 
         {!confirmOpen ? (
-          <button
+          <Button
             onClick={() => setConfirmOpen(true)}
-            className="h-9 px-4 rounded-xl border border-red-200 text-red-600 text-sm font-medium flex items-center gap-2 hover:bg-red-50 transition-colors"
+            variant="danger"
+            className="h-9 rounded-xl border border-red-200 bg-transparent text-red-600 hover:bg-red-50"
           >
             <Trash2 size={14} />
             {t('profile.danger.deleteMyAccount')}
-          </button>
+          </Button>
         ) : (
           <div className="space-y-3">
             <p className="text-sm text-slate-700">
               {t('profile.danger.typeUsernameToConfirm')} <span className="font-mono font-semibold text-slate-900">{user.username}</span>:
             </p>
-            <input
+            <Input
               className={fieldCls}
               value={confirmText}
               onChange={e => { setConfirmText(e.target.value); setError('') }}
@@ -737,24 +758,26 @@ function DangerSection({ user, onDeleted }: { user: PortalUser; onDeleted: () =>
               <p className="text-sm text-red-600">{error}</p>
             )}
             <div className="flex gap-2">
-              <button
+              <Button
                 onClick={() => { setConfirmOpen(false); setConfirmText(''); setError('') }}
-                className="h-9 px-4 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                variant="secondary"
+                className="h-9 rounded-xl"
               >
                 {t('profile.common.cancel')}
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleDelete}
                 disabled={deleteAccount.isPending}
-                className="h-9 px-4 rounded-xl bg-red-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-red-700 disabled:opacity-60 transition-colors"
+                variant="danger"
+                className="h-9 rounded-xl"
               >
                 {deleteAccount.isPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                 {t('profile.danger.deleteAccount')}
-              </button>
+              </Button>
             </div>
           </div>
         )}
-      </div>
+      </Card>
     </div>
   )
 }

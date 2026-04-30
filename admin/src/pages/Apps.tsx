@@ -3,6 +3,9 @@ import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
+import Button from '../components/ui/Button'
+import Card from '../components/ui/Card'
+import Input from '../components/ui/Input'
 import {
   useApps, useCreateApp, useDeleteApp, useUpdateApp,
   useUploadAppImage, useDefaultAppImages,
@@ -82,13 +85,15 @@ const ComponentsManager = ({ appId }: ComponentsManagerProps) => {
     <div>
       <div className="flex gap-1 mb-4 border-b border-slate-100 pb-3">
         {tabs.map(t => (
-          <button
+          <Button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`h-7 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors ${tab === t.key ? 'bg-sky-600 text-white' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
+            variant={tab === t.key ? 'primary' : 'ghost'}
+            size="sm"
+            className={`h-7 px-3 text-xs ${tab === t.key ? '' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
           >
             {t.icon}{t.label}
-          </button>
+          </Button>
         ))}
       </div>
       <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
@@ -202,7 +207,7 @@ const Apps = () => {
         </div>
         <div>
           <label className={labelCls}>App Name *</label>
-          <input
+          <Input
             type="text"
             value={formData.name}
             onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
@@ -214,7 +219,7 @@ const Apps = () => {
 
       <div>
         <label className={labelCls}>Image URL (optional)</label>
-        <input
+        <Input
           type="url"
           value={formData.imageUrl}
           onChange={e => setFormData(p => ({ ...p, imageUrl: e.target.value }))}
@@ -225,7 +230,7 @@ const Apps = () => {
 
       <div>
         <label className={labelCls}>Upload Image</label>
-        <input
+        <Input
           type="file"
           accept="image/*"
           className={`${fieldCls} pt-1.5`}
@@ -253,23 +258,27 @@ const Apps = () => {
         <label className={labelCls}>Default Images</label>
         <div className="flex flex-wrap gap-2">
           {((defaultAppImages as any)?.items ?? []).map((item: any) => (
-            <button
+            <Button
               key={item.key}
               type="button"
               onClick={() => setFormData((prev) => ({ ...prev, imageUrl: item.url }))}
-              className="h-10 w-10 rounded-lg overflow-hidden border border-slate-200 hover:ring-2 hover:ring-slate-300"
+              variant="secondary"
+              size="icon"
+              className="h-10 w-10 rounded-lg overflow-hidden border border-slate-200 p-0 hover:ring-2 hover:ring-slate-300"
               title={item.label}
             >
               <img src={item.url} alt={item.label} className="h-full w-full object-cover" />
-            </button>
+            </Button>
           ))}
-          <button
+          <Button
             type="button"
             onClick={() => setFormData((prev) => ({ ...prev, imageUrl: '' }))}
-            className="h-10 px-3 rounded-lg border border-slate-200 text-xs text-slate-600 hover:bg-slate-50"
+            variant="secondary"
+            size="sm"
+            className="h-10"
           >
             clear image
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -277,17 +286,19 @@ const Apps = () => {
         <label className={labelCls}>Emoji Suggestions</label>
         <div className="flex flex-wrap gap-1.5">
           {EMOJI_SUGGESTIONS.map(emoji => (
-            <button
+            <Button
               key={emoji}
               type="button"
               onClick={() => setFormData(p => ({ ...p, icon: p.icon === emoji ? '' : emoji }))}
-              className={`w-8 h-8 rounded-lg text-base transition-colors hover:bg-slate-100 ${formData.icon === emoji ? 'bg-sky-600 text-white' : 'bg-slate-50'}`}
+              variant={formData.icon === emoji ? 'primary' : 'ghost'}
+              size="icon"
+              className={`w-8 h-8 rounded-lg text-base ${formData.icon === emoji ? '' : 'bg-slate-50 hover:bg-slate-100'}`}
             >
               {emoji}
-            </button>
+            </Button>
           ))}
           {formData.icon && !EMOJI_SUGGESTIONS.includes(formData.icon) && (
-            <input
+            <Input
               type="text"
               value={formData.icon}
               onChange={e => setFormData(p => ({ ...p, icon: e.target.value.slice(0, 4) }))}
@@ -295,19 +306,21 @@ const Apps = () => {
               placeholder="custom"
             />
           )}
-          <button
+          <Button
             type="button"
             onClick={() => setFormData(p => ({ ...p, icon: '' }))}
-            className="h-8 px-2 rounded-lg text-xs text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-xs text-slate-400 hover:text-slate-700"
           >
             clear
-          </button>
+          </Button>
         </div>
       </div>
 
       <div>
         <label className={labelCls}>Description</label>
-        <input
+        <Input
           type="text"
           value={formData.description}
           onChange={e => setFormData(p => ({ ...p, description: e.target.value }))}
@@ -320,7 +333,7 @@ const Apps = () => {
         <label className={labelCls}>App URL</label>
         <div className="relative">
           <Globe size={14} className="absolute left-3 top-2.5 text-slate-400 pointer-events-none" />
-          <input
+          <Input
             type="url"
             value={formData.url}
             onChange={e => setFormData(p => ({ ...p, url: e.target.value }))}
@@ -335,7 +348,7 @@ const Apps = () => {
         <div className="space-y-1.5">
           {formData.resources.map((r, i) => (
             <div key={i} className="flex gap-2">
-              <input
+              <Input
                 type="text"
                 value={r}
                 onChange={e => {
@@ -346,22 +359,26 @@ const Apps = () => {
                 className={fieldCls}
                 placeholder="resource_name"
               />
-              <button
+              <Button
                 type="button"
                 onClick={() => setFormData(p => ({ ...p, resources: p.resources.filter((_, j) => j !== i) }))}
-                className="h-9 px-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors text-sm"
+                variant="ghost"
+                size="sm"
+                className="h-9 px-2 text-slate-400 hover:bg-red-50 hover:text-red-600"
               >
                 ✕
-              </button>
+              </Button>
             </div>
           ))}
-          <button
+          <Button
             type="button"
             onClick={() => setFormData(p => ({ ...p, resources: [...p.resources, ''] }))}
-            className="h-8 px-3 rounded-lg border border-dashed border-slate-300 text-xs text-slate-500 hover:border-slate-500 hover:text-slate-700 transition-colors"
+            variant="outline"
+            size="sm"
+            className="h-8 border-dashed text-xs text-slate-500 hover:border-slate-500 hover:text-slate-700"
           >
             + Add Resource
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -373,23 +390,24 @@ const Apps = () => {
         eyebrow="Management Units"
         title="Apps"
         action={
-          <button
+          <Button
             onClick={openCreate}
-            className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-sky-500 active:scale-[0.98] transition-all"
+            variant="primary"
+            className="h-9 rounded-lg"
           >
             <Plus size={14} />
             New App
-          </button>
+          </Button>
         }
       />
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">All Apps</h4>
-          <button onClick={() => refetch()} disabled={isFetching} className="text-xs text-slate-500 flex items-center gap-1.5 hover:text-slate-900 transition-colors disabled:cursor-not-allowed disabled:opacity-60">
+          <Button onClick={() => refetch()} disabled={isFetching} variant="ghost" size="sm" className="text-xs text-slate-500 hover:text-slate-900">
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
-          </button>
+          </Button>
         </div>
 
         {isLoading ? (
@@ -399,7 +417,7 @@ const Apps = () => {
             icon={Boxes}
             title="No apps created yet"
             description="Create an app to group users, clients and roles."
-            action={<button onClick={openCreate} className="h-8 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 transition-colors">New App</button>}
+            action={<Button onClick={openCreate} variant="primary" size="sm" className="h-8 rounded-lg">New App</Button>}
           />
         ) : (
           <div className="divide-y divide-slate-100">
@@ -429,40 +447,45 @@ const Apps = () => {
                   )}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  <button
+                  <Button
                     onClick={() => openEdit(app)}
-                    className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-700"
                     title="Edit app"
                   >
                     <Pencil size={14} />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => setAppToDelete(app)}
-                    className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"
                     title="Delete app"
                   >
                     <Trash2 size={14} />
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Create Modal */}
       <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title="Create App">
         <div className="space-y-4">
           {renderAppForm()}
           <div className="flex gap-2 justify-end pt-2">
-            <button onClick={() => { setCreateOpen(false); setSelectedImageFile(null) }} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">Cancel</button>
-            <button
+            <Button onClick={() => { setCreateOpen(false); setSelectedImageFile(null) }} variant="secondary" className="h-9 rounded-lg">Cancel</Button>
+            <Button
               onClick={handleCreate}
               disabled={createApp.isPending || uploadAppImage.isPending || !formData.name}
-              className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
+              variant="primary"
+              className="h-9 rounded-lg"
             >
               {createApp.isPending || uploadAppImage.isPending ? 'Creating...' : 'Create App'}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>
@@ -472,39 +495,44 @@ const Apps = () => {
         <div>
           {/* Tabs */}
           <div className="flex gap-1 mb-5 border-b border-slate-100 pb-3">
-            <button
+            <Button
               onClick={() => setEditTab('details')}
-              className={`h-7 px-3 rounded-lg text-xs font-medium transition-colors ${editTab === 'details' ? 'bg-sky-600 text-white' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
+              variant={editTab === 'details' ? 'primary' : 'ghost'}
+              size="sm"
+              className={`h-7 px-3 text-xs ${editTab === 'details' ? '' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
             >
               Details
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => setEditTab('components')}
-              className={`h-7 px-3 rounded-lg text-xs font-medium transition-colors ${editTab === 'components' ? 'bg-sky-600 text-white' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
+              variant={editTab === 'components' ? 'primary' : 'ghost'}
+              size="sm"
+              className={`h-7 px-3 text-xs ${editTab === 'components' ? '' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
             >
               Components
-            </button>
+            </Button>
           </div>
 
           {editTab === 'details' ? (
             <div className="space-y-4">
               {renderAppForm()}
               <div className="flex gap-2 justify-end pt-2">
-                <button onClick={() => { setEditOpen(false); setAppToEdit(null) }} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">Cancel</button>
-                <button
+                <Button onClick={() => { setEditOpen(false); setAppToEdit(null) }} variant="secondary" className="h-9 rounded-lg">Cancel</Button>
+                <Button
                   onClick={handleUpdate}
                   disabled={updateApp.isPending || !formData.name}
-                  className="h-9 px-4 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-500 disabled:opacity-50 transition-colors"
+                  variant="primary"
+                  className="h-9 rounded-lg"
                 >
                   {updateApp.isPending ? 'Saving...' : 'Save Changes'}
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
             <div>
               {appToEdit && <ComponentsManager appId={appToEdit.id} />}
               <div className="flex justify-end pt-4 border-t border-slate-100 mt-4">
-                <button onClick={() => { setEditOpen(false); setAppToEdit(null) }} className="h-9 px-4 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">Close</button>
+                <Button onClick={() => { setEditOpen(false); setAppToEdit(null) }} variant="secondary" className="h-9 rounded-lg">Close</Button>
               </div>
             </div>
           )}

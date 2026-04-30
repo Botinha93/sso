@@ -1,5 +1,8 @@
 import React, { useState } from "react";
 import { ShieldCheck, AlertCircle } from "lucide-react";
+import Button from "../components/ui/Button";
+import Input from "../components/ui/Input";
+import Card from "../components/ui/Card";
 
 interface FederationProvider {
   id: string;
@@ -15,6 +18,40 @@ interface UiCustomization {
   backgroundCss?: string;
 }
 
+function LoginLoadingSkeleton() {
+  return (
+    <Card className="w-full max-w-md overflow-hidden rounded-2xl" aria-hidden>
+      <div className="space-y-0">
+        <div className="px-8 py-7" style={{ background: 'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)' }}>
+          <div className="flex items-center gap-3">
+            <div className="auth-skeleton h-9 w-9 rounded-xl" />
+            <div className="space-y-2">
+              <div className="auth-skeleton h-4 w-28" />
+              <div className="auth-skeleton h-3 w-40" />
+            </div>
+          </div>
+        </div>
+        <div className="space-y-4 px-8 py-7">
+          <div className="auth-skeleton h-16 w-full" />
+          <div className="space-y-2">
+            <div className="auth-skeleton h-3 w-24" />
+            <div className="auth-skeleton h-9 w-full" />
+          </div>
+          <div className="space-y-2">
+            <div className="auth-skeleton h-3 w-16" />
+            <div className="auth-skeleton h-9 w-full" />
+          </div>
+          <div className="auth-skeleton h-9 w-full" />
+          <div className="space-y-2 pt-1">
+            <div className="auth-skeleton h-3 w-28" />
+            <div className="auth-skeleton h-9 w-full" />
+          </div>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
 export default function Login() {
   const [email, setEmail] = useState(() => new URLSearchParams(window.location.search).get('identifier') ?? "");
   const [password, setPassword] = useState("");
@@ -24,6 +61,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [providers, setProviders] = useState<FederationProvider[]>([]);
   const [ui, setUi] = useState<UiCustomization | null>(null);
+  const [providersLoading, setProvidersLoading] = useState(true);
+  const [uiLoading, setUiLoading] = useState(true);
 
   React.useEffect(() => {
     void (async () => {
@@ -34,6 +73,8 @@ export default function Login() {
         setProviders(Array.isArray(json) ? json : []);
       } catch {
         // Federation providers are optional.
+      } finally {
+        setProvidersLoading(false)
       }
     })();
   }, []);
@@ -51,6 +92,8 @@ export default function Login() {
         setUi(json?.customization ?? null);
       } catch {
         // Customization is optional.
+      } finally {
+        setUiLoading(false)
       }
     })();
   }, []);
@@ -108,10 +151,13 @@ export default function Login() {
     <div
       className="min-w-screen min-h-screen flex items-center justify-center p-4 font-sans"
       style={{
-        background: ui?.backgroundCss ?? 'radial-gradient(circle at top left, rgba(14,165,233,0.14), transparent 28%),linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)'
+        background: ui?.backgroundCss ?? 'var(--semantic-bg-page)'
       }}
     >
-      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      {uiLoading ? (
+        <LoginLoadingSkeleton />
+      ) : (
+      <Card className="w-full max-w-md overflow-hidden rounded-2xl">
         {/* Dark header */}
         <div className="px-8 py-7" style={{ background: `linear-gradient(180deg, ${ui?.primaryColor ?? '#020617'} 0%, ${ui?.accentColor ?? '#0f172a'} 100%)` }}>
           <div className="flex items-center gap-3 mb-2">
@@ -154,17 +200,16 @@ export default function Login() {
                   onChange={e => setMfaCode(e.target.value.replace(/\D+/g, '').slice(0, 8))}
                   required
                   autoFocus
-                  className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm tracking-[0.2em] text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm tracking-[0.2em] text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 focus-visible:ring-sky-500/40"
                   placeholder="123456"
                 />
               ) : (
-                <input
+                <Input
                   type="text"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   required
                   autoFocus
-                  className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
                   placeholder="admin@example.com or admin"
                 />
               )}
@@ -172,39 +217,45 @@ export default function Login() {
             {!mfaTicket && (
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Password</label>
-                <input
+                <Input
                   type="password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
-                  className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
                   placeholder="••••••••"
                 />
               </div>
             )}
-            <button
+            <Button
               type="submit"
               disabled={loading}
-              className="h-9 w-full rounded-lg bg-sky-600 text-sm font-medium text-white transition-all hover:bg-sky-500 active:scale-[0.98] disabled:opacity-50"
+              variant="primary"
+              className="w-full"
             >
               {loading ? "Signing in…" : mfaTicket ? "Verify code" : "Sign in"}
-            </button>
+            </Button>
             {mfaTicket && (
-              <button
+              <Button
                 type="button"
                 onClick={() => {
                   setMfaTicket(null)
                   setMfaCode('')
                   setError(null)
                 }}
-                className="h-9 w-full rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                variant="secondary"
+                className="w-full"
               >
                 Back
-              </button>
+              </Button>
             )}
           </form>
 
-          {providers.length > 0 && (
+          {providersLoading ? (
+            <div className="space-y-2 pt-1" aria-hidden>
+              <div className="auth-skeleton h-3 w-28" />
+              <div className="auth-skeleton h-9 w-full" />
+            </div>
+          ) : providers.length > 0 && (
             <div className="space-y-2 pt-1">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Or continue with</p>
               <div className="space-y-2">
@@ -212,7 +263,7 @@ export default function Login() {
                   <a
                     key={provider.id}
                     href={`/auth/federation/${provider.id}/start?redirect=${encodeURIComponent(buildRedirectAfterLogin())}`}
-                    className="h-9 w-full rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 inline-flex items-center justify-center"
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 inline-flex items-center justify-center focus-visible:ring-sky-500/40"
                   >
                     {provider.label}
                   </a>
@@ -221,7 +272,8 @@ export default function Login() {
             </div>
           )}
         </div>
-      </div>
+      </Card>
+      )}
     </div>
   );
 }

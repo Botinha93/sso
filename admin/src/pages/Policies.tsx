@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import Editor from '@monaco-editor/react'
-import { PageHeader, TableSkeleton } from '../components/PageHeader'
+import { PageHeader, PageHeaderSkeleton, TableSkeleton } from '../components/PageHeader'
+import StatusBadge from '../components/ui/StatusBadge'
 import {
   useCreatePolicy,
   useDeletePolicy,
@@ -356,7 +357,7 @@ export default function Policies() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader eyebrow="Security" title="Policies" />
+        <PageHeaderSkeleton blocks={1} />
         <TableSkeleton rows={4} />
       </div>
     )
@@ -725,13 +726,9 @@ now() // returns current ISO timestamp
                       <td className="px-4 py-3 truncate text-slate-700">{decision.resource || '—'}</td>
                       <td className="px-4 py-3"><code className="bg-slate-100 px-2 py-1 rounded text-xs">{decision.action}</code></td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${
-                          decision.decision === 'allow' || decision.allowed
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-red-50 text-red-700 border-red-200'
-                        }`}>
-                          {decision.decision === 'allow' || decision.allowed ? 'ALLOW' : 'DENY'}
-                        </span>
+                            <StatusBadge tone={decision.decision === 'allow' || decision.allowed ? 'success' : 'danger'}>
+                              {decision.decision === 'allow' || decision.allowed ? 'ALLOW' : 'DENY'}
+                            </StatusBadge>
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-600">{decision.policyId || decision.policyKey || '—'}</td>
                     </tr>

@@ -13,7 +13,7 @@ export default function LanguageSelector({ className }: Props) {
       <Languages size={14} aria-hidden />
       <span className="sr-only">{t('common.language')}</span>
       <select
-        className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-700 outline-none focus:border-slate-400"
+        className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-700 outline-none focus:border-slate-400 focus-visible:ring-sky-500/40"
         value={language}
         onChange={(event) => setLanguage(event.target.value as typeof language)}
         aria-label={t('common.language')}
