@@ -89,3 +89,53 @@ Plugins may declare hooks from emitted platform events, including examples such 
 - Request minimal permissions.
 - Declare only required hooks.
 - Review runtime logs and plugin audit events after deployment.
+
+---
+
+## App permission format
+
+When an app or service registers custom permissions during bootstrap (e.g. via `AppService.updateApp` with a `resources` array, or by assigning permissions directly to a role), the permission string **must** follow this format:
+
+```
+{appId}:{resourceName}:{action}
+```
+
+For example, for an app with id `cat-app` and resource `cat-errors`:
+
+```
+cat-app:cat-errors:view
+cat-app:cat-errors:add
+cat-app:cat-errors:change
+cat-app:cat-errors:delete
+```
+
+### Why this matters
+
+System (built-in) permissions use the two-segment format `{resource}:{action}` (e.g. `users:view`). App-specific permissions **must** be prefixed with the appId as the first segment so the admin UI can:
+
+1. Identify which app owns the resource.
+2. Group the permission rows correctly under that app's section in the Roles permission matrix.
+3. Distinguish app permissions from system permissions without ambiguity.
+
+### Registering resources on an app
+
+Declare the resource names on the app record (without the appId prefix — that is added by the permission key convention):
+
+```typescript
+await adminClient.apps.update(appId, {
+  resources: ["cat-errors", "cat-reports"]
+})
+```
+
+Then when assigning permissions to a role, use the full three-segment key:
+
+```typescript
+await adminClient.roles.update(roleId, {
+  permissions: [
+    "cat-app:cat-errors:view",
+    "cat-app:cat-errors:change",
+  ]
+})
+```
+
+The admin UI Roles page will render these under the app's labelled section in the permission matrix.

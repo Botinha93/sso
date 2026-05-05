@@ -43,11 +43,12 @@ function PermissionMatrix({ permissions, onChange, appResources }: {
 }) {
   const set = new Set(permissions)
 
-  // Combine system resources with app-specific ones
+  // Combine system resources with app-specific ones.
+  // App resource permission key format: "{appId}:{resource}" — stored as "{appId}:{resource}:{action}".
   const allResources = [
     ...SYSTEM_RESOURCES,
     ...appResources.map(ar => ({
-      key: `app:${ar.appId}:${ar.resource}`,
+      key: `${ar.appId}:${ar.resource}`,
       label: ar.resource,
       appName: ar.appName,
       isAppResource: true
@@ -138,7 +139,7 @@ function PermissionMatrix({ permissions, onChange, appResources }: {
                 </td>
               </tr>,
               ...appRows.map((ar, i) => {
-                const rkey = `app:${ar.appId}:${ar.resource}`
+                const rkey = `${ar.appId}:${ar.resource}`
                 const rowKeys = ACTIONS.map(a => permKey(rkey, a))
                 const allChecked = rowKeys.every(k => set.has(k))
                 return (
