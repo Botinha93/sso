@@ -259,21 +259,25 @@ const Users = () => {
 
     setCreateFormError('')
 
-    await createUser.mutateAsync({
-      appIds: formData.appIds,
-      isServiceUser: false,
-      email: formData.email,
-      username: formData.username,
-      givenName: formData.givenName,
-      familyName: formData.familyName,
-      password: formData.password,
-      customAttributes: formData.customAttributes,
-      roleIds: [],
-      groupIds: formData.groupIds
-    })
-    setCreateModalOpen(false)
-    setAttributePicker((prev) => ({ ...prev, create: '' }))
-    setFormData(defaultForm())
+    try {
+      await createUser.mutateAsync({
+        appIds: formData.appIds,
+        isServiceUser: false,
+        email: formData.email,
+        username: formData.username,
+        givenName: formData.givenName,
+        familyName: formData.familyName,
+        password: formData.password,
+        customAttributes: formData.customAttributes,
+        roleIds: [],
+        groupIds: formData.groupIds
+      })
+      setCreateModalOpen(false)
+      setAttributePicker((prev) => ({ ...prev, create: '' }))
+      setFormData(defaultForm())
+    } catch (error) {
+      setCreateFormError(error instanceof Error ? error.message : 'Failed to create user')
+    }
   }
 
   const handleToggleActive = (user: User) => {

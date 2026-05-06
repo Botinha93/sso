@@ -120,6 +120,8 @@ const Groups = () => {
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([])
   const [rolePickerByGroup, setRolePickerByGroup] = useState<Record<string, string>>({})
   const [attributePicker, setAttributePicker] = useState<{ create: string; edit: string }>({ create: '', edit: '' })
+  const [createFormError, setCreateFormError] = useState('')
+  const [editFormError, setEditFormError] = useState('')
 
   const { data: groups = [], isLoading, isFetching, refetch } = useGroups()
   const { data: apps = [] } = useApps()
@@ -213,16 +215,22 @@ const Groups = () => {
 
   const onCreateGroup = async () => {
     if (!groupName || !groupDescription) return
-    await createGroup.mutateAsync({
-      appIds: groupAppIds,
-      name: groupName,
-      description: groupDescription,
-      customAttributes: groupCustomAttributes,
-      roleIds: selectedRoleIds
-    })
-    setCreateModalOpen(false)
-    setAttributePicker((prev) => ({ ...prev, create: '' }))
-    resetModal()
+
+    setCreateFormError('')
+    try {
+      await createGroup.mutateAsync({
+        appIds: groupAppIds,
+        name: groupName,
+        description: groupDescription,
+        customAttributes: groupCustomAttributes,
+        roleIds: selectedRoleIds
+      })
+      setCreateModalOpen(false)
+      setAttributePicker((prev) => ({ ...prev, create: '' }))
+      resetModal()
+    } catch (error) {
+      setCreateFormError(error instanceof Error ? error.message : 'Failed to create group')
+    }
   }
 
   const onDeleteGroup = (group: GroupItem) => {
@@ -230,6 +238,7 @@ const Groups = () => {
   }
 
   const onEditGroup = (group: GroupItem) => {
+    setEditFormError('')
     setGroupToEdit(group)
     setEditGroupName(group.name)
     setEditGroupDescription(group.description)
@@ -241,16 +250,22 @@ const Groups = () => {
 
   const onSaveGroupEdit = async () => {
     if (!groupToEdit || !editGroupName || !editGroupDescription) return
-    await updateGroup.mutateAsync({
-      id: groupToEdit.id,
-      appIds: editGroupAppIds,
-      name: editGroupName,
-      description: editGroupDescription,
-      customAttributes: editGroupCustomAttributes
-    })
-    setEditModalOpen(false)
-    setGroupToEdit(null)
-    setAttributePicker((prev) => ({ ...prev, edit: '' }))
+
+    setEditFormError('')
+    try {
+      await updateGroup.mutateAsync({
+        id: groupToEdit.id,
+        appIds: editGroupAppIds,
+        name: editGroupName,
+        description: editGroupDescription,
+        customAttributes: editGroupCustomAttributes
+      })
+      setEditModalOpen(false)
+      setGroupToEdit(null)
+      setAttributePicker((prev) => ({ ...prev, edit: '' }))
+    } catch (error) {
+      setEditFormError(error instanceof Error ? error.message : 'Failed to update group')
+    }
   }
 
   const confirmDeleteGroup = () => {
@@ -535,6 +550,7 @@ const Groups = () => {
               {createGroup.isPending ? 'Creating...' : 'Create Group'}
             </Button>
           </div>
+          {createFormError && <p className="text-xs text-red-600">{createFormError}</p>}
         </div>
       </Modal>
 
@@ -644,6 +660,7 @@ const Groups = () => {
               {updateGroup.isPending ? 'Saving…' : 'Save Changes'}
             </Button>
           </div>
+          {editFormError && <p className="text-xs text-red-600">{editFormError}</p>}
         </div>
       </Modal>
 

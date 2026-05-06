@@ -187,6 +187,8 @@ const Roles = () => {
   const [roleToDelete, setRoleToDelete] = useState<any | null>(null)
   const [appFilterId, setAppFilterId] = useState<string>('all')
   const [formData, setFormData] = useState({ ...EMPTY_FORM })
+  const [createFormError, setCreateFormError] = useState('')
+  const [editFormError, setEditFormError] = useState('')
   const { data: roles = [], isLoading, isFetching, refetch } = useRoles()
   const { data: apps = [] } = useApps()
   const { data: clients = [] } = useClients()
@@ -210,28 +212,37 @@ const Roles = () => {
     )
   )
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!formData.name || !formData.permissions.length) return
-    createRole.mutate(formData, {
-      onSuccess: () => {
+
+    setCreateFormError('')
+    try {
+      await createRole.mutateAsync(formData)
         setCreateModalOpen(false)
         setFormData({ ...EMPTY_FORM })
-      }
-    })
+    } catch (error) {
+      setCreateFormError(error instanceof Error ? error.message : 'Failed to create role')
+    }
   }
 
   function openEdit(role: any) {
+    setEditFormError('')
     setEditRole(role)
     setFormData({ appId: role.appId ?? '', name: role.name, description: role.description, scope: role.scope, permissions: role.permissions ?? [] })
   }
 
-  function handleUpdate() {
+  async function handleUpdate() {
     if (!editRole || !formData.name) return
+
+    setEditFormError('')
     const payload: any = { id: editRole.id, ...formData }
     if (payload.permissions && payload.permissions.length === 0) delete payload.permissions
-    updateRole.mutate(payload, {
-      onSuccess: () => setEditRole(null)
-    })
+    try {
+      await updateRole.mutateAsync(payload)
+      setEditRole(null)
+    } catch (error) {
+      setEditFormError(error instanceof Error ? error.message : 'Failed to update role')
+    }
   }
 
   function confirmDeleteRole() {
@@ -365,6 +376,7 @@ const Roles = () => {
               {createRole.isPending ? 'Creating…' : 'Create Role'}
             </Button>
           </div>
+          {createFormError && <p className="text-xs text-red-600">{createFormError}</p>}
         </div>
       </Modal>
 
@@ -414,6 +426,7 @@ const Roles = () => {
               {updateRole.isPending ? 'Saving…' : 'Save Changes'}
             </Button>
           </div>
+          {editFormError && <p className="text-xs text-red-600">{editFormError}</p>}
         </div>
       </Modal>
 

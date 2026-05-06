@@ -14,6 +14,15 @@ async function getCsrfToken(): Promise<string> {
 
 const MUTATING_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE'])
 
+const extractErrorMessage = (errorPayload: any, fallback: string) => {
+  if (typeof errorPayload === 'string' && errorPayload.trim()) return errorPayload
+  if (!errorPayload || typeof errorPayload !== 'object') return fallback
+  if (typeof errorPayload.message === 'string' && errorPayload.message.trim()) return errorPayload.message
+  if (typeof errorPayload.error === 'string' && errorPayload.error.trim()) return errorPayload.error
+  if (typeof errorPayload.detail === 'string' && errorPayload.detail.trim()) return errorPayload.detail
+  return fallback
+}
+
 const jsonFetch = async (url: string, options?: RequestInit) => {
   const method = (options?.method ?? 'GET').toUpperCase()
   const headers: Record<string, string> = { ...(options?.headers as Record<string, string>) }
@@ -22,8 +31,8 @@ const jsonFetch = async (url: string, options?: RequestInit) => {
   }
   const res = await fetch(url, { credentials: 'include', ...options, headers })
   if (!res.ok && res.status !== 204) {
-    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
-    throw new Error(err.error ?? 'Request failed')
+    const err = await res.json().catch(() => null)
+    throw new Error(extractErrorMessage(err, 'Request failed'))
   }
   if (res.status === 204) return null
   return res.json()
@@ -46,8 +55,8 @@ const uploadFetch = async (url: string, file: File) => {
   })
 
   if (!res.ok && res.status !== 204) {
-    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
-    throw new Error(err.message ?? err.error ?? 'Upload failed')
+    const err = await res.json().catch(() => null)
+    throw new Error(extractErrorMessage(err, 'Upload failed'))
   }
 
   if (res.status === 204) return null

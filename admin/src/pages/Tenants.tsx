@@ -16,39 +16,48 @@ const Tenants = () => {
   const [tenantToEdit, setTenantToEdit] = useState<{ id: string; name: string; slug: string; active: boolean } | null>(null)
   const [formData, setFormData] = useState({ name: '', slug: '' })
   const [editFormData, setEditFormData] = useState({ name: '', slug: '', active: true })
+  const [createFormError, setCreateFormError] = useState('')
+  const [editFormError, setEditFormError] = useState('')
   const { data: tenants = [], isLoading, isFetching, refetch } = useTenants()
   const createTenant = useCreateTenant()
   const updateTenant = useUpdateTenant()
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!formData.name || !formData.slug) return
-    createTenant.mutate(formData, {
-      onSuccess: () => {
+
+    setCreateFormError('')
+    try {
+      await createTenant.mutateAsync(formData)
         setCreateModalOpen(false)
         setFormData({ name: '', slug: '' })
-      }
-    })
+    } catch (error) {
+      setCreateFormError(error instanceof Error ? error.message : 'Failed to create tenant')
+    }
   }
 
   function openEditTenant(tenant: { id: string; name: string; slug: string; active: boolean }) {
+    setEditFormError('')
     setTenantToEdit(tenant)
     setEditFormData({ name: tenant.name, slug: tenant.slug, active: tenant.active })
     setEditModalOpen(true)
   }
 
-  function handleSaveEdit() {
+  async function handleSaveEdit() {
     if (!tenantToEdit || !editFormData.name || !editFormData.slug) return
-    updateTenant.mutate({
-      id: tenantToEdit.id,
-      name: editFormData.name,
-      slug: editFormData.slug,
-      active: editFormData.active
-    }, {
-      onSuccess: () => {
+
+    setEditFormError('')
+    try {
+      await updateTenant.mutateAsync({
+        id: tenantToEdit.id,
+        name: editFormData.name,
+        slug: editFormData.slug,
+        active: editFormData.active
+      })
         setEditModalOpen(false)
         setTenantToEdit(null)
-      }
-    })
+    } catch (error) {
+      setEditFormError(error instanceof Error ? error.message : 'Failed to update tenant')
+    }
   }
 
   return (
@@ -128,6 +137,7 @@ const Tenants = () => {
               {createTenant.isPending ? 'Creating…' : 'Create Tenant'}
             </Button>
           </div>
+          {createFormError && <p className="text-xs text-red-600">{createFormError}</p>}
         </div>
       </Modal>
 
@@ -163,6 +173,7 @@ const Tenants = () => {
               {updateTenant.isPending ? 'Saving…' : 'Save Changes'}
             </Button>
           </div>
+          {editFormError && <p className="text-xs text-red-600">{editFormError}</p>}
         </div>
       </Modal>
     </div>

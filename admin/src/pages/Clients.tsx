@@ -78,6 +78,7 @@ const Clients = () => {
   const [newResource, setNewResource] = useState('')
   const [newScopeName, setNewScopeName] = useState('')
   const [newScopeDescription, setNewScopeDescription] = useState('')
+  const [formError, setFormError] = useState('')
   const [appFilterId, setAppFilterId] = useState<string>('all')
   const { data: clients, isLoading, isFetching, refetch } = useClients()
   const { data: apps = [] } = useApps()
@@ -98,19 +99,25 @@ const Clients = () => {
 
   const handleCreate = async () => {
     if (!formData.id || !formData.name || !formData.secret) return
-    await createClient.mutateAsync({
-      appId: formData.appId || undefined,
-      id: formData.id,
-      name: formData.name,
-      secret: formData.secret,
-      redirectUris: formData.redirectUris.split('\n').map(s => s.trim()).filter(Boolean),
-      allowedScopes: formData.allowedScopes,
-      grants: formData.grants,
-      requirePkce: formData.requirePkce,
-      flowIds: formData.flowIds
-    })
-    setCreateModalOpen(false)
-    setFormData(defaultForm())
+
+    setFormError('')
+    try {
+      await createClient.mutateAsync({
+        appId: formData.appId || undefined,
+        id: formData.id,
+        name: formData.name,
+        secret: formData.secret,
+        redirectUris: formData.redirectUris.split('\n').map(s => s.trim()).filter(Boolean),
+        allowedScopes: formData.allowedScopes,
+        grants: formData.grants,
+        requirePkce: formData.requirePkce,
+        flowIds: formData.flowIds
+      })
+      setCreateModalOpen(false)
+      setFormData(defaultForm())
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Failed to create client')
+    }
   }
 
   const handleDelete = (id: string) => {
@@ -118,11 +125,13 @@ const Clients = () => {
   }
 
   const handleEdit = (client: OAuthClient) => {
+    setFormError('')
     setFormData(formFromClient(client))
     setEditClient(client)
   }
 
   const closeClientModal = () => {
+    setFormError('')
     setCreateModalOpen(false)
     setEditClient(null)
     setFormData(defaultForm())
@@ -166,16 +175,28 @@ const Clients = () => {
 
   const handleCreateScope = async () => {
     if (!newScopeName.trim()) return
-    await createScope.mutateAsync({ name: newScopeName.trim(), description: newScopeDescription.trim() })
-    setFormData(f => ({ ...f, allowedScopes: f.allowedScopes.includes(newScopeName.trim()) ? f.allowedScopes : [...f.allowedScopes, newScopeName.trim()] }))
-    setNewScopeName('')
-    setNewScopeDescription('')
+
+    setFormError('')
+    try {
+      await createScope.mutateAsync({ name: newScopeName.trim(), description: newScopeDescription.trim() })
+      setFormData(f => ({ ...f, allowedScopes: f.allowedScopes.includes(newScopeName.trim()) ? f.allowedScopes : [...f.allowedScopes, newScopeName.trim()] }))
+      setNewScopeName('')
+      setNewScopeDescription('')
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Failed to create scope')
+    }
   }
 
   const handleDeleteScope = async (scope: { id: string; name: string }) => {
     if (!window.confirm(`Delete scope "${scope.name}"?`)) return
-    await deleteScope.mutateAsync(scope.id)
-    setFormData((f) => ({ ...f, allowedScopes: f.allowedScopes.filter((s) => s !== scope.name) }))
+
+    setFormError('')
+    try {
+      await deleteScope.mutateAsync(scope.id)
+      setFormData((f) => ({ ...f, allowedScopes: f.allowedScopes.filter((s) => s !== scope.name) }))
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Failed to delete scope')
+    }
   }
 
   const toggleFlow = (flowId: string) => {
@@ -200,18 +221,24 @@ const Clients = () => {
 
   const handleUpdate = async () => {
     if (!editClient || !formData.name || formData.allowedScopes.length === 0 || formData.grants.length === 0) return
-    await updateClient.mutateAsync({
-      id: editClient.id,
-      appId: formData.appId || undefined,
-      name: formData.name,
-      secret: formData.secret.trim() ? formData.secret : undefined,
-      redirectUris: formData.redirectUris.split('\n').map(s => s.trim()).filter(Boolean),
-      allowedScopes: formData.allowedScopes,
-      grants: formData.grants,
-      requirePkce: formData.requirePkce,
-      flowIds: formData.flowIds
-    })
-    closeClientModal()
+
+    setFormError('')
+    try {
+      await updateClient.mutateAsync({
+        id: editClient.id,
+        appId: formData.appId || undefined,
+        name: formData.name,
+        secret: formData.secret.trim() ? formData.secret : undefined,
+        redirectUris: formData.redirectUris.split('\n').map(s => s.trim()).filter(Boolean),
+        allowedScopes: formData.allowedScopes,
+        grants: formData.grants,
+        requirePkce: formData.requirePkce,
+        flowIds: formData.flowIds
+      })
+      closeClientModal()
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Failed to update client')
+    }
   }
 
   return (
@@ -507,6 +534,7 @@ const Clients = () => {
             />
             Require PKCE (recommended for public clients)
           </label>
+          {formError && <p className="text-xs text-red-600">{formError}</p>}
           <div className="flex gap-2 justify-end pt-2">
             <Button onClick={closeClientModal} variant="secondary">
               Cancel

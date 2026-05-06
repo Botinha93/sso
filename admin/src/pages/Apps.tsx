@@ -138,10 +138,13 @@ const Apps = () => {
   const [appToDelete, setAppToDelete] = useState<AppItem | null>(null)
   const [formData, setFormData] = useState(EMPTY_FORM)
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
+  const [createFormError, setCreateFormError] = useState('')
+  const [editFormError, setEditFormError] = useState('')
 
   const openCreate = () => {
     setFormData(EMPTY_FORM)
     setSelectedImageFile(null)
+    setCreateFormError('')
     setCreateOpen(true)
   }
 
@@ -149,42 +152,55 @@ const Apps = () => {
     setAppToEdit(app)
     setFormData({ name: app.name, description: app.description, icon: app.icon ?? '', imageUrl: app.imageUrl ?? '', url: app.url ?? '', resources: app.resources ?? [] })
     setSelectedImageFile(null)
+    setEditFormError('')
     setEditTab('details')
     setEditOpen(true)
   }
 
   const handleCreate = async () => {
     if (!formData.name) return
-    const created = await createApp.mutateAsync({
-      name: formData.name,
-      description: formData.description,
-      icon: formData.icon || undefined,
-      imageUrl: formData.imageUrl || undefined,
-      url: formData.url || undefined,
-      resources: formData.resources,
-    }) as AppItem
 
-    if (selectedImageFile && created?.id) {
-      await uploadAppImage.mutateAsync({ appId: created.id, file: selectedImageFile })
+    setCreateFormError('')
+    try {
+      const created = await createApp.mutateAsync({
+        name: formData.name,
+        description: formData.description,
+        icon: formData.icon || undefined,
+        imageUrl: formData.imageUrl || undefined,
+        url: formData.url || undefined,
+        resources: formData.resources,
+      }) as AppItem
+
+      if (selectedImageFile && created?.id) {
+        await uploadAppImage.mutateAsync({ appId: created.id, file: selectedImageFile })
+      }
+
+      setCreateOpen(false)
+      setSelectedImageFile(null)
+    } catch (error) {
+      setCreateFormError(error instanceof Error ? error.message : 'Failed to create app')
     }
-
-    setCreateOpen(false)
-    setSelectedImageFile(null)
   }
 
   const handleUpdate = async () => {
     if (!appToEdit || !formData.name) return
-    await updateApp.mutateAsync({
-      id: appToEdit.id,
-      name: formData.name,
-      description: formData.description,
-      icon: formData.icon || undefined,
-      imageUrl: formData.imageUrl || undefined,
-      url: formData.url || null,
-      resources: formData.resources,
-    })
-    setEditOpen(false)
-    setAppToEdit(null)
+
+    setEditFormError('')
+    try {
+      await updateApp.mutateAsync({
+        id: appToEdit.id,
+        name: formData.name,
+        description: formData.description,
+        icon: formData.icon || undefined,
+        imageUrl: formData.imageUrl || undefined,
+        url: formData.url || null,
+        resources: formData.resources,
+      })
+      setEditOpen(false)
+      setAppToEdit(null)
+    } catch (error) {
+      setEditFormError(error instanceof Error ? error.message : 'Failed to update app')
+    }
   }
 
   const confirmDelete = async () => {
@@ -239,11 +255,16 @@ const Apps = () => {
             if (!file) return
 
             if (appToEdit) {
-              const result = await uploadAppImage.mutateAsync({ appId: appToEdit.id, file }) as { imageUrl?: string }
-              if (result?.imageUrl) {
-                setFormData((prev) => ({ ...prev, imageUrl: result.imageUrl }))
-              }
-              return
+                try {
+                  const result = await uploadAppImage.mutateAsync({ appId: appToEdit.id, file }) as { imageUrl?: string }
+                  if (result?.imageUrl) {
+                    setFormData((prev) => ({ ...prev, imageUrl: result.imageUrl }))
+                  }
+                  setEditFormError('')
+                } catch (error) {
+                  setEditFormError(error instanceof Error ? error.message : 'Failed to upload app image')
+                }
+                return
             }
 
             setSelectedImageFile(file)
@@ -476,6 +497,7 @@ const Apps = () => {
       <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title="Create App">
         <div className="space-y-4">
           {renderAppForm()}
+          {createFormError && <p className="text-xs text-red-600">{createFormError}</p>}
           <div className="flex gap-2 justify-end pt-2">
             <Button onClick={() => { setCreateOpen(false); setSelectedImageFile(null) }} variant="secondary" className="h-9 rounded-lg">Cancel</Button>
             <Button
@@ -516,6 +538,7 @@ const Apps = () => {
           {editTab === 'details' ? (
             <div className="space-y-4">
               {renderAppForm()}
+              {editFormError && <p className="text-xs text-red-600">{editFormError}</p>}
               <div className="flex gap-2 justify-end pt-2">
                 <Button onClick={() => { setEditOpen(false); setAppToEdit(null) }} variant="secondary" className="h-9 rounded-lg">Cancel</Button>
                 <Button
