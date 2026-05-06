@@ -118,6 +118,7 @@ const Groups = () => {
   const [editGroupCustomAttributes, setEditGroupCustomAttributes] = useState<Record<string, string>>({})
   const [appFilterId, setAppFilterId] = useState<string>('all')
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([])
+  const [editSelectedRoleIds, setEditSelectedRoleIds] = useState<string[]>([])
   const [rolePickerByGroup, setRolePickerByGroup] = useState<Record<string, string>>({})
   const [attributePicker, setAttributePicker] = useState<{ create: string; edit: string }>({ create: '', edit: '' })
   const [createFormError, setCreateFormError] = useState('')
@@ -173,6 +174,10 @@ const Groups = () => {
 
   const toggleCreateRole = (roleId: string) => {
     setSelectedRoleIds((prev) => prev.includes(roleId) ? prev.filter((id) => id !== roleId) : [...prev, roleId])
+  }
+
+  const toggleEditRole = (roleId: string) => {
+    setEditSelectedRoleIds((prev) => prev.includes(roleId) ? prev.filter((id) => id !== roleId) : [...prev, roleId])
   }
 
   const addAttribute = (target: 'create' | 'edit') => {
@@ -244,6 +249,7 @@ const Groups = () => {
     setEditGroupDescription(group.description)
     setEditGroupAppIds(group.appIds ?? ((group as any).appId ? [(group as any).appId] : []))
     setEditGroupCustomAttributes(group.customAttributes ?? {})
+    setEditSelectedRoleIds(group.roleIds ?? [])
     setAttributePicker((prev) => ({ ...prev, edit: '' }))
     setEditModalOpen(true)
   }
@@ -260,6 +266,13 @@ const Groups = () => {
         description: editGroupDescription,
         customAttributes: editGroupCustomAttributes
       })
+      const originalRoleIds = groupToEdit.roleIds ?? []
+      const toAdd = editSelectedRoleIds.filter(id => !originalRoleIds.includes(id))
+      const toRemove = originalRoleIds.filter(id => !editSelectedRoleIds.includes(id))
+      await Promise.all([
+        ...toAdd.map(roleId => assignRole.mutateAsync({ groupId: groupToEdit.id, roleId })),
+        ...toRemove.map(roleId => removeRole.mutateAsync({ groupId: groupToEdit.id, roleId }))
+      ])
       setEditModalOpen(false)
       setGroupToEdit(null)
       setAttributePicker((prev) => ({ ...prev, edit: '' }))
@@ -646,6 +659,23 @@ const Groups = () => {
                   Add
                 </Button>
               </div>
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Roles</label>
+            <div className="border border-slate-200 rounded-lg p-2 max-h-44 overflow-auto space-y-1">
+              {roleOptions.length === 0 && <p className="text-xs text-slate-400 px-1 py-1">Create roles first</p>}
+              {roleOptions.map((role) => (
+                <label key={role.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 text-sm text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editSelectedRoleIds.includes(role.id)}
+                    onChange={() => toggleEditRole(role.id)}
+                    className="rounded border-slate-300"
+                  />
+                  {role.name}
+                </label>
+              ))}
             </div>
           </div>
           <div className="flex gap-2 justify-end pt-2">
