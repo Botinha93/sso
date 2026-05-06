@@ -73,6 +73,16 @@ export class UserService {
     }
   }
 
+  private normalizeCustomAttributes(customAttributes: Record<string, string> | undefined) {
+    if (!customAttributes) {
+      return {} as Record<string, string>;
+    }
+
+    return Object.fromEntries(
+      Object.entries(customAttributes).filter(([, value]) => value.trim().length > 0)
+    );
+  }
+
   async createUser(input: {
     appId?: string;
     appIds?: string[];
@@ -91,7 +101,7 @@ export class UserService {
     active?: boolean;
   }) {
     const appIds = this.normalizeAppIds(input);
-    const customAttributes = input.customAttributes ?? {};
+    const customAttributes = this.normalizeCustomAttributes(input.customAttributes);
 
     if (await this.userRepository.findByEmail(input.email)) {
       throw new ValidationError("A user with this email already exists");
@@ -197,7 +207,7 @@ export class UserService {
       await this.validateAppIds(appIds);
     }
     if (input.customAttributes) {
-      await this.validateCustomAttributes(input.customAttributes);
+      await this.validateCustomAttributes(this.normalizeCustomAttributes(input.customAttributes));
     }
 
     const updated = await this.userRepository.updateProfile(id, {
@@ -236,8 +246,9 @@ export class UserService {
   }
 
   async setCustomAttributes(id: string, customAttributes: Record<string, string>) {
-    await this.validateCustomAttributes(customAttributes);
-    await this.userRepository.setCustomAttributes(id, customAttributes);
+    const normalizedCustomAttributes = this.normalizeCustomAttributes(customAttributes);
+    await this.validateCustomAttributes(normalizedCustomAttributes);
+    await this.userRepository.setCustomAttributes(id, normalizedCustomAttributes);
   }
 
   async deleteUser(id: string) {

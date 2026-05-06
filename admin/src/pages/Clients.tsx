@@ -248,7 +248,7 @@ const Clients = () => {
         title="Registered Applications"
         action={
           <Button
-            onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true); setEditClient(null) }}
+            onClick={() => { setFormError(''); setFormData(defaultForm()); setCreateModalOpen(true); setEditClient(null) }}
             variant="primary"
           >
             <Plus size={14} />

@@ -106,9 +106,14 @@ export default function Connectors() {
       setFormError('Config must be valid JSON')
       return
     }
+    setFormError(null)
     const schedule = resolveSchedule()
-    await createConnector.mutateAsync({ name: form.name, type: form.type, config, schedule: schedule || undefined })
-    setShowCreate(false)
+    try {
+      await createConnector.mutateAsync({ name: form.name, type: form.type, config, schedule: schedule || undefined })
+      setShowCreate(false)
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Failed to create connector')
+    }
   }
 
   const handleSave = async () => {
@@ -118,9 +123,14 @@ export default function Connectors() {
       setFormError('Config must be valid JSON')
       return
     }
+    setFormError(null)
     const schedule = resolveSchedule()
-    await updateConnector.mutateAsync({ id: editConnector.id, data: { name: form.name, type: form.type, config, schedule: schedule || undefined } })
-    setEditConnector(null)
+    try {
+      await updateConnector.mutateAsync({ id: editConnector.id, data: { name: form.name, type: form.type, config, schedule: schedule || undefined } })
+      setEditConnector(null)
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Failed to update connector')
+    }
   }
 
   const handleDelete = async () => {

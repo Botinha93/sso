@@ -108,6 +108,8 @@ const AuthenticationFlows = () => {
   const [flowToDelete, setFlowToDelete] = useState<AuthenticationFlow | null>(null)
   const [editingId, setEditingId] = useState('')
   const [form, setForm] = useState(blankForm)
+  const [createFormError, setCreateFormError] = useState('')
+  const [editFormError, setEditFormError] = useState('')
 
   const flows = useMemo(() => (data ?? []) as AuthenticationFlow[], [data])
 
@@ -115,10 +117,12 @@ const AuthenticationFlows = () => {
 
   const openCreate = () => {
     setForm(blankForm)
+    setCreateFormError('')
     setCreateOpen(true)
   }
 
   const openEdit = (flow: AuthenticationFlow) => {
+    setEditFormError('')
     setEditingId(flow.id)
     setForm({
       name: flow.name,
@@ -136,17 +140,22 @@ const AuthenticationFlows = () => {
       return
     }
 
-    await createFlow.mutateAsync({
-      name: form.name.trim(),
-      description: form.description.trim(),
-      designation: form.designation,
-      enabled: form.enabled,
-      grantTypes: form.grantTypes,
-      stages: stagePayload(form.stages),
-    })
+    setCreateFormError('')
+    try {
+      await createFlow.mutateAsync({
+        name: form.name.trim(),
+        description: form.description.trim(),
+        designation: form.designation,
+        enabled: form.enabled,
+        grantTypes: form.grantTypes,
+        stages: stagePayload(form.stages),
+      })
 
-    setCreateOpen(false)
-    setForm(blankForm)
+      setCreateOpen(false)
+      setForm(blankForm)
+    } catch (error) {
+      setCreateFormError(error instanceof Error ? error.message : 'Failed to create authentication flow')
+    }
   }
 
   const onEdit = async () => {
@@ -154,19 +163,24 @@ const AuthenticationFlows = () => {
       return
     }
 
-    await updateFlow.mutateAsync({
-      id: editingId,
-      name: form.name.trim(),
-      description: form.description.trim(),
-      designation: form.designation,
-      enabled: form.enabled,
-      grantTypes: form.grantTypes,
-      stages: stagePayload(form.stages),
-    })
+    setEditFormError('')
+    try {
+      await updateFlow.mutateAsync({
+        id: editingId,
+        name: form.name.trim(),
+        description: form.description.trim(),
+        designation: form.designation,
+        enabled: form.enabled,
+        grantTypes: form.grantTypes,
+        stages: stagePayload(form.stages),
+      })
 
-    setEditOpen(false)
-    setEditingId('')
-    setForm(blankForm)
+      setEditOpen(false)
+      setEditingId('')
+      setForm(blankForm)
+    } catch (error) {
+      setEditFormError(error instanceof Error ? error.message : 'Failed to update authentication flow')
+    }
   }
 
   const onDelete = (flow: AuthenticationFlow) => {
@@ -276,6 +290,7 @@ const AuthenticationFlows = () => {
           pending={createFlow.isPending}
           submitLabel={createFlow.isPending ? 'Creating...' : 'Create Flow'}
           onSubmit={onCreate}
+          error={createFormError}
         />
       </Modal>
 
@@ -286,6 +301,7 @@ const AuthenticationFlows = () => {
           pending={updateFlow.isPending}
           submitLabel={updateFlow.isPending ? 'Saving...' : 'Save Changes'}
           onSubmit={onEdit}
+          error={editFormError}
         />
       </Modal>
 
@@ -308,12 +324,14 @@ function FlowForm({
   onSubmit,
   submitLabel,
   pending,
+  error,
 }: {
   form: typeof blankForm
   setForm: Dispatch<SetStateAction<typeof blankForm>>
   onSubmit: () => void
   submitLabel: string
   pending: boolean
+  error?: string
 }) {
   const toggleStage = (stageType: StageType) => {
     setForm((prev) => {
@@ -349,6 +367,7 @@ function FlowForm({
 
   return (
     <div className="space-y-4">
+      {error && <p className="text-xs text-red-600">{error}</p>}
       <div>
         <label className={labelCls}>Flow Name</label>
         <Input value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="High assurance login" />

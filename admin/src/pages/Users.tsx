@@ -78,7 +78,8 @@ const defaultEditForm = () => ({
   username: '',
   givenName: '',
   familyName: '',
-  customAttributes: {} as Record<string, string>
+  customAttributes: {} as Record<string, string>,
+  groupIds: [] as string[]
 })
 
 const defaultResetForm = () => ({
@@ -287,6 +288,9 @@ const Users = () => {
   const handleEdit = (user: User) => {
     setUserToEdit(user)
     setEditFormError('')
+    const currentGroupIds = (user.groups ?? [])
+      .map(groupName => (groups as GroupItem[]).find(g => g.name === groupName)?.id)
+      .filter((id): id is string => Boolean(id))
     setEditFormData({
       appIds: user.directAppIds ?? user.appIds ?? (user.appId ? [user.appId] : []),
       isServiceUser: Boolean(user.isServiceUser),
@@ -294,7 +298,8 @@ const Users = () => {
       username: user.username,
       givenName: user.givenName,
       familyName: user.familyName,
-      customAttributes: user.directCustomAttributes ?? {}
+      customAttributes: user.directCustomAttributes ?? {},
+      groupIds: currentGroupIds
     })
     setAttributePicker((prev) => ({ ...prev, edit: '' }))
     setEditModalOpen(true)
@@ -305,20 +310,33 @@ const Users = () => {
     if (!editFormData.email || !editFormData.username || !editFormData.givenName || !editFormData.familyName) return
 
     setEditFormError('')
-    await updateUser.mutateAsync({
-      id: userToEdit.id,
-      appIds: editFormData.appIds,
-      isServiceUser: false,
-      email: editFormData.email,
-      username: editFormData.username,
-      givenName: editFormData.givenName,
-      familyName: editFormData.familyName,
-      customAttributes: editFormData.customAttributes
-    })
-    setEditModalOpen(false)
-    setUserToEdit(null)
-    setAttributePicker((prev) => ({ ...prev, edit: '' }))
-    setEditFormData(defaultEditForm())
+    try {
+      await updateUser.mutateAsync({
+        id: userToEdit.id,
+        appIds: editFormData.appIds,
+        isServiceUser: false,
+        email: editFormData.email,
+        username: editFormData.username,
+        givenName: editFormData.givenName,
+        familyName: editFormData.familyName,
+        customAttributes: editFormData.customAttributes
+      })
+      const originalGroupIds = (userToEdit.groups ?? [])
+        .map(groupName => (groups as GroupItem[]).find(g => g.name === groupName)?.id)
+        .filter((id): id is string => Boolean(id))
+      const toAdd = editFormData.groupIds.filter(id => !originalGroupIds.includes(id))
+      const toRemove = originalGroupIds.filter(id => !editFormData.groupIds.includes(id))
+      await Promise.all([
+        ...toAdd.map(groupId => assignUserGroup.mutateAsync({ userId: userToEdit.id, groupId })),
+        ...toRemove.map(groupId => removeUserGroup.mutateAsync({ userId: userToEdit.id, groupId }))
+      ])
+      setEditModalOpen(false)
+      setUserToEdit(null)
+      setAttributePicker((prev) => ({ ...prev, edit: '' }))
+      setEditFormData(defaultEditForm())
+    } catch (error) {
+      setEditFormError(error instanceof Error ? error.message : 'Failed to update user')
+    }
   }
 
   const handleDelete = (id: string, email: string) => {
@@ -366,6 +384,15 @@ const Users = () => {
 
   const toggleCreateGroup = (groupId: string) => {
     setFormData((prev) => ({
+      ...prev,
+      groupIds: prev.groupIds.includes(groupId)
+        ? prev.groupIds.filter((id) => id !== groupId)
+        : [...prev.groupIds, groupId]
+    }))
+  }
+
+  const toggleEditGroup = (groupId: string) => {
+    setEditFormData((prev) => ({
       ...prev,
       groupIds: prev.groupIds.includes(groupId)
         ? prev.groupIds.filter((id) => id !== groupId)
@@ -796,6 +823,23 @@ const Users = () => {
               )}
             </div>
             {editFormError && <p className="mt-1 text-xs text-red-600">{editFormError}</p>}
+          </div>
+          <div>
+            <label className={labelCls}>Groups</label>
+            <div className="border border-slate-200 rounded-lg p-2 max-h-40 overflow-auto space-y-1">
+              {(groups as GroupItem[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No groups available</p>}
+              {(groups as GroupItem[]).map((group) => (
+                <label key={group.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 text-sm text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editFormData.groupIds.includes(group.id)}
+                    onChange={() => toggleEditGroup(group.id)}
+                    className="rounded border-slate-300"
+                  />
+                  {group.name}
+                </label>
+              ))}
+            </div>
           </div>
           <div className="flex gap-2 justify-end pt-2">
             <Button onClick={() => setEditModalOpen(false)} variant="secondary">

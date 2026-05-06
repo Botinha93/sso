@@ -43,7 +43,7 @@ export const createUserSchema = z.object({
   password: z.string().min(8),
   givenName: z.string().min(1),
   familyName: z.string().min(1),
-  customAttributes: z.record(z.string(), z.string()).default({}),
+  customAttributes: z.record(z.string(), z.string()).optional(),
   roleIds: z.array(z.string()).default([]),
   groupIds: z.array(z.string()).default([])
 });

@@ -285,7 +285,7 @@ const Groups = () => {
         eyebrow="Access Control"
         title="User Groups"
         action={
-          <Button variant="primary" onClick={() => setCreateModalOpen(true)}>
+          <Button variant="primary" onClick={() => { setCreateFormError(''); setCreateModalOpen(true) }}>
             <Plus size={14} />
             New Group
           </Button>

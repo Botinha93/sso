@@ -179,6 +179,7 @@ interface RouteDeps {
 }
 
 export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
+  const USER_PICTURE_ATTRIBUTE_KEY = "picture";
   const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
   const allowedImageMimeTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"]);
   const translationService = new TranslationService();
@@ -326,6 +327,11 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   const sendFrontendFile = async (reply: any, frontend: "admin" | "portal", relativePath: string) => {
     const file = await readFrontendAsset(frontend, relativePath);
     return reply.type(getAssetContentType(relativePath)).send(file);
+  };
+
+  const prefersHtmlResponse = (request: any) => {
+    const acceptHeader = request.headers?.accept;
+    return typeof acceptHeader === "string" && acceptHeader.includes("text/html");
   };
 
   function asSafeRedirect(value: unknown): string {
@@ -2560,6 +2566,10 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     });
 
     await deps.userService.updateUserProfile(user.id, { avatarUrl: saved.url });
+    await deps.userService.setCustomAttributes(user.id, {
+      ...(user.customAttributes ?? {}),
+      [USER_PICTURE_ATTRIBUTE_KEY]: saved.url
+    });
     await deps.mediaService.deleteByUrl(previousAvatarUrl);
 
     return reply.status(200).send({ avatarUrl: saved.url });
@@ -2841,11 +2851,36 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return deriveRiskEventsFromAudit(sourceEvents, requestedLimit);
   });
 
-  app.get("/users", async () => deps.userService.listUsers());
-  app.get("/clients", async () => deps.clientService.listClients());
-  app.get("/roles", async () => deps.roleService.listRoles());
-  app.get("/groups", async () => deps.groupService.listGroups());
-  app.get("/tenants", async () => deps.tenantService.listTenants());
+  app.get("/users", async (request, reply) => {
+    if (prefersHtmlResponse(request)) {
+      return sendFrontendIndex(reply, "admin");
+    }
+    return deps.userService.listUsers();
+  });
+  app.get("/clients", async (request, reply) => {
+    if (prefersHtmlResponse(request)) {
+      return sendFrontendIndex(reply, "admin");
+    }
+    return deps.clientService.listClients();
+  });
+  app.get("/roles", async (request, reply) => {
+    if (prefersHtmlResponse(request)) {
+      return sendFrontendIndex(reply, "admin");
+    }
+    return deps.roleService.listRoles();
+  });
+  app.get("/groups", async (request, reply) => {
+    if (prefersHtmlResponse(request)) {
+      return sendFrontendIndex(reply, "admin");
+    }
+    return deps.groupService.listGroups();
+  });
+  app.get("/tenants", async (request, reply) => {
+    if (prefersHtmlResponse(request)) {
+      return sendFrontendIndex(reply, "admin");
+    }
+    return deps.tenantService.listTenants();
+  });
   app.post("/users", async (request, reply) => {
     const input = createUserSchema.parse(request.body);
     deps.policyService.enforceUserCreationPolicies(input.password);
@@ -2950,8 +2985,14 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       givenName: user.givenName,
       familyName: user.familyName,
       avatarUrl: user.avatarUrl,
-      customAttributes: userCustomAttributes.customAttributes,
-      directCustomAttributes: userCustomAttributes.directCustomAttributes,
+      customAttributes: {
+        ...userCustomAttributes.customAttributes,
+        ...(user.avatarUrl ? { [USER_PICTURE_ATTRIBUTE_KEY]: user.avatarUrl } : {})
+      },
+      directCustomAttributes: {
+        ...userCustomAttributes.directCustomAttributes,
+        ...(user.avatarUrl ? { [USER_PICTURE_ATTRIBUTE_KEY]: user.avatarUrl } : {})
+      },
       inheritedCustomAttributes: userCustomAttributes.inheritedCustomAttributes,
       appId: userAppAccess.appId,
       appIds: userAppAccess.appIds,
@@ -2978,6 +3019,16 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         email: input.email,
         username: input.username
       });
+
+      if (input.avatarUrl !== undefined) {
+        const refreshedUser = await deps.userService.findUserById(session.userId);
+        if (refreshedUser) {
+          await deps.userService.setCustomAttributes(session.userId, {
+            ...(refreshedUser.customAttributes ?? {}),
+            [USER_PICTURE_ATTRIBUTE_KEY]: input.avatarUrl
+          });
+        }
+      }
     }
     if (input.customAttributes !== undefined) {
       await deps.userService.setCustomAttributes(session.userId, input.customAttributes);
@@ -3037,6 +3088,10 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     });
 
     await deps.userService.updateUserProfile(user.id, { avatarUrl: saved.url });
+    await deps.userService.setCustomAttributes(user.id, {
+      ...(user.customAttributes ?? {}),
+      [USER_PICTURE_ATTRIBUTE_KEY]: saved.url
+    });
     await deps.mediaService.deleteByUrl(previousAvatarUrl);
 
     return reply.status(200).send({ avatarUrl: saved.url });

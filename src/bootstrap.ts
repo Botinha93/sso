@@ -146,6 +146,17 @@ export const bootstrap = async (config: AppConfig) => {
     groupUserAttributeAssignmentRepository,
     groupRepository
   );
+
+  const existingUserAttributeDefinitions = await userAttributeService.listDefinitions();
+  if (!existingUserAttributeDefinitions.some((attribute) => attribute.key === "picture")) {
+    await userAttributeService.createAttribute({
+      key: "picture",
+      name: "Picture",
+      description: "Profile picture URL",
+      type: "text",
+      enabled: true
+    });
+  }
   const policyService = new PolicyService(
     policyDefinitionRepository,
     policyAssignmentRepository,

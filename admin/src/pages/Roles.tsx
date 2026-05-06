@@ -259,7 +259,7 @@ const Roles = () => {
         title="Roles & Permissions"
         action={
           <Button
-            onClick={() => { setFormData({ ...EMPTY_FORM }); setCreateModalOpen(true) }}
+            onClick={() => { setCreateFormError(''); setFormData({ ...EMPTY_FORM }); setCreateModalOpen(true) }}
             variant="primary"
             className="h-9 rounded-lg"
           >

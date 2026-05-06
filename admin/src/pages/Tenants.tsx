@@ -67,7 +67,7 @@ const Tenants = () => {
         title="Organizations"
         action={
           <Button
-            onClick={() => setCreateModalOpen(true)}
+            onClick={() => { setCreateFormError(''); setCreateModalOpen(true) }}
             variant="primary"
             className="h-9 rounded-lg"
           >

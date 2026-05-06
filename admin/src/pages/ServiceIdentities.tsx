@@ -287,6 +287,8 @@ const ServiceIdentities = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | ServiceIdentityDto['status']>('all')
   const [formData, setFormData] = useState(defaultForm)
   const [editFormData, setEditFormData] = useState(defaultForm)
+  const [createFormError, setCreateFormError] = useState('')
+  const [editFormError, setEditFormError] = useState('')
 
   const { data, isLoading, isFetching, refetch } = useServiceIdentities()
   const { data: scopes = [] } = useScopes()
@@ -314,43 +316,56 @@ const ServiceIdentities = () => {
 
   const handleCreate = async () => {
     if (!formData.name) return
-    await createIdentity.mutateAsync({
-      name: formData.name,
-      description: formData.description || undefined,
-      status: formData.status,
-      allowedScopes: formData.allowedScopes,
-      roleIds: formData.roleIds,
-      groupIds: formData.groupIds,
-      allowedAudiences: parseCommaSeparated(formData.allowedAudiences)
-    })
-    setCreateModalOpen(false)
-    setFormData(defaultForm())
-    refetch()
+
+    setCreateFormError('')
+    try {
+      await createIdentity.mutateAsync({
+        name: formData.name,
+        description: formData.description || undefined,
+        status: formData.status,
+        allowedScopes: formData.allowedScopes,
+        roleIds: formData.roleIds,
+        groupIds: formData.groupIds,
+        allowedAudiences: parseCommaSeparated(formData.allowedAudiences)
+      })
+      setCreateModalOpen(false)
+      setFormData(defaultForm())
+      refetch()
+    } catch (error) {
+      setCreateFormError(error instanceof Error ? error.message : 'Failed to create service identity')
+    }
   }
 
   const handleEdit = (identity: ServiceIdentityDto) => {
+    setEditFormError('')
     setIdentityToEdit(identity)
     setEditModalOpen(true)
   }
 
   const handleSaveEdit = async () => {
     if (!identityToEdit || !editFormData.name) return
-    await updateIdentity.mutateAsync({
-      id: identityToEdit.id,
-      data: {
-        name: editFormData.name,
-        description: editFormData.description || undefined,
-        status: editFormData.status,
-        allowedScopes: editFormData.allowedScopes,
-        roleIds: editFormData.roleIds,
-        groupIds: editFormData.groupIds,
-        allowedAudiences: parseCommaSeparated(editFormData.allowedAudiences)
-      }
-    })
-    setEditModalOpen(false)
-    setIdentityToEdit(null)
-    setEditFormData(defaultForm())
-    refetch()
+
+    setEditFormError('')
+    try {
+      await updateIdentity.mutateAsync({
+        id: identityToEdit.id,
+        data: {
+          name: editFormData.name,
+          description: editFormData.description || undefined,
+          status: editFormData.status,
+          allowedScopes: editFormData.allowedScopes,
+          roleIds: editFormData.roleIds,
+          groupIds: editFormData.groupIds,
+          allowedAudiences: parseCommaSeparated(editFormData.allowedAudiences)
+        }
+      })
+      setEditModalOpen(false)
+      setIdentityToEdit(null)
+      setEditFormData(defaultForm())
+      refetch()
+    } catch (error) {
+      setEditFormError(error instanceof Error ? error.message : 'Failed to update service identity')
+    }
   }
 
   const handleDelete = async () => {
@@ -367,7 +382,7 @@ const ServiceIdentities = () => {
         title="Service Identities"
         action={
           <Button
-            onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }}
+            onClick={() => { setCreateFormError(''); setFormData(defaultForm()); setCreateModalOpen(true) }}
             variant="primary"
             className="h-9 rounded-lg"
           >
@@ -583,6 +598,7 @@ const ServiceIdentities = () => {
               {createIdentity.isPending ? 'Creating…' : 'Create Identity'}
             </Button>
           </div>
+          {createFormError && <p className="text-xs text-red-600">{createFormError}</p>}
         </div>
       </Modal>
 
@@ -695,6 +711,7 @@ const ServiceIdentities = () => {
               {updateIdentity.isPending ? 'Saving…' : 'Save Changes'}
             </Button>
           </div>
+          {editFormError && <p className="text-xs text-red-600">{editFormError}</p>}
         </div>
       </Modal>
 
