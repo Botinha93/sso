@@ -445,6 +445,25 @@ const ADMIN_CONCEPT_GUIDES: ConceptGuide[] = [
     ]
   },
   {
+    id: 'permissions-model',
+    title: 'Permissions Model: Structure, Scope, And Inheritance',
+    plainExplanation: 'Permissions are the concrete capability strings stored on roles and resolved to users at runtime. They use a stable key shape with an action suffix. Internal platform permissions use two segments, like "users:view" or "policies:change". External app permissions use three segments, like "billing-app:invoices:view", where the first segment is the app boundary, the second is the app resource, and the third is the action. A user does not receive permissions directly from the catalog - they receive them because they hold one or more roles that include those permission keys.',
+    whyItMatters: 'When permission keys are inconsistent or misunderstood, UI gating, API authorization checks, and audit interpretation all drift. A key like "users:view" has very different blast radius from "billing-app:invoices:view". Internal permissions affect administration of the identity platform itself. External permissions affect app-domain resources under a specific app boundary. Keeping this split explicit prevents accidental over-privilege, keeps role design reviewable, and makes incidents easier to triage.',
+    whoDefinesIt: 'Admins define permissions indirectly by composing role permission arrays in the Roles view. App and client owners define app resource names that become selectable permission targets. Users receive effective permissions through direct role assignment and group-derived role assignment.',
+    whereInAdmin: ['Roles view (permission matrix)', 'Apps view (resource definitions)', 'Clients view (resource definitions)', 'Users view (effective role outcomes)', 'Groups view (role inheritance path)'],
+    details: [
+      'Permission key formats: internal = "resource:action"; external = "appId:resource:action".',
+      'Internal permissions map to platform administration surfaces (users, roles, clients, policies, sessions, audit, and similar system resources).',
+      'External permissions map to app resources and are always scoped by appId, so the same resource name can exist safely in multiple apps.',
+      'Roles are the container of permissions; users gain permissions by role assignment, either direct user-role assignment or group-role inheritance.',
+      'Effective permissions are the union of all permissions from all effective roles; duplicate keys collapse to a single granted capability.',
+      'Apps define resources directly, and client resource definitions also feed the same role matrix but remain app-scoped for permission key construction.',
+      'Changing a role permission set changes all users who receive that role, including via groups, immediately after data refresh/token renewal.',
+      'Use internal permissions sparingly and reserve them for platform operators; use app-scoped external permissions for product-domain authorization.',
+      'If an app should not access a resource, remove the permission from its role set rather than relying only on frontend visibility checks.'
+    ]
+  },
+  {
     id: 'role-assignments',
     title: 'Role Assignments: How Roles Reach Users',
     plainExplanation: 'A role assignment is the record that connects a role to a user or group. Defining a role creates it in the catalog but does not give anyone access — the assignment is the step that actually grants it. Assignments can be direct (role attached to a specific user) or indirect (role attached to a group, which the user belongs to). They can also be scoped to a specific tenant, app, or context, so the same role can mean different things in different organizational containers.',
@@ -1064,14 +1083,14 @@ const VIEW_LEARN_MORE: Record<string, string[]> = {
   Setup: ['user-registration', 'users', 'crypto-enforcement'],
   Login: ['flows', 'scopes', 'sessions', 'interaction-views'],
   Dashboard: ['app', 'apps-governance', 'client', 'audit-log', 'abac-fundamentals'],
-  Users: ['user-registration', 'users', 'groups', 'roles', 'role-assignments', 'attributes', 'sessions', 'scim-fundamentals'],
-  Groups: ['groups', 'roles', 'role-assignments', 'attributes', 'apps-governance', 'scim-fundamentals'],
-  Roles: ['roles', 'role-assignments', 'scopes', 'tenants', 'apps-governance'],
+  Users: ['user-registration', 'users', 'groups', 'roles', 'permissions-model', 'role-assignments', 'attributes', 'sessions', 'scim-fundamentals'],
+  Groups: ['groups', 'roles', 'permissions-model', 'role-assignments', 'attributes', 'apps-governance', 'scim-fundamentals'],
+  Roles: ['roles', 'permissions-model', 'role-assignments', 'scopes', 'tenants', 'apps-governance'],
   Clients: ['client', 'client-id-secret', 'redirect-uris', 'scopes', 'grants', 'flows', 'pkce', 'crypto-enforcement'],
   Consents: ['consents', 'scopes', 'client', 'interaction-views'],
   Sessions: ['sessions', 'users', 'crypto-enforcement', 'audit-log'],
   Devices: ['devices', 'grants', 'flows', 'interaction-views'],
-  Apps: ['app', 'apps-governance', 'roles', 'groups', 'client'],
+  Apps: ['app', 'apps-governance', 'roles', 'permissions-model', 'groups', 'client'],
   Tenants: ['tenants', 'roles', 'policies', 'flows', 'scopes'],
   'Federation Providers': ['federation', 'saml-federation', 'saml-sp-ops', 'user-registration', 'users', 'flows', 'crypto-enforcement'],
   Administration: ['instance-settings', 'crypto-enforcement', 'redirect-uris', 'pkce', 'saml-federation', 'risk-events', 'scim-fundamentals', 'access-governance', 'recertification', 'pam-lite', 'break-glass', 'adaptive-auth', 'webauthn-passkeys'],
@@ -1085,7 +1104,7 @@ const VIEW_LEARN_MORE: Record<string, string[]> = {
   'Audit Log': ['audit-log', 'sessions', 'events-hooks', 'crypto-enforcement'],
   'Consent Interaction Screen': ['consents', 'scopes', 'interaction-views'],
   'Device Verification Interaction Screen': ['devices', 'grants', 'interaction-views'],
-  Documentation: ['client', 'roles', 'groups', 'policies', 'abac-fundamentals', 'scopes', 'pkce', 'saml-federation', 'saml-sp-ops', 'token-exchange', 'scim-fundamentals', 'risk-events', 'auth-metrics', 'access-governance', 'recertification', 'pam-lite', 'break-glass', 'adaptive-auth', 'webauthn-passkeys']
+  Documentation: ['client', 'roles', 'permissions-model', 'groups', 'policies', 'abac-fundamentals', 'scopes', 'pkce', 'saml-federation', 'saml-sp-ops', 'token-exchange', 'scim-fundamentals', 'risk-events', 'auth-metrics', 'access-governance', 'recertification', 'pam-lite', 'break-glass', 'adaptive-auth', 'webauthn-passkeys']
 }
 
 const ENTITY_FIELD_TUTORIALS: EntityFieldGuide[] = [

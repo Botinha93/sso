@@ -36,52 +36,102 @@ function permKey(resource: string, action: Action) {
   return `${resource}:${action}`
 }
 
+function normalizePermissionPrefix(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function uniqueNonEmpty(values: Array<string | undefined>) {
+  const out: string[] = []
+  for (const value of values) {
+    const normalized = String(value ?? '').trim()
+    if (!normalized || out.includes(normalized)) continue
+    out.push(normalized)
+  }
+  return out
+}
+
 function PermissionMatrix({ permissions, onChange, appResources }: {
   permissions: string[]
   onChange: (p: string[]) => void
-  appResources: Array<{ appId: string; appName: string; resource: string }>
+  appResources: Array<{ appId: string; appName: string; appSlug?: string; resource: string }>
 }) {
   const set = new Set(permissions)
 
-  // Combine system resources with app-specific ones.
-  // App resource permission key format: "{appId}:{resource}" — stored as "{appId}:{resource}:{action}".
-  const allResources = [
-    ...SYSTEM_RESOURCES,
-    ...appResources.map(ar => ({
-      key: `${ar.appId}:${ar.resource}`,
-      label: ar.resource,
-      appName: ar.appName,
-      isAppResource: true
-    }))
-  ]
+  const hasResourceAction = (resourceKeys: string[], action: Action) =>
+    resourceKeys.some(resourceKey => set.has(permKey(resourceKey, action)))
 
-  function toggle(key: string) {
+  const toggleResourceAction = (resourceKeys: string[], action: Action) => {
     const next = new Set(set)
-    if (next.has(key)) next.delete(key)
-    else next.add(key)
+    const keys = resourceKeys.map(resourceKey => permKey(resourceKey, action))
+    const checked = keys.some(key => next.has(key))
+    if (checked) {
+      keys.forEach(key => next.delete(key))
+    } else if (resourceKeys[0]) {
+      next.add(permKey(resourceKeys[0], action))
+    }
     onChange(Array.from(next))
   }
 
-  function toggleRow(resource: string) {
-    const keys = ACTIONS.map(a => permKey(resource, a))
-    const allChecked = keys.every(k => set.has(k))
+  // Combine system resources with app-specific ones.
+  // App resource permission key format can be either "{appId}:{resource}:{action}"
+  // or legacy "{appSlug}:{resource}:{action}" (for bootstrap-seeded roles).
+  const allResources = [
+    ...SYSTEM_RESOURCES.map(resource => ({
+      keyVariants: [resource.key],
+      label: resource.label,
+      groupKey: '__system__',
+      groupLabel: 'System',
+      isSystem: true,
+    })),
+    ...appResources.map(ar => ({
+      keyVariants: uniqueNonEmpty([
+        `${ar.appId}:${ar.resource}`,
+        ar.appSlug ? `${ar.appSlug}:${ar.resource}` : undefined,
+        `${normalizePermissionPrefix(ar.appName)}:${ar.resource}`,
+      ]),
+      label: ar.resource,
+      groupKey: ar.appId,
+      groupLabel: ar.appName,
+      isSystem: false,
+    }))
+  ]
+
+  function toggleRow(resourceKeys: string[]) {
+    const allChecked = ACTIONS.every(action => hasResourceAction(resourceKeys, action))
     const next = new Set(set)
-    if (allChecked) keys.forEach(k => next.delete(k))
-    else keys.forEach(k => next.add(k))
+    if (allChecked) {
+      ACTIONS.forEach(action => resourceKeys.forEach(resourceKey => next.delete(permKey(resourceKey, action))))
+    } else if (resourceKeys[0]) {
+      ACTIONS.forEach(action => {
+        if (!hasResourceAction(resourceKeys, action)) {
+          next.add(permKey(resourceKeys[0], action))
+        }
+      })
+    }
     onChange(Array.from(next))
   }
 
   function toggleCol(action: Action) {
-    const keys = allResources.map(r => permKey(r.key, action))
-    const allChecked = keys.every(k => set.has(k))
+    const allChecked = allResources.every(resource => hasResourceAction(resource.keyVariants, action))
     const next = new Set(set)
-    if (allChecked) keys.forEach(k => next.delete(k))
-    else keys.forEach(k => next.add(k))
+    if (allChecked) {
+      allResources.forEach(resource => resource.keyVariants.forEach(resourceKey => next.delete(permKey(resourceKey, action))))
+    } else {
+      allResources.forEach(resource => {
+        if (!hasResourceAction(resource.keyVariants, action) && resource.keyVariants[0]) {
+          next.add(permKey(resource.keyVariants[0], action))
+        }
+      })
+    }
     onChange(Array.from(next))
   }
 
   // Group app resources by appId
-  const uniqueApps = Array.from(new Set(appResources.map(ar => ar.appId)))
+  const uniqueApps = Array.from(new Set(allResources.filter(r => !r.isSystem).map(r => r.groupKey)))
 
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200">
@@ -103,24 +153,22 @@ function PermissionMatrix({ permissions, onChange, appResources }: {
               System
             </td>
           </tr>
-          {SYSTEM_RESOURCES.map((resource, i) => {
-            const rowKeys = ACTIONS.map(a => permKey(resource.key, a))
-            const allChecked = rowKeys.every(k => set.has(k))
+          {allResources.filter(r => r.isSystem).map((resource, i) => {
+            const allChecked = ACTIONS.every(action => hasResourceAction(resource.keyVariants, action))
             return (
-              <tr key={resource.key} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+              <tr key={resource.label} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
                 <td
                   className="px-3 py-2 font-medium text-slate-700 border-r border-slate-200 cursor-pointer select-none hover:bg-slate-100 transition-colors"
-                  onClick={() => toggleRow(resource.key)}
+                  onClick={() => toggleRow(resource.keyVariants)}
                   title="Click to toggle all"
                 >
                   <span className={allChecked ? 'text-slate-900 font-semibold' : ''}>{resource.label}</span>
                 </td>
                 {ACTIONS.map(action => {
-                  const key = permKey(resource.key, action)
-                  const checked = set.has(key)
+                  const checked = hasResourceAction(resource.keyVariants, action)
                   return (
                     <td key={action} className="px-3 py-2 text-center border-r border-slate-200 last:border-r-0">
-                      <input type="checkbox" checked={checked} onChange={() => toggle(key)} className="rounded border-slate-300 text-slate-900 focus:ring-slate-400" />
+                      <input type="checkbox" checked={checked} onChange={() => toggleResourceAction(resource.keyVariants, action)} className="rounded border-slate-300 text-slate-900 focus:ring-slate-400" />
                     </td>
                   )
                 })}
@@ -130,8 +178,8 @@ function PermissionMatrix({ permissions, onChange, appResources }: {
 
           {/* App-specific resources grouped by app */}
           {uniqueApps.map(appId => {
-            const appName = appResources.find(ar => ar.appId === appId)?.appName ?? appId
-            const appRows = appResources.filter(ar => ar.appId === appId)
+            const appRows = allResources.filter(r => !r.isSystem && r.groupKey === appId)
+            const appName = appRows[0]?.groupLabel ?? appId
             return [
               <tr key={`section-${appId}`}>
                 <td colSpan={ACTIONS.length + 1} className="px-3 py-1.5 bg-violet-50 text-[10px] font-bold uppercase tracking-widest text-violet-600 border-b border-violet-100">
@@ -139,24 +187,21 @@ function PermissionMatrix({ permissions, onChange, appResources }: {
                 </td>
               </tr>,
               ...appRows.map((ar, i) => {
-                const rkey = `${ar.appId}:${ar.resource}`
-                const rowKeys = ACTIONS.map(a => permKey(rkey, a))
-                const allChecked = rowKeys.every(k => set.has(k))
+                const allChecked = ACTIONS.every(action => hasResourceAction(ar.keyVariants, action))
                 return (
-                  <tr key={rkey} className={i % 2 === 0 ? 'bg-white' : 'bg-violet-50/30'}>
+                  <tr key={`${appId}:${ar.label}`} className={i % 2 === 0 ? 'bg-white' : 'bg-violet-50/30'}>
                     <td
                       className="px-3 py-2 font-medium text-slate-700 border-r border-slate-200 cursor-pointer select-none hover:bg-violet-50 transition-colors pl-5"
-                      onClick={() => toggleRow(rkey)}
+                      onClick={() => toggleRow(ar.keyVariants)}
                       title="Click to toggle all"
                     >
-                      <span className={allChecked ? 'text-slate-900 font-semibold' : ''}>{ar.resource}</span>
+                      <span className={allChecked ? 'text-slate-900 font-semibold' : ''}>{ar.label}</span>
                     </td>
                     {ACTIONS.map(action => {
-                      const key = permKey(rkey, action)
-                      const checked = set.has(key)
+                      const checked = hasResourceAction(ar.keyVariants, action)
                       return (
                         <td key={action} className="px-3 py-2 text-center border-r border-slate-200 last:border-r-0">
-                          <input type="checkbox" checked={checked} onChange={() => toggle(key)} className="rounded border-slate-300 text-violet-600 focus:ring-violet-400" />
+                          <input type="checkbox" checked={checked} onChange={() => toggleResourceAction(ar.keyVariants, action)} className="rounded border-slate-300 text-violet-600 focus:ring-violet-400" />
                         </td>
                       )
                     })}
@@ -197,19 +242,27 @@ const Roles = () => {
   const deleteRole = useDeleteRole()
 
   const appNameById = new Map((apps as any[]).map((app: any) => [app.id, app.name]))
+  const appSlugById = new Map((apps as any[]).map((app: any) => [app.id, String(app.slug ?? app.clientId ?? '').trim()]))
   const filteredRoles = (roles as any[]).filter((role) => appFilterId === 'all'
     ? true
     : appFilterId === 'none'
       ? !role.appId
       : role.appId === appFilterId)
 
-  // Flatten all app resources for the matrix
+  // Flatten all app-scoped resources for the matrix.
+  // Client resources inherit their app scope and should render under that app section.
   const appResources = (apps as any[]).flatMap((a: any) =>
-    (a.resources ?? []).map((r: string) => ({ appId: a.id, appName: a.name, resource: r }))
+    (a.resources ?? []).map((r: string) => ({ appId: a.id, appName: a.name, appSlug: String(a.slug ?? a.clientId ?? '').trim() || undefined, resource: r }))
   ).concat(
-    (clients as any[]).flatMap((c: any) =>
-      (c.resources ?? []).map((r: string) => ({ clientId: c.id, clientName: c.name, resource: r }))
-    )
+    (clients as any[]).flatMap((c: any) => {
+      if (!c.appId) return []
+      return (c.resources ?? []).map((r: string) => ({
+        appId: c.appId,
+        appName: appNameById.get(c.appId) ?? c.name,
+        appSlug: appSlugById.get(c.appId) || undefined,
+        resource: r,
+      }))
+    })
   )
 
   async function handleCreate() {
