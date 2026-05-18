@@ -3,6 +3,7 @@ import { ShieldCheck, AlertCircle } from "lucide-react";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Card from "../components/ui/Card";
+import { extractErrorMessage } from "../lib/errors";
 
 interface FederationProvider {
   id: string;
@@ -126,19 +127,20 @@ export default function Login() {
         body: JSON.stringify(payload)
       });
 
-      if (res.ok) {
-        window.location.href = buildRedirectAfterLogin();
-      } else if (res.status === 202 && !mfaTicket) {
+      if (res.status === 202 && !mfaTicket) {
         const json = await res.json().catch(() => ({} as Record<string, unknown>));
         if (typeof json.mfaTicket === "string") {
           setMfaTicket(json.mfaTicket);
           setMfaCode("");
           setError(null);
         } else {
-          setError("MFA challenge failed to initialize.");
+          setError(extractErrorMessage(json, "Additional verification is required, but this login screen cannot start the challenge."));
         }
+      } else if (res.ok) {
+        window.location.href = buildRedirectAfterLogin();
       } else {
-        setError(mfaTicket ? "Invalid one-time code" : "Invalid email or password");
+        const json = await res.json().catch(() => ({} as Record<string, unknown>));
+        setError(extractErrorMessage(json, mfaTicket ? "Invalid one-time code" : "Invalid email or password"));
       }
     } catch {
       setError("Network error — is the server running?");

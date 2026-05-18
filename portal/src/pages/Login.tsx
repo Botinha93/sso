@@ -5,6 +5,7 @@ import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
 import Input from '../components/ui/Input'
 import { useI18n } from '../i18n'
+import { extractErrorMessage } from '../lib/errors'
 
 const fieldCls = 'h-10 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 focus-visible:ring-sky-500/40'
 const portalHome = import.meta.env.BASE_URL
@@ -84,9 +85,14 @@ export default function Login() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
       })
+      if (res.status === 202) {
+        const json = await res.json().catch(() => ({}))
+        setError(extractErrorMessage(json, 'Additional verification is required to finish signing in.'))
+        return
+      }
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
-        setError(json?.message ?? t('login.invalidCredentials'))
+        setError(extractErrorMessage(json, t('login.invalidCredentials')))
         return
       }
       // Reload to let App detect session

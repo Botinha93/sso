@@ -40,12 +40,29 @@ export const createUserSchema = z.object({
   avatarUrl: z.string().min(1).optional(),
   email: z.string().email(),
   username: z.string().min(3),
-  password: z.string().min(8),
+  password: z.string().min(8).optional(),
+  passwordHash: z.string().min(3).optional(),
   givenName: z.string().min(1),
   familyName: z.string().min(1),
   customAttributes: z.record(z.string(), z.string()).optional(),
   roleIds: z.array(z.string()).default([]),
   groupIds: z.array(z.string()).default([])
+}).superRefine((input, ctx) => {
+  if (!input.password && !input.passwordHash) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["password"],
+      message: "Either password or passwordHash is required"
+    });
+  }
+
+  if (input.password && input.passwordHash) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["passwordHash"],
+      message: "Provide either password or passwordHash, not both"
+    });
+  }
 });
 
 export const updateUserSchema = z.object({

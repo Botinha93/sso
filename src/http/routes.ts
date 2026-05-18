@@ -407,6 +407,59 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return error.message;
   }
 
+  function humanizeValidationField(path: unknown) {
+    if (!Array.isArray(path) || path.length === 0) {
+      return "Request";
+    }
+
+    const last = String(path[path.length - 1]);
+    return last
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      .replace(/[_-]+/g, " ")
+      .replace(/^./, (char) => char.toUpperCase());
+  }
+
+  function formatValidationIssue(issue: unknown) {
+    if (!issue || typeof issue !== "object") {
+      return undefined;
+    }
+
+    const typedIssue = issue as {
+      code?: string;
+      message?: string;
+      minimum?: number;
+      path?: unknown;
+      type?: string;
+      validation?: string;
+    };
+    const field = humanizeValidationField(typedIssue.path);
+
+    if (typedIssue.code === "invalid_string" && typedIssue.validation === "email") {
+      return `${field} must be a valid email address`;
+    }
+
+    if (typedIssue.code === "too_small" && typedIssue.type === "string") {
+      if (typedIssue.minimum === 1) {
+        return `${field} is required`;
+      }
+      return `${field} must be at least ${typedIssue.minimum} characters`;
+    }
+
+    if (typedIssue.message?.trim()) {
+      return `${field}: ${typedIssue.message}`;
+    }
+
+    return undefined;
+  }
+
+  function validationErrorMessageFromIssues(issues: unknown) {
+    if (!Array.isArray(issues) || issues.length === 0) {
+      return "Request validation failed";
+    }
+
+    return formatValidationIssue(issues[0]) ?? "Request validation failed";
+  }
+
   async function getSession(request: any) {
     const sid = request.cookies?.sid;
     if (!sid) return null;
@@ -1554,7 +1607,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       }
 
       const tenant = challenge.tenantSlug ? (await deps.tenantService.listTenants()).find((item) => item.slug === challenge.tenantSlug) : undefined;
-      deps.policyService.enforceStagePolicies({
+      await deps.policyService.enforceStagePolicies({
         stage: "mfa_totp",
         user,
         tenantId: tenant?.id,
@@ -2150,7 +2203,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     }
 
     const completed = await deps.federationService.completeLogin({ providerId, code, state });
-    deps.policyService.enforceStagePolicies({
+    await deps.policyService.enforceStagePolicies({
       stage: "federation",
       user: completed.user,
       clientId: "sso-admin-ui",
@@ -2468,7 +2521,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.get("/api/admin/users", async () => deps.userService.listUsers());
   app.post("/api/admin/users", async (request, reply) => {
     const input = createUserSchema.parse(request.body);
-    deps.policyService.enforceUserCreationPolicies(input.password);
+    if (input.password) {
+      await deps.policyService.enforceUserCreationPolicies(input.password);
+    }
     const user = await deps.userService.createUser(input);
     await deps.auditRepository.log({ type: "user_created", actorType: "system", metadata: { userId: user.id, email: user.email } });
     await deps.eventHookService.emit("user.created", {
@@ -2522,7 +2577,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const { id } = request.params as { id: string };
     const { password } = resetUserPasswordSchema.parse(request.body);
 
-    deps.policyService.enforceUserCreationPolicies(password);
+    await deps.policyService.enforceUserCreationPolicies(password);
     await deps.userService.resetPassword(id, password);
 
     const now = new Date();
@@ -2883,7 +2938,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
   app.post("/users", async (request, reply) => {
     const input = createUserSchema.parse(request.body);
-    deps.policyService.enforceUserCreationPolicies(input.password);
+    if (input.password) {
+      await deps.policyService.enforceUserCreationPolicies(input.password);
+    }
     const user = await deps.userService.createUser(input);
     await deps.eventHookService.emit("user.created", {
       userId: user.id,
@@ -3046,7 +3103,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     if (!verifyPassword(currentPassword, user.passwordHash)) {
       return reply.status(400).send({ error: "InvalidPassword", message: "Current password is incorrect" });
     }
-    deps.policyService.enforceUserCreationPolicies(newPassword);
+    await deps.policyService.enforceUserCreationPolicies(newPassword);
     await deps.userService.resetPassword(session.userId, newPassword);
     return reply.status(204).send();
   });
@@ -3139,10 +3196,11 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       return reply.status(error.statusCode).send({ error: error.name, message: error.message });
     }
     if (typeof error === "object" && error !== null && "issues" in error) {
+      const details = (error as { issues: unknown }).issues;
       return reply.status(422).send({
         error: "ValidationError",
-        message: "Request validation failed",
-        details: (error as { issues: unknown }).issues
+        message: validationErrorMessageFromIssues(details),
+        details
       });
     }
     request.log.error(error);

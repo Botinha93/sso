@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { extractErrorMessage } from './lib/errors'
 
 const API = '/api/portal'
 
@@ -23,7 +24,7 @@ async function apiFetch(url: string, init?: RequestInit) {
   const res = await fetch(url, { credentials: 'include', ...init, headers })
   if (res.status === 204) return null
   const json = await res.json()
-  if (!res.ok) throw new Error(json?.message ?? json?.error ?? 'Request failed')
+  if (!res.ok) throw new Error(extractErrorMessage(json, 'Request failed'))
   return json
 }
 

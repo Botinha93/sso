@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { extractErrorMessage } from '../lib/errors'
 
 const API_BASE = '/api/admin'
 
@@ -13,15 +14,6 @@ async function getCsrfToken(): Promise<string> {
 }
 
 const MUTATING_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE'])
-
-const extractErrorMessage = (errorPayload: any, fallback: string) => {
-  if (typeof errorPayload === 'string' && errorPayload.trim()) return errorPayload
-  if (!errorPayload || typeof errorPayload !== 'object') return fallback
-  if (typeof errorPayload.message === 'string' && errorPayload.message.trim()) return errorPayload.message
-  if (typeof errorPayload.error === 'string' && errorPayload.error.trim()) return errorPayload.error
-  if (typeof errorPayload.detail === 'string' && errorPayload.detail.trim()) return errorPayload.detail
-  return fallback
-}
 
 const jsonFetch = async (url: string, options?: RequestInit) => {
   const method = (options?.method ?? 'GET').toUpperCase()

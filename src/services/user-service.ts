@@ -92,7 +92,8 @@ export class UserService {
     avatarUrl?: string;
     email: string;
     username: string;
-    password: string;
+    password?: string;
+    passwordHash?: string;
     givenName: string;
     familyName: string;
     customAttributes?: Record<string, string>;
@@ -107,8 +108,22 @@ export class UserService {
       throw new ValidationError("A user with this email already exists");
     }
 
+    if (await this.userRepository.findByUsername(input.username)) {
+      throw new ValidationError("A user with this username already exists");
+    }
+
     await this.validateAppIds(appIds);
     await this.validateCustomAttributes(customAttributes);
+
+    if (!input.password && !input.passwordHash) {
+      throw new ValidationError("Either password or passwordHash is required");
+    }
+
+    if (input.password && input.passwordHash) {
+      throw new ValidationError("Provide either password or passwordHash, not both");
+    }
+
+    const passwordHash = input.passwordHash ?? hashPassword(input.password!);
 
     const user = await this.userRepository.create({
       appId: appIds[0],
@@ -121,7 +136,7 @@ export class UserService {
       avatarUrl: input.avatarUrl,
       email: input.email,
       username: input.username,
-      passwordHash: hashPassword(input.password),
+      passwordHash,
       givenName: input.givenName,
       familyName: input.familyName,
       customAttributes,

@@ -51,7 +51,7 @@ export interface SDKUser {
   updatedAt: string;
 }
 
-export interface CreateUserInput {
+interface CreateUserBaseInput {
   appId?: string;
   appIds?: string[];
   externalSource?: string;
@@ -60,13 +60,17 @@ export interface CreateUserInput {
   avatarUrl?: string;
   email: string;
   username: string;
-  password: string;
   givenName: string;
   familyName: string;
   customAttributes?: Record<string, string>;
   roleIds?: string[];
   groupIds?: string[];
 }
+
+export type CreateUserInput = CreateUserBaseInput & (
+  | { password: string; passwordHash?: never }
+  | { password?: never; passwordHash: string }
+);
 
 export interface UpdateUserInput {
   appId?: string;

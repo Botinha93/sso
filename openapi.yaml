@@ -914,6 +914,75 @@ paths:
                           format: date-time
                   total:
                     type: integer
+    post:
+      summary: Create user
+      description: Creates a user. Provide either password for normal creation or passwordHash for API-only migration imports.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, username, givenName, familyName]
+              properties:
+                appId:
+                  type: string
+                appIds:
+                  type: array
+                  items:
+                    type: string
+                externalSource:
+                  type: string
+                externalId:
+                  type: string
+                isServiceUser:
+                  type: boolean
+                avatarUrl:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                username:
+                  type: string
+                password:
+                  type: string
+                  description: Plain password to hash and validate against password policy. Mutually exclusive with passwordHash.
+                passwordHash:
+                  type: string
+                  description: Precomputed database password hash for migration imports. Mutually exclusive with password and stored as provided.
+                givenName:
+                  type: string
+                familyName:
+                  type: string
+                customAttributes:
+                  type: object
+                  additionalProperties:
+                    type: string
+                roleIds:
+                  type: array
+                  items:
+                    type: string
+                groupIds:
+                  type: array
+                  items:
+                    type: string
+              oneOf:
+                - required: [password]
+                - required: [passwordHash]
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  email:
+                    type: string
+                  username:
+                    type: string
   /api/admin/provisioning/tokens:
     get:
       summary: List SCIM provisioning tokens
