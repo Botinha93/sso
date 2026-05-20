@@ -25,6 +25,9 @@ const portalHome = import.meta.env.BASE_URL
 export default function Launcher({ user }: Props) {
   const { t } = useI18n()
   const [ui, setUi] = useState<UiCustomization | null>(null)
+  const canManageUsers =
+    Array.isArray(user.permissions) &&
+    (user.permissions.includes('*:*') || user.permissions.includes('users:view'))
 
   useEffect(() => {
     void (async () => {
@@ -176,4 +179,3 @@ function AppTile({ app }: { app: PortalUser['apps'][0] }) {
 
   return content
 }
-  const canManageUsers = Array.isArray(user.permissions) && (user.permissions.includes('*:*') || user.permissions.includes('users:view'))
