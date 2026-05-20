@@ -1,11 +1,13 @@
 import { ArrowLeft, Loader2, Trash2, UserPlus } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { PortalUser } from '../hooks'
 import {
   usePortalCreateManagedUser,
   usePortalDeleteManagedUser,
+  usePortalGroups,
   usePortalManagedUsers,
+  usePortalRoles,
   usePortalUpdateManagedUser,
 } from '../hooks'
 import Button from '../components/ui/Button'
@@ -25,6 +27,8 @@ type CreateForm = {
   givenName: string
   familyName: string
   password: string
+  roleIds: string[]
+  groupIds: string[]
 }
 
 const emptyForm: CreateForm = {
@@ -32,7 +36,9 @@ const emptyForm: CreateForm = {
   username: '',
   givenName: '',
   familyName: '',
-  password: ''
+  password: '',
+  roleIds: [],
+  groupIds: []
 }
 
 export default function Users({ currentUser }: Props) {
@@ -42,12 +48,41 @@ export default function Users({ currentUser }: Props) {
   }, [currentUser.permissions])
 
   const { data: users = [], isLoading, error } = usePortalManagedUsers()
+  const { data: roles = [] } = usePortalRoles()
+  const { data: groups = [] } = usePortalGroups()
   const createUser = usePortalCreateManagedUser()
   const updateUser = usePortalUpdateManagedUser()
   const deleteUser = usePortalDeleteManagedUser()
 
   const [createForm, setCreateForm] = useState<CreateForm>(emptyForm)
   const [createError, setCreateError] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [roleFilterId, setRoleFilterId] = useState('')
+  const [groupFilterId, setGroupFilterId] = useState('')
+
+  const groupNameById = useMemo(() => new Map(groups.map((group) => [group.id, group.name])), [groups])
+
+  const filteredUsers = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase()
+    const groupNameForFilter = groupFilterId ? groupNameById.get(groupFilterId) : undefined
+
+    return users.filter((user) => {
+      const matchesTerm =
+        term.length === 0 ||
+        user.username.toLowerCase().includes(term) ||
+        user.email.toLowerCase().includes(term)
+
+      const matchesRole =
+        !roleFilterId ||
+        Boolean(user.directRoleIds?.includes(roleFilterId))
+
+      const matchesGroup =
+        !groupFilterId ||
+        (groupNameForFilter ? Boolean(user.groups?.includes(groupNameForFilter)) : false)
+
+      return matchesTerm && matchesRole && matchesGroup
+    })
+  }, [groupFilterId, groupNameById, roleFilterId, searchTerm, users])
 
   const handleCreate = async () => {
     setCreateError('')
@@ -106,6 +141,50 @@ export default function Users({ currentUser }: Props) {
                 <label className={labelCls}>Temporary password</label>
                 <Input type="password" className={fieldCls} value={createForm.password} onChange={(e) => setCreateForm((p) => ({ ...p, password: e.target.value }))} />
               </div>
+              <div>
+                <label className={labelCls}>Direct roles</label>
+                <div className="rounded-xl border border-slate-200 p-2 max-h-40 overflow-auto space-y-1">
+                  {roles.map((role) => (
+                    <label key={role.id} className="flex items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={createForm.roleIds.includes(role.id)}
+                        onChange={() =>
+                          setCreateForm((prev) => ({
+                            ...prev,
+                            roleIds: prev.roleIds.includes(role.id)
+                              ? prev.roleIds.filter((id) => id !== role.id)
+                              : [...prev.roleIds, role.id]
+                          }))
+                        }
+                      />
+                      {role.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>Groups</label>
+                <div className="rounded-xl border border-slate-200 p-2 max-h-40 overflow-auto space-y-1">
+                  {groups.map((group) => (
+                    <label key={group.id} className="flex items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={createForm.groupIds.includes(group.id)}
+                        onChange={() =>
+                          setCreateForm((prev) => ({
+                            ...prev,
+                            groupIds: prev.groupIds.includes(group.id)
+                              ? prev.groupIds.filter((id) => id !== group.id)
+                              : [...prev.groupIds, group.id]
+                          }))
+                        }
+                      />
+                      {group.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {createError ? <p className="text-sm text-rose-600">{createError}</p> : null}
@@ -120,7 +199,49 @@ export default function Users({ currentUser }: Props) {
         )}
 
         <Card className="rounded-2xl p-5">
-          <h2 className="text-sm font-semibold text-slate-900 mb-4">Users</h2>
+          <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-end">
+            <div className="flex-1 min-w-0">
+              <label className={labelCls}>Search</label>
+              <Input
+                className={fieldCls}
+                placeholder="username or email"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <div className="sm:w-52">
+              <label className={labelCls}>Role</label>
+              <select className={fieldCls} value={roleFilterId} onChange={(e) => setRoleFilterId(e.target.value)}>
+                <option value="">All roles</option>
+                {roles.map((role) => (
+                  <option key={role.id} value={role.id}>{role.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="sm:w-52">
+              <label className={labelCls}>Group</label>
+              <select className={fieldCls} value={groupFilterId} onChange={(e) => setGroupFilterId(e.target.value)}>
+                <option value="">All groups</option>
+                {groups.map((group) => (
+                  <option key={group.id} value={group.id}>{group.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="sm:w-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto"
+                onClick={() => {
+                  setSearchTerm('')
+                  setRoleFilterId('')
+                  setGroupFilterId('')
+                }}
+              >
+                Clear filters
+              </Button>
+            </div>
+          </div>
 
           {isLoading ? (
             <div className="py-6 flex items-center justify-center text-slate-500">
@@ -128,16 +249,19 @@ export default function Users({ currentUser }: Props) {
             </div>
           ) : error ? (
             <p className="text-sm text-rose-600">Failed to load users.</p>
-          ) : users.length === 0 ? (
+          ) : filteredUsers.length === 0 ? (
             <p className="text-sm text-slate-500">No users found.</p>
           ) : (
             <div className="space-y-3">
-              {users.map((user) => (
+              {filteredUsers.map((user) => (
                 <UserRow
                   key={user.id}
                   user={user}
+                  roles={roles}
+                  groups={groups}
                   canEditUsers={canEditUsers}
                   onToggleActive={async (active) => updateUser.mutateAsync({ id: user.id, active })}
+                  onSaveAssignments={async (roleIds, groupIds) => updateUser.mutateAsync({ id: user.id, roleIds, groupIds })}
                   onDelete={async () => {
                     if (!confirm(`Delete user ${user.username}?`)) return
                     await deleteUser.mutateAsync(user.id)
@@ -154,8 +278,11 @@ export default function Users({ currentUser }: Props) {
 
 function UserRow({
   user,
+  roles,
+  groups,
   canEditUsers,
   onToggleActive,
+  onSaveAssignments,
   onDelete,
 }: {
   user: {
@@ -166,12 +293,26 @@ function UserRow({
     familyName: string
     active: boolean
   }
+  roles: Array<{ id: string; name: string }>
+  groups: Array<{ id: string; name: string }>
   canEditUsers: boolean
   onToggleActive: (active: boolean) => Promise<unknown>
+  onSaveAssignments: (roleIds: string[], groupIds: string[]) => Promise<unknown>
   onDelete: () => Promise<void>
 }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const initialRoleIds = user.directRoleIds ?? []
+  const initialGroupIds = (user.groups ?? [])
+    .map((groupName) => groups.find((group) => group.name === groupName)?.id)
+    .filter((id): id is string => Boolean(id))
+  const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>(initialRoleIds)
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>(initialGroupIds)
+
+  useEffect(() => {
+    setSelectedRoleIds(initialRoleIds)
+    setSelectedGroupIds(initialGroupIds)
+  }, [user.directRoleIds, user.groups, groups])
 
   const handleToggle = async () => {
     setError('')
@@ -192,6 +333,18 @@ function UserRow({
       await onDelete()
     } catch (err: any) {
       setError(err?.message ?? 'Failed to delete user')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleSaveAssignments = async () => {
+    setError('')
+    setBusy(true)
+    try {
+      await onSaveAssignments(selectedRoleIds, selectedGroupIds)
+    } catch (err: any) {
+      setError(err?.message ?? 'Failed to update assignments')
     } finally {
       setBusy(false)
     }
@@ -222,6 +375,53 @@ function UserRow({
           ) : null}
         </div>
       </div>
+      {canEditUsers ? (
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Direct roles</p>
+            <div className="rounded-lg border border-slate-200 p-2 max-h-36 overflow-auto space-y-1">
+              {roles.map((role) => (
+                <label key={role.id} className="flex items-center gap-2 text-xs text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={selectedRoleIds.includes(role.id)}
+                    onChange={() =>
+                      setSelectedRoleIds((prev) =>
+                        prev.includes(role.id) ? prev.filter((id) => id !== role.id) : [...prev, role.id]
+                      )
+                    }
+                  />
+                  {role.name}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Groups</p>
+            <div className="rounded-lg border border-slate-200 p-2 max-h-36 overflow-auto space-y-1">
+              {groups.map((group) => (
+                <label key={group.id} className="flex items-center gap-2 text-xs text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={selectedGroupIds.includes(group.id)}
+                    onChange={() =>
+                      setSelectedGroupIds((prev) =>
+                        prev.includes(group.id) ? prev.filter((id) => id !== group.id) : [...prev, group.id]
+                      )
+                    }
+                  />
+                  {group.name}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="sm:col-span-2">
+            <Button size="sm" variant="secondary" onClick={handleSaveAssignments} disabled={busy}>
+              Save role/group assignments
+            </Button>
+          </div>
+        </div>
+      ) : null}
       {error ? <p className="mt-2 text-xs text-rose-600">{error}</p> : null}
     </div>
   )

@@ -64,6 +64,18 @@ export interface ManagedPortalUser {
   givenName: string
   familyName: string
   active: boolean
+  directRoleIds?: string[]
+  groups?: string[]
+}
+
+export interface PortalRoleItem {
+  id: string
+  name: string
+}
+
+export interface PortalGroupItem {
+  id: string
+  name: string
 }
 
 export function usePortalMe() {
@@ -180,6 +192,20 @@ export function usePortalDeleteManagedUser() {
   return useMutation({
     mutationFn: (id: string) => apiFetch(`/api/admin/users/${id}`, { method: 'DELETE' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['portal-managed-users'] })
+  })
+}
+
+export function usePortalRoles() {
+  return useQuery<PortalRoleItem[]>({
+    queryKey: ['portal-roles'],
+    queryFn: () => apiFetch('/api/admin/roles')
+  })
+}
+
+export function usePortalGroups() {
+  return useQuery<PortalGroupItem[]>({
+    queryKey: ['portal-groups'],
+    queryFn: () => apiFetch('/api/admin/groups')
   })
 }
 
