@@ -15,9 +15,11 @@ import {
   useResetUserPassword,
   useApps,
   useGroups,
+  useRoles,
   useUserAttributes,
   useAssignUserToGroup,
-  useRemoveUserFromGroup
+  useRemoveUserFromGroup,
+  useUploadUserAvatar
 } from '../hooks/useApi'
 
 interface User {
@@ -36,8 +38,10 @@ interface User {
   customAttributes?: Record<string, string>
   active: boolean
   roles: string[]
+  directRoleIds?: string[]
   groups?: string[]
   createdAt: string
+  avatarUrl?: string
 }
 
 interface GroupItem {
@@ -46,6 +50,11 @@ interface GroupItem {
 }
 
 interface AppItem {
+  id: string
+  name: string
+}
+
+interface RoleItem {
   id: string
   name: string
 }
@@ -68,8 +77,11 @@ const defaultForm = () => ({
   givenName: '',
   familyName: '',
   password: '',
+  avatarUrl: '',
+  avatarFile: undefined as File | undefined,
   customAttributes: {} as Record<string, string>,
-  groupIds: [] as string[]
+  groupIds: [] as string[],
+  roleIds: [] as string[]
 })
 
 const defaultEditForm = () => ({
@@ -78,8 +90,10 @@ const defaultEditForm = () => ({
   username: '',
   givenName: '',
   familyName: '',
+  avatarUrl: '',
   customAttributes: {} as Record<string, string>,
-  groupIds: [] as string[]
+  groupIds: [] as string[],
+  roleIds: [] as string[]
 })
 
 const defaultResetForm = () => ({
@@ -152,9 +166,11 @@ const Users = () => {
   const deleteUser = useDeleteUser()
   const resetUserPassword = useResetUserPassword()
   const { data: groups = [] } = useGroups()
+  const { data: roles = [] } = useRoles()
   const { data: attributeDefinitions = [] } = useUserAttributes()
   const assignUserGroup = useAssignUserToGroup()
   const removeUserGroup = useRemoveUserFromGroup()
+  const uploadUserAvatar = useUploadUserAvatar()
   const [groupPickerByUser, setGroupPickerByUser] = useState<Record<string, string>>({})
   const [attributePicker, setAttributePicker] = useState<{ create: string; edit: string }>({ create: '', edit: '' })
   const [formData, setFormData] = useState(defaultForm)
@@ -261,18 +277,23 @@ const Users = () => {
     setCreateFormError('')
 
     try {
-      await createUser.mutateAsync({
+      const created = await createUser.mutateAsync({
         appIds: formData.appIds,
         isServiceUser: false,
+        avatarUrl: formData.avatarUrl || undefined,
         email: formData.email,
         username: formData.username,
         givenName: formData.givenName,
         familyName: formData.familyName,
         password: formData.password,
         customAttributes: formData.customAttributes,
-        roleIds: [],
+        roleIds: formData.roleIds,
         groupIds: formData.groupIds
       })
+      const avatarFile = (formData as any).avatarFile as File | undefined
+      if (avatarFile && created?.id) {
+        await uploadUserAvatar.mutateAsync({ userId: created.id, file: avatarFile })
+      }
       setCreateModalOpen(false)
       setAttributePicker((prev) => ({ ...prev, create: '' }))
       setFormData(defaultForm())
@@ -298,8 +319,10 @@ const Users = () => {
       username: user.username,
       givenName: user.givenName,
       familyName: user.familyName,
+      avatarUrl: user.avatarUrl ?? '',
       customAttributes: user.directCustomAttributes ?? {},
-      groupIds: currentGroupIds
+      groupIds: currentGroupIds,
+      roleIds: user.directRoleIds ?? []
     })
     setAttributePicker((prev) => ({ ...prev, edit: '' }))
     setEditModalOpen(true)
@@ -319,7 +342,9 @@ const Users = () => {
         username: editFormData.username,
         givenName: editFormData.givenName,
         familyName: editFormData.familyName,
-        customAttributes: editFormData.customAttributes
+        avatarUrl: editFormData.avatarUrl || undefined,
+        customAttributes: editFormData.customAttributes,
+        roleIds: editFormData.roleIds
       })
       const originalGroupIds = (userToEdit.groups ?? [])
         .map(groupName => (groups as GroupItem[]).find(g => g.name === groupName)?.id)
@@ -397,6 +422,24 @@ const Users = () => {
       groupIds: prev.groupIds.includes(groupId)
         ? prev.groupIds.filter((id) => id !== groupId)
         : [...prev.groupIds, groupId]
+    }))
+  }
+
+  const toggleCreateRole = (roleId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      roleIds: prev.roleIds.includes(roleId)
+        ? prev.roleIds.filter((id) => id !== roleId)
+        : [...prev.roleIds, roleId]
+    }))
+  }
+
+  const toggleEditRole = (roleId: string) => {
+    setEditFormData((prev) => ({
+      ...prev,
+      roleIds: prev.roleIds.includes(roleId)
+        ? prev.roleIds.filter((id) => id !== roleId)
+        : [...prev.roleIds, roleId]
     }))
   }
 
@@ -618,6 +661,14 @@ const Users = () => {
             <Input type="password" value={formData.password} onChange={e => setFormData(f => ({ ...f, password: e.target.value }))} placeholder="Min 8 characters" />
           </div>
           <div>
+            <label className={labelCls}>Avatar URL</label>
+            <Input type="url" value={formData.avatarUrl} onChange={e => setFormData(f => ({ ...f, avatarUrl: e.target.value }))} placeholder="https://..." />
+          </div>
+          <div>
+            <label className={labelCls}>Upload Avatar</label>
+            <Input type="file" accept="image/*" onChange={(e) => setFormData((f) => ({ ...f, avatarFile: e.target.files?.[0] }))} />
+          </div>
+          <div>
             <label className={labelCls}>Custom Attributes</label>
             <div className="space-y-2">
               {Object.entries(formData.customAttributes).length === 0 ? (
@@ -695,6 +746,23 @@ const Users = () => {
               ))}
             </div>
           </div>
+          <div>
+            <label className={labelCls}>Roles</label>
+            <div className="border border-slate-200 rounded-lg p-2 max-h-40 overflow-auto space-y-1">
+              {(roles as RoleItem[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No roles available</p>}
+              {(roles as RoleItem[]).map((role) => (
+                <label key={role.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 text-sm text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.roleIds.includes(role.id)}
+                    onChange={() => toggleCreateRole(role.id)}
+                    className="rounded border-slate-300"
+                  />
+                  {role.name}
+                </label>
+              ))}
+            </div>
+          </div>
           <div className="flex gap-2 justify-end pt-2">
             <Button onClick={() => setCreateModalOpen(false)} variant="secondary">
               Cancel
@@ -752,6 +820,31 @@ const Users = () => {
             <label className={labelCls}>Username</label>
             <Input type="text" value={editFormData.username} onChange={e => setEditFormData(f => ({ ...f, username: e.target.value }))} className="font-mono" placeholder="janedoe" />
           </div>
+          <div>
+            <label className={labelCls}>Avatar URL</label>
+            <Input type="url" value={editFormData.avatarUrl} onChange={e => setEditFormData(f => ({ ...f, avatarUrl: e.target.value }))} placeholder="https://..." />
+          </div>
+          {userToEdit && (
+            <div>
+              <label className={labelCls}>Upload Avatar</label>
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={async (event) => {
+                  const file = event.target.files?.[0]
+                  if (!file || !userToEdit) return
+                  try {
+                    const result = await uploadUserAvatar.mutateAsync({ userId: userToEdit.id, file }) as { avatarUrl?: string }
+                    if (result?.avatarUrl) {
+                      setEditFormData((prev) => ({ ...prev, avatarUrl: result.avatarUrl ?? '' }))
+                    }
+                  } catch (error) {
+                    setEditFormError(error instanceof Error ? error.message : 'Failed to upload avatar')
+                  }
+                }}
+              />
+            </div>
+          )}
           <div>
             <label className={labelCls}>Direct Custom Attributes</label>
             <div className="space-y-2">
@@ -837,6 +930,23 @@ const Users = () => {
                     className="rounded border-slate-300"
                   />
                   {group.name}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Roles</label>
+            <div className="border border-slate-200 rounded-lg p-2 max-h-40 overflow-auto space-y-1">
+              {(roles as RoleItem[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No roles available</p>}
+              {(roles as RoleItem[]).map((role) => (
+                <label key={role.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 text-sm text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editFormData.roleIds.includes(role.id)}
+                    onChange={() => toggleEditRole(role.id)}
+                    className="rounded border-slate-300"
+                  />
+                  {role.name}
                 </label>
               ))}
             </div>

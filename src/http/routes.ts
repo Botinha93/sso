@@ -2536,12 +2536,27 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
   app.patch("/api/admin/users/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { appId, appIds, externalSource, externalId, isServiceUser, avatarUrl, email, username, givenName, familyName, active, groupIds, customAttributes } = updateUserSchema.parse(request.body);
+    const { appId, appIds, externalSource, externalId, isServiceUser, avatarUrl, email, username, givenName, familyName, active, roleIds, groupIds, customAttributes } = updateUserSchema.parse(request.body);
     if (appId !== undefined || appIds !== undefined || externalSource !== undefined || externalId !== undefined || isServiceUser !== undefined || avatarUrl !== undefined || email !== undefined || username !== undefined || givenName !== undefined || familyName !== undefined) {
       await deps.userService.updateUserProfile(id, { appId, appIds, externalSource, externalId, isServiceUser, avatarUrl, email, username, givenName, familyName });
     }
     if (active !== undefined) await deps.userService.setUserActive(id, active);
     if (customAttributes) await deps.userService.setCustomAttributes(id, customAttributes);
+    if (roleIds) {
+      const existingAssignments = await deps.roleService.listAssignmentsForUser(id);
+      const existingRoleIds = Array.from(new Set(existingAssignments.map((assignment) => assignment.roleId)));
+      const next = new Set(roleIds);
+      for (const roleId of existingRoleIds) {
+        if (!next.has(roleId)) {
+          await deps.roleService.removeRole({ userId: id, roleId });
+        }
+      }
+      for (const roleId of roleIds) {
+        if (!existingRoleIds.includes(roleId)) {
+          await deps.roleService.assignRole({ userId: id, roleId });
+        }
+      }
+    }
     if (groupIds) {
       // Reset to exact set by removing all currently assigned groups first.
       const existingGroupIds = await deps.groupService.listGroupIdsForUser(id);

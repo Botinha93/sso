@@ -77,6 +77,7 @@ export const updateUserSchema = z.object({
   givenName: z.string().min(1).optional(),
   familyName: z.string().min(1).optional(),
   active: z.boolean().optional(),
+  roleIds: z.array(z.string()).optional(),
   groupIds: z.array(z.string()).optional(),
   customAttributes: z.record(z.string(), z.string()).optional()
 });

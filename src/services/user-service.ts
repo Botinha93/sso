@@ -161,13 +161,17 @@ export class UserService {
 
   async listUsers() {
     const users = await this.userRepository.list();
-    return Promise.all(users.map(async ({ passwordHash, ...user }) => ({
-      ...user,
-      ...(await this.resolveCustomAttributesForUser(user.id)),
-      ...(await this.resolveAppAccessForUser(user.id)),
-      roles: await this.roleService.resolveNamesForUser(user.id),
-      groups: await this.groupService.resolveGroupNamesForUser(user.id)
-    })));
+    return Promise.all(users.map(async ({ passwordHash, ...user }) => {
+      const directRoleIds = Array.from(new Set((await this.roleService.listAssignmentsForUser(user.id)).map((assignment) => assignment.roleId)));
+      return {
+        ...user,
+        ...(await this.resolveCustomAttributesForUser(user.id)),
+        ...(await this.resolveAppAccessForUser(user.id)),
+        roles: await this.roleService.resolveNamesForUser(user.id),
+        directRoleIds,
+        groups: await this.groupService.resolveGroupNamesForUser(user.id)
+      };
+    }));
   }
 
   async findUserByEmail(email: string) {

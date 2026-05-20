@@ -101,6 +101,21 @@ export default function Launcher({ user }: Props) {
         {/* App Grid */}
         <section>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-4">{t('launcher.yourApps')}</h2>
+          {canManageUsers && (
+            <div className="mb-4">
+              <a href="/admin/users">
+                <Card className="group cursor-pointer rounded-2xl p-4 transition-all hover:scale-[1.01] hover:border-slate-300 hover:shadow-lg flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-slate-900 text-white">
+                    <Settings size={16} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Manage Users</p>
+                    <p className="text-xs text-slate-500">Create, edit, assign roles/groups, and disable users</p>
+                  </div>
+                </Card>
+              </a>
+            </div>
+          )}
           {user.apps.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-300 p-12 text-center">
               <p className="text-slate-400 text-sm">{t('launcher.noAppsTitle')}</p>
@@ -161,3 +176,4 @@ function AppTile({ app }: { app: PortalUser['apps'][0] }) {
 
   return content
 }
+  const canManageUsers = Array.isArray(user.permissions) && (user.permissions.includes('*:*') || user.permissions.includes('users:view'))

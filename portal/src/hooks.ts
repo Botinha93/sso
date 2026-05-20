@@ -48,6 +48,8 @@ export interface PortalUser {
   appIds?: string[]
   directAppIds?: string[]
   inheritedAppIds?: string[]
+  roles?: string[]
+  permissions?: string[]
   customAttributes: Record<string, string>
   apps: PortalApp[]
 }

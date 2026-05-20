@@ -245,6 +245,7 @@ export function useCreateUser() {
       appId?: string
       appIds?: string[]
       isServiceUser?: boolean
+      avatarUrl?: string
       email: string
       username: string
       givenName: string
@@ -278,6 +279,7 @@ export function useUpdateUser() {
       active?: boolean
       groupIds?: string[]
       customAttributes?: Record<string, string>
+      roleIds?: string[]
     }) => jsonFetch(`${API_BASE}/users/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
