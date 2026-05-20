@@ -13,10 +13,11 @@ import { registerServiceIdentityRoutes } from "./routes/service-identities.js";
 import { deriveRiskEventsFromAudit } from "./routes/security-risk-events.js";
 import { registerConnectorRoutes } from "./routes/connectors.js";
 import { registerPluginRoutes } from "./routes/plugins.js";
-import { assignGroupRoleSchema, assignRoleSchema, assignUserGroupSchema, backChannelLogoutSchema, authorizeSchema, createAppSchema, createClientSchema, createScopeSchema, createAuthenticationFlowSchema, deviceAuthorizationSchema, deviceVerificationSchema, dynamicClientRegistrationSchema, frontChannelLogoutSchema, createFederationProviderSchema, createGroupSchema, createUserAttributeSchema, createPolicySchema, createEventHookSchema, createTenantSchema, createRoleSchema, updateGroupSchema, updateRoleSchema, createUserSchema, introspectSchema, loginSchema, migrateDatabaseSchema, oidcRevokeSchema, portalChangePasswordSchema, portalUpdateProfileSchema, recoverySchema, recoveryRequestSchema, sendTestEmailSchema, testDatabaseConnectionSchema, mfaLoginSchema, verifyTotpEnrollmentSchema, webauthnLoginBeginSchema, webauthnLoginFinishSchema, webauthnRegisterBeginSchema, webauthnRegisterFinishSchema, resetUserPasswordSchema, revokeTokenSchema, tokenSchema, setUserAttributeGroupAssignmentSchema, setPolicyAssignmentSchema, evaluatePolicyDecisionSchema, authorizationCheckSchema, removePolicyAssignmentSchema, setupInitializeSchema, testEventHookSchema, updateInstanceSettingsSchema, updateAppSchema, updateAuthenticationFlowSchema, updateClientSchema, updateEventHookSchema, updateFederationProviderSchema, updatePolicySchema, updateTenantSchema, updateUserAttributeSchema, updateUserSchema } from "./schemas.js";
+import { assignGroupRoleSchema, assignRoleSchema, assignUserGroupSchema, backChannelLogoutSchema, authorizeSchema, createAppSchema, createClientSchema, createScopeSchema, createAuthenticationFlowSchema, cibaApprovalSchema, cibaAuthenticationRequestSchema, deviceAuthorizationSchema, deviceVerificationSchema, dynamicClientRegistrationSchema, frontChannelLogoutSchema, createFederationProviderSchema, createGroupSchema, createUserAttributeSchema, createPolicySchema, createEventHookSchema, createTenantSchema, createRoleSchema, updateGroupSchema, updateRoleSchema, createUserSchema, introspectSchema, loginSchema, migrateDatabaseSchema, oidcRevokeSchema, oauthLogoutSchema, portalChangePasswordSchema, portalUpdateProfileSchema, recoverySchema, recoveryRequestSchema, sendTestEmailSchema, testDatabaseConnectionSchema, mfaLoginSchema, verifyTotpEnrollmentSchema, webauthnLoginBeginSchema, webauthnLoginFinishSchema, webauthnRegisterBeginSchema, webauthnRegisterFinishSchema, resetUserPasswordSchema, revokeTokenSchema, tokenSchema, setUserAttributeGroupAssignmentSchema, setPolicyAssignmentSchema, evaluatePolicyDecisionSchema, authorizationCheckSchema, removePolicyAssignmentSchema, setupInitializeSchema, testEventHookSchema, updateInstanceSettingsSchema, updateAppSchema, updateAuthenticationFlowSchema, updateClientSchema, updateEventHookSchema, updateFederationProviderSchema, updatePolicySchema, updateTenantSchema, updateUserAttributeSchema, updateUserSchema } from "./schemas.js";
 import { GeolocationService } from "../services/geolocation-service.js";
 import { TranslationService } from "../services/translation-service.js";
 export const registerRoutes = async (app, deps) => {
+    const USER_PICTURE_ATTRIBUTE_KEY = "picture";
     const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
     const allowedImageMimeTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"]);
     const translationService = new TranslationService();
@@ -150,6 +151,10 @@ export const registerRoutes = async (app, deps) => {
         const file = await readFrontendAsset(frontend, relativePath);
         return reply.type(getAssetContentType(relativePath)).send(file);
     };
+    const prefersHtmlResponse = (request) => {
+        const acceptHeader = request.headers?.accept;
+        return typeof acceptHeader === "string" && acceptHeader.includes("text/html");
+    };
     function asSafeRedirect(value) {
         if (typeof value !== "string" || !value.startsWith("/")) {
             return "/";
@@ -202,6 +207,42 @@ export const registerRoutes = async (app, deps) => {
             return "SAML request could not be completed";
         }
         return error.message;
+    }
+    function humanizeValidationField(path) {
+        if (!Array.isArray(path) || path.length === 0) {
+            return "Request";
+        }
+        const last = String(path[path.length - 1]);
+        return last
+            .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+            .replace(/[_-]+/g, " ")
+            .replace(/^./, (char) => char.toUpperCase());
+    }
+    function formatValidationIssue(issue) {
+        if (!issue || typeof issue !== "object") {
+            return undefined;
+        }
+        const typedIssue = issue;
+        const field = humanizeValidationField(typedIssue.path);
+        if (typedIssue.code === "invalid_string" && typedIssue.validation === "email") {
+            return `${field} must be a valid email address`;
+        }
+        if (typedIssue.code === "too_small" && typedIssue.type === "string") {
+            if (typedIssue.minimum === 1) {
+                return `${field} is required`;
+            }
+            return `${field} must be at least ${typedIssue.minimum} characters`;
+        }
+        if (typedIssue.message?.trim()) {
+            return `${field}: ${typedIssue.message}`;
+        }
+        return undefined;
+    }
+    function validationErrorMessageFromIssues(issues) {
+        if (!Array.isArray(issues) || issues.length === 0) {
+            return "Request validation failed";
+        }
+        return formatValidationIssue(issues[0]) ?? "Request validation failed";
     }
     async function getSession(request) {
         const sid = request.cookies?.sid;
@@ -409,7 +450,8 @@ export const registerRoutes = async (app, deps) => {
             return endpointLimitResult;
         }
         const path = request.url.split("?")[0];
-        const requiresCsrf = csrfProtectedMethods.has(request.method) && !csrfExemptPaths.has(path);
+        const hasBearerToken = typeof request.headers.authorization === "string" && request.headers.authorization.startsWith("Bearer ");
+        const requiresCsrf = csrfProtectedMethods.has(request.method) && !csrfExemptPaths.has(path) && !hasBearerToken;
         if (requiresCsrf && (path.startsWith("/api/admin") || path.startsWith("/api/account") || path.startsWith("/api/portal") || path === "/auth/logout")) {
             if (!verifyCsrf(request, reply)) {
                 return;
@@ -418,7 +460,30 @@ export const registerRoutes = async (app, deps) => {
         if (path.startsWith("/api/admin")) {
             const session = await getSession(request);
             if (!session) {
-                return reply.status(401).send({ error: "unauthorized" });
+                // Fallback: allow service identities authenticating with a Bearer access token
+                if (!hasBearerToken) {
+                    return reply.status(401).send({ error: "unauthorized" });
+                }
+                try {
+                    const token = request.headers.authorization.slice("Bearer ".length);
+                    const claims = await deps.authService.jwtService.verifyAccessToken(token);
+                    if (claims.actor_type !== "service_identity") {
+                        return reply.status(401).send({ error: "unauthorized" });
+                    }
+                    if (path === "/api/admin/me") {
+                        return;
+                    }
+                    const resource = toAdminResource(path);
+                    const action = toAdminAction(request.method);
+                    const permissions = Array.isArray(claims.permissions) ? claims.permissions : [];
+                    if (!hasAdminPermission({ permissions, resource, action })) {
+                        return reply.status(403).send({ error: "forbidden" });
+                    }
+                    return;
+                }
+                catch {
+                    return reply.status(401).send({ error: "unauthorized" });
+                }
             }
             const user = await deps.userService.findUserById(session.userId);
             if (!user) {
@@ -641,9 +706,17 @@ export const registerRoutes = async (app, deps) => {
                 redirectUrl.searchParams.set("state", input.state);
             return reply.redirect(redirectUrl.toString());
         }
-        const responseMode = input.response_mode ?? "query";
+        const responseTypes = new Set(input.response_type.split(" ").map((value) => value.trim()).filter(Boolean));
+        const hasFrontChannelToken = responseTypes.has("token") || responseTypes.has("id_token");
+        const responseMode = input.response_mode ?? (hasFrontChannelToken ? "fragment" : "query");
+        if (hasFrontChannelToken && responseMode === "query") {
+            return reply.status(400).send({ error: "invalid_request", error_description: "response_mode=query is not allowed for token or id_token responses" });
+        }
+        if (responseTypes.has("id_token") && !input.nonce) {
+            return reply.status(400).send({ error: "invalid_request", error_description: "nonce is required when response_type includes id_token" });
+        }
         const params = {};
-        if (input.response_type === "code") {
+        if (responseTypes.has("code")) {
             const authorizationCode = await deps.authService.createAuthorizationCode({
                 clientId: input.client_id,
                 userId: user.id,
@@ -654,7 +727,7 @@ export const registerRoutes = async (app, deps) => {
             });
             params.code = authorizationCode.code;
         }
-        else {
+        if (responseTypes.has("token")) {
             const tenant = input.tenant ? (await deps.tenantService.listTenants()).find((item) => item.slug === input.tenant) : undefined;
             const token = await deps.authService.issueImplicitToken({
                 userId: user.id,
@@ -668,6 +741,17 @@ export const registerRoutes = async (app, deps) => {
             params.token_type = token.token_type;
             params.expires_in = String(token.expires_in);
             params.scope = token.scope;
+        }
+        if (responseTypes.has("id_token")) {
+            const idToken = await deps.authService.issueFrontChannelIdToken({
+                userId: user.id,
+                clientId: input.client_id,
+                nonce: String(input.nonce)
+            });
+            params.id_token = idToken;
+        }
+        if (!responseTypes.has("code") && !responseTypes.has("token") && !responseTypes.has("id_token")) {
+            return reply.status(400).send({ error: "unsupported_response_type", error_description: "Unsupported response_type" });
         }
         if (input.state)
             params.state = input.state;
@@ -763,6 +847,39 @@ export const registerRoutes = async (app, deps) => {
                 }
                 return response;
             }
+            if (parsed.data.grant_type === "urn:ietf:params:oauth:grant-type:jwt-bearer") {
+                return await deps.authService.issueJwtBearerGrantTokens({
+                    assertion: parsed.data.assertion,
+                    clientId: parsed.data.client_id,
+                    clientSecret: parsed.data.client_secret,
+                    scope: parsed.data.scope,
+                    ip: request.ip,
+                    userAgent: clientUserAgent(request)
+                });
+            }
+            if (parsed.data.grant_type === "urn:ietf:params:oauth:grant-type:saml2-bearer") {
+                return await deps.authService.issueSaml2BearerGrantTokens({
+                    assertion: parsed.data.assertion,
+                    clientId: parsed.data.client_id,
+                    clientSecret: parsed.data.client_secret,
+                    scope: parsed.data.scope,
+                    ip: request.ip,
+                    userAgent: clientUserAgent(request)
+                });
+            }
+            if (parsed.data.grant_type === "urn:openid:params:grant-type:ciba") {
+                const response = await deps.authService.exchangeCibaAuthenticationRequest({
+                    authReqId: parsed.data.auth_req_id,
+                    clientId: parsed.data.client_id,
+                    clientSecret: parsed.data.client_secret,
+                    ip: request.ip,
+                    userAgent: clientUserAgent(request)
+                });
+                if ("error" in response) {
+                    return reply.status(400).send(response);
+                }
+                return response;
+            }
         }
         catch (err) {
             if (parsed.data.grant_type === "password") {
@@ -809,6 +926,15 @@ export const registerRoutes = async (app, deps) => {
             return reply.status(400).send({ error: "invalid_request", error_description: "Missing required fields for token exchange" });
         }
         const { subject_token, subject_token_type, scope, audience, client_id, client_secret } = parsed.data;
+        try {
+            await deps.authenticationFlowService.assertGrantSupported("token_exchange");
+        }
+        catch (error) {
+            if (error instanceof AppError) {
+                return reply.status(error.statusCode).send({ error: "invalid_request", error_description: error.message });
+            }
+            throw error;
+        }
         if (subject_token_type !== "urn:ietf:params:oauth:token-type:access_token" &&
             subject_token_type !== "urn:ietf:params:oauth:token-type:jwt") {
             return reply.status(400).send({ error: "invalid_request", error_description: "Unsupported subject_token_type" });
@@ -831,6 +957,9 @@ export const registerRoutes = async (app, deps) => {
             try {
                 const client = await deps.clientService.findClientById(client_id);
                 if (client && client.secret === client_secret) {
+                    if (!client.grants.includes("token_exchange")) {
+                        return reply.status(401).send({ error: "invalid_client", error_description: "Client does not support token_exchange grant" });
+                    }
                     matchedClient = true;
                     exchangeActor = { type: "client", id: client.id };
                 }
@@ -919,6 +1048,31 @@ export const registerRoutes = async (app, deps) => {
             scope: input.scope
         });
         return reply.status(200).send(issued);
+    });
+    app.post("/oauth/ciba/authenticate", async (request, reply) => {
+        const input = cibaAuthenticationRequestSchema.parse(request.body);
+        const issued = await deps.authService.createCibaAuthenticationRequest({
+            clientId: input.client_id,
+            clientSecret: input.client_secret,
+            loginHint: input.login_hint,
+            scope: input.scope,
+            requestedDeliveryMode: input.requested_delivery_mode,
+            clientNotificationEndpoint: input.client_notification_endpoint,
+            clientNotificationToken: input.client_notification_token,
+            bindingMessage: input.binding_message,
+            userCode: input.user_code
+        });
+        return reply.status(200).send(issued);
+    });
+    app.post("/oauth/ciba/approve", async (request, reply) => {
+        const input = cibaApprovalSchema.parse(request.body);
+        const result = await deps.authService.approveCibaAuthenticationRequest({
+            authReqId: input.auth_req_id,
+            username: input.username,
+            password: input.password,
+            approve: input.approve
+        });
+        return reply.status(200).send(result);
     });
     app.post("/oauth/device/verify", async (request, reply) => {
         const input = deviceVerificationSchema.parse(request.body);
@@ -1106,7 +1260,7 @@ export const registerRoutes = async (app, deps) => {
                 throw new AuthenticationError("Invalid one-time code");
             }
             const tenant = challenge.tenantSlug ? (await deps.tenantService.listTenants()).find((item) => item.slug === challenge.tenantSlug) : undefined;
-            deps.policyService.enforceStagePolicies({
+            await deps.policyService.enforceStagePolicies({
                 stage: "mfa_totp",
                 user,
                 tenantId: tenant?.id,
@@ -1343,7 +1497,7 @@ export const registerRoutes = async (app, deps) => {
         elevationService: deps.elevationService,
         requireSessionUser
     });
-    registerServiceIdentityRoutes(app, deps.serviceIdentityService);
+    registerServiceIdentityRoutes(app, deps.serviceIdentityService, deps.roleService, deps.groupService);
     registerConnectorRoutes(app, deps.connectorService, deps.authMetricsService);
     registerPluginRoutes(app, deps.pluginService, deps.pluginRuntimeService);
     app.put("/api/admin/settings", async (request) => {
@@ -1643,7 +1797,7 @@ export const registerRoutes = async (app, deps) => {
             return reply.status(400).send({ error: "invalid_request", message: "Missing code or state" });
         }
         const completed = await deps.federationService.completeLogin({ providerId, code, state });
-        deps.policyService.enforceStagePolicies({
+        await deps.policyService.enforceStagePolicies({
             stage: "federation",
             user: completed.user,
             clientId: "sso-admin-ui",
@@ -1704,19 +1858,34 @@ export const registerRoutes = async (app, deps) => {
         return reply.redirect("/login");
     });
     app.get("/oauth/logout", async (request, reply) => {
-        const { post_logout_redirect_uri, state } = request.query;
+        const { post_logout_redirect_uri, state, client_id, id_token_hint } = oauthLogoutSchema.parse(request.query);
         const session = await getSession(request);
+        let hintedClientId;
+        if (id_token_hint) {
+            try {
+                const claims = await deps.authService.jwtService.verifyAccessToken(id_token_hint);
+                const aud = claims.aud;
+                hintedClientId = typeof aud === "string" ? aud : Array.isArray(aud) ? aud.find((value) => typeof value === "string") : undefined;
+            }
+            catch {
+                return reply.status(400).send({ error: "invalid_request", error_description: "Invalid id_token_hint" });
+            }
+        }
+        if (client_id && hintedClientId && client_id !== hintedClientId) {
+            return reply.status(400).send({ error: "invalid_request", error_description: "client_id does not match id_token_hint" });
+        }
         if (session) {
             deps.securityService.revokeSessionObservation(session.id);
             await enforceInvalidationForSession({ session, ip: request.ip });
         }
         reply.clearCookie("sid", { path: "/" });
         if (post_logout_redirect_uri) {
-            if (!session) {
+            const redirectClientId = session?.clientId ?? hintedClientId ?? client_id;
+            if (!redirectClientId) {
                 return reply.status(401).send({ error: "unauthorized" });
             }
             const redirectUrl = await resolveValidatedPostLogoutRedirect({
-                clientId: session.clientId,
+                clientId: redirectClientId,
                 redirectUri: post_logout_redirect_uri,
                 state
             });
@@ -1922,7 +2091,9 @@ export const registerRoutes = async (app, deps) => {
     app.get("/api/admin/users", async () => deps.userService.listUsers());
     app.post("/api/admin/users", async (request, reply) => {
         const input = createUserSchema.parse(request.body);
-        deps.policyService.enforceUserCreationPolicies(input.password);
+        if (input.password) {
+            await deps.policyService.enforceUserCreationPolicies(input.password);
+        }
         const user = await deps.userService.createUser(input);
         await deps.auditRepository.log({ type: "user_created", actorType: "system", metadata: { userId: user.id, email: user.email } });
         await deps.eventHookService.emit("user.created", {
@@ -1935,7 +2106,7 @@ export const registerRoutes = async (app, deps) => {
     });
     app.patch("/api/admin/users/:id", async (request, reply) => {
         const { id } = request.params;
-        const { appId, appIds, externalSource, externalId, isServiceUser, avatarUrl, email, username, givenName, familyName, active, groupIds, customAttributes } = updateUserSchema.parse(request.body);
+        const { appId, appIds, externalSource, externalId, isServiceUser, avatarUrl, email, username, givenName, familyName, active, roleIds, groupIds, customAttributes } = updateUserSchema.parse(request.body);
         if (appId !== undefined || appIds !== undefined || externalSource !== undefined || externalId !== undefined || isServiceUser !== undefined || avatarUrl !== undefined || email !== undefined || username !== undefined || givenName !== undefined || familyName !== undefined) {
             await deps.userService.updateUserProfile(id, { appId, appIds, externalSource, externalId, isServiceUser, avatarUrl, email, username, givenName, familyName });
         }
@@ -1943,6 +2114,21 @@ export const registerRoutes = async (app, deps) => {
             await deps.userService.setUserActive(id, active);
         if (customAttributes)
             await deps.userService.setCustomAttributes(id, customAttributes);
+        if (roleIds) {
+            const existingAssignments = await deps.roleService.listAssignmentsForUser(id);
+            const existingRoleIds = Array.from(new Set(existingAssignments.map((assignment) => assignment.roleId)));
+            const next = new Set(roleIds);
+            for (const roleId of existingRoleIds) {
+                if (!next.has(roleId)) {
+                    await deps.roleService.removeRole({ userId: id, roleId });
+                }
+            }
+            for (const roleId of roleIds) {
+                if (!existingRoleIds.includes(roleId)) {
+                    await deps.roleService.assignRole({ userId: id, roleId });
+                }
+            }
+        }
         if (groupIds) {
             // Reset to exact set by removing all currently assigned groups first.
             const existingGroupIds = await deps.groupService.listGroupIdsForUser(id);
@@ -1977,7 +2163,7 @@ export const registerRoutes = async (app, deps) => {
     app.post("/api/admin/users/:id/reset-password", async (request, reply) => {
         const { id } = request.params;
         const { password } = resetUserPasswordSchema.parse(request.body);
-        deps.policyService.enforceUserCreationPolicies(password);
+        await deps.policyService.enforceUserCreationPolicies(password);
         await deps.userService.resetPassword(id, password);
         const now = new Date();
         const userSessions = (await deps.authService.sessionRepository.list()).filter((session) => session.userId === id && !session.revokedAt);
@@ -2013,6 +2199,10 @@ export const registerRoutes = async (app, deps) => {
             mimeType: uploaded.mimeType
         });
         await deps.userService.updateUserProfile(user.id, { avatarUrl: saved.url });
+        await deps.userService.setCustomAttributes(user.id, {
+            ...(user.customAttributes ?? {}),
+            [USER_PICTURE_ATTRIBUTE_KEY]: saved.url
+        });
         await deps.mediaService.deleteByUrl(previousAvatarUrl);
         return reply.status(200).send({ avatarUrl: saved.url });
     });
@@ -2278,14 +2468,41 @@ export const registerRoutes = async (app, deps) => {
         const sourceEvents = await deps.auditRepository.list(Math.max(200, requestedLimit * 5));
         return deriveRiskEventsFromAudit(sourceEvents, requestedLimit);
     });
-    app.get("/users", async () => deps.userService.listUsers());
-    app.get("/clients", async () => deps.clientService.listClients());
-    app.get("/roles", async () => deps.roleService.listRoles());
-    app.get("/groups", async () => deps.groupService.listGroups());
-    app.get("/tenants", async () => deps.tenantService.listTenants());
+    app.get("/users", async (request, reply) => {
+        if (prefersHtmlResponse(request)) {
+            return sendFrontendIndex(reply, "admin");
+        }
+        return deps.userService.listUsers();
+    });
+    app.get("/clients", async (request, reply) => {
+        if (prefersHtmlResponse(request)) {
+            return sendFrontendIndex(reply, "admin");
+        }
+        return deps.clientService.listClients();
+    });
+    app.get("/roles", async (request, reply) => {
+        if (prefersHtmlResponse(request)) {
+            return sendFrontendIndex(reply, "admin");
+        }
+        return deps.roleService.listRoles();
+    });
+    app.get("/groups", async (request, reply) => {
+        if (prefersHtmlResponse(request)) {
+            return sendFrontendIndex(reply, "admin");
+        }
+        return deps.groupService.listGroups();
+    });
+    app.get("/tenants", async (request, reply) => {
+        if (prefersHtmlResponse(request)) {
+            return sendFrontendIndex(reply, "admin");
+        }
+        return deps.tenantService.listTenants();
+    });
     app.post("/users", async (request, reply) => {
         const input = createUserSchema.parse(request.body);
-        deps.policyService.enforceUserCreationPolicies(input.password);
+        if (input.password) {
+            await deps.policyService.enforceUserCreationPolicies(input.password);
+        }
         const user = await deps.userService.createUser(input);
         await deps.eventHookService.emit("user.created", {
             userId: user.id,
@@ -2382,8 +2599,14 @@ export const registerRoutes = async (app, deps) => {
             givenName: user.givenName,
             familyName: user.familyName,
             avatarUrl: user.avatarUrl,
-            customAttributes: userCustomAttributes.customAttributes,
-            directCustomAttributes: userCustomAttributes.directCustomAttributes,
+            customAttributes: {
+                ...userCustomAttributes.customAttributes,
+                ...(user.avatarUrl ? { [USER_PICTURE_ATTRIBUTE_KEY]: user.avatarUrl } : {})
+            },
+            directCustomAttributes: {
+                ...userCustomAttributes.directCustomAttributes,
+                ...(user.avatarUrl ? { [USER_PICTURE_ATTRIBUTE_KEY]: user.avatarUrl } : {})
+            },
             inheritedCustomAttributes: userCustomAttributes.inheritedCustomAttributes,
             appId: userAppAccess.appId,
             appIds: userAppAccess.appIds,
@@ -2410,6 +2633,15 @@ export const registerRoutes = async (app, deps) => {
                 email: input.email,
                 username: input.username
             });
+            if (input.avatarUrl !== undefined) {
+                const refreshedUser = await deps.userService.findUserById(session.userId);
+                if (refreshedUser) {
+                    await deps.userService.setCustomAttributes(session.userId, {
+                        ...(refreshedUser.customAttributes ?? {}),
+                        [USER_PICTURE_ATTRIBUTE_KEY]: input.avatarUrl
+                    });
+                }
+            }
         }
         if (input.customAttributes !== undefined) {
             await deps.userService.setCustomAttributes(session.userId, input.customAttributes);
@@ -2428,7 +2660,7 @@ export const registerRoutes = async (app, deps) => {
         if (!verifyPassword(currentPassword, user.passwordHash)) {
             return reply.status(400).send({ error: "InvalidPassword", message: "Current password is incorrect" });
         }
-        deps.policyService.enforceUserCreationPolicies(newPassword);
+        await deps.policyService.enforceUserCreationPolicies(newPassword);
         await deps.userService.resetPassword(session.userId, newPassword);
         return reply.status(204).send();
     });
@@ -2467,6 +2699,10 @@ export const registerRoutes = async (app, deps) => {
             mimeType: uploaded.mimeType
         });
         await deps.userService.updateUserProfile(user.id, { avatarUrl: saved.url });
+        await deps.userService.setCustomAttributes(user.id, {
+            ...(user.customAttributes ?? {}),
+            [USER_PICTURE_ATTRIBUTE_KEY]: saved.url
+        });
         await deps.mediaService.deleteByUrl(previousAvatarUrl);
         return reply.status(200).send({ avatarUrl: saved.url });
     });
@@ -2504,10 +2740,11 @@ export const registerRoutes = async (app, deps) => {
             return reply.status(error.statusCode).send({ error: error.name, message: error.message });
         }
         if (typeof error === "object" && error !== null && "issues" in error) {
+            const details = error.issues;
             return reply.status(422).send({
                 error: "ValidationError",
-                message: "Request validation failed",
-                details: error.issues
+                message: validationErrorMessageFromIssues(details),
+                details
             });
         }
         request.log.error(error);

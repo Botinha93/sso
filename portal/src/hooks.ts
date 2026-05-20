@@ -31,6 +31,17 @@ async function apiFetch(url: string, init?: RequestInit) {
   return json
 }
 
+export async function logout() {
+  const res = await fetch('/auth/logout', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'X-CSRF-Token': await getCsrfToken() }
+  })
+  if (!res.ok) {
+    throw new Error('Logout failed')
+  }
+}
+
 export interface PortalApp {
   id: string
   name: string

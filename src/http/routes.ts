@@ -47,6 +47,7 @@ import {
   loginSchema,
   migrateDatabaseSchema,
   oidcRevokeSchema,
+  oauthLogoutSchema,
   portalChangePasswordSchema,
   portalUpdateProfileSchema,
   recoverySchema,
@@ -2272,20 +2273,42 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
 
   app.get("/oauth/logout", async (request, reply) => {
-    const { post_logout_redirect_uri, state } = request.query as Record<string, string>;
+    const {
+      post_logout_redirect_uri,
+      state,
+      client_id,
+      id_token_hint
+    } = oauthLogoutSchema.parse(request.query);
     const session = await getSession(request);
+    let hintedClientId: string | undefined;
+
+    if (id_token_hint) {
+      try {
+        const claims = await deps.authService.jwtService.verifyAccessToken(id_token_hint);
+        const aud = claims.aud;
+        hintedClientId = typeof aud === "string" ? aud : Array.isArray(aud) ? aud.find((value): value is string => typeof value === "string") : undefined;
+      } catch {
+        return reply.status(400).send({ error: "invalid_request", error_description: "Invalid id_token_hint" });
+      }
+    }
+
+    if (client_id && hintedClientId && client_id !== hintedClientId) {
+      return reply.status(400).send({ error: "invalid_request", error_description: "client_id does not match id_token_hint" });
+    }
+
     if (session) {
       deps.securityService.revokeSessionObservation(session.id);
       await enforceInvalidationForSession({ session, ip: request.ip });
     }
     reply.clearCookie("sid", { path: "/" });
     if (post_logout_redirect_uri) {
-      if (!session) {
+      const redirectClientId = session?.clientId ?? hintedClientId ?? client_id;
+      if (!redirectClientId) {
         return reply.status(401).send({ error: "unauthorized" });
       }
 
       const redirectUrl = await resolveValidatedPostLogoutRedirect({
-        clientId: session.clientId,
+        clientId: redirectClientId,
         redirectUri: post_logout_redirect_uri,
         state
       });

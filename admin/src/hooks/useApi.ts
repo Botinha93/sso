@@ -55,6 +55,17 @@ const uploadFetch = async (url: string, file: File) => {
   return res.json()
 }
 
+export async function logout() {
+  const res = await fetch('/auth/logout', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'X-CSRF-Token': await getCsrfToken() }
+  })
+  if (!res.ok) {
+    throw new Error('Logout failed')
+  }
+}
+
 // --- Setup ---
 export function useSetupStatus() {
   return useQuery({

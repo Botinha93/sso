@@ -64,14 +64,30 @@ export class UserService {
             }
         }
     }
+    normalizeCustomAttributes(customAttributes) {
+        if (!customAttributes) {
+            return {};
+        }
+        return Object.fromEntries(Object.entries(customAttributes).filter(([, value]) => value.trim().length > 0));
+    }
     async createUser(input) {
         const appIds = this.normalizeAppIds(input);
-        const customAttributes = input.customAttributes ?? {};
+        const customAttributes = this.normalizeCustomAttributes(input.customAttributes);
         if (await this.userRepository.findByEmail(input.email)) {
             throw new ValidationError("A user with this email already exists");
         }
+        if (await this.userRepository.findByUsername(input.username)) {
+            throw new ValidationError("A user with this username already exists");
+        }
         await this.validateAppIds(appIds);
         await this.validateCustomAttributes(customAttributes);
+        if (!input.password && !input.passwordHash) {
+            throw new ValidationError("Either password or passwordHash is required");
+        }
+        if (input.password && input.passwordHash) {
+            throw new ValidationError("Provide either password or passwordHash, not both");
+        }
+        const passwordHash = input.passwordHash ?? hashPassword(input.password);
         const user = await this.userRepository.create({
             appId: appIds[0],
             appIds,
@@ -83,7 +99,7 @@ export class UserService {
             avatarUrl: input.avatarUrl,
             email: input.email,
             username: input.username,
-            passwordHash: hashPassword(input.password),
+            passwordHash,
             givenName: input.givenName,
             familyName: input.familyName,
             customAttributes,
@@ -103,13 +119,17 @@ export class UserService {
     }
     async listUsers() {
         const users = await this.userRepository.list();
-        return Promise.all(users.map(async ({ passwordHash, ...user }) => ({
-            ...user,
-            ...(await this.resolveCustomAttributesForUser(user.id)),
-            ...(await this.resolveAppAccessForUser(user.id)),
-            roles: await this.roleService.resolveNamesForUser(user.id),
-            groups: await this.groupService.resolveGroupNamesForUser(user.id)
-        })));
+        return Promise.all(users.map(async ({ passwordHash, ...user }) => {
+            const directRoleIds = Array.from(new Set((await this.roleService.listAssignmentsForUser(user.id)).map((assignment) => assignment.roleId)));
+            return {
+                ...user,
+                ...(await this.resolveCustomAttributesForUser(user.id)),
+                ...(await this.resolveAppAccessForUser(user.id)),
+                roles: await this.roleService.resolveNamesForUser(user.id),
+                directRoleIds,
+                groups: await this.groupService.resolveGroupNamesForUser(user.id)
+            };
+        }));
     }
     async findUserByEmail(email) {
         return this.userRepository.findByEmail(email);
@@ -144,7 +164,7 @@ export class UserService {
             await this.validateAppIds(appIds);
         }
         if (input.customAttributes) {
-            await this.validateCustomAttributes(input.customAttributes);
+            await this.validateCustomAttributes(this.normalizeCustomAttributes(input.customAttributes));
         }
         const updated = await this.userRepository.updateProfile(id, {
             ...input,
@@ -175,8 +195,9 @@ export class UserService {
         await this.userRepository.setActive(id, active);
     }
     async setCustomAttributes(id, customAttributes) {
-        await this.validateCustomAttributes(customAttributes);
-        await this.userRepository.setCustomAttributes(id, customAttributes);
+        const normalizedCustomAttributes = this.normalizeCustomAttributes(customAttributes);
+        await this.validateCustomAttributes(normalizedCustomAttributes);
+        await this.userRepository.setCustomAttributes(id, normalizedCustomAttributes);
     }
     async deleteUser(id) {
         const groupIds = await this.groupService.listGroupIdsForUser(id);

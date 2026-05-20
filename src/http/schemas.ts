@@ -722,6 +722,13 @@ export const frontChannelLogoutSchema = z.object({
   state: z.string().optional()
 });
 
+export const oauthLogoutSchema = z.object({
+  post_logout_redirect_uri: z.string().url().optional(),
+  state: z.string().optional(),
+  client_id: z.string().min(2).optional(),
+  id_token_hint: z.string().min(16).optional()
+});
+
 export const backChannelLogoutSchema = z.object({
   client_id: z.string().min(2),
   client_secret: z.string().min(8),

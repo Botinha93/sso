@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { logout } from '../hooks/useApi'
 import {
   LayoutDashboard,
   AppWindow,
@@ -96,7 +97,7 @@ const Sidebar = ({
   const can = (permission: string) => permissions.includes('*:*') || permissions.includes(permission)
 
   const handleLogout = async () => {
-    await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
+    await logout();
     window.location.href = '/login';
   };
 

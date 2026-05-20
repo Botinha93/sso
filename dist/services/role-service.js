@@ -36,11 +36,7 @@ export class RoleService {
             .filter((assignment) => !assignment.tenantId || assignment.tenantId === tenantId)
             .map((assignment) => assignment.roleId);
         const userGroups = (await this.userGroupAssignmentRepository.listByUser(userId)).map((assignment) => assignment.groupId);
-        const groupRoleIds = (await this.groupRoleAssignmentRepository
-            .listByGroups(userGroups))
-            .map((assignment) => assignment.roleId);
-        const effectiveRoleIds = Array.from(new Set([...matchingRoleIds, ...groupRoleIds]));
-        return (await this.roleRepository.findByIds(effectiveRoleIds)).map((role) => role.name);
+        return this.resolveNamesForAssignments(matchingRoleIds, userGroups);
     }
     async resolvePermissionsForUser(userId, tenantId) {
         const assignments = await this.assignmentRepository.listByUser(userId);
@@ -48,12 +44,7 @@ export class RoleService {
             .filter((assignment) => !assignment.tenantId || assignment.tenantId === tenantId)
             .map((assignment) => assignment.roleId);
         const userGroups = (await this.userGroupAssignmentRepository.listByUser(userId)).map((assignment) => assignment.groupId);
-        const groupRoleIds = (await this.groupRoleAssignmentRepository
-            .listByGroups(userGroups))
-            .map((assignment) => assignment.roleId);
-        const effectiveRoleIds = Array.from(new Set([...matchingRoleIds, ...groupRoleIds]));
-        const permissions = (await this.roleRepository.findByIds(effectiveRoleIds)).flatMap((role) => role.permissions);
-        return Array.from(new Set(permissions));
+        return this.resolvePermissionsForAssignments(matchingRoleIds, userGroups);
     }
     async resolveRolePermissionDetailsForUser(userId, tenantId) {
         const assignments = await this.assignmentRepository.listByUser(userId);
@@ -61,10 +52,25 @@ export class RoleService {
             .filter((assignment) => !assignment.tenantId || assignment.tenantId === tenantId)
             .map((assignment) => assignment.roleId);
         const userGroups = (await this.userGroupAssignmentRepository.listByUser(userId)).map((assignment) => assignment.groupId);
+        return this.resolveRolePermissionDetailsForAssignments(matchingRoleIds, userGroups);
+    }
+    async resolveEffectiveRoleIds(roleIds, groupIds) {
         const groupRoleIds = (await this.groupRoleAssignmentRepository
-            .listByGroups(userGroups))
+            .listByGroups(groupIds))
             .map((assignment) => assignment.roleId);
-        const effectiveRoleIds = Array.from(new Set([...matchingRoleIds, ...groupRoleIds]));
+        return Array.from(new Set([...roleIds, ...groupRoleIds]));
+    }
+    async resolveNamesForAssignments(roleIds, groupIds) {
+        const effectiveRoleIds = await this.resolveEffectiveRoleIds(roleIds, groupIds);
+        return (await this.roleRepository.findByIds(effectiveRoleIds)).map((role) => role.name);
+    }
+    async resolvePermissionsForAssignments(roleIds, groupIds) {
+        const effectiveRoleIds = await this.resolveEffectiveRoleIds(roleIds, groupIds);
+        const permissions = (await this.roleRepository.findByIds(effectiveRoleIds)).flatMap((role) => role.permissions);
+        return Array.from(new Set(permissions));
+    }
+    async resolveRolePermissionDetailsForAssignments(roleIds, groupIds) {
+        const effectiveRoleIds = await this.resolveEffectiveRoleIds(roleIds, groupIds);
         const roles = await this.roleRepository.findByIds(effectiveRoleIds);
         return roles.map((role) => ({
             id: role.id,

@@ -8,6 +8,7 @@ import Card from '../components/ui/Card'
 import Input from '../components/ui/Input'
 import { useI18n } from '../i18n'
 import {
+  logout,
   usePortalChangePassword,
   usePortalDefaultAvatars,
   usePortalDeleteAccount,
@@ -40,7 +41,7 @@ export default function Profile({ user }: Props) {
   const [section, setSection] = useState<Section>('profile')
 
   const handleLogout = async () => {
-    await fetch('/auth/logout', { method: 'POST', credentials: 'include' })
+    await logout()
     window.location.href = portalHome
   }
 

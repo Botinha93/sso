@@ -36,12 +36,28 @@ export const createUserSchema = z.object({
     avatarUrl: z.string().min(1).optional(),
     email: z.string().email(),
     username: z.string().min(3),
-    password: z.string().min(8),
+    password: z.string().min(8).optional(),
+    passwordHash: z.string().min(3).optional(),
     givenName: z.string().min(1),
     familyName: z.string().min(1),
-    customAttributes: z.record(z.string(), z.string()).default({}),
+    customAttributes: z.record(z.string(), z.string()).optional(),
     roleIds: z.array(z.string()).default([]),
     groupIds: z.array(z.string()).default([])
+}).superRefine((input, ctx) => {
+    if (!input.password && !input.passwordHash) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["password"],
+            message: "Either password or passwordHash is required"
+        });
+    }
+    if (input.password && input.passwordHash) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["passwordHash"],
+            message: "Provide either password or passwordHash, not both"
+        });
+    }
 });
 export const updateUserSchema = z.object({
     appId: z.string().min(2).optional(),
@@ -55,6 +71,7 @@ export const updateUserSchema = z.object({
     givenName: z.string().min(1).optional(),
     familyName: z.string().min(1).optional(),
     active: z.boolean().optional(),
+    roleIds: z.array(z.string()).optional(),
     groupIds: z.array(z.string()).optional(),
     customAttributes: z.record(z.string(), z.string()).optional()
 });
@@ -140,7 +157,7 @@ export const webauthnLoginFinishSchema = z.object({
     signCount: z.number().int().min(0).optional()
 });
 export const authorizeSchema = z.object({
-    response_type: z.enum(["code", "token"]),
+    response_type: z.enum(["code", "token", "code token", "code id_token", "id_token token", "code id_token token"]),
     client_id: z.string().min(2),
     redirect_uri: z.string().url(),
     scope: z.string().min(1),
@@ -210,13 +227,53 @@ export const deviceCodeTokenSchema = z.object({
     client_id: z.string().min(2),
     client_secret: z.string().min(8)
 });
+export const jwtBearerTokenSchema = z.object({
+    grant_type: z.literal("urn:ietf:params:oauth:grant-type:jwt-bearer"),
+    assertion: z.string().min(16),
+    client_id: z.string().min(2),
+    client_secret: z.string().min(8),
+    scope: z.string().optional()
+});
+export const saml2BearerTokenSchema = z.object({
+    grant_type: z.literal("urn:ietf:params:oauth:grant-type:saml2-bearer"),
+    assertion: z.string().min(16),
+    client_id: z.string().min(2),
+    client_secret: z.string().min(8),
+    scope: z.string().optional()
+});
+export const cibaTokenSchema = z.object({
+    grant_type: z.literal("urn:openid:params:grant-type:ciba"),
+    auth_req_id: z.string().min(16),
+    client_id: z.string().min(2),
+    client_secret: z.string().min(8)
+});
 export const tokenSchema = z.discriminatedUnion("grant_type", [
     authorizationCodeTokenSchema,
     refreshTokenSchema,
     clientCredentialsSchema,
     passwordGrantSchema,
-    deviceCodeTokenSchema
+    deviceCodeTokenSchema,
+    jwtBearerTokenSchema,
+    saml2BearerTokenSchema,
+    cibaTokenSchema
 ]);
+export const cibaAuthenticationRequestSchema = z.object({
+    client_id: z.string().min(2),
+    client_secret: z.string().min(8),
+    login_hint: z.string().min(1),
+    scope: z.string().optional(),
+    requested_delivery_mode: z.enum(["poll", "ping", "push"]).default("poll"),
+    client_notification_endpoint: z.string().url().optional(),
+    client_notification_token: z.string().min(8).optional(),
+    binding_message: z.string().min(1).max(120).optional(),
+    user_code: z.string().min(4).max(20).optional()
+});
+export const cibaApprovalSchema = z.object({
+    auth_req_id: z.string().min(16),
+    username: z.string().min(1),
+    password: z.string().min(1),
+    approve: z.boolean().default(true)
+});
 export const deviceAuthorizationSchema = z.object({
     client_id: z.string().min(2),
     client_secret: z.string().min(8),
@@ -261,12 +318,20 @@ export const createClientSchema = z.object({
     id: z.string().min(3),
     name: z.string().min(2),
     secret: z.string().min(16),
-    redirectUris: z.array(z.string().url()).min(1),
+    redirectUris: z.array(z.string().url()).default([]),
     allowedScopes: z.array(z.string()).min(1),
-    grants: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code"])).min(1),
+    grants: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"])).min(1),
     requirePkce: z.boolean().default(false),
     resources: z.array(z.string().min(1)).default([]),
     flowIds: z.array(z.string().min(1)).default([])
+}).superRefine((input, ctx) => {
+    if (input.grants.includes("authorization_code") && input.redirectUris.length === 0) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["redirectUris"],
+            message: "redirectUris must include at least one URL when authorization_code grant is enabled"
+        });
+    }
 });
 export const updateClientSchema = z.object({
     appId: z.string().min(2).optional(),
@@ -274,7 +339,7 @@ export const updateClientSchema = z.object({
     secret: z.string().min(16).optional(),
     redirectUris: z.array(z.string().url()).optional(),
     allowedScopes: z.array(z.string()).optional(),
-    grants: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code"])).optional(),
+    grants: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"])).optional(),
     requirePkce: z.boolean().optional(),
     resources: z.array(z.string().min(1)).optional(),
     flowIds: z.array(z.string().min(1)).optional()
@@ -343,7 +408,7 @@ export const createAuthenticationFlowSchema = z.object({
     description: z.string().min(2),
     designation: z.enum(["authentication", "authorization", "enrollment", "invalidation", "recovery", "stage_configuration", "unenrollment"]).default("authentication"),
     enabled: z.boolean().default(false),
-    grantTypes: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code"])).min(1),
+    grantTypes: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"])).min(1),
     stages: z.array(authenticationStageSchema).min(1)
 });
 export const updateAuthenticationFlowSchema = z.object({
@@ -351,15 +416,15 @@ export const updateAuthenticationFlowSchema = z.object({
     description: z.string().min(2).optional(),
     designation: z.enum(["authentication", "authorization", "enrollment", "invalidation", "recovery", "stage_configuration", "unenrollment"]).optional(),
     enabled: z.boolean().optional(),
-    grantTypes: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code"])).min(1).optional(),
+    grantTypes: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"])).min(1).optional(),
     stages: z.array(authenticationStageSchema).min(1).optional()
 });
 export const dynamicClientRegistrationSchema = z.object({
     app_id: z.string().min(2).optional(),
     client_name: z.string().min(2).default("dynamic-client"),
     redirect_uris: z.array(z.string().url()).min(1),
-    grant_types: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code"])).optional(),
-    response_types: z.array(z.enum(["code", "token"])).optional(),
+    grant_types: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"])).optional(),
+    response_types: z.array(z.enum(["code", "token", "code token", "code id_token", "id_token token", "code id_token token"])).optional(),
     scope: z.string().optional(),
     token_endpoint_auth_method: z.enum(["client_secret_post"]).default("client_secret_post")
 });
@@ -572,6 +637,12 @@ export const frontChannelLogoutSchema = z.object({
     post_logout_redirect_uri: z.string().url().optional(),
     state: z.string().optional()
 });
+export const oauthLogoutSchema = z.object({
+    post_logout_redirect_uri: z.string().url().optional(),
+    state: z.string().optional(),
+    client_id: z.string().min(2).optional(),
+    id_token_hint: z.string().min(16).optional()
+});
 export const backChannelLogoutSchema = z.object({
     client_id: z.string().min(2),
     client_secret: z.string().min(8),
@@ -616,6 +687,8 @@ export const createServiceIdentitySchema = z.object({
     status: z.enum(["active", "inactive", "suspended"]).default("active"),
     allowedScopes: z.array(z.string()).default([]),
     allowedAudiences: z.array(z.string()).default([]),
+    roleIds: z.array(z.string()).default([]),
+    groupIds: z.array(z.string()).default([]),
     metadata: z.record(z.string(), z.unknown()).optional()
 });
 export const updateServiceIdentitySchema = z.object({
@@ -626,6 +699,8 @@ export const updateServiceIdentitySchema = z.object({
     status: z.enum(["active", "inactive", "suspended"]).optional(),
     allowedScopes: z.array(z.string()).optional(),
     allowedAudiences: z.array(z.string()).optional(),
+    roleIds: z.array(z.string()).optional(),
+    groupIds: z.array(z.string()).optional(),
     metadata: z.record(z.string(), z.unknown()).optional()
 });
 export const issueServiceIdentityCredentialSchema = z.object({

@@ -1,7 +1,7 @@
 import { ExternalLink, Grid3X3, LogOut, Settings } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import type { PortalUser } from '../hooks'
+import { logout, type PortalUser } from '../hooks'
 import LanguageSelector from '../components/LanguageSelector'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
@@ -46,7 +46,7 @@ export default function Launcher({ user }: Props) {
   }, [user.apps])
 
   const handleLogout = async () => {
-    await fetch('/auth/logout', { method: 'POST', credentials: 'include' })
+    await logout()
     window.location.href = portalHome
   }
 
