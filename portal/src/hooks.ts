@@ -17,7 +17,10 @@ async function apiFetch(url: string, init?: RequestInit) {
   const method = (init?.method ?? 'GET').toUpperCase()
   const headers: Record<string, string> = { ...(init?.headers as Record<string, string> | undefined) }
 
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && (url.startsWith('/api/account') || url.startsWith('/api/portal'))) {
+  if (
+    ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) &&
+    (url.startsWith('/api/account') || url.startsWith('/api/portal') || url.startsWith('/api/admin'))
+  ) {
     headers['X-CSRF-Token'] = await getCsrfToken()
   }
 
@@ -52,6 +55,15 @@ export interface PortalUser {
   permissions?: string[]
   customAttributes: Record<string, string>
   apps: PortalApp[]
+}
+
+export interface ManagedPortalUser {
+  id: string
+  email: string
+  username: string
+  givenName: string
+  familyName: string
+  active: boolean
 }
 
 export function usePortalMe() {
@@ -106,6 +118,68 @@ export function usePortalUploadAvatar() {
       })
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['portal-me'] })
+  })
+}
+
+export function usePortalManagedUsers() {
+  return useQuery<ManagedPortalUser[]>({
+    queryKey: ['portal-managed-users'],
+    queryFn: () => apiFetch('/api/admin/users')
+  })
+}
+
+export function usePortalCreateManagedUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: {
+      email: string
+      username: string
+      givenName: string
+      familyName: string
+      password: string
+      roleIds?: string[]
+      groupIds?: string[]
+      appId?: string
+      appIds?: string[]
+      customAttributes?: Record<string, string>
+    }) => apiFetch('/api/admin/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roleIds: [], ...data })
+    }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['portal-managed-users'] })
+  })
+}
+
+export function usePortalUpdateManagedUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...data }: {
+      id: string
+      email?: string
+      username?: string
+      givenName?: string
+      familyName?: string
+      active?: boolean
+      roleIds?: string[]
+      groupIds?: string[]
+      appId?: string
+      appIds?: string[]
+      customAttributes?: Record<string, string>
+    }) => apiFetch(`/api/admin/users/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['portal-managed-users'] })
+  })
+}
+
+export function usePortalDeleteManagedUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => apiFetch(`/api/admin/users/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['portal-managed-users'] })
   })
 }
 

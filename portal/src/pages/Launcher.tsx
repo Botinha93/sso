@@ -106,7 +106,7 @@ export default function Launcher({ user }: Props) {
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-4">{t('launcher.yourApps')}</h2>
           {canManageUsers && (
             <div className="mb-4">
-              <a href="/admin/users">
+              <Link to="/users">
                 <Card className="group cursor-pointer rounded-2xl p-4 transition-all hover:scale-[1.01] hover:border-slate-300 hover:shadow-lg flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-slate-900 text-white">
                     <Settings size={16} />
@@ -116,7 +116,7 @@ export default function Launcher({ user }: Props) {
                     <p className="text-xs text-slate-500">Create, edit, assign roles/groups, and disable users</p>
                   </div>
                 </Card>
-              </a>
+              </Link>
             </div>
           )}
           {user.apps.length === 0 ? (

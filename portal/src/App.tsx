@@ -5,6 +5,7 @@ import { useI18n } from './i18n'
 import Launcher from './pages/Launcher'
 import Login from './pages/Login'
 import Profile from './pages/Profile'
+import Users from './pages/Users'
 
 export default function App() {
   const { language } = useI18n()
@@ -60,10 +61,15 @@ export default function App() {
     )
   }
 
+  const canManageUsers =
+    Array.isArray(user.permissions) &&
+    (user.permissions.includes('*:*') || user.permissions.includes('users:view'))
+
   return (
     <Routes>
       <Route path="/" element={<Launcher user={user} />} />
       <Route path="/profile" element={<Profile user={user} />} />
+      <Route path="/users" element={canManageUsers ? <Users currentUser={user} /> : <Navigate to="/" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
