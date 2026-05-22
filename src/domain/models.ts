@@ -48,7 +48,7 @@ export interface User {
   externalSource?: string;
   externalId?: string;
   isServiceUser: boolean;
-  avatarUrl?: string;
+  avatarUrl?: string | null;
   email: string;
   username: string;
   passwordHash: string;
@@ -72,6 +72,8 @@ export interface OAuthClient {
   requirePkce: boolean;
   resources: string[];
   flowIds: string[];
+  accessTokenTtlSeconds?: number;
+  refreshTokenTtlSeconds?: number;
   createdAt: Date;
 }
 
@@ -148,8 +150,8 @@ export interface App {
   id: string;
   name: string;
   description: string;
-  icon?: string;
-  imageUrl?: string;
+  icon?: string | null;
+  imageUrl?: string | null;
   url?: string;
   resources: string[];
   createdAt: Date;

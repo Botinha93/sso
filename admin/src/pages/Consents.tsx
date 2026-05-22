@@ -4,7 +4,10 @@ import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import StatusBadge from '../components/ui/StatusBadge'
 import Button from '../components/ui/Button'
+import ListSearch from '../components/ListSearch'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { useConsents, useRevokeConsent } from '../hooks/useApi'
+import React from 'react';
 
 interface Consent {
   id: string
@@ -16,7 +19,9 @@ interface Consent {
 }
 
 const Consents = () => {
-  const { data: consents, isLoading, isFetching, refetch } = useConsents()
+  const [searchInput, setSearchInput] = useState('')
+  const debouncedSearch = useDebouncedValue(searchInput)
+  const { data: consents, isLoading, isFetching, refetch } = useConsents(debouncedSearch)
   const revokeConsent = useRevokeConsent()
   const [consentToRevoke, setConsentToRevoke] = useState<string | null>(null)
 
@@ -32,6 +37,10 @@ const Consents = () => {
   return (
     <div>
       <PageHeader eyebrow="Consent Management" title="Granted Permissions" />
+
+      <div className="mb-4">
+        <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search consents by user or client…" />
+      </div>
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">

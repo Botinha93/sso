@@ -1,5 +1,4 @@
-import { nanoid } from "nanoid";
-import type { GrantType } from "../domain/models.js";
+import type { GrantType, OAuthClient } from "../domain/models.js";
 import type { ClientRepository } from "../repositories/contracts.js";
 import type { InstanceSettingsService } from "./instance-settings-service.js";
 
@@ -32,6 +31,8 @@ export class ClientService {
     requirePkce: boolean;
     resources?: string[];
     flowIds?: string[];
+    accessTokenTtlSeconds?: number;
+    refreshTokenTtlSeconds?: number;
   }) {
     this.instanceSettingsService.validateRedirectUris(input.redirectUris);
     return this.clientRepository.create({
@@ -51,11 +52,29 @@ export class ClientService {
     requirePkce: boolean;
     resources: string[];
     flowIds: string[];
+    accessTokenTtlSeconds: number | null;
+    refreshTokenTtlSeconds: number | null;
   }>) {
     if (input.redirectUris) {
       this.instanceSettingsService.validateRedirectUris(input.redirectUris);
     }
-    return this.clientRepository.update(id, input);
+    const patch: Partial<Omit<OAuthClient, "id" | "createdAt">> = {};
+    if (input.appId !== undefined) patch.appId = input.appId;
+    if (input.name !== undefined) patch.name = input.name;
+    if (input.secret !== undefined) patch.secret = input.secret;
+    if (input.redirectUris !== undefined) patch.redirectUris = input.redirectUris;
+    if (input.allowedScopes !== undefined) patch.allowedScopes = input.allowedScopes;
+    if (input.grants !== undefined) patch.grants = input.grants;
+    if (input.requirePkce !== undefined) patch.requirePkce = input.requirePkce;
+    if (input.resources !== undefined) patch.resources = input.resources;
+    if (input.flowIds !== undefined) patch.flowIds = input.flowIds;
+    if (input.accessTokenTtlSeconds !== undefined) {
+      patch.accessTokenTtlSeconds = input.accessTokenTtlSeconds === null ? undefined : input.accessTokenTtlSeconds;
+    }
+    if (input.refreshTokenTtlSeconds !== undefined) {
+      patch.refreshTokenTtlSeconds = input.refreshTokenTtlSeconds === null ? undefined : input.refreshTokenTtlSeconds;
+    }
+    return this.clientRepository.update(id, patch);
   }
 
   async deleteClient(id: string) {

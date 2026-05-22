@@ -58,6 +58,15 @@ npm run check:sdk:python
    http://127.0.0.1:4000/
    ```
 
+## Token lifetimes
+
+Access and refresh token expirations are configured per OAuth client. Open **Admin → Clients**, edit a client, and set:
+
+- **Access token TTL (seconds)** — defaults to `900` (15 minutes) when blank. Allowed range: 60 – 86,400.
+- **Refresh token TTL (seconds)** — defaults to `2,592,000` (30 days) when blank. Allowed range: 300 – 31,536,000.
+
+Tokens issued via flows without a client (e.g. service identity client credentials) fall back to the same default lifetimes.
+
 ## Docker
 
 Build the production image:

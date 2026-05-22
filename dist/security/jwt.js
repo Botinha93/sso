@@ -1,4 +1,15 @@
 import { jwtVerify, SignJWT } from "jose";
+export const DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 900;
+export const DEFAULT_ID_TOKEN_TTL_SECONDS = 900;
+export const DEFAULT_REFRESH_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 30;
+export const resolveAccessTokenTtlSeconds = (client) => {
+    const value = client?.accessTokenTtlSeconds;
+    return typeof value === "number" && value > 0 ? value : DEFAULT_ACCESS_TOKEN_TTL_SECONDS;
+};
+export const resolveRefreshTokenTtlSeconds = (client) => {
+    const value = client?.refreshTokenTtlSeconds;
+    return typeof value === "number" && value > 0 ? value : DEFAULT_REFRESH_TOKEN_TTL_SECONDS;
+};
 export class JwtService {
     keys;
     appConfig;
@@ -10,6 +21,8 @@ export class JwtService {
         const { user, client, scope, roles, accessTokenId, refreshTokenId, tenantId } = params;
         const now = Math.floor(Date.now() / 1000);
         const scopeValue = scope.join(" ");
+        const accessTtl = resolveAccessTokenTtlSeconds(client);
+        const refreshTtl = resolveRefreshTokenTtlSeconds(client);
         const accessToken = await new SignJWT({
             scope: scopeValue,
             roles,
@@ -22,7 +35,7 @@ export class JwtService {
             .setSubject(user.id)
             .setJti(accessTokenId)
             .setIssuedAt(now)
-            .setExpirationTime(now + this.appConfig.ttl.accessTokenSeconds)
+            .setExpirationTime(now + accessTtl)
             .sign(this.keys.privateKey);
         const idToken = await new SignJWT({
             email: user.email,
@@ -35,7 +48,7 @@ export class JwtService {
             .setAudience(client.id)
             .setSubject(user.id)
             .setIssuedAt(now)
-            .setExpirationTime(now + this.appConfig.ttl.idTokenSeconds)
+            .setExpirationTime(now + DEFAULT_ID_TOKEN_TTL_SECONDS)
             .sign(this.keys.privateKey);
         const refreshToken = await new SignJWT({
             type: "refresh",
@@ -47,14 +60,14 @@ export class JwtService {
             .setSubject(user.id)
             .setJti(refreshTokenId)
             .setIssuedAt(now)
-            .setExpirationTime(now + this.appConfig.ttl.refreshTokenSeconds)
+            .setExpirationTime(now + refreshTtl)
             .sign(this.keys.privateKey);
         return {
             accessToken,
             idToken,
             refreshToken,
             tokenType: "Bearer",
-            expiresIn: this.appConfig.ttl.accessTokenSeconds,
+            expiresIn: accessTtl,
             scope: scopeValue
         };
     }
@@ -62,20 +75,22 @@ export class JwtService {
         const { client, scope, accessTokenId } = params;
         const now = Math.floor(Date.now() / 1000);
         const scopeValue = scope.join(" ");
+        const accessTtl = resolveAccessTokenTtlSeconds(client);
         const accessToken = await new SignJWT({ scope: scopeValue, client_id: client.id })
             .setProtectedHeader({ alg: "RS256", kid: this.keys.kid })
             .setIssuer(this.appConfig.issuer)
             .setAudience(client.id)
             .setJti(accessTokenId)
             .setIssuedAt(now)
-            .setExpirationTime(now + this.appConfig.ttl.accessTokenSeconds)
+            .setExpirationTime(now + accessTtl)
             .sign(this.keys.privateKey);
-        return { accessToken, tokenType: "Bearer", expiresIn: this.appConfig.ttl.accessTokenSeconds, scope: scopeValue };
+        return { accessToken, tokenType: "Bearer", expiresIn: accessTtl, scope: scopeValue };
     }
     async issueServiceIdentityToken(params) {
         const { serviceIdentity, clientId, scope, roles, permissions, accessTokenId } = params;
         const now = Math.floor(Date.now() / 1000);
         const scopeValue = scope.join(" ");
+        const accessTtl = DEFAULT_ACCESS_TOKEN_TTL_SECONDS;
         let tokenBuilder = new SignJWT({
             scope: scopeValue,
             client_id: clientId,
@@ -89,17 +104,18 @@ export class JwtService {
             .setSubject(serviceIdentity.id)
             .setJti(accessTokenId)
             .setIssuedAt(now)
-            .setExpirationTime(now + this.appConfig.ttl.accessTokenSeconds);
+            .setExpirationTime(now + accessTtl);
         if (serviceIdentity.allowedAudiences.length > 0) {
             tokenBuilder = tokenBuilder.setAudience(serviceIdentity.allowedAudiences);
         }
         const accessToken = await tokenBuilder.sign(this.keys.privateKey);
-        return { accessToken, tokenType: "Bearer", expiresIn: this.appConfig.ttl.accessTokenSeconds, scope: scopeValue };
+        return { accessToken, tokenType: "Bearer", expiresIn: accessTtl, scope: scopeValue };
     }
     async issueUserAccessToken(params) {
         const { user, client, scope, roles, accessTokenId, tenantId } = params;
         const now = Math.floor(Date.now() / 1000);
         const scopeValue = scope.join(" ");
+        const accessTtl = resolveAccessTokenTtlSeconds(client);
         const accessToken = await new SignJWT({
             scope: scopeValue,
             roles,
@@ -112,12 +128,12 @@ export class JwtService {
             .setSubject(user.id)
             .setJti(accessTokenId)
             .setIssuedAt(now)
-            .setExpirationTime(now + this.appConfig.ttl.accessTokenSeconds)
+            .setExpirationTime(now + accessTtl)
             .sign(this.keys.privateKey);
         return {
             accessToken,
             tokenType: "Bearer",
-            expiresIn: this.appConfig.ttl.accessTokenSeconds,
+            expiresIn: accessTtl,
             scope: scopeValue
         };
     }
@@ -136,7 +152,7 @@ export class JwtService {
             .setAudience(client.id)
             .setSubject(user.id)
             .setIssuedAt(now)
-            .setExpirationTime(now + this.appConfig.ttl.idTokenSeconds)
+            .setExpirationTime(now + DEFAULT_ID_TOKEN_TTL_SECONDS)
             .sign(this.keys.privateKey);
     }
     getJwks() {
@@ -162,7 +178,7 @@ export class JwtService {
             .setAudience(params.audience)
             .setSubject(params.subject)
             .setIssuedAt(now)
-            .setExpirationTime(now + this.appConfig.ttl.idTokenSeconds)
+            .setExpirationTime(now + DEFAULT_ID_TOKEN_TTL_SECONDS)
             .sign(this.keys.privateKey);
     }
 }

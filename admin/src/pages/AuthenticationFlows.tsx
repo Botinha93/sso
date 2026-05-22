@@ -1,12 +1,15 @@
 import { Check, ClipboardList, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
+import ListSearch from '../components/ListSearch'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/ui/StatusBadge'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 import Card from '../components/ui/Card'
+import React from 'react';
 import {
   useAuthenticationFlows,
   useCreateAuthenticationFlow,
@@ -98,7 +101,9 @@ const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent p
 const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
 
 const AuthenticationFlows = () => {
-  const { data, isLoading, isFetching, refetch } = useAuthenticationFlows()
+  const [searchInput, setSearchInput] = useState('')
+  const debouncedSearch = useDebouncedValue(searchInput)
+  const { data, isLoading, isFetching, refetch } = useAuthenticationFlows(debouncedSearch)
   const createFlow = useCreateAuthenticationFlow()
   const updateFlow = useUpdateAuthenticationFlow()
   const deleteFlow = useDeleteAuthenticationFlow()
@@ -204,6 +209,10 @@ const AuthenticationFlows = () => {
           </Button>
         }
       />
+
+      <div className="mb-4">
+        <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search authentication flows…" />
+      </div>
 
       <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">

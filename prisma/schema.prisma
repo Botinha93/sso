@@ -304,22 +304,24 @@ model instance_settings {
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model oauth_clients {
-  id                  String?               @id
-  name                String
-  secret              String
-  redirect_uris_json  String
-  allowed_scopes_json String
-  grants_json         String
-  require_pkce        Int
-  resources_json      String                @default("[]")
-  flow_ids_json       String                @default("[]")
-  created_at          String
-  app_id              String?
-  access_tokens       access_tokens[]
-  authorization_codes authorization_codes[]
-  consents            consents[]
-  refresh_tokens      refresh_tokens[]
-  sessions            sessions[]
+  id                         String?               @id
+  name                       String
+  secret                     String
+  redirect_uris_json         String
+  allowed_scopes_json        String
+  grants_json                String
+  require_pkce               Int
+  resources_json             String                @default("[]")
+  flow_ids_json              String                @default("[]")
+  access_token_ttl_seconds   Int?
+  refresh_token_ttl_seconds  Int?
+  created_at                 String
+  app_id                     String?
+  access_tokens              access_tokens[]
+  authorization_codes        authorization_codes[]
+  consents                   consents[]
+  refresh_tokens             refresh_tokens[]
+  sessions                   sessions[]
 
   @@ignore
 }

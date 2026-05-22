@@ -1,3 +1,4 @@
+import { resolveAccessTokenTtlSeconds } from "../security/jwt.js";
 export class OidcService {
     appConfig;
     jwtService;
@@ -56,22 +57,22 @@ export class OidcService {
         return this.jwtService.getJwks();
     }
     async mintExchangeToken(input) {
-        const { nanoid } = await import("nanoid");
         const { SignJWT } = await import("jose");
         const keys = this.jwtService.getSigningKeys();
         const now = Math.floor(Date.now() / 1000);
         const scopeValue = input.scopes.join(" ");
+        const accessTtl = resolveAccessTokenTtlSeconds(input.client);
         let tokenBuilder = new SignJWT({ scope: scopeValue })
             .setProtectedHeader({ alg: "RS256", kid: keys.kid })
             .setIssuer(this.appConfig.issuer)
             .setSubject(input.sub)
             .setJti(input.accessTokenId)
             .setIssuedAt(now)
-            .setExpirationTime(now + this.appConfig.ttl.accessTokenSeconds);
+            .setExpirationTime(now + accessTtl);
         if (input.audiences && input.audiences.length > 0) {
             tokenBuilder = tokenBuilder.setAudience(input.audiences);
         }
         const accessToken = await tokenBuilder.sign(keys.privateKey);
-        return { accessToken, tokenType: "Bearer", expiresIn: this.appConfig.ttl.accessTokenSeconds, scope: scopeValue };
+        return { accessToken, tokenType: "Bearer", expiresIn: accessTtl, scope: scopeValue };
     }
 }

@@ -16,7 +16,7 @@ export class AppService {
     return this.appRepository.create({ ...input, resources: input.resources ?? [] });
   }
 
-  async updateApp(id: string, input: { name?: string; description?: string; icon?: string; imageUrl?: string; url?: string | null; resources?: string[] }) {
+  async updateApp(id: string, input: { name?: string; description?: string; icon?: string | null; imageUrl?: string | null; url?: string | null; resources?: string[] }) {
     const updated = await this.appRepository.update(id, {
       ...input,
       url: input.url ?? undefined

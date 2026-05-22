@@ -857,6 +857,22 @@ paths:
                   type: array
                   items:
                     type: string
+                flowIds:
+                  type: array
+                  items:
+                    type: string
+                accessTokenTtlSeconds:
+                  type: integer
+                  nullable: true
+                  minimum: 60
+                  maximum: 86400
+                  description: Access token lifetime in seconds. Defaults to 900 when omitted.
+                refreshTokenTtlSeconds:
+                  type: integer
+                  nullable: true
+                  minimum: 300
+                  maximum: 31536000
+                  description: Refresh token lifetime in seconds. Defaults to 2592000 when omitted.
       responses:
         '201':
           description: OAuth client created
@@ -866,8 +882,18 @@ paths:
                 $ref: '#/components/schemas/OAuthClient'
   /api/admin/users:
     get:
-      summary: List users with pagination
+      summary: List users with optional search
       parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Case-insensitive partial match on username, email, given name, family name, or id
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Alias for search
         - in: query
           name: limit
           schema:
@@ -4570,6 +4596,18 @@ components:
           items:
             type: string
           description: Associated authentication flow IDs
+        accessTokenTtlSeconds:
+          type: integer
+          nullable: true
+          minimum: 60
+          maximum: 86400
+          description: Lifetime of access tokens issued for this client (seconds). Null indicates the system default.
+        refreshTokenTtlSeconds:
+          type: integer
+          nullable: true
+          minimum: 300
+          maximum: 31536000
+          description: Lifetime of refresh tokens issued for this client (seconds). Null indicates the system default.
         createdAt:
           type: string
           format: date-time

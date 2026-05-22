@@ -1,12 +1,15 @@
 import { Pencil, Plus, RefreshCw, ToggleLeft, ToggleRight, Trash2, Fingerprint } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useMemo, useState } from 'react'
+import ListSearch from '../components/ListSearch'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/ui/StatusBadge'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 import Card from '../components/ui/Card'
+import React from 'react';
 import {
   useCreateUserAttribute,
   useDeleteUserAttribute,
@@ -39,7 +42,9 @@ const defaultForm = {
 }
 
 const UserAttributes = () => {
-  const { data, isLoading, isFetching, refetch } = useUserAttributes()
+  const [searchInput, setSearchInput] = useState('')
+  const debouncedSearch = useDebouncedValue(searchInput)
+  const { data, isLoading, isFetching, refetch } = useUserAttributes(debouncedSearch)
 
   const createAttribute = useCreateUserAttribute()
   const updateAttribute = useUpdateUserAttribute()
@@ -127,6 +132,10 @@ const UserAttributes = () => {
           </Button>
         }
       />
+
+      <div className="mb-4">
+        <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search attribute definitions…" />
+      </div>
 
       <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">

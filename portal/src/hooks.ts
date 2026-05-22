@@ -100,7 +100,7 @@ export function usePortalMe() {
 export function usePortalUpdateProfile() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data: { givenName?: string; familyName?: string; avatarUrl?: string; email?: string; username?: string; customAttributes?: Record<string, string> }) =>
+    mutationFn: (data: { givenName?: string; familyName?: string; avatarUrl?: string | null; email?: string; username?: string; customAttributes?: Record<string, string> }) =>
       apiFetch(`${API}/profile`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -144,10 +144,17 @@ export function usePortalUploadAvatar() {
   })
 }
 
-export function usePortalManagedUsers() {
+export function usePortalManagedUsers(search?: string) {
   return useQuery<ManagedPortalUser[]>({
-    queryKey: ['portal-managed-users'],
-    queryFn: () => apiFetch('/api/admin/users')
+    queryKey: ['portal-managed-users', search ?? ''],
+    queryFn: () => {
+      const params = new URLSearchParams()
+      if (search?.trim()) {
+        params.set('search', search.trim())
+      }
+      const qs = params.toString()
+      return apiFetch(`/api/admin/users${qs ? `?${qs}` : ''}`)
+    }
   })
 }
 

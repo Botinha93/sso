@@ -160,6 +160,7 @@ function ProfileSection({ user }: { user: PortalUser }) {
     try {
       await update.mutateAsync({
         ...form,
+        avatarUrl: form.avatarUrl.trim() ? form.avatarUrl.trim() : null,
         customAttributes: Object.fromEntries(customAttrs.filter(([k]) => k.trim()))
       })
       setSaved(true)
@@ -226,6 +227,15 @@ function ProfileSection({ user }: { user: PortalUser }) {
               <img src={item.url} alt={item.label} className="h-full w-full object-cover" />
             </Button>
           ))}
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="h-10"
+            onClick={() => setForm((prev) => ({ ...prev, avatarUrl: '' }))}
+          >
+            Clear image
+          </Button>
         </div>
       </div>
 

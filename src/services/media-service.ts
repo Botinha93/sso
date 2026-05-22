@@ -86,7 +86,7 @@ export class MediaService {
     };
   }
 
-  async deleteByUrl(url?: string) {
+  async deleteByUrl(url?: string | null) {
     if (!url || !url.startsWith("/media/uploads/")) {
       return;
     }

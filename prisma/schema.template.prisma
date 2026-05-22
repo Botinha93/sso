@@ -63,17 +63,19 @@ model User {
 }
 
 model Client {
-  id                String  @id
-  appId             String? @map("app_id")
-  name              String
-  secret            String
-  redirectUrisJson  String  @map("redirect_uris_json")
-  allowedScopesJson String  @map("allowed_scopes_json")
-  grantsJson        String  @map("grants_json")
-  requirePkce       Int     @map("require_pkce")
-  resourcesJson     String  @default("[]") @map("resources_json")
-  flowIdsJson       String  @default("[]") @map("flow_ids_json")
-  createdAt         String  @map("created_at")
+  id                     String  @id
+  appId                  String? @map("app_id")
+  name                   String
+  secret                 String
+  redirectUrisJson       String  @map("redirect_uris_json")
+  allowedScopesJson      String  @map("allowed_scopes_json")
+  grantsJson             String  @map("grants_json")
+  requirePkce            Int     @map("require_pkce")
+  resourcesJson          String  @default("[]") @map("resources_json")
+  flowIdsJson            String  @default("[]") @map("flow_ids_json")
+  accessTokenTtlSeconds  Int?    @map("access_token_ttl_seconds")
+  refreshTokenTtlSeconds Int?    @map("refresh_token_ttl_seconds")
+  createdAt              String  @map("created_at")
 
   @@map("oauth_clients")
 }

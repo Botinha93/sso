@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import { AppError, AuthenticationError, ValidationError } from "../core/errors.js";
 import { verifyPassword } from "../security/password.js";
 import { hashOpaqueToken } from "../security/token-hash.js";
+import { resolveAccessTokenTtlSeconds, resolveRefreshTokenTtlSeconds } from "../security/jwt.js";
 export class AuthService {
     userService;
     roleService;
@@ -765,7 +766,7 @@ export class AuthService {
             userId: user.id,
             clientId: client.id,
             sessionId: session.id,
-            expiresAt: new Date(Date.now() + 1000 * 60 * 15)
+            expiresAt: new Date(Date.now() + resolveAccessTokenTtlSeconds(client) * 1000)
         });
         await this.auditRepository.log({
             type: "token_issued",
@@ -825,7 +826,7 @@ export class AuthService {
             userId: input.user.id,
             clientId: input.client.id,
             sessionId: session.id,
-            expiresAt: new Date(Date.now() + 1000 * 60 * 15)
+            expiresAt: new Date(Date.now() + resolveAccessTokenTtlSeconds(input.client) * 1000)
         });
         await this.auditRepository.log({
             type: "token_issued",
@@ -939,12 +940,14 @@ export class AuthService {
             refreshTokenId,
             tenantId: input.tenantId
         });
+        const accessTtlSeconds = resolveAccessTokenTtlSeconds(input.client);
+        const refreshTtlSeconds = resolveRefreshTokenTtlSeconds(input.client);
         await this.accessTokenRepository.create({
             tokenId: accessTokenId,
             userId: input.user.id,
             clientId: input.client.id,
             sessionId: input.sessionId,
-            expiresAt: new Date(Date.now() + 1000 * 60 * 15)
+            expiresAt: new Date(Date.now() + accessTtlSeconds * 1000)
         });
         await this.refreshTokenRepository.create({
             tokenId: refreshTokenId,
@@ -953,7 +956,7 @@ export class AuthService {
             clientId: input.client.id,
             sessionId: input.sessionId,
             scope: input.scope,
-            expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
+            expiresAt: new Date(Date.now() + refreshTtlSeconds * 1000),
             rotatedFromTokenId: input.rotatedFromTokenId
         });
         return tokens;

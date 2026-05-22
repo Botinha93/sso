@@ -1,4 +1,5 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
+import { extname } from "node:path";
 import { AppError, AuthenticationError, ValidationError } from "../core/errors.js";
 import { verifyPassword } from "../security/password.js";
 import { getAssetContentType, readFrontendAsset } from "./view-assets.js";
@@ -14,12 +15,29 @@ import { deriveRiskEventsFromAudit } from "./routes/security-risk-events.js";
 import { registerConnectorRoutes } from "./routes/connectors.js";
 import { registerPluginRoutes } from "./routes/plugins.js";
 import { assignGroupRoleSchema, assignRoleSchema, assignUserGroupSchema, backChannelLogoutSchema, authorizeSchema, createAppSchema, createClientSchema, createScopeSchema, createAuthenticationFlowSchema, cibaApprovalSchema, cibaAuthenticationRequestSchema, deviceAuthorizationSchema, deviceVerificationSchema, dynamicClientRegistrationSchema, frontChannelLogoutSchema, createFederationProviderSchema, createGroupSchema, createUserAttributeSchema, createPolicySchema, createEventHookSchema, createTenantSchema, createRoleSchema, updateGroupSchema, updateRoleSchema, createUserSchema, introspectSchema, loginSchema, migrateDatabaseSchema, oidcRevokeSchema, oauthLogoutSchema, portalChangePasswordSchema, portalUpdateProfileSchema, recoverySchema, recoveryRequestSchema, sendTestEmailSchema, testDatabaseConnectionSchema, mfaLoginSchema, verifyTotpEnrollmentSchema, webauthnLoginBeginSchema, webauthnLoginFinishSchema, webauthnRegisterBeginSchema, webauthnRegisterFinishSchema, resetUserPasswordSchema, revokeTokenSchema, tokenSchema, setUserAttributeGroupAssignmentSchema, setPolicyAssignmentSchema, evaluatePolicyDecisionSchema, authorizationCheckSchema, removePolicyAssignmentSchema, setupInitializeSchema, testEventHookSchema, updateInstanceSettingsSchema, updateAppSchema, updateAuthenticationFlowSchema, updateClientSchema, updateEventHookSchema, updateFederationProviderSchema, updatePolicySchema, updateTenantSchema, updateUserAttributeSchema, updateUserSchema } from "./schemas.js";
+import { filterAdminList } from "./list-search.js";
 import { GeolocationService } from "../services/geolocation-service.js";
 import { TranslationService } from "../services/translation-service.js";
 export const registerRoutes = async (app, deps) => {
     const USER_PICTURE_ATTRIBUTE_KEY = "picture";
     const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
     const allowedImageMimeTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"]);
+    const extensionToMimeType = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+        ".svg": "image/svg+xml"
+    };
+    const resolveUploadedImageMimeType = (mimetype, filename) => {
+        const normalized = (mimetype ?? "").toLowerCase();
+        if (allowedImageMimeTypes.has(normalized)) {
+            return normalized;
+        }
+        const inferred = extensionToMimeType[extname(filename ?? "").toLowerCase()];
+        return inferred && allowedImageMimeTypes.has(inferred) ? inferred : null;
+    };
     const translationService = new TranslationService();
     const geolocationService = new GeolocationService();
     const runBestEffort = async (request, task, work) => {
@@ -119,13 +137,21 @@ export const registerRoutes = async (app, deps) => {
         return templateByVariant[variant] ?? templateByVariant.grid;
     };
     const readImageUpload = async (request, reply) => {
-        const part = await request.file();
+        let part;
+        try {
+            part = await request.file();
+        }
+        catch {
+            reply.status(400).send({ error: "validation_error", message: "Invalid multipart upload payload" });
+            return null;
+        }
         if (!part) {
             reply.status(400).send({ error: "validation_error", message: "Image file is required" });
             return null;
         }
-        if (!allowedImageMimeTypes.has(part.mimetype)) {
-            reply.status(415).send({ error: "unsupported_media_type", message: "Only image uploads are supported" });
+        const mimeType = resolveUploadedImageMimeType(part.mimetype, part.filename);
+        if (!mimeType) {
+            reply.status(415).send({ error: "unsupported_media_type", message: "Only image uploads are supported (png, jpeg, webp, gif, svg)" });
             return null;
         }
         const chunks = [];
@@ -140,7 +166,7 @@ export const registerRoutes = async (app, deps) => {
         }
         return {
             bytes: Buffer.concat(chunks),
-            mimeType: part.mimetype
+            mimeType
         };
     };
     const sendFrontendIndex = async (reply, frontend) => {
@@ -1000,11 +1026,14 @@ export const registerRoutes = async (app, deps) => {
                 }
             }
         }
-        if (exchangeActor?.type === "client" && requestedAudiences.length > 0) {
-            const client = await deps.clientService.findClientById(exchangeActor.id);
-            const allowedAudiences = new Set(client?.resources ?? []);
-            if (requestedAudiences.some((value) => !allowedAudiences.has(value))) {
-                return reply.status(400).send({ error: "invalid_target", error_description: "Requested audience exceeds client policy" });
+        let exchangeClient;
+        if (exchangeActor?.type === "client") {
+            exchangeClient = await deps.clientService.findClientById(exchangeActor.id);
+            if (requestedAudiences.length > 0) {
+                const allowedAudiences = new Set(exchangeClient?.resources ?? []);
+                if (requestedAudiences.some((value) => !allowedAudiences.has(value))) {
+                    return reply.status(400).send({ error: "invalid_target", error_description: "Requested audience exceeds client policy" });
+                }
             }
         }
         const { nanoid } = await import("nanoid");
@@ -1014,7 +1043,8 @@ export const registerRoutes = async (app, deps) => {
             sub: subjectSub,
             scopes: finalScopes,
             audiences: requestedAudiences,
-            accessTokenId
+            accessTokenId,
+            client: exchangeClient
         });
         await deps.auditRepository.log({
             type: "token_issued",
@@ -1375,7 +1405,13 @@ export const registerRoutes = async (app, deps) => {
         }
     });
     app.get("/auth/federation/providers", async () => deps.federationService.listProviders());
-    app.get("/api/admin/federation/providers", async () => deps.federationService.listConfiguredProviders());
+    app.get("/api/admin/federation/providers", async (request) => {
+        const providers = await deps.federationService.listConfiguredProviders();
+        return filterAdminList(providers, request.query, [
+            (provider) => provider.id,
+            (provider) => provider.label
+        ]);
+    });
     app.get("/api/admin/me", async (request, reply) => {
         const session = await getSession(request);
         if (!session) {
@@ -1532,7 +1568,15 @@ export const registerRoutes = async (app, deps) => {
         });
         return reply.status(200).send(result);
     });
-    app.get("/api/admin/authentication/flows", async () => deps.authenticationFlowService.listFlows());
+    app.get("/api/admin/authentication/flows", async (request) => {
+        const flows = await deps.authenticationFlowService.listFlows();
+        return filterAdminList(flows, request.query, [
+            (flow) => flow.name,
+            (flow) => flow.description,
+            (flow) => flow.id,
+            (flow) => flow.designation
+        ]);
+    });
     app.post("/api/admin/authentication/flows", async (request, reply) => {
         const input = createAuthenticationFlowSchema.parse(request.body);
         reply.code(201);
@@ -1548,7 +1592,15 @@ export const registerRoutes = async (app, deps) => {
         deps.authenticationFlowService.deleteFlow(id);
         return reply.status(204).send();
     });
-    app.get("/api/admin/user-attributes", async () => deps.userAttributeService.listAttributes());
+    app.get("/api/admin/user-attributes", async (request) => {
+        const attributes = await deps.userAttributeService.listAttributes();
+        return filterAdminList(attributes, request.query, [
+            (attribute) => attribute.key,
+            (attribute) => attribute.name,
+            (attribute) => attribute.description,
+            (attribute) => attribute.id
+        ]);
+    });
     app.post("/api/admin/user-attributes", async (request, reply) => {
         const input = createUserAttributeSchema.parse(request.body);
         reply.code(201);
@@ -1574,7 +1626,15 @@ export const registerRoutes = async (app, deps) => {
         await deps.userAttributeService.removeGroupAssignment({ attributeId: id, groupId });
         return reply.status(204).send();
     });
-    app.get("/api/admin/policies", async () => deps.policyService.listPolicies());
+    app.get("/api/admin/policies", async (request) => {
+        const policies = await deps.policyService.listPolicies();
+        return filterAdminList(policies, request.query, [
+            (policy) => policy.key,
+            (policy) => policy.name,
+            (policy) => policy.description,
+            (policy) => policy.id
+        ]);
+    });
     app.post("/api/admin/policies", async (request, reply) => {
         const input = createPolicySchema.parse(request.body);
         const policy = await deps.policyService.createPolicy({
@@ -1730,7 +1790,14 @@ export const registerRoutes = async (app, deps) => {
         const { limit } = request.query;
         return deps.policyDecisionLogRepository.list(limit ? Number(limit) : 100);
     });
-    app.get("/api/admin/events/hooks", async () => deps.eventHookService.listHooks());
+    app.get("/api/admin/events/hooks", async (request) => {
+        const hooks = await deps.eventHookService.listHooks();
+        return filterAdminList(hooks, request.query, [
+            (hook) => hook.eventType,
+            (hook) => hook.targetUrl,
+            (hook) => hook.id
+        ]);
+    });
     app.get("/api/admin/events/types", async () => deps.eventHookService.listSystemEventTypes());
     app.post("/api/admin/events/hooks", async (request, reply) => {
         const input = createEventHookSchema.parse(request.body);
@@ -2088,7 +2155,16 @@ export const registerRoutes = async (app, deps) => {
             throw err;
         }
     });
-    app.get("/api/admin/users", async () => deps.userService.listUsers());
+    app.get("/api/admin/users", async (request) => {
+        const users = await deps.userService.listUsers();
+        return filterAdminList(users, request.query, [
+            (user) => user.username,
+            (user) => user.email,
+            (user) => user.givenName,
+            (user) => user.familyName,
+            (user) => user.id
+        ]);
+    });
     app.post("/api/admin/users", async (request, reply) => {
         const input = createUserSchema.parse(request.body);
         if (input.password) {
@@ -2109,6 +2185,19 @@ export const registerRoutes = async (app, deps) => {
         const { appId, appIds, externalSource, externalId, isServiceUser, avatarUrl, email, username, givenName, familyName, active, roleIds, groupIds, customAttributes } = updateUserSchema.parse(request.body);
         if (appId !== undefined || appIds !== undefined || externalSource !== undefined || externalId !== undefined || isServiceUser !== undefined || avatarUrl !== undefined || email !== undefined || username !== undefined || givenName !== undefined || familyName !== undefined) {
             await deps.userService.updateUserProfile(id, { appId, appIds, externalSource, externalId, isServiceUser, avatarUrl, email, username, givenName, familyName });
+            if (avatarUrl !== undefined) {
+                const refreshedUser = await deps.userService.findUserById(id);
+                if (refreshedUser) {
+                    const nextAttributes = { ...(refreshedUser.customAttributes ?? {}) };
+                    if (avatarUrl === null) {
+                        delete nextAttributes[USER_PICTURE_ATTRIBUTE_KEY];
+                    }
+                    else {
+                        nextAttributes[USER_PICTURE_ATTRIBUTE_KEY] = avatarUrl;
+                    }
+                    await deps.userService.setCustomAttributes(id, nextAttributes);
+                }
+            }
         }
         if (active !== undefined)
             await deps.userService.setUserActive(id, active);
@@ -2214,8 +2303,22 @@ export const registerRoutes = async (app, deps) => {
         });
         return reply.status(204).send();
     });
-    app.get("/api/admin/clients", async () => deps.clientService.listClients());
-    app.get("/api/admin/scopes", async () => deps.scopeService.listScopes());
+    app.get("/api/admin/clients", async (request) => {
+        const clients = await deps.clientService.listClients();
+        return filterAdminList(clients, request.query, [
+            (client) => client.id,
+            (client) => client.name,
+            (client) => client.appId
+        ]);
+    });
+    app.get("/api/admin/scopes", async (request) => {
+        const scopes = await deps.scopeService.listScopes();
+        return filterAdminList(scopes, request.query, [
+            (scope) => scope.name,
+            (scope) => scope.description,
+            (scope) => scope.id
+        ]);
+    });
     app.post("/api/admin/scopes", async (request, reply) => {
         const input = createScopeSchema.parse(request.body);
         const scope = await deps.scopeService.createScope(input);
@@ -2261,7 +2364,15 @@ export const registerRoutes = async (app, deps) => {
         });
         return reply.status(204).send();
     });
-    app.get("/api/admin/roles", async () => deps.roleService.listRoles());
+    app.get("/api/admin/roles", async (request) => {
+        const roles = await deps.roleService.listRoles();
+        return filterAdminList(roles, request.query, [
+            (role) => role.name,
+            (role) => role.description,
+            (role) => role.id,
+            (role) => role.scope
+        ]);
+    });
     app.post("/api/admin/roles", async (request, reply) => {
         const input = createRoleSchema.parse(request.body);
         reply.code(201);
@@ -2285,7 +2396,15 @@ export const registerRoutes = async (app, deps) => {
         reply.code(201);
         return deps.roleService.assignRole(input);
     });
-    app.get("/api/admin/groups", async () => deps.groupService.listGroups());
+    app.get("/api/admin/groups", async (request) => {
+        const groups = await deps.groupService.listGroups();
+        return filterAdminList(groups, request.query, [
+            (group) => group.name,
+            (group) => group.description,
+            (group) => group.id,
+            (group) => group.externalId
+        ]);
+    });
     app.post("/api/admin/groups", async (request, reply) => {
         const input = createGroupSchema.parse(request.body);
         reply.code(201);
@@ -2321,8 +2440,23 @@ export const registerRoutes = async (app, deps) => {
         await deps.groupService.removeUserFromGroup(input);
         return reply.status(204).send();
     });
-    app.get("/api/admin/tenants", async () => deps.tenantService.listTenants());
-    app.get("/api/admin/apps", async () => deps.appService.listApps());
+    app.get("/api/admin/tenants", async (request) => {
+        const tenants = await deps.tenantService.listTenants();
+        return filterAdminList(tenants, request.query, [
+            (tenant) => tenant.name,
+            (tenant) => tenant.slug,
+            (tenant) => tenant.id
+        ]);
+    });
+    app.get("/api/admin/apps", async (request) => {
+        const apps = await deps.appService.listApps();
+        return filterAdminList(apps, request.query, [
+            (app) => app.name,
+            (app) => app.description,
+            (app) => app.url,
+            (app) => app.id
+        ]);
+    });
     app.post("/api/admin/apps", async (request, reply) => {
         const input = createAppSchema.parse(request.body);
         reply.code(201);
@@ -2369,7 +2503,14 @@ export const registerRoutes = async (app, deps) => {
         const input = updateTenantSchema.parse(request.body);
         return deps.tenantService.updateTenant(id, input);
     });
-    app.get("/api/admin/sessions", async () => deps.authService.sessionRepository.list());
+    app.get("/api/admin/sessions", async (request) => {
+        const sessions = await deps.authService.sessionRepository.list();
+        return filterAdminList(sessions, request.query, [
+            (session) => session.id,
+            (session) => session.userId,
+            (session) => session.clientId
+        ]);
+    });
     app.delete("/api/admin/sessions/:id", async (request, reply) => {
         const { id } = request.params;
         deps.securityService.revokeSessionObservation(id);
@@ -2447,7 +2588,14 @@ export const registerRoutes = async (app, deps) => {
         });
         return reply.status(204).send();
     });
-    app.get("/api/admin/consents", async () => deps.authService.consentRepository.list());
+    app.get("/api/admin/consents", async (request) => {
+        const consents = await deps.authService.consentRepository.list();
+        return filterAdminList(consents, request.query, [
+            (consent) => consent.id,
+            (consent) => consent.userId,
+            (consent) => consent.clientId
+        ]);
+    });
     app.delete("/api/admin/consents/:id", async (request, reply) => {
         const { id } = request.params;
         await deps.authService.consentRepository.revoke(id);
@@ -2460,7 +2608,15 @@ export const registerRoutes = async (app, deps) => {
     });
     app.get("/api/admin/audit", async (request) => {
         const { limit } = request.query;
-        return deps.auditRepository.list(limit ? Number(limit) : 200);
+        const events = await deps.auditRepository.list(limit ? Number(limit) : 200);
+        return filterAdminList(events, request.query, [
+            (event) => event.type,
+            (event) => event.actorId,
+            (event) => event.actorType,
+            (event) => event.clientId,
+            (event) => event.ip,
+            (event) => event.id
+        ]);
     });
     app.get("/api/admin/security/risk-events", async (request) => {
         const { limit } = request.query;
@@ -2636,10 +2792,14 @@ export const registerRoutes = async (app, deps) => {
             if (input.avatarUrl !== undefined) {
                 const refreshedUser = await deps.userService.findUserById(session.userId);
                 if (refreshedUser) {
-                    await deps.userService.setCustomAttributes(session.userId, {
-                        ...(refreshedUser.customAttributes ?? {}),
-                        [USER_PICTURE_ATTRIBUTE_KEY]: input.avatarUrl
-                    });
+                    const nextAttributes = { ...(refreshedUser.customAttributes ?? {}) };
+                    if (input.avatarUrl === null) {
+                        delete nextAttributes[USER_PICTURE_ATTRIBUTE_KEY];
+                    }
+                    else {
+                        nextAttributes[USER_PICTURE_ATTRIBUTE_KEY] = input.avatarUrl;
+                    }
+                    await deps.userService.setCustomAttributes(session.userId, nextAttributes);
                 }
             }
         }

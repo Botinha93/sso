@@ -100,11 +100,6 @@ export interface AppConfig {
   databasePath: string;
   externalDatabaseUrl?: string;
   issuer: string;
-  ttl: {
-    accessTokenSeconds: number;
-    idTokenSeconds: number;
-    refreshTokenSeconds: number;
-  };
   admin: {
     email: string;
     password: string;
@@ -129,11 +124,6 @@ export const loadConfig = (): AppConfig => ({
   databasePath: process.env.DATABASE_PATH ?? "./data/sso.sqlite",
   externalDatabaseUrl: process.env.DATABASE_URL,
   issuer: required("ISSUER", "http://localhost:4000"),
-  ttl: {
-    accessTokenSeconds: asNumber("JWT_ACCESS_TTL_SECONDS", 900),
-    idTokenSeconds: asNumber("JWT_ID_TTL_SECONDS", 900),
-    refreshTokenSeconds: asNumber("JWT_REFRESH_TTL_SECONDS", 60 * 60 * 24 * 30)
-  },
   admin: {
     email: required("ADMIN_EMAIL", "admin@example.com"),
     password: required("ADMIN_PASSWORD", "change-me-now")

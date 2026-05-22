@@ -202,19 +202,25 @@ const mapUser = (row: PrismaRow): User => ({
   updatedAt: asDate(readField(row, "updatedAt", "updated_at"))
 });
 
-const mapClient = (row: PrismaRow): OAuthClient => ({
-  id: String(row.id),
-  appId: row.appId ? String(row.appId) : undefined,
-  name: String(row.name),
-  secret: String(row.secret),
-  redirectUris: parseStringArray(row.redirectUrisJson),
-  allowedScopes: parseStringArray(row.allowedScopesJson),
-  grants: parseStringArray(row.grantsJson) as OAuthClient["grants"],
-  requirePkce: asBoolean(row.requirePkce),
-  resources: parseStringArray(row.resourcesJson),
-  flowIds: parseStringArray(row.flowIdsJson),
-  createdAt: asDate(row.createdAt)
-});
+const mapClient = (row: PrismaRow): OAuthClient => {
+  const accessTtl = readField(row, "accessTokenTtlSeconds", "access_token_ttl_seconds");
+  const refreshTtl = readField(row, "refreshTokenTtlSeconds", "refresh_token_ttl_seconds");
+  return {
+    id: String(row.id),
+    appId: row.appId ? String(row.appId) : undefined,
+    name: String(row.name),
+    secret: String(row.secret),
+    redirectUris: parseStringArray(row.redirectUrisJson),
+    allowedScopes: parseStringArray(row.allowedScopesJson),
+    grants: parseStringArray(row.grantsJson) as OAuthClient["grants"],
+    requirePkce: asBoolean(row.requirePkce),
+    resources: parseStringArray(row.resourcesJson),
+    flowIds: parseStringArray(row.flowIdsJson),
+    accessTokenTtlSeconds: typeof accessTtl === "number" ? accessTtl : accessTtl != null ? Number(accessTtl) || undefined : undefined,
+    refreshTokenTtlSeconds: typeof refreshTtl === "number" ? refreshTtl : refreshTtl != null ? Number(refreshTtl) || undefined : undefined,
+    createdAt: asDate(row.createdAt)
+  };
+};
 
 const mapScope = (row: PrismaRow): OAuthScope => ({
   id: String(row.id),
@@ -1006,6 +1012,8 @@ class PrismaClientRepository {
         requirePkce: asBooleanInt(client.requirePkce),
         resourcesJson: JSON.stringify(client.resources),
         flowIdsJson: JSON.stringify(client.flowIds),
+        accessTokenTtlSeconds: client.accessTokenTtlSeconds ?? null,
+        refreshTokenTtlSeconds: client.refreshTokenTtlSeconds ?? null,
         createdAt: client.createdAt.toISOString()
       }
     });
@@ -1040,7 +1048,9 @@ class PrismaClientRepository {
         grantsJson: JSON.stringify(updated.grants),
         requirePkce: asBooleanInt(updated.requirePkce),
         resourcesJson: JSON.stringify(updated.resources),
-        flowIdsJson: JSON.stringify(updated.flowIds)
+        flowIdsJson: JSON.stringify(updated.flowIds),
+        accessTokenTtlSeconds: updated.accessTokenTtlSeconds ?? null,
+        refreshTokenTtlSeconds: updated.refreshTokenTtlSeconds ?? null
       }
     });
     return updated;

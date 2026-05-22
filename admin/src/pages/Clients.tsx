@@ -1,6 +1,8 @@
 import { Plus, RefreshCw, Trash2, Shield, ChevronRight, X, Pencil } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
+import ListSearch from '../components/ListSearch'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
 import Button from '../components/ui/Button'
@@ -8,6 +10,7 @@ import Input, { inputBaseClassName } from '../components/ui/Input'
 import Card from '../components/ui/Card'
 import StatusBadge from '../components/ui/StatusBadge'
 import { useClients, useCreateClient, useDeleteClient, useUpdateClient, useScopes, useCreateScope, useDeleteScope, useAuthenticationFlows, useApps } from '../hooks/useApi'
+import React from 'react';
 
 interface OAuthClient {
   id: string
@@ -20,6 +23,8 @@ interface OAuthClient {
   requirePkce: boolean
   resources: string[]
   flowIds: string[]
+  accessTokenTtlSeconds?: number | null
+  refreshTokenTtlSeconds?: number | null
   createdAt: string
 }
 
@@ -52,7 +57,9 @@ const defaultForm = () => ({
   allowedScopes: ['openid', 'profile', 'email'] as string[],
   grants: ['authorization_code', 'refresh_token'] as GrantType[],
   requirePkce: false,
-  flowIds: [] as string[]
+  flowIds: [] as string[],
+  accessTokenTtlSeconds: '' as number | '',
+  refreshTokenTtlSeconds: '' as number | ''
 })
 
 const formFromClient = (client: OAuthClient) => ({
@@ -64,7 +71,9 @@ const formFromClient = (client: OAuthClient) => ({
   allowedScopes: [...client.allowedScopes],
   grants: [...client.grants] as GrantType[],
   requirePkce: client.requirePkce,
-  flowIds: [...(client.flowIds ?? [])]
+  flowIds: [...(client.flowIds ?? [])],
+  accessTokenTtlSeconds: (client.accessTokenTtlSeconds ?? '') as number | '',
+  refreshTokenTtlSeconds: (client.refreshTokenTtlSeconds ?? '') as number | ''
 })
 
 const fieldCls = inputBaseClassName
@@ -80,7 +89,9 @@ const Clients = () => {
   const [newScopeDescription, setNewScopeDescription] = useState('')
   const [formError, setFormError] = useState('')
   const [appFilterId, setAppFilterId] = useState<string>('all')
-  const { data: clients, isLoading, isFetching, refetch } = useClients()
+  const [searchInput, setSearchInput] = useState('')
+  const debouncedSearch = useDebouncedValue(searchInput)
+  const { data: clients, isLoading, isFetching, refetch } = useClients(debouncedSearch)
   const { data: apps = [] } = useApps()
   const { data: scopes = [] } = useScopes()
   const { data: flows = [] } = useAuthenticationFlows()
@@ -111,7 +122,9 @@ const Clients = () => {
         allowedScopes: formData.allowedScopes,
         grants: formData.grants,
         requirePkce: formData.requirePkce,
-        flowIds: formData.flowIds
+        flowIds: formData.flowIds,
+        accessTokenTtlSeconds: formData.accessTokenTtlSeconds === '' ? undefined : Number(formData.accessTokenTtlSeconds),
+        refreshTokenTtlSeconds: formData.refreshTokenTtlSeconds === '' ? undefined : Number(formData.refreshTokenTtlSeconds)
       })
       setCreateModalOpen(false)
       setFormData(defaultForm())
@@ -233,7 +246,9 @@ const Clients = () => {
         allowedScopes: formData.allowedScopes,
         grants: formData.grants,
         requirePkce: formData.requirePkce,
-        flowIds: formData.flowIds
+        flowIds: formData.flowIds,
+        accessTokenTtlSeconds: formData.accessTokenTtlSeconds === '' ? null : Number(formData.accessTokenTtlSeconds),
+        refreshTokenTtlSeconds: formData.refreshTokenTtlSeconds === '' ? null : Number(formData.refreshTokenTtlSeconds)
       })
       closeClientModal()
     } catch (error) {
@@ -257,15 +272,18 @@ const Clients = () => {
         }
       />
 
-      <div className="mb-4 max-w-sm">
-        <label className={labelCls}>Filter by App</label>
-        <select className={fieldCls} value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
-          <option value="all">All Apps</option>
-          <option value="none">Unassigned</option>
-          {(apps as any[]).map((app: any) => (
-            <option key={app.id} value={app.id}>{app.name}</option>
-          ))}
-        </select>
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search clients by id or name…" />
+        <div className="max-w-sm w-full">
+          <label className={labelCls}>Filter by App</label>
+          <select className={fieldCls} value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
+            <option value="all">All Apps</option>
+            <option value="none">Unassigned</option>
+            {(apps as any[]).map((app: any) => (
+              <option key={app.id} value={app.id}>{app.name}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <Card className="overflow-hidden">
@@ -534,6 +552,32 @@ const Clients = () => {
             />
             Require PKCE (recommended for public clients)
           </label>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className={labelCls}>Access token TTL (seconds)</label>
+              <Input
+                type="number"
+                min={60}
+                max={86400}
+                value={formData.accessTokenTtlSeconds}
+                onChange={(e) => setFormData(f => ({ ...f, accessTokenTtlSeconds: e.target.value === '' ? '' : Number(e.target.value) }))}
+                placeholder="900"
+              />
+              <p className="mt-1 text-xs text-slate-500">Lifetime of issued access tokens. Leave blank to use the default (900 = 15 min). Allowed: 60 – 86,400.</p>
+            </div>
+            <div>
+              <label className={labelCls}>Refresh token TTL (seconds)</label>
+              <Input
+                type="number"
+                min={300}
+                max={31536000}
+                value={formData.refreshTokenTtlSeconds}
+                onChange={(e) => setFormData(f => ({ ...f, refreshTokenTtlSeconds: e.target.value === '' ? '' : Number(e.target.value) }))}
+                placeholder="2592000"
+              />
+              <p className="mt-1 text-xs text-slate-500">Lifetime of issued refresh tokens. Leave blank to use the default (2,592,000 = 30 days). Allowed: 300 – 31,536,000.</p>
+            </div>
+          </div>
           {formError && <p className="text-xs text-red-600">{formError}</p>}
           <div className="flex gap-2 justify-end pt-2">
             <Button onClick={closeClientModal} variant="secondary">

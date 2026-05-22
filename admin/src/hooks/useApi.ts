@@ -3,6 +3,15 @@ import { extractErrorMessage } from '../lib/errors'
 
 const API_BASE = '/api/admin'
 
+const adminListUrl = (path: string, search?: string) => {
+  const params = new URLSearchParams()
+  if (search?.trim()) {
+    params.set('search', search.trim())
+  }
+  const qs = params.toString()
+  return `${API_BASE}${path}${qs ? `?${qs}` : ''}`
+}
+
 let csrfToken: string | null = null
 
 async function getCsrfToken(): Promise<string> {
@@ -107,10 +116,10 @@ export function useAdminMe() {
 }
 
 // --- Clients ---
-export function useClients() {
+export function useClients(search?: string) {
   return useQuery({
-    queryKey: ['clients'],
-    queryFn: () => jsonFetch(`${API_BASE}/clients`)
+    queryKey: ['clients', search ?? ''],
+    queryFn: () => jsonFetch(adminListUrl('/clients', search))
   })
 }
 
@@ -146,10 +155,10 @@ export function useDeleteClient() {
   })
 }
 
-export function useScopes() {
+export function useScopes(search?: string) {
   return useQuery({
-    queryKey: ['scopes'],
-    queryFn: () => jsonFetch(`${API_BASE}/scopes`)
+    queryKey: ['scopes', search ?? ''],
+    queryFn: () => jsonFetch(adminListUrl('/scopes', search))
   })
 }
 
@@ -174,10 +183,10 @@ export function useDeleteScope() {
 }
 
 // --- Sessions ---
-export function useSessions() {
+export function useSessions(search?: string) {
   return useQuery({
-    queryKey: ['sessions'],
-    queryFn: () => jsonFetch(`${API_BASE}/sessions`)
+    queryKey: ['sessions', search ?? ''],
+    queryFn: () => jsonFetch(adminListUrl('/sessions', search))
   })
 }
 
@@ -217,10 +226,10 @@ export function useRevokeDeviceSession() {
 }
 
 // --- Consents ---
-export function useConsents() {
+export function useConsents(search?: string) {
   return useQuery({
-    queryKey: ['consents'],
-    queryFn: () => jsonFetch(`${API_BASE}/consents`)
+    queryKey: ['consents', search ?? ''],
+    queryFn: () => jsonFetch(adminListUrl('/consents', search))
   })
 }
 
@@ -233,19 +242,26 @@ export function useRevokeConsent() {
 }
 
 // --- Audit ---
-export function useAuditLog(limit = 100) {
+export function useAuditLog(limit = 100, search?: string) {
   return useQuery({
-    queryKey: ['audit', limit],
-    queryFn: () => jsonFetch(`${API_BASE}/audit?limit=${limit}`),
+    queryKey: ['audit', limit, search ?? ''],
+    queryFn: () => {
+      const params = new URLSearchParams()
+      params.set('limit', String(limit))
+      if (search?.trim()) {
+        params.set('search', search.trim())
+      }
+      return jsonFetch(`${API_BASE}/audit?${params.toString()}`)
+    },
     refetchInterval: 30_000
   })
 }
 
 // --- Users ---
-export function useUsers() {
+export function useUsers(search?: string) {
   return useQuery({
-    queryKey: ['users'],
-    queryFn: () => jsonFetch(`${API_BASE}/users`)
+    queryKey: ['users', search ?? ''],
+    queryFn: () => jsonFetch(adminListUrl('/users', search))
   })
 }
 
@@ -256,7 +272,7 @@ export function useCreateUser() {
       appId?: string
       appIds?: string[]
       isServiceUser?: boolean
-      avatarUrl?: string
+      avatarUrl?: string | null
       email: string
       username: string
       givenName: string
@@ -282,7 +298,7 @@ export function useUpdateUser() {
       appId?: string
       appIds?: string[]
       isServiceUser?: boolean
-      avatarUrl?: string
+      avatarUrl?: string | null
       email?: string
       username?: string
       givenName?: string
@@ -301,17 +317,17 @@ export function useUpdateUser() {
 }
 
 // --- Apps ---
-export function useApps() {
+export function useApps(search?: string) {
   return useQuery({
-    queryKey: ['apps'],
-    queryFn: () => jsonFetch(`${API_BASE}/apps`)
+    queryKey: ['apps', search ?? ''],
+    queryFn: () => jsonFetch(adminListUrl('/apps', search))
   })
 }
 
 export function useCreateApp() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (app: { name: string; description: string; icon?: string; imageUrl?: string; url?: string; resources?: string[] }) => jsonFetch(`${API_BASE}/apps`, {
+    mutationFn: (app: { name: string; description: string; icon?: string; imageUrl?: string | null; url?: string; resources?: string[] }) => jsonFetch(`${API_BASE}/apps`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(app)
@@ -323,7 +339,7 @@ export function useCreateApp() {
 export function useUpdateApp() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; name?: string; description?: string; icon?: string; imageUrl?: string; url?: string | null; resources?: string[] }) => jsonFetch(`${API_BASE}/apps/${id}`, {
+    mutationFn: ({ id, ...data }: { id: string; name?: string; description?: string; icon?: string | null; imageUrl?: string | null; url?: string | null; resources?: string[] }) => jsonFetch(`${API_BASE}/apps/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -390,10 +406,10 @@ export function useResetUserPassword() {
 }
 
 // --- Roles ---
-export function useRoles() {
+export function useRoles(search?: string) {
   return useQuery({
-    queryKey: ['roles'],
-    queryFn: () => jsonFetch(`${API_BASE}/roles`)
+    queryKey: ['roles', search ?? ''],
+    queryFn: () => jsonFetch(adminListUrl('/roles', search))
   })
 }
 
@@ -430,10 +446,10 @@ export function useDeleteRole() {
 }
 
 // --- Groups ---
-export function useGroups() {
+export function useGroups(search?: string) {
   return useQuery({
-    queryKey: ['groups'],
-    queryFn: () => jsonFetch(`${API_BASE}/groups`)
+    queryKey: ['groups', search ?? ''],
+    queryFn: () => jsonFetch(adminListUrl('/groups', search))
   })
 }
 
@@ -545,10 +561,10 @@ export function useRemoveUserFromGroup() {
 }
 
 // --- Tenants ---
-export function useTenants() {
+export function useTenants(search?: string) {
   return useQuery({
-    queryKey: ['tenants'],
-    queryFn: () => jsonFetch(`${API_BASE}/tenants`)
+    queryKey: ['tenants', search ?? ''],
+    queryFn: () => jsonFetch(adminListUrl('/tenants', search))
   })
 }
 
@@ -578,10 +594,10 @@ export function useUpdateTenant() {
 }
 
 // --- Federation Providers ---
-export function useFederationProviders() {
+export function useFederationProviders(search?: string) {
   return useQuery({
-    queryKey: ['federation-providers'],
-    queryFn: () => jsonFetch(`${API_BASE}/federation/providers`)
+    queryKey: ['federation-providers', search ?? ''],
+    queryFn: () => jsonFetch(adminListUrl('/federation/providers', search))
   })
 }
 
@@ -812,10 +828,10 @@ export function useStalledAccessRequests(stalledAfterMinutes = 60) {
 }
 
 // --- Authentication Flows ---
-export function useAuthenticationFlows() {
+export function useAuthenticationFlows(search?: string) {
   return useQuery({
-    queryKey: ['authentication-flows'],
-    queryFn: () => jsonFetch(`${API_BASE}/authentication/flows`)
+    queryKey: ['authentication-flows', search ?? ''],
+    queryFn: () => jsonFetch(adminListUrl('/authentication/flows', search))
   })
 }
 
@@ -858,10 +874,10 @@ export function useDeleteAuthenticationFlow() {
 }
 
 // --- User Attributes ---
-export function useUserAttributes() {
+export function useUserAttributes(search?: string) {
   return useQuery({
-    queryKey: ['user-attributes'],
-    queryFn: () => jsonFetch(`${API_BASE}/user-attributes`)
+    queryKey: ['user-attributes', search ?? ''],
+    queryFn: () => jsonFetch(adminListUrl('/user-attributes', search))
   })
 }
 
@@ -920,10 +936,10 @@ export function useRemoveUserAttributeGroupAssignment() {
 }
 
 // --- Policies ---
-export function usePolicies() {
+export function usePolicies(search?: string) {
   return useQuery({
-    queryKey: ['policies'],
-    queryFn: () => jsonFetch(`${API_BASE}/policies`)
+    queryKey: ['policies', search ?? ''],
+    queryFn: () => jsonFetch(adminListUrl('/policies', search))
   })
 }
 
@@ -1032,10 +1048,10 @@ export function usePolicyDecisions(limit = 50) {
 }
 
 // --- Event Hooks ---
-export function useEventHooks() {
+export function useEventHooks(search?: string) {
   return useQuery({
-    queryKey: ['event-hooks'],
-    queryFn: () => jsonFetch(`${API_BASE}/events/hooks`)
+    queryKey: ['event-hooks', search ?? ''],
+    queryFn: () => jsonFetch(adminListUrl('/events/hooks', search))
   })
 }
 

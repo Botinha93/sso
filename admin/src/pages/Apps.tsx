@@ -1,11 +1,16 @@
 import { Boxes, ExternalLink, Globe, Pencil, Plus, RefreshCw, Trash2, Users, Shield, Key, Server } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
+import ImageField from '../components/ImageField'
+import ListSearch from '../components/ListSearch'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
+import { iconFieldForCreate, iconFieldForUpdate, imageFieldForCreate, imageFieldForUpdate, resolveMediaSrc } from '../lib/media'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
 import Input from '../components/ui/Input'
+import React from 'react';
 import {
   useApps, useCreateApp, useDeleteApp, useUpdateApp,
   useUploadAppImage, useDefaultAppImages,
@@ -124,7 +129,9 @@ const ComponentsManager = ({ appId }: ComponentsManagerProps) => {
 }
 
 const Apps = () => {
-  const { data: apps = [], isLoading, isFetching, refetch } = useApps()
+  const [searchInput, setSearchInput] = useState('')
+  const debouncedSearch = useDebouncedValue(searchInput)
+  const { data: apps = [], isLoading, isFetching, refetch } = useApps(debouncedSearch)
   const createApp = useCreateApp()
   const updateApp = useUpdateApp()
   const deleteApp = useDeleteApp()
@@ -165,8 +172,8 @@ const Apps = () => {
       const created = await createApp.mutateAsync({
         name: formData.name,
         description: formData.description,
-        icon: formData.icon || undefined,
-        imageUrl: formData.imageUrl || undefined,
+        icon: iconFieldForCreate(formData.icon),
+        imageUrl: imageFieldForCreate(formData.imageUrl),
         url: formData.url || undefined,
         resources: formData.resources,
       }) as AppItem
@@ -191,8 +198,8 @@ const Apps = () => {
         id: appToEdit.id,
         name: formData.name,
         description: formData.description,
-        icon: formData.icon || undefined,
-        imageUrl: formData.imageUrl || undefined,
+        icon: iconFieldForUpdate(formData.icon),
+        imageUrl: imageFieldForUpdate(formData.imageUrl),
         url: formData.url || null,
         resources: formData.resources,
       })
@@ -218,7 +225,7 @@ const Apps = () => {
             className="h-12 w-full rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center text-2xl cursor-text hover:border-slate-400 transition-colors"
             title="Click emoji suggestions to pick"
           >
-            {formData.imageUrl ? <img src={formData.imageUrl} alt="app" className="h-full w-full object-cover rounded-xl" /> : (formData.icon || <Boxes size={20} className="text-slate-300" />)}
+            {resolveMediaSrc(formData.imageUrl) ? <img src={resolveMediaSrc(formData.imageUrl)} alt="app" className="h-full w-full object-cover rounded-xl" /> : (formData.icon || <Boxes size={20} className="text-slate-300" />)}
           </div>
         </div>
         <div>
@@ -233,75 +240,30 @@ const Apps = () => {
         </div>
       </div>
 
-      <div>
-        <label className={labelCls}>Image URL (optional)</label>
-        <Input
-          type="url"
-          value={formData.imageUrl}
-          onChange={e => setFormData(p => ({ ...p, imageUrl: e.target.value }))}
-          className={fieldCls}
-          placeholder="/media/defaults/app/grid.svg"
-        />
-      </div>
-
-      <div>
-        <label className={labelCls}>Upload Image</label>
-        <Input
-          type="file"
-          accept="image/*"
-          className={`${fieldCls} pt-1.5`}
-          onChange={async (event) => {
-            const file = event.target.files?.[0]
-            if (!file) return
-
-            if (appToEdit) {
-                try {
-                  const result = await uploadAppImage.mutateAsync({ appId: appToEdit.id, file }) as { imageUrl?: string }
-                  if (result?.imageUrl) {
-                    setFormData((prev) => ({ ...prev, imageUrl: result.imageUrl }))
-                  }
-                  setEditFormError('')
-                } catch (error) {
-                  setEditFormError(error instanceof Error ? error.message : 'Failed to upload app image')
+      <ImageField
+        label="App Image"
+        value={formData.imageUrl}
+        onChange={(imageUrl) => setFormData((prev) => ({ ...prev, imageUrl }))}
+        previewFallback={formData.icon || <Boxes size={20} className="text-slate-300" />}
+        defaultImages={(defaultAppImages as any)?.items ?? []}
+        uploadPending={uploadAppImage.isPending}
+        onUpload={appToEdit
+          ? async (file) => {
+              try {
+                const result = await uploadAppImage.mutateAsync({ appId: appToEdit.id, file }) as { imageUrl?: string }
+                if (result?.imageUrl) {
+                  setFormData((prev) => ({ ...prev, imageUrl: result.imageUrl ?? '' }))
                 }
-                return
+                setEditFormError('')
+              } catch (error) {
+                setEditFormError(error instanceof Error ? error.message : 'Failed to upload app image')
+              }
             }
-
-            setSelectedImageFile(file)
-          }}
-        />
-        {!appToEdit && selectedImageFile ? (
-          <p className="mt-1 text-xs text-slate-500">Selected: <span className="font-mono">{selectedImageFile.name}</span>. The image will upload automatically when you create the app.</p>
-        ) : null}
-      </div>
-
-      <div>
-        <label className={labelCls}>Default Images</label>
-        <div className="flex flex-wrap gap-2">
-          {((defaultAppImages as any)?.items ?? []).map((item: any) => (
-            <Button
-              key={item.key}
-              type="button"
-              onClick={() => setFormData((prev) => ({ ...prev, imageUrl: item.url }))}
-              variant="secondary"
-              size="icon"
-              className="h-10 w-10 rounded-lg overflow-hidden border border-slate-200 p-0 hover:ring-2 hover:ring-slate-300"
-              title={item.label}
-            >
-              <img src={item.url} alt={item.label} className="h-full w-full object-cover" />
-            </Button>
-          ))}
-          <Button
-            type="button"
-            onClick={() => setFormData((prev) => ({ ...prev, imageUrl: '' }))}
-            variant="secondary"
-            size="sm"
-            className="h-10"
-          >
-            clear image
-          </Button>
-        </div>
-      </div>
+          : async (file) => setSelectedImageFile(file)}
+        uploadHint={!appToEdit && selectedImageFile
+          ? `Selected: ${selectedImageFile.name}. The image will upload when you create the app.`
+          : undefined}
+      />
 
       <div>
         <label className={labelCls}>Emoji Suggestions</label>
@@ -422,6 +384,10 @@ const Apps = () => {
         }
       />
 
+      <div className="mb-4">
+        <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search apps by name, description, URL…" />
+      </div>
+
       <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
           <h4 className="text-sm font-semibold text-slate-700">All Apps</h4>
@@ -447,7 +413,7 @@ const Apps = () => {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-0.5">
                     <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-lg shrink-0">
-                      {app.imageUrl ? <img src={app.imageUrl} alt={app.name} className="h-full w-full rounded-xl object-cover" /> : (app.icon ? app.icon : <Boxes size={16} className="text-slate-400" />)}
+                      {resolveMediaSrc(app.imageUrl) ? <img src={resolveMediaSrc(app.imageUrl)} alt={app.name} className="h-full w-full rounded-xl object-cover" /> : (app.icon ? app.icon : <Boxes size={16} className="text-slate-400" />)}
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">

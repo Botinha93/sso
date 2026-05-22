@@ -1,6 +1,6 @@
 import { ArrowLeft, Loader2, Trash2, UserPlus } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { useEffect, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import type { PortalUser } from '../hooks'
 import {
   usePortalCreateManagedUser,
@@ -47,31 +47,25 @@ export default function Users({ currentUser }: Props) {
     return permissions.includes('*:*') || permissions.includes('users:edit') || permissions.includes('users:create')
   }, [currentUser.permissions])
 
-  const { data: users = [], isLoading, error } = usePortalManagedUsers()
+  const [createForm, setCreateForm] = useState<CreateForm>(emptyForm)
+  const [createError, setCreateError] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
+  const deferredSearch = useDeferredValue(searchTerm)
+  const { data: users = [], isLoading, error } = usePortalManagedUsers(deferredSearch.trim())
   const { data: roles = [] } = usePortalRoles()
   const { data: groups = [] } = usePortalGroups()
   const createUser = usePortalCreateManagedUser()
   const updateUser = usePortalUpdateManagedUser()
   const deleteUser = usePortalDeleteManagedUser()
-
-  const [createForm, setCreateForm] = useState<CreateForm>(emptyForm)
-  const [createError, setCreateError] = useState('')
-  const [searchTerm, setSearchTerm] = useState('')
   const [roleFilterId, setRoleFilterId] = useState('')
   const [groupFilterId, setGroupFilterId] = useState('')
 
   const groupNameById = useMemo(() => new Map(groups.map((group) => [group.id, group.name])), [groups])
 
   const filteredUsers = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase()
     const groupNameForFilter = groupFilterId ? groupNameById.get(groupFilterId) : undefined
 
     return users.filter((user) => {
-      const matchesTerm =
-        term.length === 0 ||
-        user.username.toLowerCase().includes(term) ||
-        user.email.toLowerCase().includes(term)
-
       const matchesRole =
         !roleFilterId ||
         Boolean(user.directRoleIds?.includes(roleFilterId))
@@ -80,9 +74,9 @@ export default function Users({ currentUser }: Props) {
         !groupFilterId ||
         (groupNameForFilter ? Boolean(user.groups?.includes(groupNameForFilter)) : false)
 
-      return matchesTerm && matchesRole && matchesGroup
+      return matchesRole && matchesGroup
     })
-  }, [groupFilterId, groupNameById, roleFilterId, searchTerm, users])
+  }, [groupFilterId, groupNameById, roleFilterId, users])
 
   const handleCreate = async () => {
     setCreateError('')

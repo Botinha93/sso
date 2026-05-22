@@ -192,7 +192,7 @@ export class UserService {
     externalSource?: string;
     externalId?: string;
     isServiceUser?: boolean;
-    avatarUrl?: string;
+    avatarUrl?: string | null;
     email?: string;
     username?: string;
     givenName?: string;

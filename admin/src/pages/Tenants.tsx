@@ -1,11 +1,14 @@
 import { Building2, Pencil, Plus, RefreshCw } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
+import ListSearch from '../components/ListSearch'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import Modal from '../components/Modal'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
 import Input from '../components/ui/Input'
 import { useCreateTenant, useTenants, useUpdateTenant } from '../hooks/useApi'
+import React from 'react';
 
 const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
 const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
@@ -18,7 +21,9 @@ const Tenants = () => {
   const [editFormData, setEditFormData] = useState({ name: '', slug: '', active: true })
   const [createFormError, setCreateFormError] = useState('')
   const [editFormError, setEditFormError] = useState('')
-  const { data: tenants = [], isLoading, isFetching, refetch } = useTenants()
+  const [searchInput, setSearchInput] = useState('')
+  const debouncedSearch = useDebouncedValue(searchInput)
+  const { data: tenants = [], isLoading, isFetching, refetch } = useTenants(debouncedSearch)
   const createTenant = useCreateTenant()
   const updateTenant = useUpdateTenant()
 
@@ -76,6 +81,10 @@ const Tenants = () => {
           </Button>
         }
       />
+
+      <div className="mb-4">
+        <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search tenants by name or slug…" />
+      </div>
 
       <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">

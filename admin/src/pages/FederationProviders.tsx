@@ -2,12 +2,16 @@ import { AppWindow, ChevronDown, ChevronUp, Pencil, Plus, RefreshCw, Shield, Tra
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import type { Dispatch, SetStateAction } from 'react'
 import { useMemo, useState } from 'react'
+import ListSearch from '../components/ListSearch'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/ui/StatusBadge'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
 import Input from '../components/ui/Input'
+import React from 'react';
+
 import {
   useCreateFederationProvider,
   useDeleteFederationProvider,
@@ -240,7 +244,9 @@ const blankForm = {
 }
 
 const FederationProviders = () => {
-  const { data, isLoading, isFetching: isProvidersRefreshing, refetch } = useFederationProviders()
+  const [searchInput, setSearchInput] = useState('')
+  const debouncedSearch = useDebouncedValue(searchInput)
+  const { data, isLoading, isFetching: isProvidersRefreshing, refetch } = useFederationProviders(debouncedSearch)
   const { data: samlData, isLoading: samlLoading, isFetching: isSamlProvidersRefreshing, refetch: refetchSamlProviders } = useSamlServiceProviders({ limit: 100, offset: 0 })
   const { data: assertionsData, isLoading: assertionsLoading, isFetching: isAssertionsRefreshing, refetch: refetchAssertions } = useSamlAssertions({ limit: 50 })
   const createProvider = useCreateFederationProvider()
@@ -489,6 +495,10 @@ const FederationProviders = () => {
           </Button>
         }
       />
+
+      <div className="mb-4">
+        <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search federation providers…" />
+      </div>
 
       <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">

@@ -1,12 +1,15 @@
 import { ChevronRight, Plus, RefreshCw, Shield, Trash2 } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
+import ListSearch from '../components/ListSearch'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
 import Input from '../components/ui/Input'
 import { useRoles, useCreateRole, useUpdateRole, useDeleteRole, useApps, useClients } from '../hooks/useApi'
+import React from 'react';
 
 const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
 const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
@@ -234,7 +237,9 @@ const Roles = () => {
   const [formData, setFormData] = useState({ ...EMPTY_FORM })
   const [createFormError, setCreateFormError] = useState('')
   const [editFormError, setEditFormError] = useState('')
-  const { data: roles = [], isLoading, isFetching, refetch } = useRoles()
+  const [searchInput, setSearchInput] = useState('')
+  const debouncedSearch = useDebouncedValue(searchInput)
+  const { data: roles = [], isLoading, isFetching, refetch } = useRoles(debouncedSearch)
   const { data: apps = [] } = useApps()
   const { data: clients = [] } = useClients()
   const createRole = useCreateRole()
@@ -322,15 +327,18 @@ const Roles = () => {
         }
       />
 
-      <div className="mb-4 max-w-sm">
-        <label className={labelCls}>Filter by App</label>
-        <select className={fieldCls} value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
-          <option value="all">All Apps</option>
-          <option value="none">Unassigned</option>
-          {(apps as any[]).map((app: any) => (
-            <option key={app.id} value={app.id}>{app.name}</option>
-          ))}
-        </select>
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search roles by name or description…" />
+        <div className="max-w-sm w-full">
+          <label className={labelCls}>Filter by App</label>
+          <select className={fieldCls} value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
+            <option value="all">All Apps</option>
+            <option value="none">Unassigned</option>
+            {(apps as any[]).map((app: any) => (
+              <option key={app.id} value={app.id}>{app.name}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <Card className="overflow-hidden">

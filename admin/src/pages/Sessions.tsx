@@ -3,7 +3,10 @@ import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Button from '../components/ui/Button'
+import ListSearch from '../components/ListSearch'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { useSessions, useRevokeSession } from '../hooks/useApi'
+import React from 'react';
 
 interface Session {
   id: string
@@ -15,7 +18,9 @@ interface Session {
 }
 
 const Sessions = () => {
-  const { data: sessions, isLoading, isFetching, refetch } = useSessions()
+  const [searchInput, setSearchInput] = useState('')
+  const debouncedSearch = useDebouncedValue(searchInput)
+  const { data: sessions, isLoading, isFetching, refetch } = useSessions(debouncedSearch)
   const revokeSession = useRevokeSession()
   const [sessionToRevoke, setSessionToRevoke] = useState<string | null>(null)
 
@@ -31,6 +36,10 @@ const Sessions = () => {
   return (
     <div>
       <PageHeader eyebrow="Session Management" title="Active Sessions" />
+
+      <div className="mb-4">
+        <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search sessions by user or client…" />
+      </div>
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">

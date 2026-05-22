@@ -1,7 +1,11 @@
 import { RefreshCw, ClipboardList } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import Button from '../components/ui/Button'
+import ListSearch from '../components/ListSearch'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { useAuditLog } from '../hooks/useApi'
+import { useState } from 'react'
+import React from 'react';
 
 interface AuditEvent {
   id: string
@@ -31,11 +35,17 @@ const eventBadge: Record<string, string> = {
 }
 
 const AuditLog = () => {
-  const { data: events, isLoading, isFetching, refetch } = useAuditLog(200)
+  const [searchInput, setSearchInput] = useState('')
+  const debouncedSearch = useDebouncedValue(searchInput)
+  const { data: events, isLoading, isFetching, refetch } = useAuditLog(200, debouncedSearch)
 
   return (
     <div>
       <PageHeader eyebrow="Audit Trail" title="System Activity Log" />
+
+      <div className="mb-4">
+        <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search events by type, actor, client…" />
+      </div>
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">

@@ -1,12 +1,16 @@
 import { Link2, Pencil, Plus, RefreshCw, Trash2, Users, X } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useMemo, useState } from 'react'
+import ListSearch from '../components/ListSearch'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/ui/StatusBadge'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 import Card from '../components/ui/Card'
+import React from 'react';
+
 import {
   useAssignRoleToGroup,
   useCreateGroup,
@@ -124,7 +128,9 @@ const Groups = () => {
   const [createFormError, setCreateFormError] = useState('')
   const [editFormError, setEditFormError] = useState('')
 
-  const { data: groups = [], isLoading, isFetching, refetch } = useGroups()
+  const [searchInput, setSearchInput] = useState('')
+  const debouncedSearch = useDebouncedValue(searchInput)
+  const { data: groups = [], isLoading, isFetching, refetch } = useGroups(debouncedSearch)
   const { data: apps = [] } = useApps()
   const { data: roles = [] } = useRoles()
   const { data: attributeDefinitions = [] } = useUserAttributes()
@@ -305,15 +311,18 @@ const Groups = () => {
         }
       />
 
-      <div className="mb-4 max-w-sm">
-        <label className={labelCls}>Filter by App</label>
-        <select className={fieldCls} value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
-          <option value="all">All Apps</option>
-          <option value="none">Unassigned</option>
-          {(apps as AppItem[]).map((app) => (
-            <option key={app.id} value={app.id}>{app.name}</option>
-          ))}
-        </select>
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search groups by name or description…" />
+        <div className="max-w-sm w-full">
+          <label className={labelCls}>Filter by App</label>
+          <select className={fieldCls} value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
+            <option value="all">All Apps</option>
+            <option value="none">Unassigned</option>
+            {(apps as AppItem[]).map((app) => (
+              <option key={app.id} value={app.id}>{app.name}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <Card className="overflow-hidden">

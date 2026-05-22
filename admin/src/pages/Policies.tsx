@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react'
+import ListSearch from '../components/ListSearch'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import Editor from '@monaco-editor/react'
 import { PageHeader, PageHeaderSkeleton, TableSkeleton } from '../components/PageHeader'
 import StatusBadge from '../components/ui/StatusBadge'
@@ -6,6 +8,8 @@ import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
 import CodeBlock from '../components/ui/CodeBlock'
 import Input from '../components/ui/Input'
+import React from 'react';
+
 import {
   useCreatePolicy,
   useDeletePolicy,
@@ -327,7 +331,9 @@ function AssignmentConfigEditor({
 }
 
 export default function Policies() {
-  const { data: policies = [], isLoading } = usePolicies()
+  const [searchInput, setSearchInput] = useState('')
+  const debouncedSearch = useDebouncedValue(searchInput)
+  const { data: policies = [], isLoading } = usePolicies(debouncedSearch)
   const { data: decisions = [], isLoading: decisionsLoading } = usePolicyDecisions(100)
   const createPolicy = useCreatePolicy()
   const updatePolicy = useUpdatePolicy()
@@ -366,6 +372,8 @@ export default function Policies() {
         title="Policies"
         description="Define policy behavior in JavaScript, then manage where each policy applies and its configuration separately."
       />
+
+      <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search policies by key or name…" />
 
       <div className="flex gap-2 border-b border-slate-200">
         {[

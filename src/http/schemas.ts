@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { nullableIconSchema, nullableImageUrlSchema, optionalImageUrlSchema } from "./media-schemas.js";
 
 const appUrlSchema = z.string().refine((value) => {
   if (value.startsWith("/")) {
@@ -37,7 +38,7 @@ export const createUserSchema = z.object({
   externalSource: z.string().min(1).optional(),
   externalId: z.string().min(1).optional(),
   isServiceUser: z.boolean().default(false),
-  avatarUrl: z.string().min(1).optional(),
+  avatarUrl: optionalImageUrlSchema,
   email: z.string().email(),
   username: z.string().min(3),
   password: z.string().min(8).optional(),
@@ -71,7 +72,7 @@ export const updateUserSchema = z.object({
   externalSource: z.string().min(1).optional(),
   externalId: z.string().min(1).optional(),
   isServiceUser: z.boolean().optional(),
-  avatarUrl: z.string().min(1).optional(),
+  avatarUrl: nullableImageUrlSchema,
   email: z.string().email().optional(),
   username: z.string().min(3).optional(),
   givenName: z.string().min(1).optional(),
@@ -89,7 +90,7 @@ export const resetUserPasswordSchema = z.object({
 export const portalUpdateProfileSchema = z.object({
   givenName: z.string().min(1).optional(),
   familyName: z.string().min(1).optional(),
-  avatarUrl: z.string().min(1).optional(),
+  avatarUrl: nullableImageUrlSchema,
   email: z.string().email().optional(),
   username: z.string().min(3).optional(),
   customAttributes: z.record(z.string(), z.string()).optional()
@@ -356,6 +357,9 @@ export const oidcRevokeSchema = z.object({
   token_type_hint: z.enum(["access_token", "refresh_token"]).optional()
 });
 
+const accessTokenTtlSchema = z.number().int().min(60).max(86_400);
+const refreshTokenTtlSchema = z.number().int().min(300).max(31_536_000);
+
 export const createClientSchema = z.object({
   appId: z.string().min(2).optional(),
   id: z.string().min(3),
@@ -366,7 +370,9 @@ export const createClientSchema = z.object({
   grants: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"])).min(1),
   requirePkce: z.boolean().default(false),
   resources: z.array(z.string().min(1)).default([]),
-  flowIds: z.array(z.string().min(1)).default([])
+  flowIds: z.array(z.string().min(1)).default([]),
+  accessTokenTtlSeconds: accessTokenTtlSchema.optional(),
+  refreshTokenTtlSeconds: refreshTokenTtlSchema.optional()
 }).superRefine((input, ctx) => {
   if (input.grants.includes("authorization_code") && input.redirectUris.length === 0) {
     ctx.addIssue({
@@ -386,7 +392,9 @@ export const updateClientSchema = z.object({
   grants: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"])).optional(),
   requirePkce: z.boolean().optional(),
   resources: z.array(z.string().min(1)).optional(),
-  flowIds: z.array(z.string().min(1)).optional()
+  flowIds: z.array(z.string().min(1)).optional(),
+  accessTokenTtlSeconds: accessTokenTtlSchema.nullable().optional(),
+  refreshTokenTtlSeconds: refreshTokenTtlSchema.nullable().optional()
 });
 
 export const createScopeSchema = z.object({
@@ -398,7 +406,7 @@ export const createAppSchema = z.object({
   name: z.string().min(2),
   description: z.string().min(2),
   icon: z.string().optional(),
-  imageUrl: z.string().min(1).optional(),
+  imageUrl: optionalImageUrlSchema,
   url: appUrlSchema.optional(),
   resources: z.array(z.string().min(1)).default([])
 });
@@ -406,8 +414,8 @@ export const createAppSchema = z.object({
 export const updateAppSchema = z.object({
   name: z.string().min(2).optional(),
   description: z.string().min(2).optional(),
-  icon: z.string().optional(),
-  imageUrl: z.string().min(1).optional(),
+  icon: nullableIconSchema,
+  imageUrl: nullableImageUrlSchema,
   url: appUrlSchema.optional().nullable(),
   resources: z.array(z.string().min(1)).optional()
 });

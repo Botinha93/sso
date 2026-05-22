@@ -1,8 +1,11 @@
 import { useState } from 'react'
+import ListSearch from '../components/ListSearch'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { PageHeader, PageHeaderSkeleton } from '../components/PageHeader'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 import Card from '../components/ui/Card'
+import React from 'react';
 import {
   useCreateEventHook,
   useDeleteEventHook,
@@ -17,7 +20,9 @@ const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent p
 const compactSelectCls = 'h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-700 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
 
 export default function EventHooks() {
-  const { data: hooks = [], isLoading } = useEventHooks()
+  const [searchInput, setSearchInput] = useState('')
+  const debouncedSearch = useDebouncedValue(searchInput)
+  const { data: hooks = [], isLoading } = useEventHooks(debouncedSearch)
   const { data: systemEventTypes = [] } = useSystemEventTypes()
   const { data: notifications = [] } = useEventNotifications(100)
   const createHook = useCreateEventHook()
@@ -61,6 +66,8 @@ export default function EventHooks() {
         title="Events and Hooks"
         description="Dispatch platform events to webhooks and review delivery logs."
       />
+
+      <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search hooks by event type or URL…" />
 
       <Card className="p-4">
         <h2 className="text-sm font-semibold text-slate-900">Create Hook</h2>

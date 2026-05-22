@@ -5,6 +5,7 @@ import StatusBadge from '../components/ui/StatusBadge'
 import { PageHeader, PageHeaderSkeleton } from '../components/PageHeader'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
+import React from 'react';
 import {
   useAdminMe,
   useAdminRiskEvents,
@@ -177,7 +178,7 @@ export default function Administration() {
         defaultBySurface: {},
         byClientId: {},
         byAppId: {}
-      }, null, 2)
+      }, null, 2),
     })
   }, [data])
 
@@ -549,6 +550,7 @@ export default function Administration() {
               <p className="font-medium text-slate-900">Token signing algorithm</p>
               <div className="mt-2"><StatusBadge tone="success" mono>RS256</StatusBadge></div>
               <p className="mt-2 text-slate-600">Tokens are currently signed using RS256. This implementation remains enforced server-side.</p>
+              <p className="mt-1 text-slate-600">Access and refresh token lifetimes are configured per OAuth client on the <Link to="/clients" className="text-sky-600 hover:underline">Clients</Link> page.</p>
             </div>
           </div>
         </section>

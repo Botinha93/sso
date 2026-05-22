@@ -1,5 +1,6 @@
 import type { AppConfig } from "../core/config.js";
-import { JwtService } from "../security/jwt.js";
+import { JwtService, resolveAccessTokenTtlSeconds } from "../security/jwt.js";
+import type { OAuthClient } from "../domain/models.js";
 
 export class OidcService {
   constructor(
@@ -60,13 +61,19 @@ export class OidcService {
     return this.jwtService.getJwks();
   }
 
-  async mintExchangeToken(input: { sub: string; scopes: string[]; audiences?: string[]; accessTokenId: string }) {
-    const { nanoid } = await import("nanoid");
+  async mintExchangeToken(input: {
+    sub: string;
+    scopes: string[];
+    audiences?: string[];
+    accessTokenId: string;
+    client?: OAuthClient;
+  }) {
     const { SignJWT } = await import("jose");
 
     const keys = this.jwtService.getSigningKeys();
     const now = Math.floor(Date.now() / 1000);
     const scopeValue = input.scopes.join(" ");
+    const accessTtl = resolveAccessTokenTtlSeconds(input.client);
 
     let tokenBuilder = new SignJWT({ scope: scopeValue })
       .setProtectedHeader({ alg: "RS256", kid: keys.kid })
@@ -74,7 +81,7 @@ export class OidcService {
       .setSubject(input.sub)
       .setJti(input.accessTokenId)
       .setIssuedAt(now)
-      .setExpirationTime(now + this.appConfig.ttl.accessTokenSeconds);
+      .setExpirationTime(now + accessTtl);
 
     if (input.audiences && input.audiences.length > 0) {
       tokenBuilder = tokenBuilder.setAudience(input.audiences);
@@ -82,6 +89,6 @@ export class OidcService {
 
     const accessToken = await tokenBuilder.sign(keys.privateKey);
 
-    return { accessToken, tokenType: "Bearer", expiresIn: this.appConfig.ttl.accessTokenSeconds, scope: scopeValue };
+    return { accessToken, tokenType: "Bearer", expiresIn: accessTtl, scope: scopeValue };
   }
 }

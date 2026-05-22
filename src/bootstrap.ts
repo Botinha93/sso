@@ -41,6 +41,7 @@ import { PluginRuntimeService } from "./services/plugin-runtime-service.js";
 import { UserAttributeService } from "./services/user-attribute-service.js";
 import { UserService } from "./services/user-service.js";
 import { MediaService } from "./services/media-service.js";
+import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 export const bootstrap = async (config: AppConfig) => {
@@ -105,6 +106,7 @@ export const bootstrap = async (config: AppConfig) => {
   const authMetricsService = new AuthMetricsService(repositories.authMetricRepository);
   const pluginStorageRoot = resolve(process.cwd(), dirname(config.databasePath), "plugins");
   const mediaStorageRoot = resolve(process.cwd(), dirname(config.databasePath), "uploads");
+  await mkdir(mediaStorageRoot, { recursive: true });
   const pluginService = new PluginService(pluginStorageRoot);
   const mediaService = new MediaService(mediaStorageRoot);
   const pluginRuntimeService = new PluginRuntimeService(pluginService, auditRepository);

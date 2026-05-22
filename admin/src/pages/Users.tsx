@@ -1,6 +1,10 @@
 import { KeyRound, Link2, Pencil, Plus, RefreshCw, Trash2, UserCheck, UserX, Users, X } from 'lucide-react'
 import { EmptyState, PageHeader, TableSkeleton } from '../components/PageHeader'
 import { useState } from 'react'
+import ImageField from '../components/ImageField'
+import ListSearch from '../components/ListSearch'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
+import { imageFieldForCreate, imageFieldForUpdate, resolveMediaSrc } from '../lib/media'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
 import Button from '../components/ui/Button'
@@ -19,8 +23,10 @@ import {
   useUserAttributes,
   useAssignUserToGroup,
   useRemoveUserFromGroup,
-  useUploadUserAvatar
+  useUploadUserAvatar,
+  useDefaultUserAvatars,
 } from '../hooks/useApi'
+import React from 'react';
 
 interface User {
   id: string
@@ -159,7 +165,9 @@ const Users = () => {
   const [resetModalOpen, setResetModalOpen] = useState(false)
   const [userToReset, setUserToReset] = useState<User | null>(null)
   const [userToDelete, setUserToDelete] = useState<{ id: string; email: string } | null>(null)
-  const { data: users, isLoading, isFetching, refetch } = useUsers()
+  const [searchInput, setSearchInput] = useState('')
+  const debouncedSearch = useDebouncedValue(searchInput)
+  const { data: users, isLoading, isFetching, refetch } = useUsers(debouncedSearch)
   const { data: apps = [] } = useApps()
   const createUser = useCreateUser()
   const updateUser = useUpdateUser()
@@ -180,6 +188,10 @@ const Users = () => {
   const [editFormError, setEditFormError] = useState<string>('')
   const [resetFormError, setResetFormError] = useState<string>('')
   const [appFilterId, setAppFilterId] = useState<string>('all')
+  const createInitials = `${formData.givenName?.[0] ?? ''}${formData.familyName?.[0] ?? ''}`.toUpperCase() || 'AB'
+  const editInitials = `${editFormData.givenName?.[0] ?? ''}${editFormData.familyName?.[0] ?? ''}`.toUpperCase() || 'AB'
+  const { data: createDefaultAvatars } = useDefaultUserAvatars(createInitials)
+  const { data: editDefaultAvatars } = useDefaultUserAvatars(editInitials)
 
   const appNameById = new Map((apps as AppItem[]).map((a) => [a.id, a.name]))
   const enabledAttributeDefinitions = (attributeDefinitions as UserAttributeDefinition[]).filter((attribute) => attribute.enabled)
@@ -280,7 +292,7 @@ const Users = () => {
       const created = await createUser.mutateAsync({
         appIds: formData.appIds,
         isServiceUser: false,
-        avatarUrl: formData.avatarUrl || undefined,
+        avatarUrl: imageFieldForCreate(formData.avatarUrl),
         email: formData.email,
         username: formData.username,
         givenName: formData.givenName,
@@ -342,7 +354,7 @@ const Users = () => {
         username: editFormData.username,
         givenName: editFormData.givenName,
         familyName: editFormData.familyName,
-        avatarUrl: editFormData.avatarUrl || undefined,
+        avatarUrl: imageFieldForUpdate(editFormData.avatarUrl),
         customAttributes: editFormData.customAttributes,
         roleIds: editFormData.roleIds
       })
@@ -459,15 +471,18 @@ const Users = () => {
         }
       />
 
-      <div className="mb-4 max-w-sm">
-        <label className={labelCls}>Filter by App</label>
-        <select className={fieldCls} value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
-          <option value="all">All Apps</option>
-          <option value="none">Unassigned</option>
-          {(apps as AppItem[]).map((app) => (
-            <option key={app.id} value={app.id}>{app.name}</option>
-          ))}
-        </select>
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search users by name, email, username…" />
+        <div className="max-w-sm w-full">
+          <label className={labelCls}>Filter by App</label>
+          <select className={fieldCls} value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
+            <option value="all">All Apps</option>
+            <option value="none">Unassigned</option>
+            {(apps as AppItem[]).map((app) => (
+              <option key={app.id} value={app.id}>{app.name}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <Card className="overflow-hidden">
@@ -660,14 +675,15 @@ const Users = () => {
             <label className={labelCls}>Password</label>
             <Input type="password" value={formData.password} onChange={e => setFormData(f => ({ ...f, password: e.target.value }))} placeholder="Min 8 characters" />
           </div>
-          <div>
-            <label className={labelCls}>Avatar URL</label>
-            <Input type="url" value={formData.avatarUrl} onChange={e => setFormData(f => ({ ...f, avatarUrl: e.target.value }))} placeholder="https://..." />
-          </div>
-          <div>
-            <label className={labelCls}>Upload Avatar</label>
-            <Input type="file" accept="image/*" onChange={(e) => setFormData((f) => ({ ...f, avatarFile: e.target.files?.[0] }))} />
-          </div>
+          <ImageField
+            label="Profile Picture"
+            value={formData.avatarUrl}
+            onChange={(avatarUrl) => setFormData((f) => ({ ...f, avatarUrl }))}
+            urlPlaceholder="/media/defaults/user/initials.svg or https://…"
+            defaultImages={(createDefaultAvatars as any)?.items ?? []}
+            onUpload={async (file) => setFormData((f) => ({ ...f, avatarFile: file }))}
+            uploadHint={formData.avatarFile ? `Selected: ${(formData as any).avatarFile.name}. Uploads when the user is created.` : undefined}
+          />
           <div>
             <label className={labelCls}>Custom Attributes</label>
             <div className="space-y-2">
@@ -820,31 +836,27 @@ const Users = () => {
             <label className={labelCls}>Username</label>
             <Input type="text" value={editFormData.username} onChange={e => setEditFormData(f => ({ ...f, username: e.target.value }))} className="font-mono" placeholder="janedoe" />
           </div>
-          <div>
-            <label className={labelCls}>Avatar URL</label>
-            <Input type="url" value={editFormData.avatarUrl} onChange={e => setEditFormData(f => ({ ...f, avatarUrl: e.target.value }))} placeholder="https://..." />
-          </div>
-          {userToEdit && (
-            <div>
-              <label className={labelCls}>Upload Avatar</label>
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={async (event) => {
-                  const file = event.target.files?.[0]
-                  if (!file || !userToEdit) return
-                  try {
-                    const result = await uploadUserAvatar.mutateAsync({ userId: userToEdit.id, file }) as { avatarUrl?: string }
-                    if (result?.avatarUrl) {
-                      setEditFormData((prev) => ({ ...prev, avatarUrl: result.avatarUrl ?? '' }))
-                    }
-                  } catch (error) {
-                    setEditFormError(error instanceof Error ? error.message : 'Failed to upload avatar')
+          {userToEdit ? (
+            <ImageField
+              label="Profile Picture"
+              value={editFormData.avatarUrl}
+              onChange={(avatarUrl) => setEditFormData((f) => ({ ...f, avatarUrl }))}
+              urlPlaceholder="/media/defaults/user/initials.svg or https://…"
+              defaultImages={(editDefaultAvatars as any)?.items ?? []}
+              uploadPending={uploadUserAvatar.isPending}
+              onUpload={async (file) => {
+                try {
+                  const result = await uploadUserAvatar.mutateAsync({ userId: userToEdit.id, file }) as { avatarUrl?: string }
+                  if (result?.avatarUrl) {
+                    setEditFormData((prev) => ({ ...prev, avatarUrl: result.avatarUrl ?? '' }))
                   }
-                }}
-              />
-            </div>
-          )}
+                  setEditFormError('')
+                } catch (error) {
+                  setEditFormError(error instanceof Error ? error.message : 'Failed to upload avatar')
+                }
+              }}
+            />
+          ) : null}
           <div>
             <label className={labelCls}>Direct Custom Attributes</label>
             <div className="space-y-2">
