@@ -1,3 +1,5 @@
+import { applyRuntimeDatabaseConfig } from "./runtime-database-config.js";
+
 const required = (name: string, fallback?: string): string => {
   const value = process.env[name] ?? fallback;
 
@@ -109,20 +111,14 @@ export interface AppConfig {
   };
 }
 
-export const loadConfig = (): AppConfig => ({
+export const loadConfig = (): AppConfig => applyRuntimeDatabaseConfig({
   port: asNumber("PORT", 4000),
   host: asHost(),
   trustProxy: asBoolean("TRUST_PROXY", false),
   cookieSecret: resolveCookieSecret(),
-  databaseProvider: (() => {
-    const raw = (process.env.DATABASE_PROVIDER ?? "sqlite").toLowerCase();
-    if (raw === "sqlite" || raw === "postgresql" || raw === "mysql") {
-      return raw;
-    }
-    throw new Error("DATABASE_PROVIDER must be one of: sqlite, postgresql, mysql");
-  })(),
-  databasePath: process.env.DATABASE_PATH ?? "./data/sso.sqlite",
-  externalDatabaseUrl: process.env.DATABASE_URL,
+  databaseProvider: "sqlite",
+  databasePath: "./data/sso.sqlite",
+  externalDatabaseUrl: undefined,
   issuer: required("ISSUER", "http://localhost:4000"),
   admin: {
     email: required("ADMIN_EMAIL", "admin@example.com"),

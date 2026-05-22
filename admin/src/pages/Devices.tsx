@@ -4,6 +4,8 @@ import { useState } from 'react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import StatusBadge from '../components/ui/StatusBadge'
 import Button from '../components/ui/Button'
+import React from 'react';
+
 import { useDevices, useRevokeDeviceRequest, useRevokeDeviceSession } from '../hooks/useApi'
 
 interface DeviceRequest {

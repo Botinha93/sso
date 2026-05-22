@@ -5,6 +5,7 @@ import { PageHeader } from '../components/PageHeader'
 import Button from '../components/ui/Button'
 import CodeBlock from '../components/ui/CodeBlock'
 import Input from '../components/ui/Input'
+import React from 'react';
 
 /*@ts-ignore*/
 import openApiSource from '../../../openapi.yaml?raw'

@@ -120,9 +120,9 @@ export class InstanceSettingsService {
 
     return {
       id: "instance",
-      databaseProvider: (process.env.DATABASE_PROVIDER as "sqlite" | "postgresql" | "mysql" | undefined) ?? "sqlite",
-      databasePath: process.env.DATABASE_PATH ?? "./data/sso.sqlite",
-      externalDatabaseUrl: process.env.DATABASE_URL,
+      databaseProvider: "sqlite",
+      databasePath: "./data/sso.sqlite",
+      externalDatabaseUrl: undefined,
       requireHttps: false,
       secureCookies: false,
       allowAnyCorsOrigin: configuredCors.length === 0,

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { AlertCircle, CheckCircle2, MonitorSmartphone, ShieldCheck, XCircle } from 'lucide-react'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
+import React from 'react';
 
 type SubmissionState = 'idle' | 'approved' | 'denied'
 

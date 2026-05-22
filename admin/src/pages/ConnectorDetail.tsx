@@ -8,7 +8,7 @@ import {
   useConnectorMappings,
   useTriggerConnectorSync,
 } from '../hooks/useApi'
-
+import React from 'react';
 export default function ConnectorDetail() {
   const { id = '' } = useParams<{ id: string }>()
   const { data: connector, isLoading } = useConnector(id)

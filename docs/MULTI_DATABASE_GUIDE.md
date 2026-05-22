@@ -1,161 +1,57 @@
-# Multi-Database Support Status
+# Multi-Database Support
 
 ## Overview
 
-The SSO platform has multi-database migration scaffolding for SQLite, PostgreSQL, and MySQL, but the active runtime repository layer is still SQLite-native.
+The SSO platform supports SQLite, PostgreSQL, and MySQL through provider-specific Prisma clients. Database selection is made in the first-run installer or in Admin > Administration > Database, then persisted on the app data volume.
 
 ## Supported Databases
 
-- **SQLite** (default, file-based, no server needed)
-- **PostgreSQL** (recommended for production)
-- **MySQL** (alternative for production)
+- **SQLite**: default local database at `./data/sso.sqlite`.
+- **PostgreSQL**: recommended for production.
+- **MySQL**: alternative external database.
 
 ## Configuration
 
-### Environment Variables
+Database provider, SQLite path, and external connection URL are not configured through deployment env vars. The installer/admin database screen writes them to:
 
-```bash
-# Database provider (sqlite, postgresql, or mysql)
-DATABASE_PROVIDER=sqlite
-
-# For SQLite: local file path
-DATABASE_PATH=./data/sso.sqlite
-
-# For PostgreSQL/MySQL: full connection string
-DATABASE_URL=postgresql://user:password@localhost:5432/sso
-DATABASE_URL=mysql://user:password@localhost:3306/sso
+```text
+./data/database-config.json
 ```
 
-## Usage
+On startup, the app reads that file before creating repositories. If the file is missing, the app starts with SQLite at `./data/sso.sqlite` so the installer can run.
 
-### Current Runtime Status
+For PostgreSQL/MySQL, startup runs the provider schema push before bootstrapping the app.
 
-- `DATABASE_PROVIDER=sqlite`: supported for live runtime
-- `DATABASE_PROVIDER=postgresql`: migration/test tooling supported, live runtime not yet wired
-- `DATABASE_PROVIDER=mysql`: migration/test tooling supported, live runtime not yet wired
+## Migration from SQLite
 
-If you set `DATABASE_PROVIDER` to `postgresql` or `mysql`, the server now fails fast instead of silently falling back to SQLite.
+Use the admin database migration endpoint:
 
-### Planned Bootstrap Path
-
-```typescript
-import { createPrismaRepositoryBundle } from "./repositories/prisma-factory.js";
-import { AppConfig } from "./core/config.js";
-
-const config: AppConfig = {
-  databaseProvider: "postgresql", // or "sqlite", "mysql"
-  databasePath: "./data/sso.sqlite", // for sqlite
-  externalDatabaseUrl: "postgresql://...", // for postgresql/mysql
-  // ... other config
-};
-
-const repositories = await createPrismaRepositoryBundle(config);
+```text
+POST /api/admin/settings/database/migrate
 ```
 
-### Migration from SQLite to Production Database
+The endpoint copies data from the configured SQLite file to the selected external database, updates instance settings, and persists the runtime database config file for subsequent restarts.
 
-1. **Export SQLite data** using the database migration endpoint:
-   ```
-   POST /api/admin/settings/database/migrate
-   ```
+## Implementation Notes
 
-2. **Update environment variables**:
-   ```bash
-   DATABASE_PROVIDER=postgresql
-   DATABASE_URL=postgresql://user:password@localhost:5432/sso
-   ```
-
-3. **Run Prisma migrations**:
-   ```bash
-   npx prisma migrate deploy
-   ```
-
-4. **Keep runtime on SQLite for now** until the active repository factory is fully rewritten
-
-## Implementation Details
-
-### Repository Pattern with Prisma
-
-Repositories now leverage Prisma Client for database operations. The `PrismaUserRepository` example shows the pattern:
-
-```typescript
-export class PrismaUserRepository implements UserRepository {
-  constructor(private prisma: PrismaClient) {}
-
-  async create(input: Omit<User, "id" | "createdAt" | "updatedAt">): Promise<User> {
-    // Use Prisma Client - it adapts to any database
-    await this.prisma.users.create({
-      data: { /* ... */ }
-    });
-  }
-}
-```
-
-### Schema Configuration
-
-The Prisma schema (`prisma/schema.prisma`) automatically selects the correct database provider:
-
-```prisma
-datasource db {
-  provider = env("DATABASE_PROVIDER")
-  url      = env("DATABASE_URL")
-}
-```
-
-## Migration Path
-
-### Phase 1 (Current)
-- ✅ Prisma setup complete
-- ✅ Prisma factory created
-- ⏳ Incrementally rewrite repository implementations to use Prisma
-- ⏳ Replace active SQLite repository factory with real multi-database runtime support
-
-### Phase 2
-- Implement remaining Prisma repositories (currently using SQLite shim)
-- Test with PostgreSQL backend
-- Test with MySQL backend
-- Update documentation with database-specific configurations
-
-### Phase 3
-- Deprecate custom SQLite implementations
-- Complete migration to Prisma for all repositories
-- Production hardening for PostgreSQL/MySQL
-
-## Switching Databases at Runtime
-
-The live application should remain on SQLite until the repository rewrite is complete.
-
-For PostgreSQL/MySQL today, use the external target for validation and migration:
-
-```bash
-# Export current data (if needed)
-npm run db:export
-
-# Keep runtime on SQLite, use external provider only for migration/test flows
-DATABASE_PROVIDER=sqlite
-```
-
-## Benefits of Prisma
-
-1. **Type Safety**: Generated types from schema
-2. **Migration Path**: Schema and factory groundwork already exist
-3. **Query Portability**: Prisma can remove dialect-specific SQL over time
-4. **Built-in Migrations**: `prisma migrate` can handle schema changes once runtime is moved over
-5. **Developer Experience**: Intellisense and autocompletion for rewritten repositories
+- `src/core/runtime-database-config.ts` owns persisted runtime database config.
+- `src/core/config.ts` applies persisted database config over the default SQLite bootstrap config.
+- `src/repositories/prisma-factory.ts` creates the provider-specific Prisma client.
+- Prisma schemas still use `DATABASE_URL` internally because Prisma Client and `prisma db push` require that variable at process level; the app derives it from the persisted install config.
 
 ## Troubleshooting
 
-### "DATABASE_PROVIDER=postgresql/mysql is configured, but the active runtime repository layer is still SQLite-only"
-This is expected with the current repository implementation. Use the external provider for migration/test tooling only, or switch runtime back to SQLite.
+### Missing external database URL
 
-### "DATABASE_URL is required"
-For PostgreSQL/MySQL, ensure `DATABASE_URL` is set to a valid connection string
+Revisit the installer/admin database form and save a valid PostgreSQL/MySQL connection string.
 
 ### Prisma Client generation failed
-Run: `npx prisma generate`
 
-### Schema conflicts when switching databases
-The schema is now provider-agnostic. Clear `prisma/migrations` if adding new migrations.
+Run:
+
+```bash
+npm run prisma:generate
+```
 
 ## See Also
 

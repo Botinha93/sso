@@ -1,6 +1,7 @@
 import AccessGovernancePanel from '../components/AccessGovernancePanel'
 import AccessReviewCampaignPanel from '../components/AccessReviewCampaignPanel'
 import { PageHeader } from '../components/PageHeader'
+import React from 'react';
 
 export default function AccessGovernance() {
   return (

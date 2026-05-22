@@ -1,8 +1,11 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { extname } from "node:path";
 import type { FastifyInstance } from "fastify";
+import type { AppConfig } from "../core/config.js";
 import type { AuthenticationStageType, FlowDesignation, GrantType, UiSurface, User } from "../domain/models.js";
+import { bootstrap } from "../bootstrap.js";
 import { AppError, AuthenticationError, ValidationError } from "../core/errors.js";
+import { ensureExternalDatabaseSchema, saveRuntimeDatabaseConfig } from "../core/runtime-database-config.js";
 import { verifyPassword } from "../security/password.js";
 import { getAssetContentType, readFrontendAsset } from "./view-assets.js";
 import { hasAdminPermission, toAdminAction, toAdminResource } from "./admin-authorization.js";
@@ -134,6 +137,7 @@ import type {
 } from "../repositories/contracts.js";
 
 interface RouteDeps {
+  config: AppConfig;
   authService: AuthService;
   appService: AppService;
   authenticationFlowService: AuthenticationFlowService;
@@ -203,6 +207,24 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const inferred = extensionToMimeType[extname(filename ?? "").toLowerCase()];
     return inferred && allowedImageMimeTypes.has(inferred) ? inferred : null;
   };
+  const resolveSetupDatabaseConfig = (input: {
+    databaseProvider?: "sqlite" | "postgresql" | "mysql";
+    databasePath?: string;
+    externalDatabaseUrl?: string;
+  }): AppConfig => ({
+    ...deps.config,
+    databaseProvider: input.databaseProvider ?? deps.config.databaseProvider,
+    databasePath: input.databaseProvider === "sqlite"
+      ? input.databasePath ?? deps.config.databasePath
+      : deps.config.databasePath,
+    externalDatabaseUrl: input.databaseProvider && input.databaseProvider !== "sqlite"
+      ? input.externalDatabaseUrl
+      : undefined
+  });
+  const isDifferentDatabaseConfig = (left: AppConfig, right: AppConfig) =>
+    left.databaseProvider !== right.databaseProvider ||
+    left.databasePath !== right.databasePath ||
+    (left.externalDatabaseUrl ?? "") !== (right.externalDatabaseUrl ?? "");
   const translationService = new TranslationService();
   const geolocationService = new GeolocationService();
   const runBestEffort = async (request: { log: FastifyInstance["log"] }, task: string, work: () => Promise<void>) => {
@@ -847,9 +869,31 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.get("/api/setup/status", async () => deps.setupService.status());
   app.post("/api/setup/initialize", async (request, reply) => {
     const input = setupInitializeSchema.parse(request.body);
-    const result = await deps.setupService.initialize(input);
-    reply.code(201);
-    return result;
+    const targetConfig = resolveSetupDatabaseConfig(input);
+    const databaseChanged = isDifferentDatabaseConfig(deps.config, targetConfig);
+    const bootstrappedServices = databaseChanged ? await (async () => {
+      await ensureExternalDatabaseSchema(targetConfig);
+      return bootstrap(targetConfig);
+    })() : undefined;
+    const services = bootstrappedServices ?? deps;
+
+    try {
+      const result = await services.setupService.initialize(input);
+      await saveRuntimeDatabaseConfig({
+        databaseProvider: targetConfig.databaseProvider,
+        databasePath: targetConfig.databasePath,
+        externalDatabaseUrl: targetConfig.externalDatabaseUrl
+      });
+
+      if (databaseChanged && process.env.NODE_ENV !== "test") {
+        setTimeout(() => process.exit(0), 1000).unref();
+      }
+
+      reply.code(201);
+      return { ...result, restartRequired: databaseChanged };
+    } finally {
+      await bootstrappedServices?.dispose();
+    }
   });
 
   // Endpoint to obtain a fresh CSRF token
@@ -1981,8 +2025,13 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       externalDatabaseUrl: input.externalDatabaseUrl
     });
 
-    deps.instanceSettingsService.updateSettings({
+    await deps.instanceSettingsService.updateSettings({
       databaseProvider: input.provider,
+      externalDatabaseUrl: input.externalDatabaseUrl
+    });
+    await saveRuntimeDatabaseConfig({
+      databaseProvider: input.provider,
+      databasePath: instanceSettings.databasePath,
       externalDatabaseUrl: input.externalDatabaseUrl
     });
 

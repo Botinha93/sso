@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useInitializeSetup } from '../hooks/useApi'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
+import React from 'react';
 
 const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
 const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'

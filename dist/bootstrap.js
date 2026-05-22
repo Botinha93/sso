@@ -42,6 +42,22 @@ import { UserService } from "./services/user-service.js";
 import { MediaService } from "./services/media-service.js";
 import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { readRuntimeDatabaseConfigSync, saveRuntimeDatabaseConfig } from "./core/runtime-database-config.js";
+const pinRuntimeDatabaseConfigIfNeeded = async (config, instanceSettingsService, userService) => {
+    if (readRuntimeDatabaseConfigSync()) {
+        return;
+    }
+    const users = await userService.listUsers();
+    if (users.length === 0) {
+        return;
+    }
+    const settings = await instanceSettingsService.getSettings();
+    await saveRuntimeDatabaseConfig({
+        databaseProvider: settings.databaseProvider ?? config.databaseProvider,
+        databasePath: settings.databasePath ?? config.databasePath,
+        externalDatabaseUrl: settings.externalDatabaseUrl ?? config.externalDatabaseUrl
+    });
+};
 export const bootstrap = async (config) => {
     const repositories = await createRepositoryBundle(config);
     const { roleRepository, tenantRepository, appRepository, groupRepository, userGroupAssignmentRepository, userAppAssignmentRepository, groupAppAssignmentRepository, groupRoleAssignmentRepository, assignmentRepository, userRepository, clientRepository, scopeRepository, sessionRepository, totpCredentialRepository, webauthnCredentialRepository, authorizationCodeRepository, consentRepository, refreshTokenRepository, accessTokenRepository, auditRepository, authenticationFlowRepository, federationProviderRepository, federatedIdentityRepository, federationTransactionRepository, userAttributeRepository, groupUserAttributeAssignmentRepository, policyDefinitionRepository, policyAssignmentRepository, policyDecisionLogRepository, scimTokenRepository, provisioningMappingRepository, provisioningJobRepository, deprovisioningQueueRepository, accessRequestRepository, accessRequestApprovalRepository, accessReviewCampaignRepository, accessReviewItemRepository, elevationRequestRepository, elevationSessionRepository, eventHookRepository, eventNotificationRepository, instanceSettingsRepository, samlServiceProviderRepository, samlNameIdMappingRepository, samlAssertionAuditRepository } = repositories;
@@ -102,6 +118,7 @@ export const bootstrap = async (config) => {
     const webauthnService = new WebauthnService(config, webauthnCredentialRepository);
     // Keep sane defaults in place across upgrades and restarts.
     await setupService.ensureSaneDefaults();
+    await pinRuntimeDatabaseConfigIfNeeded(config, instanceSettingsService, userService);
     if (!await tenantRepository.findBySlug("default")) {
         await tenantService.createTenant({
             slug: "default",
@@ -285,6 +302,7 @@ export const bootstrap = async (config) => {
     const authService = new AuthService(userService, roleService, authenticationFlowService, clientRepository, sessionRepository, authorizationCodeRepository, consentRepository, refreshTokenRepository, accessTokenRepository, tenantRepository, jwtService, auditRepository, securityService, serviceIdentityService);
     const oidcService = new OidcService(config, jwtService);
     return {
+        config,
         roleService,
         groupService,
         authenticationFlowService,

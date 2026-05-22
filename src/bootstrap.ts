@@ -43,6 +43,29 @@ import { UserService } from "./services/user-service.js";
 import { MediaService } from "./services/media-service.js";
 import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { readRuntimeDatabaseConfigSync, saveRuntimeDatabaseConfig } from "./core/runtime-database-config.js";
+
+const pinRuntimeDatabaseConfigIfNeeded = async (
+  config: AppConfig,
+  instanceSettingsService: InstanceSettingsService,
+  userService: UserService
+) => {
+  if (readRuntimeDatabaseConfigSync()) {
+    return;
+  }
+
+  const users = await userService.listUsers();
+  if (users.length === 0) {
+    return;
+  }
+
+  const settings = await instanceSettingsService.getSettings();
+  await saveRuntimeDatabaseConfig({
+    databaseProvider: settings.databaseProvider ?? config.databaseProvider,
+    databasePath: settings.databasePath ?? config.databasePath,
+    externalDatabaseUrl: settings.externalDatabaseUrl ?? config.externalDatabaseUrl
+  });
+};
 
 export const bootstrap = async (config: AppConfig) => {
   const repositories = await createRepositoryBundle(config);
@@ -242,6 +265,7 @@ export const bootstrap = async (config: AppConfig) => {
 
   // Keep sane defaults in place across upgrades and restarts.
   await setupService.ensureSaneDefaults();
+  await pinRuntimeDatabaseConfigIfNeeded(config, instanceSettingsService, userService);
 
   if (!await tenantRepository.findBySlug("default")) {
     await tenantService.createTenant({
@@ -459,6 +483,7 @@ export const bootstrap = async (config: AppConfig) => {
   const oidcService = new OidcService(config, jwtService);
 
   return {
+    config,
     roleService,
     groupService,
     authenticationFlowService,

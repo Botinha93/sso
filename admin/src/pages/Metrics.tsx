@@ -4,6 +4,7 @@ import { PageHeader, TableSkeleton } from '../components/PageHeader'
 import StatusBadge from '../components/ui/StatusBadge'
 import Input from '../components/ui/Input'
 import { useAuthMetrics } from '../hooks/useApi'
+import React from 'react';
 
 function toIsoHour(minutesAgo: number) {
   const date = new Date(Date.now() - minutesAgo * 60_000)

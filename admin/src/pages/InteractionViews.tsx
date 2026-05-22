@@ -1,5 +1,6 @@
 import { ArrowUpRight, KeyRound, LogIn, MonitorSmartphone, ShieldCheck } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
+import React from 'react';
 
 const cards = [
   {

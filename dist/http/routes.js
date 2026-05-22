@@ -1,6 +1,8 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { extname } from "node:path";
+import { bootstrap } from "../bootstrap.js";
 import { AppError, AuthenticationError, ValidationError } from "../core/errors.js";
+import { ensureExternalDatabaseSchema, saveRuntimeDatabaseConfig } from "../core/runtime-database-config.js";
 import { verifyPassword } from "../security/password.js";
 import { getAssetContentType, readFrontendAsset } from "./view-assets.js";
 import { hasAdminPermission, toAdminAction, toAdminResource } from "./admin-authorization.js";
@@ -38,6 +40,19 @@ export const registerRoutes = async (app, deps) => {
         const inferred = extensionToMimeType[extname(filename ?? "").toLowerCase()];
         return inferred && allowedImageMimeTypes.has(inferred) ? inferred : null;
     };
+    const resolveSetupDatabaseConfig = (input) => ({
+        ...deps.config,
+        databaseProvider: input.databaseProvider ?? deps.config.databaseProvider,
+        databasePath: input.databaseProvider === "sqlite"
+            ? input.databasePath ?? deps.config.databasePath
+            : deps.config.databasePath,
+        externalDatabaseUrl: input.databaseProvider && input.databaseProvider !== "sqlite"
+            ? input.externalDatabaseUrl
+            : undefined
+    });
+    const isDifferentDatabaseConfig = (left, right) => left.databaseProvider !== right.databaseProvider ||
+        left.databasePath !== right.databasePath ||
+        (left.externalDatabaseUrl ?? "") !== (right.externalDatabaseUrl ?? "");
     const translationService = new TranslationService();
     const geolocationService = new GeolocationService();
     const runBestEffort = async (request, task, work) => {
@@ -290,26 +305,43 @@ export const registerRoutes = async (app, deps) => {
         const raw = request.headers?.["user-agent"];
         return typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : undefined;
     }
+    function deriveRateLimitActorKey(request) {
+        const ip = request.ip ?? "unknown";
+        const bodyClientId = typeof request.body?.client_id === "string" && request.body.client_id.length > 0
+            ? request.body.client_id
+            : typeof request.body?.clientId === "string" && request.body.clientId.length > 0
+                ? request.body.clientId
+                : undefined;
+        if (bodyClientId) {
+            // Bucket per OAuth client + IP so a noisy client doesn't lock out
+            // other clients sharing the same egress IP (e.g. behind NAT/proxy).
+            return { actorKey: `client:${bodyClientId}|ip:${ip}`, clientId: bodyClientId };
+        }
+        return { actorKey: `ip:${ip}` };
+    }
     async function enforceEndpointRateLimit(request, reply) {
         const path = request.url.split("?")[0];
         const configs = [];
+        const { actorKey, clientId } = deriveRateLimitActorKey(request);
+        const baseMetadata = clientId ? { clientId } : undefined;
         if (path === "/auth/login") {
-            configs.push({ endpointKey: "auth_login", limit: 10, windowMs: 60_000, actorKey: request.ip });
+            configs.push({ endpointKey: "auth_login", limit: 10, windowMs: 60_000, actorKey, metadata: baseMetadata });
         }
         if (path === "/auth/login/mfa") {
-            configs.push({ endpointKey: "auth_login_mfa", limit: 10, windowMs: 60_000, actorKey: request.ip });
+            configs.push({ endpointKey: "auth_login_mfa", limit: 10, windowMs: 60_000, actorKey, metadata: baseMetadata });
         }
         if (path === "/auth/recovery/request") {
-            configs.push({ endpointKey: "auth_recovery_request", limit: 5, windowMs: 15 * 60_000, actorKey: request.ip });
+            configs.push({ endpointKey: "auth_recovery_request", limit: 5, windowMs: 15 * 60_000, actorKey, metadata: baseMetadata });
         }
         if (path === "/api/setup/initialize") {
-            configs.push({ endpointKey: "setup_initialize", limit: 5, windowMs: 15 * 60_000, actorKey: request.ip });
+            // No client_id is available for setup, fall back to IP-only key.
+            configs.push({ endpointKey: "setup_initialize", limit: 5, windowMs: 15 * 60_000, actorKey });
         }
         if (path === "/oauth/device/verify") {
-            configs.push({ endpointKey: "oauth_device_verify", limit: 10, windowMs: 60_000, actorKey: request.ip });
+            configs.push({ endpointKey: "oauth_device_verify", limit: 10, windowMs: 60_000, actorKey, metadata: baseMetadata });
         }
         if (path === "/oauth/device/authorize") {
-            configs.push({ endpointKey: "oauth_device_authorize", limit: 10, windowMs: 60_000, actorKey: request.ip });
+            configs.push({ endpointKey: "oauth_device_authorize", limit: 10, windowMs: 60_000, actorKey, metadata: baseMetadata });
         }
         if (path === "/oauth/token") {
             const grantType = typeof request.body?.grant_type === "string" ? request.body.grant_type : undefined;
@@ -317,8 +349,8 @@ export const registerRoutes = async (app, deps) => {
                 endpointKey: `oauth_token:${grantType ?? "unknown"}`,
                 limit: grantType === "urn:ietf:params:oauth:grant-type:device_code" ? 30 : 20,
                 windowMs: 60_000,
-                actorKey: request.ip,
-                metadata: { grantType }
+                actorKey,
+                metadata: { grantType, ...(baseMetadata ?? {}) }
             });
         }
         for (const config of configs) {
@@ -548,9 +580,29 @@ export const registerRoutes = async (app, deps) => {
     app.get("/api/setup/status", async () => deps.setupService.status());
     app.post("/api/setup/initialize", async (request, reply) => {
         const input = setupInitializeSchema.parse(request.body);
-        const result = await deps.setupService.initialize(input);
-        reply.code(201);
-        return result;
+        const targetConfig = resolveSetupDatabaseConfig(input);
+        const databaseChanged = isDifferentDatabaseConfig(deps.config, targetConfig);
+        const bootstrappedServices = databaseChanged ? await (async () => {
+            await ensureExternalDatabaseSchema(targetConfig);
+            return bootstrap(targetConfig);
+        })() : undefined;
+        const services = bootstrappedServices ?? deps;
+        try {
+            const result = await services.setupService.initialize(input);
+            await saveRuntimeDatabaseConfig({
+                databaseProvider: targetConfig.databaseProvider,
+                databasePath: targetConfig.databasePath,
+                externalDatabaseUrl: targetConfig.externalDatabaseUrl
+            });
+            if (databaseChanged && process.env.NODE_ENV !== "test") {
+                setTimeout(() => process.exit(0), 1000).unref();
+            }
+            reply.code(201);
+            return { ...result, restartRequired: databaseChanged };
+        }
+        finally {
+            await bootstrappedServices?.dispose();
+        }
     });
     // Endpoint to obtain a fresh CSRF token
     app.get("/api/csrf-token", async (_request, reply) => {
@@ -1562,8 +1614,13 @@ export const registerRoutes = async (app, deps) => {
             provider: input.provider,
             externalDatabaseUrl: input.externalDatabaseUrl
         });
-        deps.instanceSettingsService.updateSettings({
+        await deps.instanceSettingsService.updateSettings({
             databaseProvider: input.provider,
+            externalDatabaseUrl: input.externalDatabaseUrl
+        });
+        await saveRuntimeDatabaseConfig({
+            databaseProvider: input.provider,
+            databasePath: instanceSettings.databasePath,
             externalDatabaseUrl: input.externalDatabaseUrl
         });
         return reply.status(200).send(result);

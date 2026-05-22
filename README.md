@@ -90,13 +90,13 @@ Notes:
 - `nginx` listens on `80` and redirects all HTTP traffic to `https://...:8443`.
 - The TLS endpoint is served on `8443` with a self-signed certificate when no cert/key is provided.
 - The Node app listens only on the internal loopback interface at `127.0.0.1:4001`.
-- SQLite data is stored at `/app/data/sso.sqlite` by default.
+- SQLite data is stored at `/app/data/sso.sqlite` by default until the first-run installer saves a different database target.
+- Database provider, path, and external connection URL are configured by the installer/admin database screen and persisted at `/app/data/database-config.json`.
 - The admin frontend is served from `/` and the account portal is served from `/portal`.
-- Set `DATABASE_PROVIDER=postgresql` or `DATABASE_PROVIDER=mysql` together with `DATABASE_URL` to use an external database.
 - The container healthcheck targets `GET /health`.
 - On first boot, the image defaults to the first-run installer (`AUTO_SETUP=false`).
 - To auto-run setup instead, set `AUTO_SETUP=true` and provide `ADMIN_NAME`, `ADMIN_USERNAME`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD`.
-- For PostgreSQL/MySQL, the entrypoint runs `prisma db push` by default before the server starts. Set `RUN_PRISMA_DB_PUSH=false` to disable that.
+- For PostgreSQL/MySQL, the entrypoint runs `prisma db push` by default before the server starts.
 - To perform a one-time SQLite import into PostgreSQL/MySQL at startup, set `MIGRATE_FROM_SQLITE_PATH` and keep `INIT_SENTINEL_PATH` on persistent storage so the import is not repeated on restart.
 - Set `COOKIE_SECRET` for every deployment. In production, startup now fails if it is missing.
 - Set `TRUST_PROXY=true` only when the app is actually behind a trusted reverse proxy or load balancer.
@@ -248,13 +248,10 @@ The platform is mid-rewrite to support both SQLite and external databases.
 - Current migration utility can test external connectivity and copy data from SQLite into PostgreSQL/MySQL.
 - Migration now creates schemas in dependency-safe order (tables, then foreign keys), preserving unique indexes and avoiding FK-order failures during PostgreSQL/MySQL imports.
 
-Transitional runtime behavior:
+Runtime database behavior:
 
-- Live runtime repositories are still SQLite-native.
-- If `DATABASE_PROVIDER` is `postgresql` or `mysql`, startup now fails fast instead of silently falling back to `DATABASE_PATH`.
-- The configured external target (`DATABASE_URL`) is currently used by migration/test tooling, not by the live repository layer.
-
-Note: Runtime repository execution is still in migration from SQLite-native repositories to true multi-database repositories.
+- The first-run installer persists the selected database target before startup switches to it.
+- The live repository layer uses the persisted database target on restart; database env vars are no longer required for normal deployments.
 
 ## Authentication Flows
 

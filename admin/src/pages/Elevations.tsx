@@ -1,5 +1,6 @@
 import ElevationPanel from '../components/ElevationPanel'
 import { PageHeader } from '../components/PageHeader'
+import React from 'react';
 
 export default function Elevations() {
   return (

@@ -1,4 +1,4 @@
-import { KeyRound, Link2, Pencil, Plus, RefreshCw, Trash2, UserCheck, UserX, Users, X } from 'lucide-react'
+import { KeyRound, Link2, Pencil, Plus, RefreshCw, Trash2, UserCheck, UserX, Users as UsersIcon, X } from 'lucide-react'
 import { EmptyState, PageHeader, TableSkeleton } from '../components/PageHeader'
 import { useState } from 'react'
 import ImageField from '../components/ImageField'
@@ -326,7 +326,6 @@ const Users = () => {
       .filter((id): id is string => Boolean(id))
     setEditFormData({
       appIds: user.directAppIds ?? user.appIds ?? (user.appId ? [user.appId] : []),
-      isServiceUser: Boolean(user.isServiceUser),
       email: user.email,
       username: user.username,
       givenName: user.givenName,
@@ -497,7 +496,7 @@ const Users = () => {
         {isLoading ? (
           <TableSkeleton rows={6} />
         ) : !filteredUsers?.length ? (
-          <EmptyState icon={Users} title="No users registered" description="Create the first user to get started." action={<Button size="sm" variant="primary" onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }}>New User</Button>} />
+          <EmptyState icon={UsersIcon} title="No users registered" description="Create the first user to get started." action={<Button size="sm" variant="primary" onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }}>New User</Button>} />
         ) : (
           <div className="divide-y divide-slate-100">
             {filteredUsers.map((user: User) => (

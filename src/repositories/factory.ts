@@ -113,7 +113,7 @@ export interface RepositoryBundle {
 
 export const createRepositoryBundle = async (config: AppConfig): Promise<RepositoryBundle> => {
   if (config.databaseProvider !== "sqlite" && !config.externalDatabaseUrl) {
-    throw new Error(`DATABASE_URL is required when DATABASE_PROVIDER=${config.databaseProvider}`);
+    throw new Error(`External database URL is required when database provider is ${config.databaseProvider}`);
   }
 
   return createPrismaRepositoryBundle(config);

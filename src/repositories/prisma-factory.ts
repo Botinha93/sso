@@ -91,7 +91,7 @@ const resolveDatabaseUrl = (config: AppConfig) => {
   }
 
   if (!config.externalDatabaseUrl) {
-    throw new Error(`DATABASE_URL is required when DATABASE_PROVIDER=${config.databaseProvider}`);
+    throw new Error(`External database URL is required when database provider is ${config.databaseProvider}`);
   }
 
   return config.externalDatabaseUrl;

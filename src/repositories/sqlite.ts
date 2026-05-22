@@ -310,6 +310,8 @@ export class SqliteDatabase {
         require_pkce INTEGER NOT NULL,
         resources_json TEXT NOT NULL DEFAULT '[]',
         flow_ids_json TEXT NOT NULL DEFAULT '[]',
+        access_token_ttl_seconds INTEGER,
+        refresh_token_ttl_seconds INTEGER,
         created_at TEXT NOT NULL
       );
 
@@ -942,6 +944,14 @@ export class SqliteDatabase {
     const hasClientAppIdColumn = clientColumns.some((column) => column.name === "app_id");
     if (!hasClientAppIdColumn) {
       this.connection.exec("ALTER TABLE oauth_clients ADD COLUMN app_id TEXT;");
+    }
+    const hasAccessTokenTtlColumn = clientColumns.some((column) => column.name === "access_token_ttl_seconds");
+    if (!hasAccessTokenTtlColumn) {
+      this.connection.exec("ALTER TABLE oauth_clients ADD COLUMN access_token_ttl_seconds INTEGER;");
+    }
+    const hasRefreshTokenTtlColumn = clientColumns.some((column) => column.name === "refresh_token_ttl_seconds");
+    if (!hasRefreshTokenTtlColumn) {
+      this.connection.exec("ALTER TABLE oauth_clients ADD COLUMN refresh_token_ttl_seconds INTEGER;");
     }
 
     const roleColumns = this.connection.prepare("PRAGMA table_info(roles)").all() as Array<{ name: string }>;

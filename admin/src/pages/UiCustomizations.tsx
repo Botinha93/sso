@@ -6,6 +6,7 @@ import { useApps, useClients, useInstanceSettings, useUpdateInstanceSettings } f
 import ColorInput from '../components/ColorInput'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
+import React from 'react';
 
 type UiSurface = 'admin_login' | 'consent' | 'portal_login' | 'portal_launcher'
 

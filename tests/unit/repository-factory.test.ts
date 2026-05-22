@@ -12,15 +12,12 @@ const makeConfig = (overrides: Partial<AppConfig> = {}): AppConfig => {
   return {
     port: 4000,
     host: "127.0.0.1",
+    trustProxy: false,
+    cookieSecret: "test-cookie-secret",
     databaseProvider: "sqlite",
     databasePath: join(tempDir, "sso.sqlite"),
     externalDatabaseUrl: undefined,
     issuer: "http://localhost:4000",
-    ttl: {
-      accessTokenSeconds: 900,
-      idTokenSeconds: 900,
-      refreshTokenSeconds: 60 * 60 * 24 * 30
-    },
     admin: {
       email: "admin@example.com",
       password: "change-me-now"
@@ -32,12 +29,12 @@ const makeConfig = (overrides: Partial<AppConfig> = {}): AppConfig => {
   };
 };
 
-test("repository factory requires DATABASE_URL for external providers", async () => {
+test("repository factory requires an external database URL for external providers", async () => {
   const config = makeConfig({ databaseProvider: "postgresql", externalDatabaseUrl: undefined });
 
   await assert.rejects(
     createRepositoryBundle(config),
-    /DATABASE_URL is required when DATABASE_PROVIDER=postgresql/
+    /External database URL is required when database provider is postgresql/
   );
 });
 

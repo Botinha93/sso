@@ -3,6 +3,7 @@ import { Clock3, ShieldAlert } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import StatusBadge from '../components/ui/StatusBadge'
 import { type ElevationSessionDto, useElevationSessions } from '../hooks/useApi'
+import React from 'react';
 
 const statusStyles: Record<ElevationSessionDto['status'], 'success' | 'danger' | 'neutral'> = {
   active: 'success',

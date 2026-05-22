@@ -31,8 +31,6 @@ ENV NODE_ENV=production \
   HOST=0.0.0.0 \
   PORT=4001 \
   APP_INTERNAL_PORT=4001 \
-  DATABASE_PROVIDER=sqlite \
-  DATABASE_PATH=/app/data/sso.sqlite \
   AUTO_SETUP=false
 
 WORKDIR /app
