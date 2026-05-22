@@ -9,6 +9,24 @@ import { registerRoutes } from "./http/routes.js";
 import { bootstrap } from "./bootstrap.js";
 import { hasSqlInjectionPayload } from "./http/sql-injection-guard.js";
 
+const parseBasicAuthClient = (authorization: string | string[] | undefined): string | undefined => {
+  const header = Array.isArray(authorization) ? authorization[0] : authorization;
+  if (!header || !header.toLowerCase().startsWith("basic ")) {
+    return undefined;
+  }
+  try {
+    const decoded = Buffer.from(header.slice("basic ".length).trim(), "base64").toString("utf8");
+    const separator = decoded.indexOf(":");
+    if (separator <= 0) {
+      return undefined;
+    }
+    const clientId = decoded.slice(0, separator);
+    return clientId.length > 0 ? clientId : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 export const emitStartupConfigWarnings = async (
   app: Pick<ReturnType<typeof Fastify>, "log">,
   instanceSettingsService: { getSettings: () => Promise<{ allowImplicitFlow: boolean }> }
@@ -90,8 +108,36 @@ export const buildApp = async () => {
   await app.register(rateLimit, {
     max: 100,
     timeWindow: "1 minute",
-    // Stricter limit for sensitive auth endpoints
-    keyGenerator: (req) => req.ip
+    // Run after body parsing so the OAuth client_id is available when keying.
+    hook: "preHandler",
+    keyGenerator: (req) => {
+      const ip = req.ip ?? "unknown";
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const bodyClientId =
+        typeof body.client_id === "string" && body.client_id.length > 0
+          ? body.client_id
+          : typeof body.clientId === "string" && (body.clientId as string).length > 0
+            ? (body.clientId as string)
+            : undefined;
+
+      if (bodyClientId) {
+        // Bucket per OAuth client + IP so one client hitting its limit does
+        // not block other clients sharing the same egress IP (NAT/proxy).
+        return `client:${bodyClientId}|ip:${ip}`;
+      }
+
+      const basic = parseBasicAuthClient(req.headers.authorization);
+      if (basic) {
+        return `client:${basic}|ip:${ip}`;
+      }
+
+      const sid = (req as { cookies?: Record<string, string | undefined> }).cookies?.sid;
+      if (sid) {
+        return `sid:${sid}|ip:${ip}`;
+      }
+
+      return `ip:${ip}`;
+    }
   });
   await app.register(multipart, {
     limits: {
