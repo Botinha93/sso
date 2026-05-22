@@ -39,12 +39,19 @@ export interface Role {
   createdAt: Date;
 }
 
+export interface AppInheritanceSource {
+  appId: string;
+  groupId: string;
+  groupName: string;
+}
+
 export interface User {
   id: string;
   appId?: string;
   appIds?: string[];
   directAppIds?: string[];
   inheritedAppIds?: string[];
+  inheritedAppSources?: AppInheritanceSource[];
   externalSource?: string;
   externalId?: string;
   isServiceUser: boolean;

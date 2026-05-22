@@ -31,12 +31,19 @@ export interface UpdateAppInput {
   url?: string;
 }
 
+export interface SDKAppInheritanceSource {
+  appId: string;
+  groupId: string;
+  groupName: string;
+}
+
 export interface SDKUser {
   id: string;
   appId?: string;
   appIds?: string[];
   directAppIds?: string[];
   inheritedAppIds?: string[];
+  inheritedAppSources?: SDKAppInheritanceSource[];
   externalSource?: string;
   externalId?: string;
   isServiceUser: boolean;

@@ -3327,6 +3327,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       appIds: userAppAccess.appIds,
       directAppIds: userAppAccess.directAppIds,
       inheritedAppIds: userAppAccess.inheritedAppIds,
+      inheritedAppSources: userAppAccess.inheritedAppSources,
       roles: roleDetails.map((role) => role.name),
       groups: await deps.groupService.resolveGroupNamesForUser(user.id),
       permissions: Array.from(new Set(roleDetails.flatMap((role) => role.permissions))),

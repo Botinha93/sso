@@ -28,12 +28,19 @@ import {
 } from '../hooks/useApi'
 import React from 'react';
 
+interface AppInheritanceSource {
+  appId: string
+  groupId: string
+  groupName: string
+}
+
 interface User {
   id: string
   appId?: string
   appIds?: string[]
   directAppIds?: string[]
   inheritedAppIds?: string[]
+  inheritedAppSources?: AppInheritanceSource[]
   directCustomAttributes?: Record<string, string>
   inheritedCustomAttributes?: Record<string, string>
   isServiceUser?: boolean
@@ -513,12 +520,26 @@ const Users = () => {
                         No Apps
                       </StatusBadge>
                     ) : (
-                      (user.appIds ?? (user.appId ? [user.appId] : [])).map((assignedAppId) => (
-                        <StatusBadge key={assignedAppId} tone="accent">
-                          {appNameById.get(assignedAppId) ?? 'App'}
-                          {(user.inheritedAppIds ?? []).includes(assignedAppId) && !(user.directAppIds ?? []).includes(assignedAppId) ? ' via group' : ''}
-                        </StatusBadge>
-                      ))
+                      (user.appIds ?? (user.appId ? [user.appId] : [])).map((assignedAppId) => {
+                        const directAppIds = user.directAppIds ?? []
+                        const inheritedAppIds = user.inheritedAppIds ?? []
+                        const isDirect = directAppIds.includes(assignedAppId)
+                        const isInherited = inheritedAppIds.includes(assignedAppId)
+                        const sourceGroupNames = (user.inheritedAppSources ?? [])
+                          .filter((source) => source.appId === assignedAppId)
+                          .map((source) => source.groupName)
+                        const suffix = !isDirect && isInherited
+                          ? sourceGroupNames.length > 0
+                            ? ` via ${sourceGroupNames.join(', ')}`
+                            : ' via group'
+                          : ''
+                        return (
+                          <StatusBadge key={assignedAppId} tone="accent">
+                            {appNameById.get(assignedAppId) ?? 'App'}
+                            {suffix}
+                          </StatusBadge>
+                        )
+                      })
                     )}
 
                     {!user.active && (
@@ -813,9 +834,34 @@ const Users = () => {
                 ))}
               </div>
               {userToEdit && (userToEdit.inheritedAppIds ?? []).length > 0 && (
-                <p className="mt-2 text-xs text-slate-500">
-                  Inherited from groups: {(userToEdit.inheritedAppIds ?? []).map((appId) => appNameById.get(appId) ?? appId).join(', ')}
-                </p>
+                <div className="mt-2 rounded-lg border border-dashed border-slate-200 p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Inherited Apps</p>
+                  <div className="space-y-1.5">
+                    {(userToEdit.inheritedAppIds ?? []).map((appId) => {
+                      const sourceGroupNames = Array.from(
+                        new Set(
+                          (userToEdit.inheritedAppSources ?? [])
+                            .filter((source) => source.appId === appId)
+                            .map((source) => source.groupName)
+                        )
+                      )
+                      return (
+                        <div key={appId} className="flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
+                          <span className="font-medium text-slate-900">{appNameById.get(appId) ?? appId}</span>
+                          <span className="text-slate-400">from</span>
+                          {sourceGroupNames.length === 0 ? (
+                            <StatusBadge tone="info">group</StatusBadge>
+                          ) : (
+                            sourceGroupNames.map((groupName) => (
+                              <StatusBadge key={groupName} tone="info">{groupName}</StatusBadge>
+                            ))
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <p className="mt-2 text-[11px] text-slate-400">Inherited apps cannot be removed here. Remove the user from the source group or unassign the app from that group instead.</p>
+                </div>
               )}
             </div>
             <div>

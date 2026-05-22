@@ -15,6 +15,12 @@ export interface SDKPortalRolePermissions {
   permissions: string[];
 }
 
+export interface SDKPortalAppInheritanceSource {
+  appId: string;
+  groupId: string;
+  groupName: string;
+}
+
 export interface SDKPortalMe {
   id: string;
   email: string;
@@ -27,6 +33,7 @@ export interface SDKPortalMe {
   appIds?: string[];
   directAppIds?: string[];
   inheritedAppIds?: string[];
+  inheritedAppSources?: SDKPortalAppInheritanceSource[];
   roles: string[];
   groups: string[];
   permissions: string[];

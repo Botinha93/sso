@@ -1,6 +1,6 @@
-import { ExternalLink, Grid3X3, LogOut, Settings } from 'lucide-react'
+import { ExternalLink, Grid3X3, LogOut, Settings, Users as UsersIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { logout, type PortalUser } from '../hooks'
 import LanguageSelector from '../components/LanguageSelector'
 import Button from '../components/ui/Button'
@@ -28,6 +28,20 @@ export default function Launcher({ user }: Props) {
   const canManageUsers =
     Array.isArray(user.permissions) &&
     (user.permissions.includes('*:*') || user.permissions.includes('users:view'))
+
+  const inheritedGroupsByAppId = useMemo(() => {
+    const map = new Map<string, string[]>()
+    const directAppIds = new Set(user.directAppIds ?? [])
+    for (const source of user.inheritedAppSources ?? []) {
+      if (directAppIds.has(source.appId)) continue
+      const existing = map.get(source.appId) ?? []
+      if (!existing.includes(source.groupName)) {
+        existing.push(source.groupName)
+        map.set(source.appId, existing)
+      }
+    }
+    return map
+  }, [user.directAppIds, user.inheritedAppSources])
 
   useEffect(() => {
     void (async () => {
@@ -127,7 +141,12 @@ export default function Launcher({ user }: Props) {
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4">
               {user.apps.map(app => (
-                <AppTile key={app.id} app={app} />
+                <AppTile
+                  key={app.id}
+                  app={app}
+                  inheritedFromGroups={inheritedGroupsByAppId.get(app.id) ?? []}
+                  viaGroupLabel={(group) => t('launcher.viaGroup', { group })}
+                />
               ))}
             </div>
           )}
@@ -151,16 +170,36 @@ function appColor(name: string): string {
   return colors[hash % colors.length]
 }
 
-function AppTile({ app }: { app: PortalUser['apps'][0] }) {
+interface AppTileProps {
+  app: PortalUser['apps'][0]
+  inheritedFromGroups: string[]
+  viaGroupLabel: (group: string) => string
+}
+
+function AppTile({ app, inheritedFromGroups, viaGroupLabel }: AppTileProps) {
+  const isInherited = inheritedFromGroups.length > 0
+  const groupTooltip = isInherited
+    ? inheritedFromGroups.map((group) => viaGroupLabel(group)).join(' · ')
+    : undefined
+
   const content = (
     <Card className="group cursor-pointer rounded-2xl p-5 transition-all hover:scale-[1.02] hover:border-slate-300 hover:shadow-lg flex flex-col items-center gap-3 relative">
       <div className={`w-14 h-14 rounded-2xl flex items-center justify-center overflow-hidden bg-gradient-to-br ${appColor(app.name)} text-white text-2xl font-bold shadow-sm`}>
         {app.imageUrl ? <img src={app.imageUrl} alt={app.name} className="h-full w-full rounded-2xl object-cover" /> : app.name[0]?.toUpperCase()}
       </div>
-      <div className="text-center">
+      <div className="text-center w-full">
         <p className="text-sm font-semibold text-slate-900 leading-tight">{app.name}</p>
         {app.description && (
           <p className="text-xs text-slate-500 mt-0.5 leading-tight line-clamp-2">{app.description}</p>
+        )}
+        {isInherited && (
+          <p
+            className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-medium text-sky-700 bg-sky-50 rounded-full px-2 py-0.5 max-w-full"
+            title={groupTooltip}
+          >
+            <UsersIcon size={10} className="shrink-0" />
+            <span className="truncate">{viaGroupLabel(inheritedFromGroups[0])}{inheritedFromGroups.length > 1 ? ` +${inheritedFromGroups.length - 1}` : ''}</span>
+          </p>
         )}
       </div>
       {app.url && (

@@ -323,4 +323,34 @@ export class GroupService {
     const legacyAppIds = groups.flatMap((group) => group?.appId ? [group.appId] : []);
     return Array.from(new Set([...legacyAppIds, ...assignedAppIds]));
   }
+
+  async resolveAppSourcesForGroups(groupIds: string[]) {
+    if (groupIds.length === 0) return [];
+
+    const groups = await Promise.all(groupIds.map((groupId) => this.groupRepository.findById(groupId)));
+    const groupsById = new Map(groups.filter((group): group is NonNullable<typeof group> => Boolean(group)).map((group) => [group.id, group]));
+    const assignments = await this.groupAppAssignmentRepository.listByGroups(groupIds);
+
+    const sources: Array<{ appId: string; groupId: string; groupName: string }> = [];
+    const seen = new Set<string>();
+
+    const addSource = (appId: string, groupId: string) => {
+      const group = groupsById.get(groupId);
+      if (!group) return;
+      const key = `${appId}::${groupId}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      sources.push({ appId, groupId, groupName: group.name });
+    };
+
+    for (const assignment of assignments) {
+      addSource(assignment.appId, assignment.groupId);
+    }
+
+    for (const group of groupsById.values()) {
+      if (group.appId) addSource(group.appId, group.id);
+    }
+
+    return sources;
+  }
 }

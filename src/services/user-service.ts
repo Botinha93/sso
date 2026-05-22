@@ -289,16 +289,18 @@ export class UserService {
     const assignedDirectAppIds = (await this.userAppAssignmentRepository.listByUser(userId)).map((assignment) => assignment.appId);
     const directAppIds = assignedDirectAppIds.length > 0 ? assignedDirectAppIds : (user?.appId ? [user.appId] : []);
     const groupIds = await this.groupService.listGroupIdsForUser(userId);
-    const inheritedAppIds = groupIds.length === 0
+    const inheritedAppSources = groupIds.length === 0
       ? []
-      : await this.groupService.resolveAppIdsForGroups(groupIds);
+      : await this.groupService.resolveAppSourcesForGroups(groupIds);
+    const inheritedAppIds = Array.from(new Set(inheritedAppSources.map((source) => source.appId)));
     const appIds = Array.from(new Set([...directAppIds, ...inheritedAppIds]));
 
     return {
       appId: appIds[0],
       appIds,
       directAppIds,
-      inheritedAppIds
+      inheritedAppIds,
+      inheritedAppSources
     };
   }
 

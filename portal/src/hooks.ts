@@ -51,6 +51,12 @@ export interface PortalApp {
   url?: string
 }
 
+export interface PortalAppInheritanceSource {
+  appId: string
+  groupId: string
+  groupName: string
+}
+
 export interface PortalUser {
   id: string
   email: string
@@ -62,6 +68,7 @@ export interface PortalUser {
   appIds?: string[]
   directAppIds?: string[]
   inheritedAppIds?: string[]
+  inheritedAppSources?: PortalAppInheritanceSource[]
   roles?: string[]
   permissions?: string[]
   customAttributes: Record<string, string>
