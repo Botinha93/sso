@@ -508,27 +508,55 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : undefined;
   }
 
+  function deriveRateLimitActorKey(request: any): { actorKey: string; clientId?: string } {
+    const ip = request.ip ?? "unknown";
+    const bodyClientId =
+      typeof request.body?.client_id === "string" && request.body.client_id.length > 0
+        ? request.body.client_id
+        : typeof request.body?.clientId === "string" && request.body.clientId.length > 0
+          ? request.body.clientId
+          : undefined;
+
+    if (bodyClientId) {
+      // Bucket per OAuth client + IP so a noisy client doesn't lock out
+      // other clients sharing the same egress IP (e.g. behind NAT/proxy).
+      return { actorKey: `client:${bodyClientId}|ip:${ip}`, clientId: bodyClientId };
+    }
+
+    return { actorKey: `ip:${ip}` };
+  }
+
   async function enforceEndpointRateLimit(request: any, reply: any) {
     const path = request.url.split("?")[0];
-    const configs: Array<{ endpointKey: string; limit: number; windowMs: number; actorKey: string; metadata?: Record<string, unknown> }> = [];
+    const configs: Array<{
+      endpointKey: string;
+      limit: number;
+      windowMs: number;
+      actorKey: string;
+      metadata?: Record<string, unknown>;
+    }> = [];
+
+    const { actorKey, clientId } = deriveRateLimitActorKey(request);
+    const baseMetadata = clientId ? { clientId } : undefined;
 
     if (path === "/auth/login") {
-      configs.push({ endpointKey: "auth_login", limit: 10, windowMs: 60_000, actorKey: request.ip });
+      configs.push({ endpointKey: "auth_login", limit: 10, windowMs: 60_000, actorKey, metadata: baseMetadata });
     }
     if (path === "/auth/login/mfa") {
-      configs.push({ endpointKey: "auth_login_mfa", limit: 10, windowMs: 60_000, actorKey: request.ip });
+      configs.push({ endpointKey: "auth_login_mfa", limit: 10, windowMs: 60_000, actorKey, metadata: baseMetadata });
     }
     if (path === "/auth/recovery/request") {
-      configs.push({ endpointKey: "auth_recovery_request", limit: 5, windowMs: 15 * 60_000, actorKey: request.ip });
+      configs.push({ endpointKey: "auth_recovery_request", limit: 5, windowMs: 15 * 60_000, actorKey, metadata: baseMetadata });
     }
     if (path === "/api/setup/initialize") {
-      configs.push({ endpointKey: "setup_initialize", limit: 5, windowMs: 15 * 60_000, actorKey: request.ip });
+      // No client_id is available for setup, fall back to IP-only key.
+      configs.push({ endpointKey: "setup_initialize", limit: 5, windowMs: 15 * 60_000, actorKey });
     }
     if (path === "/oauth/device/verify") {
-      configs.push({ endpointKey: "oauth_device_verify", limit: 10, windowMs: 60_000, actorKey: request.ip });
+      configs.push({ endpointKey: "oauth_device_verify", limit: 10, windowMs: 60_000, actorKey, metadata: baseMetadata });
     }
     if (path === "/oauth/device/authorize") {
-      configs.push({ endpointKey: "oauth_device_authorize", limit: 10, windowMs: 60_000, actorKey: request.ip });
+      configs.push({ endpointKey: "oauth_device_authorize", limit: 10, windowMs: 60_000, actorKey, metadata: baseMetadata });
     }
     if (path === "/oauth/token") {
       const grantType = typeof request.body?.grant_type === "string" ? request.body.grant_type : undefined;
@@ -536,8 +564,8 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         endpointKey: `oauth_token:${grantType ?? "unknown"}`,
         limit: grantType === "urn:ietf:params:oauth:grant-type:device_code" ? 30 : 20,
         windowMs: 60_000,
-        actorKey: request.ip,
-        metadata: { grantType }
+        actorKey,
+        metadata: { grantType, ...(baseMetadata ?? {}) }
       });
     }
 
