@@ -1,6 +1,6 @@
 import { ChevronRight, Plus, RefreshCw, Shield, Trash2 } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import ListSearch from '../components/ListSearch'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -8,6 +8,7 @@ import Modal from '../components/Modal'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
 import Input from '../components/ui/Input'
+import BulkActionsBar, { SelectionCheckbox } from '../components/BulkActionsBar'
 import { useRoles, useCreateRole, useUpdateRole, useDeleteRole, useApps, useClients } from '../hooks/useApi'
 import React from 'react';
 
@@ -238,6 +239,10 @@ const Roles = () => {
   const [createFormError, setCreateFormError] = useState('')
   const [editFormError, setEditFormError] = useState('')
   const [searchInput, setSearchInput] = useState('')
+  const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([])
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkPending, setBulkPending] = useState(false)
+  const [bulkError, setBulkError] = useState('')
   const debouncedSearch = useDebouncedValue(searchInput)
   const { data: roles = [], isLoading, isFetching, refetch } = useRoles(debouncedSearch)
   const { data: apps = [] } = useApps()
@@ -253,6 +258,66 @@ const Roles = () => {
     : appFilterId === 'none'
       ? !role.appId
       : role.appId === appFilterId)
+
+  const filteredRoleIds = useMemo(() => filteredRoles.map((role: any) => role.id), [filteredRoles])
+  const selectedFilteredCount = useMemo(
+    () => filteredRoleIds.reduce((count, id) => (selectedRoleIds.includes(id) ? count + 1 : count), 0),
+    [filteredRoleIds, selectedRoleIds]
+  )
+  const allFilteredSelected = filteredRoleIds.length > 0 && selectedFilteredCount === filteredRoleIds.length
+  const someFilteredSelected = selectedFilteredCount > 0 && !allFilteredSelected
+
+  useEffect(() => {
+    setSelectedRoleIds((prev) => {
+      const valid = new Set((roles as any[]).map((role: any) => role.id))
+      const next = prev.filter((id) => valid.has(id))
+      return next.length === prev.length ? prev : next
+    })
+  }, [roles])
+
+  const toggleSelectRole = (roleId: string) => {
+    setSelectedRoleIds((prev) => prev.includes(roleId) ? prev.filter((id) => id !== roleId) : [...prev, roleId])
+  }
+
+  const toggleSelectAllFiltered = () => {
+    if (filteredRoleIds.length === 0) return
+    if (allFilteredSelected) {
+      setSelectedRoleIds((prev) => prev.filter((id) => !filteredRoleIds.includes(id)))
+      return
+    }
+    setSelectedRoleIds((prev) => {
+      const next = new Set(prev)
+      for (const id of filteredRoleIds) next.add(id)
+      return Array.from(next)
+    })
+  }
+
+  const clearSelection = () => setSelectedRoleIds([])
+
+  const handleBulkDelete = async () => {
+    if (selectedRoleIds.length === 0) return
+    setBulkError('')
+    setBulkPending(true)
+    try {
+      const ids = [...selectedRoleIds]
+      const results = await Promise.allSettled(ids.map((id) => deleteRole.mutateAsync(id)))
+      const succeeded = ids.filter((_, idx) => results[idx].status === 'fulfilled')
+      const failures = results
+        .map((result, idx) => ({ result, id: ids[idx] }))
+        .filter(({ result }) => result.status === 'rejected') as Array<{ result: PromiseRejectedResult; id: string }>
+      setSelectedRoleIds((prev) => prev.filter((id) => !succeeded.includes(id)))
+      if (failures.length > 0) {
+        const message = failures[0].result.reason instanceof Error ? failures[0].result.reason.message : 'Unknown error'
+        setBulkError(`Failed to delete ${failures.length} of ${ids.length} role${ids.length === 1 ? '' : 's'}: ${message}`)
+        return
+      }
+      setBulkDeleteOpen(false)
+    } catch (error) {
+      setBulkError(error instanceof Error ? error.message : 'Bulk delete failed')
+    } finally {
+      setBulkPending(false)
+    }
+  }
 
   // Flatten all app-scoped resources for the matrix.
   // Client resources inherit their app scope and should render under that app section.
@@ -343,18 +408,50 @@ const Roles = () => {
 
       <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
-          <h4 className="text-sm font-semibold text-slate-700">All Roles</h4>
+          <div className="flex items-center gap-3">
+            <SelectionCheckbox
+              checked={allFilteredSelected}
+              indeterminate={someFilteredSelected}
+              onChange={toggleSelectAllFiltered}
+              disabled={filteredRoles.length === 0}
+              title={allFilteredSelected ? 'Deselect all' : 'Select all visible'}
+            />
+            <h4 className="text-sm font-semibold text-slate-700">All Roles</h4>
+          </div>
           <Button onClick={() => refetch()} disabled={isFetching} variant="ghost" size="sm" className="text-xs text-slate-500 hover:text-slate-900">
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </Button>
         </div>
+        <BulkActionsBar
+          count={selectedRoleIds.length}
+          noun="role"
+          onClear={clearSelection}
+        >
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-700"
+            onClick={() => { setBulkError(''); setBulkDeleteOpen(true) }}
+            disabled={bulkPending}
+          >
+            <Trash2 size={12} />
+            Delete Selected
+          </Button>
+        </BulkActionsBar>
         <div className="divide-y divide-slate-100">
           {isLoading && <TableSkeleton rows={4} />}
           {!isLoading && filteredRoles.length === 0 && <EmptyState title="No roles yet" description="Create a role to define a set of permissions." />}
-          {filteredRoles.map((role: any) => (
-            <div key={role.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50/50 transition-colors group">
+          {filteredRoles.map((role: any) => {
+            const isSelected = selectedRoleIds.includes(role.id)
+            return (
+            <div key={role.id} className={`flex items-center justify-between px-5 py-3.5 hover:bg-slate-50/50 transition-colors group ${isSelected ? 'bg-sky-50/40' : ''}`}>
               <div className="flex items-center gap-3 flex-1 min-w-0">
+                <SelectionCheckbox
+                  checked={isSelected}
+                  onChange={() => toggleSelectRole(role.id)}
+                  aria-label={`Select role ${role.name}`}
+                />
                 <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
                   <Shield size={14} className="text-slate-500" />
                 </div>
@@ -387,7 +484,8 @@ const Roles = () => {
                 </Button>
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       </Card>
 
@@ -500,6 +598,27 @@ const Roles = () => {
         onConfirm={confirmDeleteRole}
         onCancel={() => setRoleToDelete(null)}
       />
+
+      <Modal isOpen={bulkDeleteOpen} onClose={() => !bulkPending && setBulkDeleteOpen(false)} title="Delete Selected Roles" size="md">
+        <div className="space-y-4">
+          <p className="text-sm text-slate-700">
+            Permanently delete <span className="font-semibold">{selectedRoleIds.length}</span> role{selectedRoleIds.length === 1 ? '' : 's'}? This action cannot be undone.
+          </p>
+          {bulkError && <p className="text-xs text-red-600">{bulkError}</p>}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setBulkDeleteOpen(false)} disabled={bulkPending}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleBulkDelete}
+              disabled={bulkPending || selectedRoleIds.length === 0}
+            >
+              {bulkPending ? 'Deleting…' : `Delete ${selectedRoleIds.length} Role${selectedRoleIds.length === 1 ? '' : 's'}`}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

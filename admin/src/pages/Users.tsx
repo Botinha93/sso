@@ -1,6 +1,6 @@
-import { KeyRound, Link2, Pencil, Plus, RefreshCw, Trash2, UserCheck, UserX, Users as UsersIcon, X } from 'lucide-react'
+import { KeyRound, Link2, Pencil, Plus, RefreshCw, Shield, Trash2, UserCheck, UserX, Users as UsersIcon, X } from 'lucide-react'
 import { EmptyState, PageHeader, TableSkeleton } from '../components/PageHeader'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import ImageField from '../components/ImageField'
 import ListSearch from '../components/ListSearch'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
@@ -11,6 +11,7 @@ import Button from '../components/ui/Button'
 import Input, { inputBaseClassName } from '../components/ui/Input'
 import Card from '../components/ui/Card'
 import StatusBadge from '../components/ui/StatusBadge'
+import BulkActionsBar, { SelectionCheckbox } from '../components/BulkActionsBar'
 import {
   useUsers,
   useCreateUser,
@@ -208,6 +209,157 @@ const Users = () => {
     const appMatches = appFilterId === 'all' ? true : appFilterId === 'none' ? userAppIds.length === 0 : userAppIds.includes(appFilterId)
     return appMatches && !user.isServiceUser
   })
+
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([])
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkActiveAction, setBulkActiveAction] = useState<null | 'activate' | 'deactivate'>(null)
+  const [bulkGroupAction, setBulkGroupAction] = useState<null | 'add' | 'remove'>(null)
+  const [bulkGroupId, setBulkGroupId] = useState('')
+  const [bulkRoleAction, setBulkRoleAction] = useState<null | 'add' | 'remove'>(null)
+  const [bulkRoleId, setBulkRoleId] = useState('')
+  const [bulkPending, setBulkPending] = useState(false)
+  const [bulkError, setBulkError] = useState('')
+
+  const filteredUserIds = useMemo(() => (filteredUsers ?? []).map((user) => user.id), [filteredUsers])
+  const selectedFilteredUserCount = useMemo(
+    () => filteredUserIds.reduce((count, id) => (selectedUserIds.includes(id) ? count + 1 : count), 0),
+    [filteredUserIds, selectedUserIds]
+  )
+  const allFilteredUsersSelected = filteredUserIds.length > 0 && selectedFilteredUserCount === filteredUserIds.length
+  const someFilteredUsersSelected = selectedFilteredUserCount > 0 && !allFilteredUsersSelected
+  const selectedUsers = useMemo(
+    () => ((users as User[] | undefined) ?? []).filter((user) => selectedUserIds.includes(user.id)),
+    [users, selectedUserIds]
+  )
+
+  useEffect(() => {
+    setSelectedUserIds((prev) => {
+      const valid = new Set(((users as User[] | undefined) ?? []).map((user) => user.id))
+      const next = prev.filter((id) => valid.has(id))
+      return next.length === prev.length ? prev : next
+    })
+  }, [users])
+
+  const toggleSelectUser = (userId: string) => {
+    setSelectedUserIds((prev) => prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId])
+  }
+
+  const toggleSelectAllFilteredUsers = () => {
+    if (filteredUserIds.length === 0) return
+    if (allFilteredUsersSelected) {
+      setSelectedUserIds((prev) => prev.filter((id) => !filteredUserIds.includes(id)))
+      return
+    }
+    setSelectedUserIds((prev) => {
+      const next = new Set(prev)
+      for (const id of filteredUserIds) next.add(id)
+      return Array.from(next)
+    })
+  }
+
+  const clearUserSelection = () => setSelectedUserIds([])
+
+  const closeBulkModals = () => {
+    if (bulkPending) return
+    setBulkDeleteOpen(false)
+    setBulkActiveAction(null)
+    setBulkGroupAction(null)
+    setBulkRoleAction(null)
+    setBulkGroupId('')
+    setBulkRoleId('')
+    setBulkError('')
+  }
+
+  const runBulk = async <T,>(
+    items: T[],
+    mutator: (item: T) => Promise<unknown>,
+    onSuccessIds?: (succeeded: T[]) => void
+  ) => {
+    setBulkError('')
+    setBulkPending(true)
+    try {
+      const results = await Promise.allSettled(items.map((item) => mutator(item)))
+      const succeeded: T[] = []
+      const failures: PromiseRejectedResult[] = []
+      results.forEach((result, idx) => {
+        if (result.status === 'fulfilled') succeeded.push(items[idx])
+        else failures.push(result)
+      })
+      onSuccessIds?.(succeeded)
+      if (failures.length > 0) {
+        const message = failures[0].reason instanceof Error ? failures[0].reason.message : 'Unknown error'
+        setBulkError(`${failures.length} of ${items.length} update${items.length === 1 ? '' : 's'} failed: ${message}`)
+        return false
+      }
+      return true
+    } catch (error) {
+      setBulkError(error instanceof Error ? error.message : 'Bulk action failed')
+      return false
+    } finally {
+      setBulkPending(false)
+    }
+  }
+
+  const handleBulkDeleteUsers = async () => {
+    if (selectedUserIds.length === 0) return
+    const ids = [...selectedUserIds]
+    const ok = await runBulk(ids, (id) => deleteUser.mutateAsync(id), (succeeded) => {
+      setSelectedUserIds((prev) => prev.filter((id) => !succeeded.includes(id)))
+    })
+    if (ok) setBulkDeleteOpen(false)
+  }
+
+  const handleBulkSetActive = async () => {
+    if (!bulkActiveAction || selectedUserIds.length === 0) return
+    const desired = bulkActiveAction === 'activate'
+    const targets = selectedUsers.filter((user) => user.active !== desired)
+    if (targets.length === 0) {
+      setBulkError(`Selected users are already ${desired ? 'active' : 'inactive'}.`)
+      return
+    }
+    const ok = await runBulk(targets, (user) => updateUser.mutateAsync({ id: user.id, active: desired }))
+    if (ok) setBulkActiveAction(null)
+  }
+
+  const handleBulkGroup = async () => {
+    if (!bulkGroupAction || !bulkGroupId || selectedUserIds.length === 0) return
+    const group = (groups as GroupItem[]).find((g) => g.id === bulkGroupId)
+    if (!group) return
+    const targets = selectedUsers.filter((user) => {
+      const inGroup = (user.groups ?? []).includes(group.name)
+      return bulkGroupAction === 'add' ? !inGroup : inGroup
+    })
+    if (targets.length === 0) {
+      const phrase = bulkGroupAction === 'add' ? 'already in' : 'not in'
+      setBulkError(`Selected users are ${phrase} this group.`)
+      return
+    }
+    const mutate = bulkGroupAction === 'add' ? assignUserGroup : removeUserGroup
+    const ok = await runBulk(targets, (user) => mutate.mutateAsync({ userId: user.id, groupId: group.id }))
+    if (ok) { setBulkGroupAction(null); setBulkGroupId('') }
+  }
+
+  const handleBulkRole = async () => {
+    if (!bulkRoleAction || !bulkRoleId || selectedUserIds.length === 0) return
+    const targets = selectedUsers.filter((user) => {
+      const current = user.directRoleIds ?? []
+      const has = current.includes(bulkRoleId)
+      return bulkRoleAction === 'add' ? !has : has
+    })
+    if (targets.length === 0) {
+      const phrase = bulkRoleAction === 'add' ? 'already have' : 'do not have'
+      setBulkError(`Selected users ${phrase} this role.`)
+      return
+    }
+    const ok = await runBulk(targets, (user) => {
+      const current = user.directRoleIds ?? []
+      const nextRoleIds = bulkRoleAction === 'add'
+        ? Array.from(new Set([...current, bulkRoleId]))
+        : current.filter((id) => id !== bulkRoleId)
+      return updateUser.mutateAsync({ id: user.id, roleIds: nextRoleIds })
+    })
+    if (ok) { setBulkRoleAction(null); setBulkRoleId('') }
+  }
 
   const toggleAppId = (appId: string, target: 'create' | 'edit') => {
     if (target === 'create') {
@@ -493,12 +645,91 @@ const Users = () => {
 
       <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
-          <h4 className="text-sm font-semibold text-slate-700">All Users</h4>
+          <div className="flex items-center gap-3">
+            <SelectionCheckbox
+              checked={allFilteredUsersSelected}
+              indeterminate={someFilteredUsersSelected}
+              onChange={toggleSelectAllFilteredUsers}
+              disabled={!filteredUsers?.length}
+              title={allFilteredUsersSelected ? 'Deselect all' : 'Select all visible'}
+            />
+            <h4 className="text-sm font-semibold text-slate-700">All Users</h4>
+          </div>
           <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </Button>
         </div>
+        <BulkActionsBar
+          count={selectedUserIds.length}
+          noun="user"
+          onClear={clearUserSelection}
+        >
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { setBulkError(''); setBulkActiveAction('activate') }}
+            disabled={bulkPending}
+          >
+            <UserCheck size={12} />
+            Activate
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { setBulkError(''); setBulkActiveAction('deactivate') }}
+            disabled={bulkPending}
+          >
+            <UserX size={12} />
+            Deactivate
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { setBulkError(''); setBulkGroupAction('add'); setBulkGroupId('') }}
+            disabled={bulkPending}
+          >
+            <Link2 size={12} />
+            Add to Group
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { setBulkError(''); setBulkGroupAction('remove'); setBulkGroupId('') }}
+            disabled={bulkPending}
+          >
+            <X size={12} />
+            Remove from Group
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { setBulkError(''); setBulkRoleAction('add'); setBulkRoleId('') }}
+            disabled={bulkPending}
+          >
+            <Shield size={12} />
+            Assign Role
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { setBulkError(''); setBulkRoleAction('remove'); setBulkRoleId('') }}
+            disabled={bulkPending}
+          >
+            <X size={12} />
+            Remove Role
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-700"
+            onClick={() => { setBulkError(''); setBulkDeleteOpen(true) }}
+            disabled={bulkPending}
+          >
+            <Trash2 size={12} />
+            Delete Selected
+          </Button>
+        </BulkActionsBar>
 
         {isLoading ? (
           <TableSkeleton rows={6} />
@@ -506,9 +737,18 @@ const Users = () => {
           <EmptyState icon={UsersIcon} title="No users registered" description="Create the first user to get started." action={<Button size="sm" variant="primary" onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }}>New User</Button>} />
         ) : (
           <div className="divide-y divide-slate-100">
-            {filteredUsers.map((user: User) => (
-              <div key={user.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50/50 transition-colors gap-4">
+            {filteredUsers.map((user: User) => {
+              const isSelected = selectedUserIds.includes(user.id)
+              return (
+              <div key={user.id} className={`flex items-center justify-between px-5 py-3.5 hover:bg-slate-50/50 transition-colors gap-4 ${isSelected ? 'bg-sky-50/40' : ''}`}>
                 <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <div className="pt-1.5">
+                    <SelectionCheckbox
+                      checked={isSelected}
+                      onChange={() => toggleSelectUser(user.id)}
+                      aria-label={`Select user ${user.email}`}
+                    />
+                  </div>
                   <div className="h-8 w-8 shrink-0 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center text-xs font-semibold text-slate-600 mt-0.5">
                     {(user.givenName?.[0] ?? '').toUpperCase()}{(user.familyName?.[0] ?? '').toUpperCase()}
                   </div>
@@ -649,7 +889,8 @@ const Users = () => {
                   </Button>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </Card>
@@ -1071,6 +1312,128 @@ const Users = () => {
         onConfirm={confirmDeleteUser}
         onCancel={() => setUserToDelete(null)}
       />
+
+      <Modal isOpen={bulkDeleteOpen} onClose={closeBulkModals} title="Delete Selected Users" size="md">
+        <div className="space-y-4">
+          <p className="text-sm text-slate-700">
+            Permanently delete <span className="font-semibold">{selectedUserIds.length}</span> user{selectedUserIds.length === 1 ? '' : 's'}? This action cannot be undone.
+          </p>
+          {bulkError && <p className="text-xs text-red-600">{bulkError}</p>}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={closeBulkModals} disabled={bulkPending}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={handleBulkDeleteUsers} disabled={bulkPending || selectedUserIds.length === 0}>
+              {bulkPending ? 'Deleting…' : `Delete ${selectedUserIds.length} User${selectedUserIds.length === 1 ? '' : 's'}`}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={bulkActiveAction !== null}
+        onClose={closeBulkModals}
+        title={bulkActiveAction === 'activate' ? 'Activate Selected Users' : 'Deactivate Selected Users'}
+        size="md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-700">
+            {bulkActiveAction === 'activate' ? 'Activate' : 'Deactivate'} the {selectedUserIds.length} selected user{selectedUserIds.length === 1 ? '' : 's'}?
+            {bulkActiveAction === 'deactivate' && ' Existing sessions for these users will continue until expiry but new sign-ins will be blocked.'}
+          </p>
+          {bulkError && <p className="text-xs text-red-600">{bulkError}</p>}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={closeBulkModals} disabled={bulkPending}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleBulkSetActive}
+              disabled={bulkPending || selectedUserIds.length === 0}
+            >
+              {bulkPending ? 'Applying…' : bulkActiveAction === 'activate' ? 'Activate Users' : 'Deactivate Users'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={bulkGroupAction !== null}
+        onClose={closeBulkModals}
+        title={bulkGroupAction === 'add' ? 'Add Selected Users to Group' : 'Remove Selected Users from Group'}
+        size="md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            {bulkGroupAction === 'add' ? 'Assign' : 'Remove'} the {selectedUserIds.length} selected user{selectedUserIds.length === 1 ? '' : 's'} {bulkGroupAction === 'add' ? 'to' : 'from'} a group.
+          </p>
+          <div>
+            <label className={labelCls}>Group</label>
+            <select
+              className={fieldCls}
+              value={bulkGroupId}
+              onChange={(e) => setBulkGroupId(e.target.value)}
+            >
+              <option value="">Select a group…</option>
+              {(groups as GroupItem[]).map((group) => (
+                <option key={group.id} value={group.id}>{group.name}</option>
+              ))}
+            </select>
+          </div>
+          {bulkError && <p className="text-xs text-red-600">{bulkError}</p>}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={closeBulkModals} disabled={bulkPending}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleBulkGroup}
+              disabled={bulkPending || !bulkGroupId}
+            >
+              {bulkPending ? 'Applying…' : bulkGroupAction === 'add' ? 'Add to Group' : 'Remove from Group'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={bulkRoleAction !== null}
+        onClose={closeBulkModals}
+        title={bulkRoleAction === 'add' ? 'Assign Role to Selected Users' : 'Remove Role from Selected Users'}
+        size="md"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            {bulkRoleAction === 'add' ? 'Assign' : 'Remove'} a role {bulkRoleAction === 'add' ? 'to' : 'from'} the {selectedUserIds.length} selected user{selectedUserIds.length === 1 ? '' : 's'}. Only direct role assignments are affected; roles inherited via groups are not changed.
+          </p>
+          <div>
+            <label className={labelCls}>Role</label>
+            <select
+              className={fieldCls}
+              value={bulkRoleId}
+              onChange={(e) => setBulkRoleId(e.target.value)}
+            >
+              <option value="">Select a role…</option>
+              {(roles as RoleItem[]).map((role) => (
+                <option key={role.id} value={role.id}>{role.name}</option>
+              ))}
+            </select>
+          </div>
+          {bulkError && <p className="text-xs text-red-600">{bulkError}</p>}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={closeBulkModals} disabled={bulkPending}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleBulkRole}
+              disabled={bulkPending || !bulkRoleId}
+            >
+              {bulkPending ? 'Applying…' : bulkRoleAction === 'add' ? 'Assign Role' : 'Remove Role'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
