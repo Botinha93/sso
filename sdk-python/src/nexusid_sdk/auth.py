@@ -245,6 +245,24 @@ class AuthAPI:
             body=payload,
         ))
 
+    def get_userinfo(self, *, format: str | None = None) -> gm.GetOauthUserinfoResponse:
+        """
+        OIDC UserInfo for the client's bearer token.
+
+        Always includes roles, groups, and flattened permissions in addition to
+        scope-driven profile/email claims.
+        """
+        query = {"format": format} if format is not None else None
+        return cast(gm.GetOauthUserinfoResponse, self._client.get("/oauth/userinfo", query=query))
+
+    def get_userinfo_signed(self) -> str:
+        """UserInfo claims as a signed JWT (application/jwt)."""
+        return cast(str, self._client.get(
+            "/oauth/userinfo",
+            query={"format": "signed"},
+            parse_as="text",
+        ))
+
     def revoke_token(
         self,
         *,

@@ -262,6 +262,17 @@ class GetApiAdminElevationsSessionsQueryParams(TypedDict):
     status: NotRequired[Literal["active", "revoked", "expired"]]
     limit: NotRequired[int]
 
+class GetApiAdminMeResponse200(TypedDict):
+    id: NotRequired[str]
+    email: NotRequired[str]
+    username: NotRequired[str]
+    givenName: NotRequired[str]
+    familyName: NotRequired[str]
+    avatarUrl: NotRequired[str | None]
+    roles: NotRequired[list[str]]
+    groups: NotRequired[list[str]]
+    permissions: NotRequired[list[str]]
+
 class GetApiAdminMetricsAuthQueryParams(TypedDict):
     startHour: NotRequired[str]
     endHour: NotRequired[str]
@@ -385,6 +396,8 @@ class GetApiAdminServiceIdentitiesByIdUsageResponse200CredentialsItem(TypedDict)
     createdAt: NotRequired[str]
 
 class GetApiAdminUsersQueryParams(TypedDict):
+    search: NotRequired[str]
+    q: NotRequired[str]
     limit: NotRequired[int]
     offset: NotRequired[int]
     appId: NotRequired[str]
@@ -437,6 +450,9 @@ class GetOauthFrontchannelLogoutQueryParams(TypedDict):
     iss: NotRequired[str]
     sid: NotRequired[str]
 
+class GetOauthUserinfoQueryParams(TypedDict):
+    format: NotRequired[Literal["json", "signed", "jwt"]]
+
 class GetOauthUserinfoResponse200(TypedDict):
     sub: NotRequired[str]
     preferred_username: NotRequired[str]
@@ -447,6 +463,9 @@ class GetOauthUserinfoResponse200(TypedDict):
     family_name: NotRequired[str]
     picture: NotRequired[str]
     updated_at: NotRequired[int]
+    roles: NotRequired[list[str]]
+    groups: NotRequired[list[str]]
+    permissions: NotRequired[list[str]]
 
 class GetSamlMetadataQueryParams(TypedDict):
     spId: str
@@ -539,6 +558,8 @@ class OAuthClient(TypedDict):
     requirePkce: NotRequired[bool]
     resources: NotRequired[list[str]]
     flowIds: NotRequired[list[str]]
+    accessTokenTtlSeconds: NotRequired[int | None]
+    refreshTokenTtlSeconds: NotRequired[int | None]
     createdAt: str
 
 class PatchApiAdminConnectorsByIdPathParams(TypedDict):
@@ -710,6 +731,9 @@ class PostApiAdminClientsRequestBody(TypedDict):
     grants: list[str]
     requirePkce: NotRequired[bool]
     resources: NotRequired[list[str]]
+    flowIds: NotRequired[list[str]]
+    accessTokenTtlSeconds: NotRequired[int | None]
+    refreshTokenTtlSeconds: NotRequired[int | None]
 
 class PostApiAdminConnectorsByIdMappingsPathParams(TypedDict):
     id: str
@@ -890,6 +914,28 @@ class PostApiAdminServiceIdentitiesRequestBody(TypedDict):
     allowedAudiences: NotRequired[list[str]]
     ownerId: NotRequired[str]
     metadata: NotRequired[dict[str, Any]]
+
+class PostApiAdminUsersRequestBody(TypedDict):
+    appId: NotRequired[str]
+    appIds: NotRequired[list[str]]
+    externalSource: NotRequired[str]
+    externalId: NotRequired[str]
+    isServiceUser: NotRequired[bool]
+    avatarUrl: NotRequired[str]
+    email: str
+    username: str
+    password: NotRequired[str]
+    passwordHash: NotRequired[str]
+    givenName: str
+    familyName: str
+    customAttributes: NotRequired[dict[str, str]]
+    roleIds: NotRequired[list[str]]
+    groupIds: NotRequired[list[str]]
+
+class PostApiAdminUsersResponse201(TypedDict):
+    id: NotRequired[str]
+    email: NotRequired[str]
+    username: NotRequired[str]
 
 class PostApiPortalAvatarRequestBody(TypedDict):
     file: str
@@ -1236,6 +1282,7 @@ GetApiAdminEventNotificationsResponse: TypeAlias = "Any"
 GetApiAdminEventTypesResponse: TypeAlias = "Any"
 GetApiAdminFederationProvidersResponse: TypeAlias = "Any"
 GetApiAdminGroupsResponse: TypeAlias = "Any"
+GetApiAdminMeResponse: TypeAlias = "GetApiAdminMeResponse200"
 GetApiAdminMetricsAuthResponse: TypeAlias = "GetApiAdminMetricsAuthResponse200"
 GetApiAdminMetricsAuthResponse200: TypeAlias = "list[GetApiAdminMetricsAuthResponse200Item]"
 GetApiAdminPoliciesDecisionsResponse: TypeAlias = "GetApiAdminPoliciesDecisionsResponse200"
@@ -1366,8 +1413,7 @@ PostApiAdminUserAttributesRequestBody: TypeAlias = "Any"
 PostApiAdminUserAttributesResponse: TypeAlias = "Any"
 PostApiAdminUserGroupsRequestBody: TypeAlias = "Any"
 PostApiAdminUsersByIdResetPasswordRequestBody: TypeAlias = "Any"
-PostApiAdminUsersRequestBody: TypeAlias = "Any"
-PostApiAdminUsersResponse: TypeAlias = "Any"
+PostApiAdminUsersResponse: TypeAlias = "PostApiAdminUsersResponse201"
 PostApiPortalAvatarResponse: TypeAlias = "PostApiPortalAvatarResponse200"
 PostApiPortalChangePasswordResponse: TypeAlias = "PostApiPortalChangePasswordResponse200"
 PostAuthLoginWebauthnBeginResponse: TypeAlias = "PostAuthLoginWebauthnBeginResponse200"
@@ -1506,6 +1552,8 @@ __all__ = [
     "GetApiAdminEventTypesResponse",
     "GetApiAdminFederationProvidersResponse",
     "GetApiAdminGroupsResponse",
+    "GetApiAdminMeResponse",
+    "GetApiAdminMeResponse200",
     "GetApiAdminMetricsAuthQueryParams",
     "GetApiAdminMetricsAuthResponse",
     "GetApiAdminMetricsAuthResponse200",
@@ -1570,6 +1618,7 @@ __all__ = [
     "GetOauthFrontchannelLogoutResponse",
     "GetOauthFrontchannelLogoutResponse200",
     "GetOauthLogoutResponse",
+    "GetOauthUserinfoQueryParams",
     "GetOauthUserinfoResponse",
     "GetOauthUserinfoResponse200",
     "GetSamlMetadataQueryParams",
@@ -1754,6 +1803,7 @@ __all__ = [
     "PostApiAdminUsersByIdResetPasswordRequestBody",
     "PostApiAdminUsersRequestBody",
     "PostApiAdminUsersResponse",
+    "PostApiAdminUsersResponse201",
     "PostApiPortalAvatarRequestBody",
     "PostApiPortalAvatarResponse",
     "PostApiPortalAvatarResponse200",

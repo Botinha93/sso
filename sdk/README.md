@@ -153,6 +153,33 @@ const sessionClient = createClient({
 const me = await sessionClient.get("/api/portal/me");
 ```
 
+## UserInfo And Current User Claims
+
+OAuth UserInfo and the admin/portal `me` endpoints always include effective `roles`, `groups`, and a flattened `permissions` array (direct role assignments plus roles inherited via group membership).
+
+```ts
+import { createClient, createAuthAPI, createAdminClient } from "@nexusid/sdk";
+
+const bearerClient = createClient({
+  baseUrl: "https://iam.example.com",
+  auth: { type: "bearer", token: accessToken }
+});
+
+const auth = createAuthAPI(bearerClient);
+const userinfo = await auth.getUserInfo();
+// userinfo.roles, userinfo.groups, userinfo.permissions
+
+const signedJwt = await auth.getUserInfoSigned();
+
+const admin = createAdminClient({
+  baseUrl: "https://iam.example.com",
+  auth: { type: "session", cookie: "sid=..." }
+});
+
+const adminMe = await admin.me.get();
+// adminMe.roles, adminMe.groups, adminMe.permissions
+```
+
 ## Admin Clients, Scopes, Apps, And Users
 
 ```ts

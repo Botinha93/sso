@@ -690,6 +690,15 @@ class RoleAssignmentsAPI:
         self._client.post("/api/admin/role-assignments", body=payload)
 
 
+class MeAPI:
+    def __init__(self, client: NexusIDClient) -> None:
+        self._client = client
+
+    def get(self) -> gm.GetApiAdminMeResponse:
+        """Current admin session user with effective roles, groups, and flattened permissions."""
+        return cast(gm.GetApiAdminMeResponse, self._client.get("/api/admin/me"))
+
+
 class AdminClient(NexusIDClient):
     def __init__(
         self,
@@ -709,6 +718,7 @@ class AdminClient(NexusIDClient):
         )
         self.access_requests = AccessRequestsAPI(self)
         self.elevations = ElevationsAPI(self)
+        self.me = MeAPI(self)
         self.users = UsersAPI(self)
         self.roles = RolesAPI(self)
         self.permissions = PermissionsAPI(self)

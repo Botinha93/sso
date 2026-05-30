@@ -467,6 +467,7 @@ export const bootstrap = async (config: AppConfig) => {
   const authService = new AuthService(
     userService,
     roleService,
+    groupService,
     authenticationFlowService,
     clientRepository,
     sessionRepository,

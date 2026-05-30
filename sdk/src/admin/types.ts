@@ -807,6 +807,26 @@ export interface AuditAPI {
   list(query?: AuditListQuery): Promise<SDKAuditEvent[]>;
 }
 
+export interface SDKAdminMe {
+  id: string;
+  email: string;
+  username: string;
+  givenName: string;
+  familyName: string;
+  avatarUrl?: string | null;
+  /** Effective role names, including roles inherited via group membership. */
+  roles: string[];
+  /** Names of groups the user belongs to. */
+  groups: string[];
+  /** Flattened, de-duplicated permission strings granted by the user's effective roles. */
+  permissions: string[];
+}
+
+export interface MeAPI {
+  /** Returns the current admin/portal session user with effective roles, groups, and flattened permissions. */
+  get(): Promise<SDKAdminMe>;
+}
+
 export interface SDKAuthenticationFlow {
   id: string;
   name: string;
@@ -1074,6 +1094,7 @@ export interface AdminClient extends ClientInstance {
   eventHooks: EventHooksAPI;
   federation: FederationAPI;
   groups: GroupsAPI;
+  me: MeAPI;
   permissions: PermissionsAPI;
   policies: PoliciesAPI;
   provisioning: ReturnType<typeof import("../provisioning/index.js").createProvisioningAPI>;

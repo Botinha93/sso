@@ -49,6 +49,9 @@ print(users)
 - `auth.exchange_ciba_token(...)`
 - `auth.exchange_token(...)`
 - `auth.revoke_token(...)`
+- `auth.get_userinfo(...)` — roles, groups, and flattened permissions
+- `auth.get_userinfo_signed()` — signed JWT UserInfo
+- `admin.me.get()` — current admin user with roles, groups, permissions
 - `admin.users.list(...)`
 - `admin.clients.list(...)`
 - `admin.permissions.list()`

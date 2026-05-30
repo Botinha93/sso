@@ -70,6 +70,7 @@ export type {
   GroupListQuery,
   GroupsAPI,
   GrantType,
+  MeAPI,
   PolicyDecisionsListQuery,
   PoliciesAPI,
   PolicyEvaluateInput,
@@ -103,6 +104,7 @@ export type {
   SDKAccessReviewCampaignDetails,
   SDKAccessReviewCampaignResult,
   SDKAccessReviewItem,
+  SDKAdminMe,
   SDKApp,
   SDKBreakGlassResult,
   SDKConnector,
@@ -173,12 +175,14 @@ export type {
   OAuthScope,
   OAuthTokenResponse,
   OAuthTokenTypeHint,
+  OAuthUserInfo,
   PKCEPair,
   RefreshTokenInput,
   RevokeTokenInput,
   Saml2BearerTokenInput,
   SessionAuthConfig,
-  TokenExchangeInput
+  TokenExchangeInput,
+  UserInfoOptions
 } from "./auth/types.js";
 export type {
   CreateServiceIdentityInput,

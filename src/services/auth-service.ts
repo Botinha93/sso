@@ -16,6 +16,7 @@ import { verifyPassword } from "../security/password.js";
 import { hashOpaqueToken } from "../security/token-hash.js";
 import { JwtService, resolveAccessTokenTtlSeconds, resolveRefreshTokenTtlSeconds } from "../security/jwt.js";
 import { AuthenticationFlowService } from "./authentication-flow-service.js";
+import { GroupService } from "./group-service.js";
 import { RoleService } from "./role-service.js";
 import { SecurityService } from "./security-service.js";
 import { ServiceIdentityService } from "./service-identity-service.js";
@@ -59,6 +60,7 @@ export class AuthService {
   constructor(
     private readonly userService: UserService,
     private readonly roleService: RoleService,
+    private readonly groupService: GroupService,
     private readonly authenticationFlowService: AuthenticationFlowService,
     private readonly clientRepository: ClientRepository,
     readonly sessionRepository: SessionRepository,
@@ -1258,7 +1260,6 @@ export class AuthService {
       claims.preferred_username = user.username;
       claims.given_name = user.givenName;
       claims.family_name = user.familyName;
-      claims.roles = await this.roleService.resolveNamesForUser(user.id, tenantId);
     }
 
     if (scopes.includes("email")) {
@@ -1266,10 +1267,11 @@ export class AuthService {
       claims.email_verified = true;
     }
 
-    // Always include roles if explicitly in scope
-    if (scopes.includes("roles") && !claims.roles) {
-      claims.roles = await this.roleService.resolveNamesForUser(user.id, tenantId);
-    }
+    // Authorization claims are always returned so relying parties can drive
+    // access decisions directly from the userinfo response.
+    claims.roles = await this.roleService.resolveNamesForUser(user.id, tenantId);
+    claims.groups = await this.groupService.resolveGroupNamesForUser(user.id);
+    claims.permissions = await this.roleService.resolvePermissionsForUser(user.id, tenantId);
 
     return claims;
   }

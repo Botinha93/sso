@@ -104,6 +104,33 @@ export interface RevokeTokenInput {
   tokenTypeHint?: OAuthTokenTypeHint;
 }
 
+export interface OAuthUserInfo {
+  /** Subject identifier (user id). */
+  sub: string;
+  preferred_username?: string;
+  email?: string;
+  email_verified?: boolean;
+  name?: string;
+  given_name?: string;
+  family_name?: string;
+  picture?: string;
+  /** Effective role names, including roles inherited via group membership. */
+  roles?: string[];
+  /** Names of groups the user belongs to. */
+  groups?: string[];
+  /** Flattened, de-duplicated permission strings granted by the user's effective roles. */
+  permissions?: string[];
+  [key: string]: unknown;
+}
+
+export interface UserInfoOptions {
+  /**
+   * When set to "signed" or "jwt", the server returns a signed JWT instead of
+   * a JSON object. Use {@link getUserInfoSigned} to receive the raw JWT.
+   */
+  format?: "json" | "signed" | "jwt";
+}
+
 export type OAuthAudience = string | string[];
 
 export interface TokenExchangeInput {
@@ -163,4 +190,15 @@ export interface AuthAPI {
    * Revokes an access or refresh token.
    */
   revokeToken(input: RevokeTokenInput): Promise<void>;
+  /**
+   * Fetches the OIDC UserInfo claims for the bearer token configured on the client.
+   *
+   * The response always includes `roles`, `groups`, and the flattened set of
+   * effective `permissions` in addition to any scope-driven profile/email claims.
+   */
+  getUserInfo(options?: UserInfoOptions): Promise<OAuthUserInfo>;
+  /**
+   * Fetches the OIDC UserInfo claims as a signed JWT (`application/jwt`).
+   */
+  getUserInfoSigned(): Promise<string>;
 }

@@ -657,8 +657,23 @@ paths:
   /oauth/userinfo:
     get:
       summary: OIDC UserInfo endpoint
+      description: |
+        Returns standard OpenID Connect claims for the user backing the bearer
+        access token. In addition to scope-driven profile/email claims, the
+        response always includes the user's `roles`, `groups`, and the
+        flattened set of effective `permissions` derived from those roles
+        (including roles inherited via group membership). Set `?format=signed`
+        (or `?response=jwt`) to receive the claims as a signed JWT instead of
+        a JSON document.
       security:
         - bearerAuth: []
+      parameters:
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum: [json, signed, jwt]
+          description: When `signed` or `jwt`, the response is returned as `application/jwt`.
       responses:
         '200':
           description: User claims and profile information
@@ -686,6 +701,25 @@ paths:
                     type: string
                   updated_at:
                     type: integer
+                  roles:
+                    type: array
+                    description: Names of roles directly assigned to the user or inherited via group membership.
+                    items:
+                      type: string
+                  groups:
+                    type: array
+                    description: Names of groups the user belongs to.
+                    items:
+                      type: string
+                  permissions:
+                    type: array
+                    description: Flattened, de-duplicated set of permission strings granted by the user's effective roles.
+                    items:
+                      type: string
+            application/jwt:
+              schema:
+                type: string
+                description: Signed JWT containing the same claims when `format=signed` is requested.
         '401':
           description: Invalid or missing access token
   /oauth/logout:
@@ -795,6 +829,55 @@ paths:
                       type: string
                   scope:
                     type: string
+  /api/admin/me:
+    get:
+      summary: Current admin user profile
+      description: |
+        Returns the currently authenticated admin/portal session user along
+        with their effective `roles`, `groups`, and the flattened set of
+        `permissions` granted by those roles (including roles inherited via
+        group membership). Use this endpoint to bootstrap the admin UI or to
+        drive client-side authorization checks.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user profile and authorization claims
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  email:
+                    type: string
+                  username:
+                    type: string
+                  givenName:
+                    type: string
+                  familyName:
+                    type: string
+                  avatarUrl:
+                    type: string
+                    nullable: true
+                  roles:
+                    type: array
+                    description: Effective role names (direct + group-inherited).
+                    items:
+                      type: string
+                  groups:
+                    type: array
+                    description: Group names the user belongs to.
+                    items:
+                      type: string
+                  permissions:
+                    type: array
+                    description: Flattened, de-duplicated permission strings granted by the user's effective roles.
+                    items:
+                      type: string
+        '401':
+          description: No active session
   /api/admin/clients:
     get:
       summary: List OAuth clients with pagination

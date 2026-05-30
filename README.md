@@ -9,7 +9,7 @@ This repository provides a first-party identity platform aligned with OAuth 2.0 
 - Token endpoint with authorization_code, refresh_token, client_credentials, and password grants
 - Token introspection and revocation
 - Dynamic client registration (`/connect/register`)
-- UserInfo endpoint with scope-based claims
+- UserInfo endpoint with scope-based profile/email claims plus always-on `roles`, `groups`, and flattened `permissions`
 - RP-initiated logout plus front-channel and back-channel logout support
 - JWT issuance for access, ID, and refresh tokens
 - Password hashing with `scrypt`
@@ -164,7 +164,8 @@ The platform provides a comprehensive OpenAPI 3.0.3 specification with complete 
 - Token endpoint (authorization_code, refresh_token, client_credentials, password, device_code)
 - Token introspection and revocation
 - Dynamic client registration
-- UserInfo endpoint
+- UserInfo endpoint (`roles`, `groups`, flattened `permissions`, optional signed JWT via `?format=signed`)
+- Current-user endpoints: `GET /api/admin/me`, `GET /api/portal/me`
 - JWKS and discovery endpoints
 
 **User Management & Provisioning**

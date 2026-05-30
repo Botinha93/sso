@@ -78,8 +78,31 @@ test("OAuth/OIDC grant flows: authorization_code, refresh, client_credentials, p
   assert.equal(tokenResponse.statusCode, 200);
   const authCodeTokens = tokenResponse.json();
   assert.equal(authCodeTokens.tokenType ?? authCodeTokens.token_type, "Bearer");
-  assert.ok(authCodeTokens.accessToken ?? authCodeTokens.access_token);
+  const accessToken = String(authCodeTokens.accessToken ?? authCodeTokens.access_token);
+  assert.ok(accessToken);
   assert.ok(authCodeTokens.refreshToken ?? authCodeTokens.refresh_token);
+
+  const userInfoResponse = await app.inject({
+    method: "GET",
+    url: "/oauth/userinfo",
+    headers: {
+      authorization: `Bearer ${accessToken}`
+    }
+  });
+
+  assert.equal(userInfoResponse.statusCode, 200);
+  const userInfo = userInfoResponse.json() as {
+    sub?: string;
+    roles?: string[];
+    groups?: string[];
+    permissions?: string[];
+  };
+  assert.ok(typeof userInfo.sub === "string" && userInfo.sub.length > 0);
+  assert.ok(Array.isArray(userInfo.roles));
+  assert.ok(userInfo.roles!.length > 0);
+  assert.ok(Array.isArray(userInfo.groups));
+  assert.ok(Array.isArray(userInfo.permissions));
+  assert.ok(userInfo.permissions!.length > 0);
 
   const refreshTokenValue = String(authCodeTokens.refreshToken ?? authCodeTokens.refresh_token);
   const refreshResponse = await app.inject({

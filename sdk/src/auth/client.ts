@@ -9,10 +9,12 @@ import type {
   ClientCredentialsInput,
   JwtBearerTokenInput,
   OAuthTokenResponse,
+  OAuthUserInfo,
   RefreshTokenInput,
   RevokeTokenInput,
   Saml2BearerTokenInput,
-  TokenExchangeInput
+  TokenExchangeInput,
+  UserInfoOptions
 } from "./types.js";
 
 const serializeScope = (scope?: string | string[]): string | undefined => {
@@ -130,5 +132,14 @@ export const createAuthAPI = (client: ClientInstance): AuthAPI => ({
   exchangeToken: (input) => client.post<OAuthTokenResponse>("/oauth/token/exchange", { body: tokenExchangeBody(input) }),
   revokeToken: async (input: RevokeTokenInput) => {
     await client.post("/oauth/token/revoke", { body: revokeTokenBody(input) });
-  }
+  },
+  getUserInfo: (options?: UserInfoOptions) => {
+    const format = options?.format;
+    const query = format && format !== "json" ? { format } : undefined;
+    return client.get<OAuthUserInfo>("/oauth/userinfo", { query });
+  },
+  getUserInfoSigned: () => client.get<string>("/oauth/userinfo", {
+    query: { format: "signed" },
+    parseAs: "text"
+  })
 });

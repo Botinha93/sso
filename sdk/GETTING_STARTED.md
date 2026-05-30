@@ -26,6 +26,9 @@ const admin = createAdminClient({
     token: process.env.NEXUSID_ADMIN_TOKEN!
   }
 });
+
+const me = await admin.me.get();
+// me.roles, me.groups, me.permissions
 ```
 
 ## 2. Browser App Auth (OAuth + PKCE)
@@ -65,6 +68,13 @@ const token = await auth.exchangeAuthorizationCode({
   redirectUri,
   codeVerifier: sessionStorage.getItem("pkce_verifier")!
 });
+
+const bearerClient = sdkClient.withAuth({
+  type: "bearer",
+  token: token.access_token
+});
+const userinfo = await createAuthAPI(bearerClient).getUserInfo();
+// userinfo.roles, userinfo.groups, userinfo.permissions
 ```
 
 ## 3. Server App Auth (Session Cookie)
@@ -90,6 +100,7 @@ app.get("/profile", async (req, res) => {
   });
 
   const profile = await sessionClient.get("/api/portal/me");
+  // profile.roles, profile.groups, profile.permissions
   return res.json(profile);
 });
 ```
