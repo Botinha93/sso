@@ -153,6 +153,7 @@ export interface GroupRepository {
 export interface UserGroupAssignmentRepository {
   assign(input: Omit<UserGroupAssignment, "id" | "createdAt">): Awaitable<UserGroupAssignment>;
   listByUser(userId: string): Awaitable<UserGroupAssignment[]>;
+  listByGroup(groupId: string): Awaitable<UserGroupAssignment[]>;
   remove(userId: string, groupId: string): Awaitable<void>;
 }
 

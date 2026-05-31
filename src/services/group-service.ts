@@ -316,6 +316,19 @@ export class GroupService {
     return all.filter((group) => allowed.has(group.id)).map((group) => group.name);
   }
 
+  async resolveGroupsForUser(userId: string) {
+    const ids = await this.listGroupIdsForUser(userId);
+    const all = await this.groupRepository.list();
+    const allowed = new Set(ids);
+    return all
+      .filter((group) => allowed.has(group.id))
+      .map((group) => ({ id: group.id, name: group.name, description: group.description }));
+  }
+
+  async listUserIdsForGroup(groupId: string) {
+    return (await this.userGroupAssignmentRepository.listByGroup(groupId)).map((assignment) => assignment.userId);
+  }
+
   async resolveAppIdsForGroups(groupIds: string[]) {
     const groups = await Promise.all(groupIds.map((groupId) => this.groupRepository.findById(groupId)));
     const assignments = await this.groupAppAssignmentRepository.listByGroups(groupIds);

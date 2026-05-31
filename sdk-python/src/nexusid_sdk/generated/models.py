@@ -262,6 +262,22 @@ class GetApiAdminElevationsSessionsQueryParams(TypedDict):
     status: NotRequired[Literal["active", "revoked", "expired"]]
     limit: NotRequired[int]
 
+class GetApiAdminGroupsByIdUsersPathParams(TypedDict):
+    id: str
+
+class GetApiAdminGroupsByIdUsersResponse200(TypedDict):
+    userIds: NotRequired[list[str]]
+    users: NotRequired[list[GetApiAdminGroupsByIdUsersResponse200UsersItem]]
+
+class GetApiAdminGroupsByIdUsersResponse200UsersItem(TypedDict):
+    id: NotRequired[str]
+    email: NotRequired[str]
+    username: NotRequired[str]
+    givenName: NotRequired[str]
+    familyName: NotRequired[str]
+    isServiceUser: NotRequired[bool]
+    active: NotRequired[bool]
+
 class GetApiAdminMeResponse200(TypedDict):
     id: NotRequired[str]
     email: NotRequired[str]
@@ -394,6 +410,38 @@ class GetApiAdminServiceIdentitiesByIdUsageResponse200CredentialsItem(TypedDict)
     lastUsedAt: NotRequired[str | None]
     usageCount: NotRequired[int]
     createdAt: NotRequired[str]
+
+class GetApiAdminUsersByIdGroupsPathParams(TypedDict):
+    id: str
+
+class GetApiAdminUsersByIdGroupsResponse200(TypedDict):
+    groupIds: NotRequired[list[str]]
+    groups: NotRequired[list[GetApiAdminUsersByIdGroupsResponse200GroupsItem]]
+
+class GetApiAdminUsersByIdGroupsResponse200GroupsItem(TypedDict):
+    id: NotRequired[str]
+    name: NotRequired[str]
+    description: NotRequired[str]
+
+class GetApiAdminUsersByIdPermissionsPathParams(TypedDict):
+    id: str
+
+class GetApiAdminUsersByIdPermissionsResponse200(TypedDict):
+    permissions: NotRequired[list[str]]
+
+class GetApiAdminUsersByIdRolesPathParams(TypedDict):
+    id: str
+
+class GetApiAdminUsersByIdRolesResponse200(TypedDict):
+    roleIds: NotRequired[list[str]]
+    roles: NotRequired[list[GetApiAdminUsersByIdRolesResponse200RolesItem]]
+
+class GetApiAdminUsersByIdRolesResponse200RolesItem(TypedDict):
+    id: NotRequired[str]
+    name: NotRequired[str]
+    scope: NotRequired[Literal["platform", "tenant"]]
+    appId: NotRequired[str | None]
+    permissions: NotRequired[list[str]]
 
 class GetApiAdminUsersQueryParams(TypedDict):
     search: NotRequired[str]
@@ -1281,6 +1329,7 @@ GetApiAdminEventHooksResponse: TypeAlias = "Any"
 GetApiAdminEventNotificationsResponse: TypeAlias = "Any"
 GetApiAdminEventTypesResponse: TypeAlias = "Any"
 GetApiAdminFederationProvidersResponse: TypeAlias = "Any"
+GetApiAdminGroupsByIdUsersResponse: TypeAlias = "GetApiAdminGroupsByIdUsersResponse200"
 GetApiAdminGroupsResponse: TypeAlias = "Any"
 GetApiAdminMeResponse: TypeAlias = "GetApiAdminMeResponse200"
 GetApiAdminMetricsAuthResponse: TypeAlias = "GetApiAdminMetricsAuthResponse200"
@@ -1313,6 +1362,9 @@ GetApiAdminSessionsResponse: TypeAlias = "Any"
 GetApiAdminSettingsResponse: TypeAlias = "Any"
 GetApiAdminTenantsResponse: TypeAlias = "Any"
 GetApiAdminUserAttributesResponse: TypeAlias = "Any"
+GetApiAdminUsersByIdGroupsResponse: TypeAlias = "GetApiAdminUsersByIdGroupsResponse200"
+GetApiAdminUsersByIdPermissionsResponse: TypeAlias = "GetApiAdminUsersByIdPermissionsResponse200"
+GetApiAdminUsersByIdRolesResponse: TypeAlias = "GetApiAdminUsersByIdRolesResponse200"
 GetApiAdminUsersResponse: TypeAlias = "GetApiAdminUsersResponse200"
 GetApiPortalMeResponse: TypeAlias = "GetApiPortalMeResponse200"
 GetOauthAuthorizeResponse: TypeAlias = "Any"
@@ -1551,6 +1603,10 @@ __all__ = [
     "GetApiAdminEventNotificationsResponse",
     "GetApiAdminEventTypesResponse",
     "GetApiAdminFederationProvidersResponse",
+    "GetApiAdminGroupsByIdUsersPathParams",
+    "GetApiAdminGroupsByIdUsersResponse",
+    "GetApiAdminGroupsByIdUsersResponse200",
+    "GetApiAdminGroupsByIdUsersResponse200UsersItem",
     "GetApiAdminGroupsResponse",
     "GetApiAdminMeResponse",
     "GetApiAdminMeResponse200",
@@ -1605,6 +1661,17 @@ __all__ = [
     "GetApiAdminSettingsResponse",
     "GetApiAdminTenantsResponse",
     "GetApiAdminUserAttributesResponse",
+    "GetApiAdminUsersByIdGroupsPathParams",
+    "GetApiAdminUsersByIdGroupsResponse",
+    "GetApiAdminUsersByIdGroupsResponse200",
+    "GetApiAdminUsersByIdGroupsResponse200GroupsItem",
+    "GetApiAdminUsersByIdPermissionsPathParams",
+    "GetApiAdminUsersByIdPermissionsResponse",
+    "GetApiAdminUsersByIdPermissionsResponse200",
+    "GetApiAdminUsersByIdRolesPathParams",
+    "GetApiAdminUsersByIdRolesResponse",
+    "GetApiAdminUsersByIdRolesResponse200",
+    "GetApiAdminUsersByIdRolesResponse200RolesItem",
     "GetApiAdminUsersQueryParams",
     "GetApiAdminUsersResponse",
     "GetApiAdminUsersResponse200",

@@ -119,6 +119,27 @@ class UsersAPI:
     def delete(self, user_id: str) -> None:
         self._client.delete(f"/api/admin/users/{user_id}")
 
+    def groups(self, user_id: str) -> gm.GetApiAdminUsersByIdGroupsResponse:
+        """Return the user's effective group memberships."""
+        return cast(
+            gm.GetApiAdminUsersByIdGroupsResponse,
+            self._client.get(f"/api/admin/users/{user_id}/groups"),
+        )
+
+    def roles(self, user_id: str) -> gm.GetApiAdminUsersByIdRolesResponse:
+        """Return the user's effective roles with their permissions inlined."""
+        return cast(
+            gm.GetApiAdminUsersByIdRolesResponse,
+            self._client.get(f"/api/admin/users/{user_id}/roles"),
+        )
+
+    def permissions(self, user_id: str) -> gm.GetApiAdminUsersByIdPermissionsResponse:
+        """Return the flattened, de-duplicated permissions granted to the user."""
+        return cast(
+            gm.GetApiAdminUsersByIdPermissionsResponse,
+            self._client.get(f"/api/admin/users/{user_id}/permissions"),
+        )
+
 
 class RolesAPI:
     def __init__(self, client: NexusIDClient) -> None:
@@ -473,6 +494,13 @@ class GroupsAPI:
 
     def remove_user(self, payload: gm.AssignUserGroupRequestBody) -> None:
         self._client.delete("/api/admin/user-groups", body=payload)
+
+    def users(self, group_id: str) -> gm.GetApiAdminGroupsByIdUsersResponse:
+        """Return users that belong to the given group (humans and service identities)."""
+        return cast(
+            gm.GetApiAdminGroupsByIdUsersResponse,
+            self._client.get(f"/api/admin/groups/{group_id}/users"),
+        )
 
 
 class ScopesAPI:

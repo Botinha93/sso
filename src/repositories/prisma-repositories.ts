@@ -1461,6 +1461,11 @@ class PrismaUserGroupAssignmentRepository {
     return rows.map((row: PrismaRow) => mapUserGroupAssignment(row));
   }
 
+  async listByGroup(groupId: string): Promise<UserGroupAssignment[]> {
+    const rows = await this.prisma.userGroupAssignment.findMany({ where: { groupId } });
+    return rows.map((row: PrismaRow) => mapUserGroupAssignment(row));
+  }
+
   async remove(userId: string, groupId: string): Promise<void> {
     await this.prisma.userGroupAssignment.deleteMany({ where: { userId, groupId } });
   }

@@ -1092,6 +1092,165 @@ paths:
                     type: string
                   username:
                     type: string
+  /api/admin/users/{id}/groups:
+    get:
+      summary: List a user's effective group memberships
+      description: |
+        Returns the groups (id, name, description) that the user — or service
+        identity, since service identities are stored as users — currently
+        belongs to. Useful for syncing m2m identity group membership against a
+        human user's groups, or for auditing access drift.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User's group memberships
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  groupIds:
+                    type: array
+                    items:
+                      type: string
+                  groups:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        description:
+                          type: string
+        '404':
+          description: User not found
+  /api/admin/users/{id}/roles:
+    get:
+      summary: List a user's effective roles (direct + inherited via groups)
+      description: |
+        Returns the effective role records for the user with each role's
+        permissions inlined. Effective means direct assignments PLUS roles
+        inherited through group membership.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User's effective roles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  roleIds:
+                    type: array
+                    items:
+                      type: string
+                  roles:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        scope:
+                          type: string
+                          enum: [platform, tenant]
+                        appId:
+                          type: string
+                          nullable: true
+                        permissions:
+                          type: array
+                          items:
+                            type: string
+        '404':
+          description: User not found
+  /api/admin/users/{id}/permissions:
+    get:
+      summary: List a user's flattened effective permissions
+      description: |
+        Returns the de-duplicated set of permission strings granted by the
+        user's effective roles (direct + inherited via groups). This matches
+        the `permissions` claim minted into the user's access token.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User's effective permissions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  permissions:
+                    type: array
+                    items:
+                      type: string
+        '404':
+          description: User not found
+  /api/admin/groups/{id}/users:
+    get:
+      summary: List users that belong to a group
+      description: |
+        Returns the users (humans and service identities) that are direct
+        members of the group. Use to discover who currently holds access via
+        group-derived roles, or to find machine identities owned by a human
+        when reconciling drift.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Group membership
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userIds:
+                    type: array
+                    items:
+                      type: string
+                  users:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        email:
+                          type: string
+                        username:
+                          type: string
+                        givenName:
+                          type: string
+                        familyName:
+                          type: string
+                        isServiceUser:
+                          type: boolean
+                        active:
+                          type: boolean
+        '404':
+          description: Group not found
   /api/admin/provisioning/tokens:
     get:
       summary: List SCIM provisioning tokens

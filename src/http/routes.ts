@@ -2977,6 +2977,55 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     await deps.groupService.removeUserFromGroup(input);
     return reply.status(204).send();
   });
+  app.get("/api/admin/users/:id/groups", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = await deps.userService.findUserById(id);
+    if (!user) {
+      return reply.status(404).send({ error: "not_found", message: "User not found" });
+    }
+    const groups = await deps.groupService.resolveGroupsForUser(id);
+    return { groupIds: groups.map((group) => group.id), groups };
+  });
+  app.get("/api/admin/users/:id/roles", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = await deps.userService.findUserById(id);
+    if (!user) {
+      return reply.status(404).send({ error: "not_found", message: "User not found" });
+    }
+    const roles = await deps.roleService.resolveRolePermissionDetailsForUser(id);
+    return { roleIds: roles.map((role) => role.id), roles };
+  });
+  app.get("/api/admin/users/:id/permissions", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = await deps.userService.findUserById(id);
+    if (!user) {
+      return reply.status(404).send({ error: "not_found", message: "User not found" });
+    }
+    const permissions = await deps.roleService.resolvePermissionsForUser(id);
+    return { permissions };
+  });
+  app.get("/api/admin/groups/:id/users", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const group = await deps.groupService.findGroupById(id);
+    if (!group) {
+      return reply.status(404).send({ error: "not_found", message: "Group not found" });
+    }
+    const userIds = await deps.groupService.listUserIdsForGroup(id);
+    const allUsers = await deps.userService.listUsers();
+    const allowed = new Set(userIds);
+    const users = allUsers
+      .filter((user) => allowed.has(user.id))
+      .map((user) => ({
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        givenName: user.givenName,
+        familyName: user.familyName,
+        isServiceUser: user.isServiceUser ?? false,
+        active: user.active
+      }));
+    return { userIds, users };
+  });
   app.get("/api/admin/tenants", async (request) => {
     const tenants = await deps.tenantService.listTenants();
     return filterAdminList(tenants, request.query as Record<string, unknown>, [
