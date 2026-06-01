@@ -530,6 +530,9 @@ export const bootstrap = async (config: AppConfig) => {
     oidcService,
     auditRepository,
     policyDecisionLogRepository,
-    dispose: repositories.dispose ?? (async () => undefined)
+    dispose: async () => {
+      await eventHookService.waitForIdle();
+      await (repositories.dispose ?? (async () => undefined))();
+    }
   };
 };

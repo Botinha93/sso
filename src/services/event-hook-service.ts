@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid";
 import { ValidationError } from "../core/errors.js";
+import type { EventHook } from "../domain/models.js";
 import type {
   EventHookRepository,
   EventNotificationRepository
@@ -35,18 +36,43 @@ const SYSTEM_EVENT_TYPES = [
 ] as const;
 
 const ALL_EVENTS_TOKEN = "*";
+const DEFAULT_DELIVERY_TIMEOUT_MS = 5_000;
+const DEFAULT_MAX_QUEUE_SIZE = 1_000;
+const DEFAULT_MAX_CONCURRENT_EVENTS = 4;
 
 type PluginRuntimeLike = {
   dispatch: (eventType: string, payload: Record<string, unknown>) => Promise<void>;
 };
 
+type EventDeliveryJob = {
+  eventType: string;
+  payload: Record<string, unknown>;
+};
+
+type EventHookServiceOptions = {
+  deliveryTimeoutMs?: number;
+  maxQueueSize?: number;
+  maxConcurrentEvents?: number;
+};
+
 export class EventHookService {
   private pluginRuntime?: PluginRuntimeLike;
+  private readonly deliveryTimeoutMs: number;
+  private readonly maxQueueSize: number;
+  private readonly maxConcurrentEvents: number;
+  private readonly deliveryQueue: EventDeliveryJob[] = [];
+  private processingQueue = false;
+  private drainScheduled = false;
 
   constructor(
     private readonly eventHookRepository: EventHookRepository,
-    private readonly eventNotificationRepository: EventNotificationRepository
-  ) {}
+    private readonly eventNotificationRepository: EventNotificationRepository,
+    options: EventHookServiceOptions = {}
+  ) {
+    this.deliveryTimeoutMs = options.deliveryTimeoutMs ?? DEFAULT_DELIVERY_TIMEOUT_MS;
+    this.maxQueueSize = options.maxQueueSize ?? DEFAULT_MAX_QUEUE_SIZE;
+    this.maxConcurrentEvents = options.maxConcurrentEvents ?? DEFAULT_MAX_CONCURRENT_EVENTS;
+  }
 
   setPluginRuntime(runtime: PluginRuntimeLike) {
     this.pluginRuntime = runtime;
@@ -113,16 +139,83 @@ export class EventHookService {
   }
 
   async emit(eventType: string, payload: Record<string, unknown>) {
-    if (this.pluginRuntime) {
-      await this.pluginRuntime.dispatch(eventType, payload);
+    this.enqueueDelivery({ eventType, payload });
+  }
+
+  async waitForIdle() {
+    while (this.drainScheduled || this.processingQueue || this.deliveryQueue.length > 0) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+  }
+
+  private enqueueDelivery(job: EventDeliveryJob) {
+    if (this.deliveryQueue.length >= this.maxQueueSize) {
+      void this.recordNotificationFailure(
+        job.eventType,
+        job.payload,
+        "Event hook delivery queue is full; event was dropped"
+      );
+      return;
     }
 
-    const exactHooks = await this.eventHookRepository.listByEventType(eventType);
-    const wildcardHooks = await this.eventHookRepository.listByEventType("*");
-    const hooks = [...exactHooks, ...wildcardHooks].filter((hook) => hook.enabled);
+    this.deliveryQueue.push(job);
+    this.scheduleDrain();
+  }
 
-    for (const hook of hooks) {
-      await this.dispatchToHook(hook, eventType, payload);
+  private scheduleDrain() {
+    if (this.drainScheduled || this.processingQueue) {
+      return;
+    }
+
+    this.drainScheduled = true;
+    setImmediate(() => {
+      this.drainScheduled = false;
+      void this.drainQueue();
+    });
+  }
+
+  private async drainQueue() {
+    if (this.processingQueue) {
+      return;
+    }
+
+    this.processingQueue = true;
+    try {
+      while (this.deliveryQueue.length > 0) {
+        const batch = this.deliveryQueue.splice(0, this.maxConcurrentEvents);
+        await Promise.allSettled(batch.map((job) => this.deliverEvent(job)));
+      }
+    } finally {
+      this.processingQueue = false;
+      if (this.deliveryQueue.length > 0) {
+        this.scheduleDrain();
+      }
+    }
+  }
+
+  private async deliverEvent({ eventType, payload }: EventDeliveryJob) {
+    if (this.pluginRuntime) {
+      try {
+        await this.pluginRuntime.dispatch(eventType, payload);
+      } catch {
+        // Plugin failures must not prevent webhook delivery or affect callers.
+      }
+    }
+
+    try {
+      const [exactHooks, wildcardHooks] = await Promise.all([
+        this.eventHookRepository.listByEventType(eventType),
+        this.eventHookRepository.listByEventType("*")
+      ]);
+      const hooks = [...exactHooks, ...wildcardHooks].filter((hook) => hook.enabled);
+
+      await Promise.allSettled(hooks.map((hook) => this.dispatchToHook(hook, eventType, payload)));
+    } catch (error) {
+      await this.recordNotificationFailure(
+        eventType,
+        payload,
+        error instanceof Error ? error.message : "Unknown event hook dispatch failure"
+      );
     }
   }
 
@@ -156,12 +249,7 @@ export class EventHookService {
   }
 
   private async dispatchToHook(
-    hook: {
-      id: string;
-      targetUrl: string;
-      method: "POST" | "PUT";
-      headers: Record<string, string>;
-    },
+    hook: Pick<EventHook, "id" | "targetUrl" | "method" | "headers">,
     eventType: string,
     payload: Record<string, unknown>
   ) {
@@ -170,11 +258,15 @@ export class EventHookService {
       ...hook.headers
     };
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.deliveryTimeoutMs);
+
     try {
       const response = await fetch(hook.targetUrl, {
         method: hook.method,
         headers,
-        body: JSON.stringify({ eventType, payload, sentAt: new Date().toISOString() })
+        body: JSON.stringify({ eventType, payload, sentAt: new Date().toISOString() }),
+        signal: controller.signal
       });
 
       const responseBody = await response.text();
@@ -188,13 +280,41 @@ export class EventHookService {
         error: response.ok ? undefined : `Hook returned HTTP ${response.status}`
       });
     } catch (error) {
+      await this.recordNotificationFailure(
+        eventType,
+        payload,
+        this.deliveryErrorMessage(error),
+        hook.id
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private deliveryErrorMessage(error: unknown) {
+    if (error instanceof Error && error.name === "AbortError") {
+      return `Hook delivery timed out after ${this.deliveryTimeoutMs}ms`;
+    }
+
+    return error instanceof Error ? error.message : "Unknown hook delivery failure";
+  }
+
+  private async recordNotificationFailure(
+    eventType: string,
+    payload: Record<string, unknown>,
+    error: string,
+    hookId?: string
+  ) {
+    try {
       await this.eventNotificationRepository.create({
         eventType,
-        hookId: hook.id,
+        hookId,
         payload,
         status: "failed",
-        error: error instanceof Error ? error.message : "Unknown hook delivery failure"
+        error
       });
+    } catch {
+      // Notification persistence is diagnostic only; never let it affect requests.
     }
   }
 }
