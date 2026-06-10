@@ -293,7 +293,7 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'DELETE', path: '/api/admin/events/hooks/:id', auth: 'session+csrf', description: 'Deletes event hook.' },
   { method: 'GET', path: '/api/admin/events/notifications', auth: 'session', description: 'Lists event delivery notifications.' },
 
-  { method: 'GET', path: '/api/portal/me', auth: 'session', description: 'Returns current portal identity context: profile, groups, roles, permissions, rolePermission matrix, and effective apps (direct + inherited from groups).' },
+  { method: 'GET', path: '/api/portal/me', auth: 'bearer', description: 'Returns current portal identity context: profile, groups, roles, permissions, rolePermission matrix, and effective apps (direct + inherited from groups). Accepts either a portal session cookie or a Bearer access token.' },
   { method: 'GET', path: '/api/portal/language/default', auth: 'public', description: 'Resolves default portal language from geo/IP/Accept-Language headers.' },
   { method: 'PATCH', path: '/api/portal/profile', auth: 'session+csrf', description: 'Updates editable fields for current portal user (name and custom attributes).' },
   { method: 'POST', path: '/api/portal/change-password', auth: 'session+csrf', description: 'Changes current portal user password after verifying currentPassword.' },

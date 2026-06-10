@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { nanoid } from "nanoid";
 import { AppError, AuthenticationError, ValidationError } from "../core/errors.js";
+import type { JWTPayload } from "jose";
 import type { OAuthClient, User } from "../domain/models.js";
 import type {
   AccessTokenRepository,
@@ -1241,7 +1242,7 @@ export class AuthService {
     await this.refreshTokenRepository.revokeByTokenId(tokenId, new Date());
   }
 
-  async getUserInfoFromAccessToken(accessToken: string) {
+  async getUserFromAccessToken(accessToken: string): Promise<{ user: User; payload: JWTPayload }> {
     const payload = await this.jwtService.verifyAccessToken(accessToken);
     const subject = payload.sub;
     const tokenId = payload.jti;
@@ -1259,6 +1260,12 @@ export class AuthService {
     if (!user) {
       throw new AuthenticationError("User not found for access token");
     }
+
+    return { user, payload };
+  }
+
+  async getUserInfoFromAccessToken(accessToken: string) {
+    const { user, payload } = await this.getUserFromAccessToken(accessToken);
 
     const tenantId = typeof payload.tenant_id === "string" ? payload.tenant_id : undefined;
 

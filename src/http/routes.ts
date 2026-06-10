@@ -3329,6 +3329,26 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return session;
   }
 
+  // Resolves the current portal user id from either a cookie session or a
+  // Bearer access token, so token-based clients can call read-only portal
+  // endpoints (e.g. /api/portal/me) without a browser session cookie.
+  async function getPortalUserId(request: any): Promise<string | null> {
+    const session = await getPortalSession(request);
+    if (session) return session.userId;
+
+    const authorization = request.headers?.authorization;
+    if (typeof authorization !== "string" || !authorization.startsWith("Bearer ")) {
+      return null;
+    }
+    try {
+      const token = authorization.slice("Bearer ".length);
+      const { user } = await deps.authService.getUserFromAccessToken(token);
+      return user.id;
+    } catch {
+      return null;
+    }
+  }
+
   app.get("/api/portal/language/default", async (request) => {
     const countryHeaders = ["cf-ipcountry", "x-vercel-ip-country", "x-country-code"] as const;
     let countryCode: string | null = null;
@@ -3363,10 +3383,11 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
 
   // GET /api/portal/me — current user profile + apps + custom attributes
+  // Accepts either a portal session cookie or a Bearer access token.
   app.get("/api/portal/me", async (request, reply) => {
-    const session = await getPortalSession(request);
-    if (!session) return reply.status(401).send({ error: "unauthorized" });
-    const user = await deps.userService.findUserById(session.userId);
+    const userId = await getPortalUserId(request);
+    if (!userId) return reply.status(401).send({ error: "unauthorized" });
+    const user = await deps.userService.findUserById(userId);
     if (!user) return reply.status(401).send({ error: "unauthorized" });
     const userAppAccess = await deps.userService.resolveAppAccessForUser(user.id);
     const userCustomAttributes = await deps.userService.resolveCustomAttributesForUser(user.id);

@@ -104,6 +104,24 @@ test("OAuth/OIDC grant flows: authorization_code, refresh, client_credentials, p
   assert.ok(Array.isArray(userInfo.permissions));
   assert.ok(userInfo.permissions!.length > 0);
 
+  const portalMeWithToken = await app.inject({
+    method: "GET",
+    url: "/api/portal/me",
+    headers: {
+      authorization: `Bearer ${accessToken}`
+    }
+  });
+  assert.equal(portalMeWithToken.statusCode, 200);
+  const portalMe = portalMeWithToken.json() as { id?: string; email?: string };
+  assert.equal(portalMe.id, userInfo.sub);
+  assert.ok(typeof portalMe.email === "string" && portalMe.email.length > 0);
+
+  const portalMeUnauthorized = await app.inject({
+    method: "GET",
+    url: "/api/portal/me"
+  });
+  assert.equal(portalMeUnauthorized.statusCode, 401);
+
   const refreshTokenValue = String(authCodeTokens.refreshToken ?? authCodeTokens.refresh_token);
   const refreshResponse = await app.inject({
     method: "POST",
