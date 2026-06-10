@@ -1,6 +1,6 @@
 import type { ClientInstance } from "../core/types.js";
 import { applyPagination, applyTextFilter } from "../core/list-helpers.js";
-import type { AppListQuery, AppsAPI, CreateAppInput, SDKApp, UpdateAppInput } from "./types.js";
+import type { AppListQuery, AppsAPI, CreateAppInput, SDKApp, UpdateAppInput, UploadAppImageResult } from "./types.js";
 
 /**
  * Creates the Apps admin API module.
@@ -21,5 +21,10 @@ export const createAppsAPI = (client: ClientInstance): AppsAPI => ({
   update: (id: string, input: UpdateAppInput) => client.put<SDKApp>(`/api/admin/apps/${id}`, { body: input }),
   delete: async (id: string) => {
     await client.delete(`/api/admin/apps/${id}`);
+  },
+  uploadImage: async (id: string, file: Blob | File) => {
+    const form = new FormData();
+    form.set("file", file);
+    return client.post<UploadAppImageResult>(`/api/admin/apps/${id}/image`, { body: form });
   }
 });

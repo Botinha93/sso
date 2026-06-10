@@ -81,24 +81,6 @@ const resolvedElevation = await waitForElevationTerminalState(admin.elevations, 
 });
 ```
 
-## OAuth Authorize URL And PKCE
-
-```ts
-import { buildAuthorizeUrl, generatePKCEPair } from "@nexusid/sdk";
-
-const pkce = await generatePKCEPair();
-
-const authorizeUrl = buildAuthorizeUrl("https://iam.example.com", {
-  clientId: "portal-web",
-  redirectUri: "https://app.example.com/callback",
-  responseType: "code",
-  scope: ["openid", "profile", "email"],
-  state: "request-state",
-  codeChallenge: pkce.codeChallenge,
-  codeChallengeMethod: pkce.codeChallengeMethod
-});
-```
-
 ## Token Exchange Helpers
 
 ```ts
@@ -135,7 +117,122 @@ await auth.revokeToken({
 });
 ```
 
-Service identity credentials are OAuth client credentials. Pass the issued `clientId` and one-time `plainClientSecret` to `/oauth/token` with `grant_type=client_credentials` to mint a service identity access token. Keep requested `scope` within that identity policy (`allowedScopes`); issued tokens are constrained to the identity audiences (`allowedAudiences`).
+## OAuth Authorize URL And PKCE
+
+```ts
+import { buildAuthorizeUrl, generatePKCEPair } from "@nexusid/sdk";
+
+const pkce = await generatePKCEPair();
+
+const authorizeUrl = buildAuthorizeUrl("https://iam.example.com", {
+  clientId: "portal-web",
+  redirectUri: "https://app.example.com/callback",
+  responseType: "code",
+  scope: ["openid", "profile", "email"],
+  state: "request-state",
+  codeChallenge: pkce.codeChallenge,
+  codeChallengeMethod: pkce.codeChallengeMethod
+});
+```
+
+## Interactive Login, Recovery, And Federation
+
+```ts
+import { createAuthAPI, createClient, buildFederationStartUrl } from "@nexusid/sdk";
+
+const auth = createAuthAPI(createClient({ baseUrl: "https://iam.example.com" }));
+
+const login = await auth.login({
+  email: "admin@example.com",
+  password: process.env.NEXUSID_PASSWORD!,
+  clientId: "sso-admin-ui"
+});
+
+if ("mfaRequired" in login && login.mfaRequired) {
+  const completed = await auth.loginMfa({
+    mfaTicket: login.mfaTicket,
+    code: "123456"
+  });
+}
+
+await auth.requestRecovery({ identifier: "admin@example.com" });
+
+await auth.recover({
+  recoveryTicket: "recovery_ticket",
+  newPassword: "NewStrongPass123!"
+});
+
+const providers = await auth.listFederationProviders();
+const federationUrl = buildFederationStartUrl("https://iam.example.com", providers[0].id, "/portal");
+```
+
+## OIDC Protocol Helpers
+
+```ts
+const discovery = await auth.getDiscoveryDocument();
+const jwks = await auth.getJwks();
+
+const introspection = await auth.introspectToken({
+  token: accessToken,
+  clientId: "portal-web",
+  clientSecret: process.env.NEXUSID_CLIENT_SECRET!
+});
+
+const device = await auth.startDeviceAuthorization({
+  clientId: "tv-client",
+  clientSecret: process.env.NEXUSID_TV_SECRET!
+});
+
+await auth.verifyDeviceCode({
+  userCode: device.user_code,
+  username: "admin@example.com",
+  password: process.env.NEXUSID_PASSWORD!
+});
+
+const deviceToken = await auth.exchangeDeviceCode({
+  clientId: "tv-client",
+  clientSecret: process.env.NEXUSID_TV_SECRET!,
+  deviceCode: device.device_code
+});
+
+const registered = await auth.registerClient({
+  clientName: "Example SPA",
+  redirectUris: ["https://app.example.com/callback"]
+});
+```
+
+## Account Self-Service MFA
+
+```ts
+import { createAccountAPI, createClient } from "@nexusid/sdk";
+
+const account = createAccountAPI(createClient({
+  baseUrl: "https://iam.example.com",
+  auth: { type: "session", cookie: "sid=..." }
+}));
+
+const totpStatus = await account.getTotp();
+const enrollment = await account.enrollTotp();
+await account.verifyTotp({ enrollmentId: enrollment.enrollmentId, code: "123456" });
+
+const credentials = await account.listWebauthnCredentials();
+const registration = await account.beginWebauthnRegistration({ displayName: "Work Laptop" });
+```
+
+## Portal Language And Profile
+
+```ts
+import { createPortalAPI, createClient } from "@nexusid/sdk";
+
+const portal = createPortalAPI(createClient({ baseUrl: "https://iam.example.com" }));
+
+const language = await portal.getDefaultLanguage();
+const me = await portal.getMe();
+```
+
+## Service Identity Credentials
+
+Pass the issued `clientId` and one-time `plainClientSecret` to `/oauth/token` with `grant_type=client_credentials` to mint a service identity access token. Keep requested `scope` within that identity policy (`allowedScopes`); issued tokens are constrained to the identity audiences (`allowedAudiences`).
 
 ## Session Cookie Auth
 
@@ -400,6 +497,46 @@ const runs = await admin.connectors.listRuns(connector.id, { limit: 20 });
 const mappings = await admin.connectors.listMappings(connector.id);
 ```
 
+## Admin User Sub-Resources, Settings Tests, Metrics, And Plugins
+
+```ts
+const user = await admin.users.get("user_123");
+const groups = await admin.users.getGroups(user.id);
+const roles = await admin.users.getRoles(user.id);
+const permissions = await admin.users.getPermissions(user.id);
+
+const groupMembers = await admin.groups.listUsers("group_ops");
+
+await admin.settings.testEmail({
+  to: "admin@example.com",
+  subject: "SMTP test"
+});
+
+const authMetrics = await admin.metrics.auth({
+  startHour: "2026-06-10T08",
+  endHour: "2026-06-10T12",
+  event: "login.succeeded"
+});
+
+const plugins = await admin.plugins.list();
+const validation = await admin.plugins.validate({
+  manifest: {
+    id: "example-plugin",
+    name: "Example Plugin",
+    version: "1.0.0",
+    entrypoint: "index.js"
+  }
+});
+
+const decision = await admin.policies.authorizationCheck({
+  userId: user.id,
+  resource: "connectors",
+  action: "sync"
+});
+
+const queue = await admin.provisioning.deprovisioningQueue({ limit: 50 });
+```
+
 ## Examples
 
 See the usage-oriented files in `sdk/examples/`:
@@ -419,12 +556,17 @@ Implemented today:
 
 - base typed HTTP client
 - bearer, session, and custom-header auth configuration
-- authorize URL and PKCE helpers
-- token endpoint helpers for authorization code, refresh token, client credentials, token exchange, and revoke
-- admin modules for apps, users, roles, groups, clients, scopes, access requests, access reviews, elevations, and connectors
-- SCIM provisioning methods for token management, mapping CRUD, and reconciliation jobs
+- authorize URL, PKCE, federation start, and logout URL helpers
+- token endpoint helpers for authorization code, refresh token, client credentials, password grant, device code, JWT/SAML bearer, CIBA, token exchange, introspection, and revoke
+- interactive login, MFA login, WebAuthn login, recovery, federation provider listing, and OIDC discovery/JWKS
+- account self-service MFA (TOTP and WebAuthn enrollment)
+- portal self-service profile/password/avatar/language helpers
+- admin modules for apps, users (including groups/roles/permissions/avatar), roles, groups (including members), clients, scopes, access requests, access reviews, elevations, connectors, metrics, and plugins
+- SCIM provisioning methods for token management, mapping CRUD, reconciliation jobs, and deprovisioning queue
 - SAML admin methods for service provider CRUD, metadata upload, certificate rotation, and assertion audits
 - workload identity methods for service identities, credential lifecycle, and usage inspection
+- settings test helpers for email and database migration workflows
+- authorization check helper for policy evaluation against a user/resource/action
 
 Multi-app notes:
 
@@ -435,6 +577,7 @@ Multi-app notes:
 Still planned:
 
 - connector-focused enterprise examples beyond onboarding snippets
+- dedicated SCIM client module for direct `/scim/v2` provisioning calls
 
 ## Admin Permissions And Failure Modes
 

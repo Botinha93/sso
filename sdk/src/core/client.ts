@@ -183,7 +183,10 @@ const createRequestMethod = (options: ClientOptions): ClientInstance["request"] 
           signal: mergeSignals(controller.signal, requestOptions.signal)
         });
 
-        if (!response.ok) {
+        const acceptedStatuses = requestOptions.acceptStatuses ?? [];
+        const isSuccess = response.ok || acceptedStatuses.includes(response.status);
+
+        if (!isSuccess) {
           const errorBody = await parseResponseBody(response, "json").catch(() => undefined) as APIErrorPayload | undefined;
           const error = new APIResponseError(
             errorBody?.message || errorBody?.error || `Request failed with status ${response.status}`,

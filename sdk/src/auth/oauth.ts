@@ -1,4 +1,4 @@
-import type { OAuthAuthorizeParams } from "./types.js";
+import type { FrontChannelLogoutParams, OAuthAuthorizeParams, OAuthLogoutParams } from "./types.js";
 
 const trimTrailingSlashes = (value: string): string => value.replace(/\/+$/, "");
 
@@ -48,5 +48,63 @@ export const buildAuthorizeUrl = (baseUrl: string, params: OAuthAuthorizeParams)
     url.searchParams.set("code_challenge_method", params.codeChallengeMethod);
   }
 
+  return url.toString();
+};
+
+/**
+ * Builds a federation provider start URL for external IdP sign-in.
+ */
+export const buildFederationStartUrl = (
+  baseUrl: string,
+  providerId: string,
+  redirect?: string
+): string => {
+  const url = new URL(`${trimTrailingSlashes(baseUrl)}/auth/federation/${encodeURIComponent(providerId)}/start`);
+  if (redirect) {
+    url.searchParams.set("redirect", redirect);
+  }
+  return url.toString();
+};
+
+/**
+ * Builds an RP-initiated OAuth logout URL.
+ */
+export const buildLogoutUrl = (baseUrl: string, params?: OAuthLogoutParams): string => {
+  const url = new URL(`${trimTrailingSlashes(baseUrl)}/oauth/logout`);
+  if (params?.postLogoutRedirectUri) {
+    url.searchParams.set("post_logout_redirect_uri", params.postLogoutRedirectUri);
+  }
+  if (params?.state) {
+    url.searchParams.set("state", params.state);
+  }
+  if (params?.clientId) {
+    url.searchParams.set("client_id", params.clientId);
+  }
+  if (params?.idTokenHint) {
+    url.searchParams.set("id_token_hint", params.idTokenHint);
+  }
+  return url.toString();
+};
+
+/**
+ * Builds a front-channel logout URL.
+ */
+export const buildFrontchannelLogoutUrl = (
+  baseUrl: string,
+  params?: FrontChannelLogoutParams
+): string => {
+  const url = new URL(`${trimTrailingSlashes(baseUrl)}/oauth/frontchannel-logout`);
+  if (params?.sid) {
+    url.searchParams.set("sid", params.sid);
+  }
+  if (params?.sub) {
+    url.searchParams.set("sub", params.sub);
+  }
+  if (params?.postLogoutRedirectUri) {
+    url.searchParams.set("post_logout_redirect_uri", params.postLogoutRedirectUri);
+  }
+  if (params?.state) {
+    url.searchParams.set("state", params.state);
+  }
   return url.toString();
 };

@@ -75,8 +75,26 @@ export interface ReconciliationAPI {
   runReconcile(input?: ReconciliationInput): Promise<SDKProvisioningJob>;
 }
 
+export interface SDKDeprovisioningQueueItem {
+  id: string;
+  subjectType: "user" | "group";
+  subjectId: string;
+  actionType: "user_offboard" | "group_cleanup";
+  status: "pending" | "completed" | "failed";
+  payload: Record<string, unknown>;
+  error?: string;
+  createdAt: string;
+  processedAt?: string;
+}
+
+export interface DeprovisioningQueueListQuery {
+  limit?: number;
+}
+
 export interface ProvisioningAPI {
   tokens: ProvisioningTokensAPI;
   mappings: ProvisioningMappingsAPI;
   reconciliation: ReconciliationAPI;
+  /** Lists queued downstream deprovisioning/offboarding tasks. */
+  deprovisioningQueue(query?: DeprovisioningQueueListQuery): Promise<SDKDeprovisioningQueueItem[]>;
 }

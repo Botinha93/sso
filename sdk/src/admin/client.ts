@@ -14,7 +14,9 @@ import { createEventHooksAPI } from "./event-hooks.js";
 import { createFederationAPI } from "./federation.js";
 import { createGroupsAPI } from "./groups.js";
 import { createMeAPI } from "./me.js";
+import { createMetricsAPI } from "./metrics.js";
 import { createPermissionsAPI } from "./permissions.js";
+import { createPluginsAPI } from "./plugins.js";
 import { createPoliciesAPI } from "./policies.js";
 import { createRolesAPI } from "./roles.js";
 import { createScopesAPI } from "./scopes.js";
@@ -48,7 +50,9 @@ const createAdminClientInternal = (options: ClientOptions): AdminClient => {
     federation: createFederationAPI(client),
     groups: createGroupsAPI(client),
     me: createMeAPI(client),
+    metrics: createMetricsAPI(client),
     permissions: createPermissionsAPI(client),
+    plugins: createPluginsAPI(client),
     policies: createPoliciesAPI(client),
     provisioning: createProvisioningAPI(client),
     roles: createRolesAPI(client),

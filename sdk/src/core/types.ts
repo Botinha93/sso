@@ -47,6 +47,11 @@ export interface RequestOptions {
   body?: BodyInit | object | unknown[] | null;
   headers?: HeadersInit;
   method?: "DELETE" | "GET" | "PATCH" | "POST" | "PUT";
+  /**
+   * Additional HTTP status codes treated as successful responses.
+   * Useful for endpoints such as `POST /auth/login` that return `202` for MFA challenges.
+   */
+  acceptStatuses?: number[];
   parseAs?: "json" | "response" | "text";
   path: string;
   query?: Record<string, QueryValue | QueryValue[]> | object;

@@ -1,5 +1,7 @@
 import type { ClientInstance } from "../core/types.js";
 import type {
+  AuthorizationCheckInput,
+  AuthorizationCheckResult,
   CreatePolicyInput,
   PoliciesAPI,
   PolicyDecisionsListQuery,
@@ -39,5 +41,6 @@ export const createPoliciesAPI = (client: ClientInstance): PoliciesAPI => ({
     await client.delete(`/api/admin/policies/${id}/assignments`, { body: input });
   },
   evaluate: (input: PolicyEvaluateInput) => client.post<unknown>("/api/admin/policies/evaluate", { body: input }),
+  authorizationCheck: (input: AuthorizationCheckInput) => client.post<AuthorizationCheckResult>("/api/admin/authorization/check", { body: input }),
   decisions: (query?: PolicyDecisionsListQuery) => client.get<SDKPolicyDecisionLog[]>("/api/admin/policies/decisions", { query })
 });

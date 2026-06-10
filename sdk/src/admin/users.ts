@@ -2,6 +2,10 @@ import type { ClientInstance } from "../core/types.js";
 import { applyPagination, applyTextFilter } from "../core/list-helpers.js";
 import type {
   SDKUser,
+  UploadUserAvatarResult,
+  UserGroupsResult,
+  UserPermissionsResult,
+  UserRolesResult,
   UsersAPI,
   CreateUserInput,
   UpdateUserInput,
@@ -51,5 +55,13 @@ export const createUsersAPI = (client: ClientInstance): UsersAPI => ({
   },
   delete: async (id: string) => {
     await client.delete(`/api/admin/users/${id}`);
+  },
+  getGroups: (id: string) => client.get<UserGroupsResult>(`/api/admin/users/${id}/groups`),
+  getRoles: (id: string) => client.get<UserRolesResult>(`/api/admin/users/${id}/roles`),
+  getPermissions: (id: string) => client.get<UserPermissionsResult>(`/api/admin/users/${id}/permissions`),
+  uploadAvatar: async (id: string, file: Blob | File) => {
+    const form = new FormData();
+    form.set("file", file);
+    return client.post<UploadUserAvatarResult>(`/api/admin/users/${id}/avatar`, { body: form });
   }
 });

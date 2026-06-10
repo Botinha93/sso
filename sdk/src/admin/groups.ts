@@ -5,6 +5,7 @@ import type {
   AssignUserGroupInput,
   CreateGroupInput,
   GroupListQuery,
+  GroupUsersResult,
   GroupsAPI,
   SDKGroup,
   UpdateGroupInput
@@ -39,5 +40,6 @@ export const createGroupsAPI = (client: ClientInstance): GroupsAPI => ({
   assignUser: (input: AssignUserGroupInput) => client.post<unknown>("/api/admin/user-groups", { body: input }),
   removeUser: async (input: AssignUserGroupInput) => {
     await client.delete("/api/admin/user-groups", { body: input });
-  }
+  },
+  listUsers: (id: string) => client.get<GroupUsersResult>(`/api/admin/groups/${id}/users`)
 });

@@ -1,9 +1,11 @@
 import type { ClientInstance } from "../core/types.js";
 import type {
+  DeprovisioningQueueListQuery,
   ProvisioningAPI,
   ProvisioningTokensAPI,
   ProvisioningMappingsAPI,
   ReconciliationAPI,
+  SDKDeprovisioningQueueItem,
   SDKScimToken,
   SDKCreatedScimToken,
   CreateScimTokenInput,
@@ -51,5 +53,11 @@ const createReconciliationAPI = (client: ClientInstance): ReconciliationAPI => (
 export const createProvisioningAPI = (client: ClientInstance): ProvisioningAPI => ({
   tokens: createTokensAPI(client),
   mappings: createMappingsAPI(client),
-  reconciliation: createReconciliationAPI(client)
+  reconciliation: createReconciliationAPI(client),
+  deprovisioningQueue: (query?: DeprovisioningQueueListQuery) => {
+    const limit = query?.limit ?? 100;
+    return client.get<SDKDeprovisioningQueueItem[]>("/api/admin/provisioning/deprovisioning-queue", {
+      query: { limit: String(limit) }
+    });
+  }
 });

@@ -59,7 +59,14 @@ export interface UploadPortalAvatarResult {
   avatarUrl: string;
 }
 
+export interface PortalDefaultLanguage {
+  language: string;
+  supportedLanguages: string[];
+}
+
 export interface PortalAPI {
+  /** Resolves the default portal language from geo/IP/Accept-Language headers. */
+  getDefaultLanguage(): Promise<PortalDefaultLanguage>;
   /** Gets the current logged-in portal user's profile, apps, roles, and permissions. */
   getMe(): Promise<SDKPortalMe>;
   /** Updates the current logged-in portal user's profile. */

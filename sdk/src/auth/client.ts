@@ -2,19 +2,45 @@ import type { ClientInstance } from "../core/types.js";
 import type {
   AuthAPI,
   AuthorizationCodeTokenInput,
+  BackchannelLogoutInput,
+  BackchannelLogoutResult,
   CibaApprovalInput,
   CibaAuthenticationRequestInput,
   CibaAuthenticationResponse,
   CibaTokenInput,
   ClientCredentialsInput,
+  DeviceAuthorizationInput,
+  DeviceAuthorizationResponse,
+  DeviceCodeTokenInput,
+  DeviceVerificationInput,
+  DeviceVerificationResult,
+  DynamicClientRegistrationInput,
+  DynamicClientRegistrationResult,
+  IntrospectTokenInput,
   JwtBearerTokenInput,
+  JwksResponse,
+  LoginInput,
+  LoginResult,
+  LoginSuccessResult,
+  MfaLoginInput,
   OAuthTokenResponse,
   OAuthUserInfo,
+  OidcDiscoveryDocument,
+  PasswordGrantInput,
+  PublicFederationProvider,
+  RecoverInput,
+  RecoverResult,
+  RecoveryRequestInput,
+  RecoveryRequestResult,
   RefreshTokenInput,
   RevokeTokenInput,
   Saml2BearerTokenInput,
   TokenExchangeInput,
-  UserInfoOptions
+  TokenIntrospectionResult,
+  UserInfoOptions,
+  WebauthnLoginBeginInput,
+  WebauthnLoginChallenge,
+  WebauthnLoginFinishInput
 } from "./types.js";
 
 const serializeScope = (scope?: string | string[]): string | undefined => {
@@ -95,6 +121,40 @@ const tokenExchangeBody = (input: TokenExchangeInput) => ({
   client_secret: input.clientSecret
 });
 
+const loginBody = (input: LoginInput) => ({
+  email: input.email,
+  password: input.password,
+  clientId: input.clientId ?? "sso-admin-ui",
+  tenantSlug: input.tenantSlug,
+  scope: input.scope ?? ["openid", "profile", "email"],
+  captchaToken: input.captchaToken,
+  promptAcknowledged: input.promptAcknowledged
+});
+
+const webauthnLoginBeginBody = (input: WebauthnLoginBeginInput) => ({
+  identifier: input.identifier,
+  clientId: input.clientId ?? "sso-admin-ui",
+  tenantSlug: input.tenantSlug,
+  scope: input.scope ?? ["openid", "profile", "email"]
+});
+
+const recoveryRequestBody = (input: RecoveryRequestInput) => ({
+  identifier: input.identifier,
+  clientId: input.clientId ?? "sso-admin-ui",
+  tenantSlug: input.tenantSlug
+});
+
+const recoverBody = (input: RecoverInput) => ({
+  recoveryTicket: input.recoveryTicket,
+  code: input.code,
+  verificationCode: input.verificationCode,
+  newPassword: input.newPassword,
+  clientId: input.clientId ?? "sso-admin-ui",
+  tenantSlug: input.tenantSlug,
+  scope: input.scope ?? ["openid", "profile", "email"],
+  promptAcknowledged: input.promptAcknowledged
+});
+
 /**
  * Creates a typed OAuth helper API over the provided SDK client.
  *
@@ -141,5 +201,99 @@ export const createAuthAPI = (client: ClientInstance): AuthAPI => ({
   getUserInfoSigned: () => client.get<string>("/oauth/userinfo", {
     query: { format: "signed" },
     parseAs: "text"
+  }),
+  login: (input) => client.post<LoginResult>("/auth/login", {
+    body: loginBody(input),
+    acceptStatuses: [202]
+  }),
+  loginMfa: (input: MfaLoginInput) => client.post<LoginSuccessResult>("/auth/login/mfa", {
+    body: {
+      mfaTicket: input.mfaTicket,
+      code: input.code
+    }
+  }),
+  loginWebauthnBegin: (input) => client.post<WebauthnLoginChallenge>("/auth/login/webauthn/begin", {
+    body: webauthnLoginBeginBody(input)
+  }),
+  loginWebauthnFinish: (input) => client.post<LoginSuccessResult>("/auth/login/webauthn/finish", {
+    body: {
+      loginId: input.loginId,
+      credentialId: input.credentialId,
+      signCount: input.signCount
+    }
+  }),
+  requestRecovery: (input) => client.post<RecoveryRequestResult>("/auth/recovery/request", {
+    body: recoveryRequestBody(input)
+  }),
+  recover: (input) => client.post<RecoverResult>("/auth/recovery", {
+    body: recoverBody(input)
+  }),
+  logout: async () => {
+    await client.post("/auth/logout", { parseAs: "response", acceptStatuses: [302, 303] });
+  },
+  listFederationProviders: () => client.get<PublicFederationProvider[]>("/auth/federation/providers"),
+  getDiscoveryDocument: () => client.get<OidcDiscoveryDocument>("/.well-known/openid-configuration"),
+  getJwks: () => client.get<JwksResponse>("/.well-known/jwks.json"),
+  introspectToken: (input) => client.post<TokenIntrospectionResult>("/oauth/introspect", {
+    body: {
+      token: input.token,
+      client_id: input.clientId,
+      client_secret: input.clientSecret,
+      token_type_hint: input.tokenTypeHint
+    }
+  }),
+  startDeviceAuthorization: (input) => client.post<DeviceAuthorizationResponse>("/oauth/device/authorize", {
+    body: {
+      client_id: input.clientId,
+      client_secret: input.clientSecret,
+      scope: input.scope
+    }
+  }),
+  verifyDeviceCode: (input) => client.post<DeviceVerificationResult>("/oauth/device/verify", {
+    body: {
+      user_code: input.userCode,
+      username: input.username,
+      password: input.password,
+      approve: input.approve ?? true
+    }
+  }),
+  exchangeDeviceCode: (input) => client.post<OAuthTokenResponse>("/oauth/token", {
+    body: {
+      grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+      device_code: input.deviceCode,
+      client_id: input.clientId,
+      client_secret: input.clientSecret
+    }
+  }),
+  exchangePassword: (input) => client.post<OAuthTokenResponse>("/oauth/token", {
+    body: {
+      grant_type: "password",
+      username: input.username,
+      password: input.password,
+      client_id: input.clientId,
+      client_secret: input.clientSecret,
+      scope: serializeScope(input.scope),
+      captcha_token: input.captchaToken,
+      prompt_acknowledged: input.promptAcknowledged
+    }
+  }),
+  registerClient: (input) => client.post<DynamicClientRegistrationResult>("/connect/register", {
+    body: {
+      app_id: input.appId,
+      client_name: input.clientName ?? "dynamic-client",
+      redirect_uris: input.redirectUris,
+      grant_types: input.grantTypes,
+      response_types: input.responseTypes,
+      scope: input.scope,
+      token_endpoint_auth_method: input.tokenEndpointAuthMethod ?? "client_secret_post"
+    }
+  }),
+  backchannelLogout: (input) => client.post<BackchannelLogoutResult>("/oauth/backchannel-logout", {
+    body: {
+      client_id: input.clientId,
+      client_secret: input.clientSecret,
+      sid: input.sid,
+      sub: input.sub
+    }
   })
 });

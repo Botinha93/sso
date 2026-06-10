@@ -2,6 +2,7 @@ import type { ClientInstance } from "../core/types.js";
 import type {
   ChangePortalPasswordInput,
   PortalAPI,
+  PortalDefaultLanguage,
   SDKPortalMe,
   UpdatePortalProfileInput,
   UploadPortalAvatarResult
@@ -14,6 +15,7 @@ import type {
  * password changes, account deletion, and avatar upload.
  */
 export const createPortalAPI = (client: ClientInstance): PortalAPI => ({
+  getDefaultLanguage: () => client.get<PortalDefaultLanguage>("/api/portal/language/default"),
   getMe: () => client.get<SDKPortalMe>("/api/portal/me"),
   updateProfile: async (input: UpdatePortalProfileInput) => {
     await client.patch("/api/portal/profile", { body: input });

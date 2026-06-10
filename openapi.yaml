@@ -721,6 +721,71 @@ paths:
                 description: Signed JWT containing the same claims when `format=signed` is requested.
         '401':
           description: Invalid or missing access token
+  /oauth/device/authorize:
+    post:
+      summary: Start OAuth device authorization flow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [client_id, client_secret]
+              properties:
+                client_id:
+                  type: string
+                client_secret:
+                  type: string
+                scope:
+                  type: string
+      responses:
+        '200':
+          description: Device authorization issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  device_code:
+                    type: string
+                  user_code:
+                    type: string
+                  verification_uri:
+                    type: string
+                  expires_in:
+                    type: integer
+                  interval:
+                    type: integer
+  /oauth/device/verify:
+    post:
+      summary: Approve or deny a device authorization user code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_code, username, password]
+              properties:
+                user_code:
+                  type: string
+                username:
+                  type: string
+                password:
+                  type: string
+                approve:
+                  type: boolean
+      responses:
+        '200':
+          description: Device verification result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [approved, denied]
   /oauth/logout:
     get:
       summary: RP-initiated logout
@@ -1090,6 +1155,54 @@ paths:
                   email:
                     type: string
                   username:
+                    type: string
+  /api/admin/users/{id}:
+    get:
+      summary: Get user by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          description: User not found
+  /api/admin/users/{id}/avatar:
+    post:
+      summary: Upload user avatar image
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Avatar uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  avatarUrl:
                     type: string
   /api/admin/users/{id}/groups:
     get:
@@ -3170,6 +3283,174 @@ paths:
                     description: URL to uploaded avatar
         '400':
           description: Invalid file format or size
+  /api/portal/language/default:
+    get:
+      summary: Resolve default portal language
+      responses:
+        '200':
+          description: Detected language and supported languages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  language:
+                    type: string
+                  supportedLanguages:
+                    type: array
+                    items:
+                      type: string
+  /auth/login:
+    post:
+      summary: Interactive username/password login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                clientId:
+                  type: string
+                tenantSlug:
+                  type: string
+                scope:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+        '202':
+          description: MFA challenge required
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mfaRequired:
+                    type: boolean
+                  mfaTicket:
+                    type: string
+                  expiresIn:
+                    type: integer
+  /auth/login/mfa:
+    post:
+      summary: Complete TOTP MFA login challenge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mfaTicket, code]
+              properties:
+                mfaTicket:
+                  type: string
+                code:
+                  type: string
+      responses:
+        '200':
+          description: MFA login successful
+          content:
+            application/json:
+              schema:
+                type: object
+  /auth/logout:
+    post:
+      summary: End current browser session
+      responses:
+        '302':
+          description: Redirect to login page
+  /auth/recovery/request:
+    post:
+      summary: Request account recovery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identifier]
+              properties:
+                identifier:
+                  type: string
+                clientId:
+                  type: string
+                tenantSlug:
+                  type: string
+      responses:
+        '200':
+          description: Enumeration-safe recovery request accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  expiresIn:
+                    type: integer
+  /auth/recovery:
+    post:
+      summary: Complete account recovery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [recoveryTicket, newPassword]
+              properties:
+                recoveryTicket:
+                  type: string
+                code:
+                  type: string
+                verificationCode:
+                  type: string
+                newPassword:
+                  type: string
+                clientId:
+                  type: string
+                tenantSlug:
+                  type: string
+                scope:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Recovery completed
+          content:
+            application/json:
+              schema:
+                type: object
+  /auth/federation/providers:
+    get:
+      summary: List enabled public federation providers
+      responses:
+        '200':
+          description: Federation providers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    label:
+                      type: string
   /auth/login/webauthn/begin:
     post:
       summary: Start WebAuthn passwordless login flow
@@ -3257,6 +3538,76 @@ paths:
           description: Invalid assertion or signature
         '400':
           description: Invalid parameters
+  /api/account/mfa/totp:
+    get:
+      summary: Get TOTP enrollment status for current account
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: TOTP status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+    delete:
+      summary: Disable TOTP for current account
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: TOTP disabled
+  /api/account/mfa/totp/enroll:
+    post:
+      summary: Start TOTP enrollment for current account
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: TOTP enrollment started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enrollmentId:
+                    type: string
+                  secret:
+                    type: string
+                  otpauthUri:
+                    type: string
+                  expiresIn:
+                    type: integer
+  /api/account/mfa/totp/verify:
+    post:
+      summary: Verify and complete TOTP enrollment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enrollmentId, code]
+              properties:
+                enrollmentId:
+                  type: string
+                code:
+                  type: string
+      responses:
+        '200':
+          description: TOTP enrollment completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
   /api/account/mfa/webauthn/credentials:
     get:
       summary: List enrolled WebAuthn credentials
@@ -4091,6 +4442,198 @@ paths:
           description: Mapping deleted successfully
         '404':
           description: Connector or mapping not found
+
+  /api/admin/settings/test-email:
+    post:
+      summary: Send a test email using current instance settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to]
+              properties:
+                to:
+                  type: string
+                  format: email
+                subject:
+                  type: string
+                message:
+                  type: string
+      responses:
+        '200':
+          description: Test email result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+  /api/admin/settings/database/test:
+    post:
+      summary: Test external database connectivity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, externalDatabaseUrl]
+              properties:
+                provider:
+                  type: string
+                  enum: [postgresql, mysql]
+                externalDatabaseUrl:
+                  type: string
+                  format: uri
+      responses:
+        '200':
+          description: Connection test result
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/admin/settings/database/migrate:
+    post:
+      summary: Migrate data from SQLite to external database
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, externalDatabaseUrl]
+              properties:
+                provider:
+                  type: string
+                  enum: [postgresql, mysql]
+                externalDatabaseUrl:
+                  type: string
+                  format: uri
+                sqlitePath:
+                  type: string
+      responses:
+        '200':
+          description: Migration result
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/admin/apps/{id}/image:
+    post:
+      summary: Upload application image
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Image uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  imageUrl:
+                    type: string
+  /api/admin/plugins:
+    get:
+      summary: List uploaded plugins
+      responses:
+        '200':
+          description: Plugin list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+    post:
+      summary: Upload a plugin bundle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [manifest, bundleBase64]
+              properties:
+                manifest:
+                  type: object
+                bundleBase64:
+                  type: string
+                activate:
+                  type: boolean
+      responses:
+        '201':
+          description: Plugin uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/admin/plugins/validate:
+    post:
+      summary: Validate plugin manifest and optional bundle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [manifest]
+              properties:
+                manifest:
+                  type: object
+                bundleBase64:
+                  type: string
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                  errors:
+                    type: array
+                    items:
+                      type: string
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+  /api/admin/plugins/{id}:
+    delete:
+      summary: Remove an uploaded plugin
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Plugin removed
 
   /api/admin/metrics/auth:
     get:

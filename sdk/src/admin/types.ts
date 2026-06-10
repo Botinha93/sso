@@ -116,6 +116,10 @@ export interface UpdatedUserSummary {
   familyName?: string;
 }
 
+export interface UploadAppImageResult {
+  imageUrl: string;
+}
+
 export interface AppsAPI {
   /** Lists applications with optional text search and pagination. */
   list(query?: AppListQuery): Promise<SDKApp[]>;
@@ -123,6 +127,8 @@ export interface AppsAPI {
   create(input: CreateAppInput): Promise<SDKApp>;
   /** Updates an existing application by id. */
   update(id: string, input: UpdateAppInput): Promise<SDKApp>;
+  /** Uploads an image for an application. */
+  uploadImage(id: string, file: Blob | File): Promise<UploadAppImageResult>;
   /** Deletes an application by id. */
   delete(id: string): Promise<void>;
 }
@@ -407,6 +413,21 @@ export interface AssignUserGroupInput {
   userId: string;
 }
 
+export interface GroupUserSummary {
+  id: string;
+  email: string;
+  username: string;
+  givenName: string;
+  familyName: string;
+  isServiceUser: boolean;
+  active: boolean;
+}
+
+export interface GroupUsersResult {
+  userIds: string[];
+  users: GroupUserSummary[];
+}
+
 export interface GroupsAPI {
   /** Lists groups with optional app/search filters and pagination. */
   list(query?: GroupListQuery): Promise<SDKGroup[]>;
@@ -424,6 +445,8 @@ export interface GroupsAPI {
   assignUser(input: AssignUserGroupInput): Promise<unknown>;
   /** Removes a user from a group. */
   removeUser(input: AssignUserGroupInput): Promise<void>;
+  /** Lists users assigned to a group. */
+  listUsers(id: string): Promise<GroupUsersResult>;
 }
 
 export interface GroupListQuery extends ListPageQuery {
@@ -671,6 +694,24 @@ export interface ElevationsAPI {
   breakGlass(input: CreateBreakGlassInput): Promise<SDKBreakGlassResult>;
 }
 
+export interface UserGroupsResult {
+  groupIds: string[];
+  groups: SDKGroup[];
+}
+
+export interface UserRolesResult {
+  roleIds: string[];
+  roles: SDKRole[];
+}
+
+export interface UserPermissionsResult {
+  permissions: string[];
+}
+
+export interface UploadUserAvatarResult {
+  avatarUrl: string;
+}
+
 export interface UsersAPI {
   /** Lists users with optional app/active/search/group/customAttribute filters and pagination. */
   list(query?: UserListQuery): Promise<SDKUser[]>;
@@ -682,6 +723,14 @@ export interface UsersAPI {
   update(id: string, input: UpdateUserInput): Promise<SDKUser>;
   /** Resets a user's password. */
   resetPassword(id: string, password: string): Promise<void>;
+  /** Gets groups assigned to a user. */
+  getGroups(id: string): Promise<UserGroupsResult>;
+  /** Gets roles assigned to a user. */
+  getRoles(id: string): Promise<UserRolesResult>;
+  /** Gets flattened permissions for a user. */
+  getPermissions(id: string): Promise<UserPermissionsResult>;
+  /** Uploads an avatar image for a user. */
+  uploadAvatar(id: string, file: Blob | File): Promise<UploadUserAvatarResult>;
   /** Deletes a user by id. */
   delete(id: string): Promise<void>;
 }
@@ -944,6 +993,23 @@ export interface PolicyEvaluateInput {
   context?: Record<string, unknown>;
 }
 
+export interface AuthorizationCheckInput {
+  userId: string;
+  resource: string;
+  action: string;
+  decisionStrategy?: "deny_overrides" | "allow_overrides" | "first_applicable";
+  tenantId?: string;
+  clientId?: string;
+  ip?: string;
+  context?: Record<string, unknown>;
+}
+
+export interface AuthorizationCheckResult {
+  allow: boolean;
+  deniedBy?: string;
+  [key: string]: unknown;
+}
+
 export interface SDKPolicyDecisionLog {
   id: string;
   policyId?: string;
@@ -968,6 +1034,7 @@ export interface PoliciesAPI {
   setAssignment(id: string, input: SetPolicyAssignmentInput): Promise<void>;
   removeAssignment(id: string, input: RemovePolicyAssignmentInput): Promise<void>;
   evaluate(input: PolicyEvaluateInput): Promise<unknown>;
+  authorizationCheck(input: AuthorizationCheckInput): Promise<AuthorizationCheckResult>;
   decisions(query?: PolicyDecisionsListQuery): Promise<SDKPolicyDecisionLog[]>;
 }
 
@@ -1062,9 +1129,44 @@ export interface UpdateAdminSettingsInput {
   [key: string]: unknown;
 }
 
+export interface SendTestEmailInput {
+  to: string;
+  subject?: string;
+  message?: string;
+}
+
+export interface SendTestEmailResult {
+  ok: boolean;
+  [key: string]: unknown;
+}
+
+export interface TestDatabaseConnectionInput {
+  provider: "postgresql" | "mysql";
+  externalDatabaseUrl: string;
+}
+
+export interface TestDatabaseConnectionResult {
+  ok: boolean;
+  [key: string]: unknown;
+}
+
+export interface DatabaseMigrationInput {
+  provider: "postgresql" | "mysql";
+  externalDatabaseUrl: string;
+  sqlitePath?: string;
+}
+
+export interface DatabaseMigrationResult {
+  ok: boolean;
+  [key: string]: unknown;
+}
+
 export interface SettingsAPI {
   get(): Promise<SDKAdminSettings>;
   update(input: UpdateAdminSettingsInput): Promise<SDKAdminSettings>;
+  testEmail(input: SendTestEmailInput): Promise<SendTestEmailResult>;
+  testDatabase(input: TestDatabaseConnectionInput): Promise<TestDatabaseConnectionResult>;
+  migrateDatabase(input: DatabaseMigrationInput): Promise<DatabaseMigrationResult>;
 }
 
 export interface SDKRiskEvent {
@@ -1084,6 +1186,74 @@ export interface SecurityAPI {
   riskEvents(query?: RiskEventListQuery): Promise<SDKRiskEvent[]>;
 }
 
+export interface SDKAuthMetric {
+  bucket: string;
+  event: string;
+  count: number;
+  [key: string]: unknown;
+}
+
+export interface AuthMetricsListQuery {
+  startHour?: string;
+  endHour?: string;
+  event?: string;
+}
+
+export interface AuthMetricsAPI {
+  auth(query?: AuthMetricsListQuery): Promise<SDKAuthMetric[]>;
+}
+
+export interface SDKPluginManifest {
+  id: string;
+  name: string;
+  version: string;
+  description?: string;
+  entrypoint: string;
+  permissions?: string[];
+  hooks?: string[];
+  homepage?: string;
+}
+
+export interface SDKPlugin {
+  id: string;
+  name: string;
+  version: string;
+  description?: string;
+  entrypoint: string;
+  permissions: string[];
+  hooks: string[];
+  homepage?: string;
+  status: "uploaded" | "active";
+  uploadedAt: string;
+  updatedAt: string;
+  bundleChecksum: string;
+  bundleBytes: number;
+}
+
+export interface ValidatePluginInput {
+  manifest: SDKPluginManifest;
+  bundleBase64?: string;
+}
+
+export interface ValidatePluginResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+export interface UploadPluginInput {
+  manifest: SDKPluginManifest;
+  bundleBase64: string;
+  activate?: boolean;
+}
+
+export interface PluginsAPI {
+  list(): Promise<SDKPlugin[]>;
+  validate(input: ValidatePluginInput): Promise<ValidatePluginResult>;
+  upload(input: UploadPluginInput): Promise<SDKPlugin>;
+  delete(id: string): Promise<void>;
+}
+
 export interface AdminClient extends ClientInstance {
   accessReviews: AccessReviewsAPI;
   accessRequests: AccessRequestsAPI;
@@ -1099,7 +1269,9 @@ export interface AdminClient extends ClientInstance {
   federation: FederationAPI;
   groups: GroupsAPI;
   me: MeAPI;
+  metrics: AuthMetricsAPI;
   permissions: PermissionsAPI;
+  plugins: PluginsAPI;
   policies: PoliciesAPI;
   provisioning: ReturnType<typeof import("../provisioning/index.js").createProvisioningAPI>;
   roles: RolesAPI;

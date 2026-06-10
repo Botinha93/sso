@@ -153,9 +153,12 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'POST', path: '/saml/slo', auth: 'session', description: 'Processes SAML logout handoff by revoking the active session and clearing cookie state.' },
 
   { method: 'POST', path: '/auth/login', auth: 'public', description: 'Login endpoint creating session cookie and issuing initial tokens.' },
+  { method: 'POST', path: '/auth/login/mfa', auth: 'public', description: 'Completes TOTP MFA challenge after interactive login returns 202.' },
   { method: 'POST', path: '/auth/login/webauthn/begin', auth: 'public', description: 'Starts passkey-based login by issuing a WebAuthn challenge for the identified account.' },
   { method: 'POST', path: '/auth/login/webauthn/finish', auth: 'public', description: 'Completes passkey-based login using credential assertion payload and issues browser session/tokens.' },
   { method: 'POST', path: '/auth/logout', auth: 'session+csrf', description: 'Clears active session cookie and emits logout event.' },
+  { method: 'POST', path: '/auth/recovery/request', auth: 'public', description: 'Starts account recovery flow with enumeration-safe response semantics.' },
+  { method: 'POST', path: '/auth/recovery', auth: 'public', description: 'Completes account recovery by verifying ticket/code and setting a new password.' },
   { method: 'GET', path: '/auth/federation/providers', auth: 'public', description: 'Lists enabled federation providers for sign-in screen.' },
   { method: 'GET', path: '/auth/federation/:providerId/start', auth: 'public', description: 'Starts external IdP authorization redirect.' },
   { method: 'GET', path: '/auth/federation/:providerId/callback', auth: 'public', description: 'Processes external IdP callback and creates local session.' },
@@ -164,6 +167,7 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'GET', path: '/api/admin/security/risk-events', auth: 'session', description: 'Lists normalized security risk events derived from audit telemetry (login failures, lockouts, anomaly detections, and protocol/security blocks).' },
   { method: 'GET', path: '/api/admin/settings', auth: 'session', description: 'Returns persisted instance-wide administration and security settings.' },
   { method: 'PUT', path: '/api/admin/settings', auth: 'session+csrf', description: 'Updates instance-wide transport, CORS, OAuth, email, and runtime security controls.' },
+  { method: 'POST', path: '/api/admin/settings/test-email', auth: 'session+csrf', description: 'Sends a test email using the configured SMTP settings.' },
   { method: 'POST', path: '/api/admin/settings/database/test', auth: 'session+csrf', description: 'Tests connectivity to a PostgreSQL/MySQL target database URL.' },
   { method: 'POST', path: '/api/admin/settings/database/migrate', auth: 'session+csrf', description: 'Copies data from SQLite into the configured external PostgreSQL/MySQL database.' },
   { method: 'GET', path: '/api/admin/provisioning/tokens', auth: 'session', description: 'Lists SCIM provisioning tokens with audit-friendly metadata.' },
@@ -199,14 +203,20 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'POST', path: '/api/admin/elevations/break-glass', auth: 'session+csrf', description: 'Activates emergency break-glass elevation for immediate privileged access (bypasses normal approval). Requires detailed emergency justification.' },
 
   { method: 'GET', path: '/api/admin/users', auth: 'session', description: 'Lists users.' },
+  { method: 'GET', path: '/api/admin/users/:id', auth: 'session', description: 'Returns a single user with resolved custom attributes and group context.' },
   { method: 'POST', path: '/api/admin/users', auth: 'session+csrf', description: 'Creates user and emits user.created event.' },
   { method: 'PATCH', path: '/api/admin/users/:id', auth: 'session+csrf', description: 'Updates user profile, groups, attributes, and emits user.updated event.' },
+  { method: 'GET', path: '/api/admin/users/:id/groups', auth: 'session', description: 'Lists effective groups for a user.' },
+  { method: 'GET', path: '/api/admin/users/:id/roles', auth: 'session', description: 'Lists effective roles for a user.' },
+  { method: 'GET', path: '/api/admin/users/:id/permissions', auth: 'session', description: 'Lists flattened permissions granted to a user.' },
+  { method: 'POST', path: '/api/admin/users/:id/avatar', auth: 'session+csrf', description: 'Uploads avatar image for a user (multipart file).' },
   { method: 'POST', path: '/api/admin/users/:id/reset-password', auth: 'session+csrf', description: 'Resets password, revokes sessions, and emits user.password_reset event.' },
   { method: 'DELETE', path: '/api/admin/users/:id', auth: 'session+csrf', description: 'Deletes user and emits user.deleted event.' },
 
   { method: 'GET', path: '/api/admin/groups', auth: 'session', description: 'Lists groups.' },
   { method: 'POST', path: '/api/admin/groups', auth: 'session+csrf', description: 'Creates group.' },
   { method: 'PUT', path: '/api/admin/groups/:id', auth: 'session+csrf', description: 'Updates group.' },
+  { method: 'GET', path: '/api/admin/groups/:id/users', auth: 'session', description: 'Lists users assigned to a group.' },
   { method: 'DELETE', path: '/api/admin/groups/:id', auth: 'session+csrf', description: 'Deletes group.' },
   { method: 'POST', path: '/api/admin/user-groups', auth: 'session+csrf', description: 'Assigns user to group.' },
   { method: 'DELETE', path: '/api/admin/user-groups', auth: 'session+csrf', description: 'Removes user from group.' },
@@ -245,6 +255,7 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'GET', path: '/api/admin/apps', auth: 'session', description: 'Lists apps.' },
   { method: 'POST', path: '/api/admin/apps', auth: 'session+csrf', description: 'Creates app.' },
   { method: 'PUT', path: '/api/admin/apps/:id', auth: 'session+csrf', description: 'Updates app.' },
+  { method: 'POST', path: '/api/admin/apps/:id/image', auth: 'session+csrf', description: 'Uploads app image (multipart file).' },
   { method: 'DELETE', path: '/api/admin/apps/:id', auth: 'session+csrf', description: 'Deletes app.' },
 
   { method: 'GET', path: '/api/admin/audit', auth: 'session', description: 'Lists audit events.' },
@@ -272,6 +283,7 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'DELETE', path: '/api/admin/policies/:id', auth: 'session+csrf', description: 'Deletes policy definition.' },
   { method: 'PUT', path: '/api/admin/policies/:id/assignments', auth: 'session+csrf', description: 'Creates or updates policy assignment.' },
   { method: 'DELETE', path: '/api/admin/policies/:id/assignments', auth: 'session+csrf', description: 'Deletes policy assignment.' },
+  { method: 'POST', path: '/api/admin/authorization/check', auth: 'session+csrf', description: 'Evaluates authorization decision for a user/resource/action request.' },
 
   { method: 'GET', path: '/api/admin/events/hooks', auth: 'session', description: 'Lists event hooks.' },
   { method: 'GET', path: '/api/admin/events/types', auth: 'session', description: 'Lists supported event types.' },
@@ -282,10 +294,15 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'GET', path: '/api/admin/events/notifications', auth: 'session', description: 'Lists event delivery notifications.' },
 
   { method: 'GET', path: '/api/portal/me', auth: 'session', description: 'Returns current portal identity context: profile, groups, roles, permissions, rolePermission matrix, and effective apps (direct + inherited from groups).' },
+  { method: 'GET', path: '/api/portal/language/default', auth: 'public', description: 'Resolves default portal language from geo/IP/Accept-Language headers.' },
   { method: 'PATCH', path: '/api/portal/profile', auth: 'session+csrf', description: 'Updates editable fields for current portal user (name and custom attributes).' },
   { method: 'POST', path: '/api/portal/change-password', auth: 'session+csrf', description: 'Changes current portal user password after verifying currentPassword.' },
   { method: 'DELETE', path: '/api/portal/account', auth: 'session+csrf', description: 'Deletes current portal account and revokes active sessions/tokens.' },
   { method: 'POST', path: '/api/portal/avatar', auth: 'session+csrf', description: 'Uploads current user avatar (multipart image file) and returns the resolved avatar URL.' },
+  { method: 'GET', path: '/api/account/mfa/totp', auth: 'session', description: 'Returns TOTP enrollment status for the current account.' },
+  { method: 'POST', path: '/api/account/mfa/totp/enroll', auth: 'session+csrf', description: 'Starts TOTP enrollment and returns secret/otpauth URI.' },
+  { method: 'POST', path: '/api/account/mfa/totp/verify', auth: 'session+csrf', description: 'Verifies TOTP enrollment code and enables MFA.' },
+  { method: 'DELETE', path: '/api/account/mfa/totp', auth: 'session+csrf', description: 'Disables TOTP for the current account.' },
   { method: 'GET', path: '/api/account/mfa/webauthn/credentials', auth: 'session', description: 'Lists passkey credentials enrolled by the current account.' },
   { method: 'POST', path: '/api/account/mfa/webauthn/register/begin', auth: 'session+csrf', description: 'Starts passkey enrollment and returns challenge + relying party metadata.' },
   { method: 'POST', path: '/api/account/mfa/webauthn/register/finish', auth: 'session+csrf', description: 'Completes passkey enrollment and stores credential material/signature counter.' },
@@ -3188,6 +3205,35 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
     }
   }
 
+  if (route.path === '/auth/login/mfa') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({ mfaTicket: 'mfa_ticket_xxx', code: '123456' }),
+      expectedResponse: prettyJson({ session: { id: 'sid_xxx', userId: 'user_xxx' }, accessToken: 'eyJ...', refreshToken: 'r_xxx' })
+    }
+  }
+
+  if (route.path === '/auth/recovery/request') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({ identifier: 'admin@example.com', clientId: 'sso-admin-ui' }),
+      expectedResponse: prettyJson({ status: 'sent_if_account_exists', expiresIn: 900 })
+    }
+  }
+
+  if (route.path === '/auth/recovery') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        recoveryTicket: 'recovery_ticket_xxx',
+        verificationCode: '123456',
+        newPassword: 'NewStrongPass123!',
+        clientId: 'sso-admin-ui'
+      }),
+      expectedResponse: prettyJson({ status: 'password_reset' })
+    }
+  }
+
   if (route.path === '/auth/login/webauthn/begin') {
     return {
       parameters: params,
@@ -4298,6 +4344,126 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
         'Use image/png, image/jpeg, image/webp, or image/gif upload types.',
         'The returned avatarUrl should be persisted client-side and refreshed in profile UI immediately.'
       ]
+    }
+  }
+
+  if (route.path === '/api/admin/users/:id' && route.method === 'GET') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({ id: 'user_xxx', email: 'user@example.com', username: 'user', active: true })
+    }
+  }
+
+  if (route.path === '/api/admin/users/:id/groups' && route.method === 'GET') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({ groupIds: ['group_xxx'], groups: [{ id: 'group_xxx', name: 'Operations' }] })
+    }
+  }
+
+  if (route.path === '/api/admin/users/:id/roles' && route.method === 'GET') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({ roleIds: ['role_xxx'], roles: [{ id: 'role_xxx', name: 'operator', permissions: ['apps.read'] }] })
+    }
+  }
+
+  if (route.path === '/api/admin/users/:id/permissions' && route.method === 'GET') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({ permissions: ['apps.read', 'users.read'] })
+    }
+  }
+
+  if (route.path === '/api/admin/users/:id/avatar' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: 'multipart/form-data with file=<image>',
+      expectedResponse: prettyJson({ avatarUrl: '/media/uploads/users/user_xxx/avatar.png' })
+    }
+  }
+
+  if (route.path === '/api/admin/groups/:id/users' && route.method === 'GET') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({
+        userIds: ['user_xxx'],
+        users: [{ id: 'user_xxx', email: 'user@example.com', username: 'user', active: true }]
+      })
+    }
+  }
+
+  if (route.path === '/api/admin/apps/:id/image' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: 'multipart/form-data with file=<image>',
+      expectedResponse: prettyJson({ imageUrl: '/media/uploads/apps/app_xxx/image.png' })
+    }
+  }
+
+  if (route.path === '/api/admin/authorization/check' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        userId: 'user_xxx',
+        resource: 'connectors',
+        action: 'sync',
+        decisionStrategy: 'deny_overrides'
+      }),
+      expectedResponse: prettyJson({ allow: true, decisionStrategy: 'deny_overrides', deniedBy: [] })
+    }
+  }
+
+  if (route.path === '/api/admin/settings/test-email' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({
+        to: 'admin@example.com',
+        subject: 'SSO email test',
+        message: 'This is a test email from the SSO platform.'
+      }),
+      expectedResponse: prettyJson({ ok: true })
+    }
+  }
+
+  if (route.path === '/api/portal/language/default' && route.method === 'GET') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({ language: 'en', supportedLanguages: ['en', 'pt', 'es'] })
+    }
+  }
+
+  if (route.path === '/api/account/mfa/totp' && route.method === 'GET') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({ enabled: true })
+    }
+  }
+
+  if (route.path === '/api/account/mfa/totp/enroll' && route.method === 'POST') {
+    return {
+      parameters: params,
+      expectedResponse: prettyJson({
+        enrollmentId: 'enroll_xxx',
+        secret: 'JBSWY3DPEHPK3PXP',
+        otpauthUri: 'otpauth://totp/SSO:admin%40example.com?secret=JBSWY3DPEHPK3PXP&issuer=SSO',
+        expiresIn: 600
+      })
+    }
+  }
+
+  if (route.path === '/api/account/mfa/totp/verify' && route.method === 'POST') {
+    return {
+      parameters: params,
+      requestJson: prettyJson({ enrollmentId: 'enroll_xxx', code: '123456' }),
+      expectedResponse: prettyJson({ enabled: true })
+    }
+  }
+
+  if (route.path === '/api/account/mfa/totp' && route.method === 'DELETE') {
+    return {
+      parameters: params,
+      expectedResponse: '204 No Content'
     }
   }
 
