@@ -194,7 +194,7 @@ export interface AuthAPI {
    * Fetches the OIDC UserInfo claims for the bearer token configured on the client.
    *
    * The response always includes `roles`, `groups`, and the flattened set of
-   * effective `permissions` in addition to any scope-driven profile/email claims.
+   * `roles`, `groups`, and `permissions` when the corresponding scopes were granted.
    */
   getUserInfo(options?: UserInfoOptions): Promise<OAuthUserInfo>;
   /**

@@ -672,12 +672,14 @@ export interface ElevationsAPI {
 }
 
 export interface UsersAPI {
-  /** Lists users with optional app/active/search filters and pagination. */
+  /** Lists users with optional app/active/search/group/customAttribute filters and pagination. */
   list(query?: UserListQuery): Promise<SDKUser[]>;
+  /** Gets a user by id with resolved customAttributes and groups. */
+  get(id: string): Promise<SDKUser>;
   /** Creates a user. */
-  create(input: CreateUserInput): Promise<CreatedUserSummary>;
+  create(input: CreateUserInput): Promise<SDKUser>;
   /** Updates a user by id. */
-  update(id: string, input: UpdateUserInput): Promise<UpdatedUserSummary>;
+  update(id: string, input: UpdateUserInput): Promise<SDKUser>;
   /** Resets a user's password. */
   resetPassword(id: string, password: string): Promise<void>;
   /** Deletes a user by id. */
@@ -688,6 +690,8 @@ export interface UserListQuery extends ListPageQuery {
   appId?: string;
   active?: boolean;
   search?: string;
+  group?: string;
+  customAttributes?: Record<string, string>;
 }
 
 export interface SDKTenant {

@@ -659,10 +659,9 @@ paths:
       summary: OIDC UserInfo endpoint
       description: |
         Returns standard OpenID Connect claims for the user backing the bearer
-        access token. In addition to scope-driven profile/email claims, the
-        response always includes the user's `roles`, `groups`, and the
-        flattened set of effective `permissions` derived from those roles
-        (including roles inherited via group membership). Set `?format=signed`
+        access token. Profile claims (including `picture`), `email`, `roles`,
+        `groups`, and flattened `permissions` are included only when the
+        corresponding scope was granted on the access token. Set `?format=signed`
         (or `?response=jwt`) to receive the claims as a signed JWT instead of
         a JSON document.
       security:

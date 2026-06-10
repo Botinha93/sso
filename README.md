@@ -9,7 +9,7 @@ This repository provides a first-party identity platform aligned with OAuth 2.0 
 - Token endpoint with authorization_code, refresh_token, client_credentials, and password grants
 - Token introspection and revocation
 - Dynamic client registration (`/connect/register`)
-- UserInfo endpoint with scope-based profile/email claims plus always-on `roles`, `groups`, and flattened `permissions`
+- UserInfo endpoint with scope-gated claims: `profile` (name, username, picture), `email`, `roles`, `groups`, and flattened `permissions`
 - RP-initiated logout plus front-channel and back-channel logout support
 - JWT issuance for access, ID, and refresh tokens
 - Password hashing with `scrypt`

@@ -551,7 +551,7 @@ const ADMIN_CONCEPT_GUIDES: ConceptGuide[] = [
     whereInAdmin: ['Clients view (allowedScopes configuration)', 'Consents view', 'Scopes API and Documentation view'],
     details: [
       '"openid" scope is required for OIDC flows — without it the platform will not issue an ID token.',
-      'Standard scopes: openid (required for OIDC), profile (name/picture/locale), email (email address and verification), roles (role claims).',
+      'Standard scopes: openid (required for OIDC), profile (name/username/picture), email (email address and verification), roles (role claims), groups (group membership), permissions (effective permission strings).',
       'A scope must be in the client allowedScopes list to be granted, even if the user consents to it.',
       'Consent records persist scope approvals for a user-client pair so the consent screen does not re-appear on every login.',
       'Custom API scopes should be named to reflect the access they grant (e.g. "billing.read", "reports.write").',

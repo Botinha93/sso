@@ -125,7 +125,7 @@ import { ConnectorService, AuthMetricsService } from "../services/connector-serv
 import { PluginService } from "../services/plugin-service.js";
 import { PluginRuntimeService } from "../services/plugin-runtime-service.js";
 import { MediaService } from "../services/media-service.js";
-import { filterAdminList } from "./list-search.js";
+import { filterAdminList, parseAdminListQuery } from "./list-search.js";
 import { GeolocationService } from "../services/geolocation-service.js";
 import { TranslationService } from "../services/translation-service.js";
 import type {
@@ -1004,7 +1004,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     samlSignatureService: deps.samlSignatureService
   });
 
-  app.get("/.well-known/openid-configuration", async () => deps.oidcService.discoveryDocument());
+  app.get("/.well-known/openid-configuration", async () => await deps.oidcService.discoveryDocument());
   app.get("/.well-known/jwks.json", async () => deps.oidcService.jwks());
 
   app.post("/connect/register", async (request, reply) => {
@@ -1148,7 +1148,8 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       const idToken = await deps.authService.issueFrontChannelIdToken({
         userId: user.id,
         clientId: input.client_id,
-        nonce: String(input.nonce)
+        nonce: String(input.nonce),
+        scope: input.scope.split(" ").map((value) => value.trim()).filter(Boolean)
       });
       params.id_token = idToken;
     }
@@ -2688,14 +2689,29 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
 
   app.get("/api/admin/users", async (request) => {
-    const users = await deps.userService.listUsers();
-    return filterAdminList(users, request.query as Record<string, unknown>, [
+    const query = request.query as Record<string, unknown>;
+    const parsed = parseAdminListQuery(query);
+    const users = await deps.userService.listUsers({
+      group: parsed.group,
+      active: parsed.active,
+      customAttributes: Object.keys(parsed.customAttributes ?? {}).length > 0 ? parsed.customAttributes : undefined
+    });
+    return filterAdminList(users, query, [
       (user) => user.username,
       (user) => user.email,
       (user) => user.givenName,
       (user) => user.familyName,
       (user) => user.id
     ]);
+  });
+  app.get("/api/admin/users/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = await deps.userService.serializeAdminUser(id);
+    if (!user) {
+      reply.code(404);
+      return { error: "User not found" };
+    }
+    return user;
   });
   app.post("/api/admin/users", async (request, reply) => {
     const input = createUserSchema.parse(request.body);
@@ -2709,8 +2725,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       email: user.email,
       username: user.username
     });
+    const serialized = await deps.userService.serializeAdminUser(user.id);
     reply.code(201);
-    return { id: user.id, email: user.email, username: user.username };
+    return serialized ?? { id: user.id, email: user.email, username: user.username };
   });
   app.patch("/api/admin/users/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -2776,7 +2793,8 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       updatedGroupIds: groupIds,
       updatedCustomAttributes: customAttributes ? Object.keys(customAttributes) : undefined
     });
-    return { id, appId, appIds, externalSource, externalId, isServiceUser, avatarUrl, active, email, username, givenName, familyName };
+    const serialized = await deps.userService.serializeAdminUser(id);
+    return serialized ?? { id, appId, appIds, externalSource, externalId, isServiceUser, avatarUrl, active, email, username, givenName, familyName };
   });
   app.post("/api/admin/users/:id/reset-password", async (request, reply) => {
     const { id } = request.params as { id: string };

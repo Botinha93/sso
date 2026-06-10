@@ -159,19 +159,66 @@ export class UserService {
     return user;
   }
 
-  async listUsers() {
+  async serializeAdminUser(userId: string) {
+    const user = await this.userRepository.findById(userId);
+    if (!user) {
+      return null;
+    }
+
+    const { passwordHash: _passwordHash, ...safeUser } = user;
+    const directRoleIds = Array.from(
+      new Set((await this.roleService.listAssignmentsForUser(userId)).map((assignment) => assignment.roleId))
+    );
+
+    return {
+      ...safeUser,
+      ...(await this.resolveCustomAttributesForUser(userId)),
+      ...(await this.resolveAppAccessForUser(userId)),
+      roles: await this.roleService.resolveNamesForUser(userId),
+      directRoleIds,
+      groups: await this.groupService.resolveGroupNamesForUser(userId)
+    };
+  }
+
+  async listUsers(filters?: {
+    group?: string;
+    customAttributes?: Record<string, string>;
+    active?: boolean;
+  }) {
     const users = await this.userRepository.list();
-    return Promise.all(users.map(async ({ passwordHash, ...user }) => {
-      const directRoleIds = Array.from(new Set((await this.roleService.listAssignmentsForUser(user.id)).map((assignment) => assignment.roleId)));
-      return {
-        ...user,
-        ...(await this.resolveCustomAttributesForUser(user.id)),
-        ...(await this.resolveAppAccessForUser(user.id)),
-        roles: await this.roleService.resolveNamesForUser(user.id),
-        directRoleIds,
-        groups: await this.groupService.resolveGroupNamesForUser(user.id)
-      };
-    }));
+    const serialized = await Promise.all(
+      users.map(async ({ passwordHash, ...user }) => {
+        const directRoleIds = Array.from(
+          new Set((await this.roleService.listAssignmentsForUser(user.id)).map((assignment) => assignment.roleId))
+        );
+        return {
+          ...user,
+          ...(await this.resolveCustomAttributesForUser(user.id)),
+          ...(await this.resolveAppAccessForUser(user.id)),
+          roles: await this.roleService.resolveNamesForUser(user.id),
+          directRoleIds,
+          groups: await this.groupService.resolveGroupNamesForUser(user.id)
+        };
+      })
+    );
+
+    let results = serialized;
+    if (filters?.active !== undefined) {
+      results = results.filter((user) => user.active === filters.active);
+    }
+    if (filters?.group) {
+      const needle = filters.group.trim().toLowerCase();
+      results = results.filter((user) =>
+        (user.groups ?? []).some((groupName) => groupName.toLowerCase() === needle || groupName.toLowerCase().includes(needle))
+      );
+    }
+    if (filters?.customAttributes) {
+      for (const [key, value] of Object.entries(filters.customAttributes)) {
+        results = results.filter((user) => (user.customAttributes ?? {})[key] === value);
+      }
+    }
+
+    return results;
   }
 
   async findUserByEmail(email: string) {

@@ -1,9 +1,7 @@
 import type { ClientInstance } from "../core/types.js";
 import { applyPagination, applyTextFilter } from "../core/list-helpers.js";
 import type {
-  CreatedUserSummary,
   SDKUser,
-  UpdatedUserSummary,
   UsersAPI,
   CreateUserInput,
   UpdateUserInput,
@@ -17,7 +15,22 @@ import type {
  */
 export const createUsersAPI = (client: ClientInstance): UsersAPI => ({
   list: async (query?: UserListQuery) => {
-    const users = await client.get<SDKUser[]>("/api/admin/users");
+    const queryParams: Record<string, string | number | boolean> = {};
+    if (query?.appId) queryParams.appId = query.appId;
+    if (query?.active !== undefined) queryParams.active = query.active;
+    if (query?.search) queryParams.search = query.search;
+    if (query?.group) queryParams.group = query.group;
+    if (query?.page) queryParams.page = query.page;
+    if (query?.pageSize) queryParams.pageSize = query.pageSize;
+    if (query?.customAttributes) {
+      for (const [key, value] of Object.entries(query.customAttributes)) {
+        queryParams[`customAttribute.${key}`] = value;
+      }
+    }
+
+    const users = await client.get<SDKUser[]>("/api/admin/users", {
+      query: Object.keys(queryParams).length > 0 ? queryParams : undefined
+    });
 
     const byApp = query?.appId ? users.filter((item) => item.appId === query.appId) : users;
     const byActive = query?.active === undefined ? byApp : byApp.filter((item) => item.active === query.active);
@@ -30,8 +43,9 @@ export const createUsersAPI = (client: ClientInstance): UsersAPI => ({
 
     return applyPagination(bySearch, query);
   },
-  create: (input: CreateUserInput) => client.post<CreatedUserSummary>("/api/admin/users", { body: input }),
-  update: (id: string, input: UpdateUserInput) => client.patch<UpdatedUserSummary>(`/api/admin/users/${id}`, { body: input }),
+  get: (id: string) => client.get<SDKUser>(`/api/admin/users/${id}`),
+  create: (input: CreateUserInput) => client.post<SDKUser>("/api/admin/users", { body: input }),
+  update: (id: string, input: UpdateUserInput) => client.patch<SDKUser>(`/api/admin/users/${id}`, { body: input }),
   resetPassword: async (id: string, password: string) => {
     await client.post(`/api/admin/users/${id}/reset-password`, { body: { password } });
   },

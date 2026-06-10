@@ -27,23 +27,35 @@ export class JwtService {
     user: User;
     client: OAuthClient;
     scope: string[];
-    roles: string[];
     accessTokenId: string;
     refreshTokenId: string;
     tenantId?: string;
+    idTokenClaims?: Record<string, unknown>;
+    accessTokenAuthorizationClaims?: { roles?: string[]; groups?: string[]; permissions?: string[] };
   }): Promise<TokenBundle> {
-    const { user, client, scope, roles, accessTokenId, refreshTokenId, tenantId } = params;
+    const { user, client, scope, accessTokenId, refreshTokenId, tenantId, idTokenClaims, accessTokenAuthorizationClaims } = params;
     const now = Math.floor(Date.now() / 1000);
     const scopeValue = scope.join(" ");
     const accessTtl = resolveAccessTokenTtlSeconds(client);
     const refreshTtl = resolveRefreshTokenTtlSeconds(client);
 
-    const accessToken = await new SignJWT({
+    const accessTokenPayload: Record<string, unknown> = {
       scope: scopeValue,
-      roles,
       client_id: client.id,
       tenant_id: tenantId
-    })
+    };
+
+    if (accessTokenAuthorizationClaims?.roles) {
+      accessTokenPayload.roles = accessTokenAuthorizationClaims.roles;
+    }
+    if (accessTokenAuthorizationClaims?.groups) {
+      accessTokenPayload.groups = accessTokenAuthorizationClaims.groups;
+    }
+    if (accessTokenAuthorizationClaims?.permissions) {
+      accessTokenPayload.permissions = accessTokenAuthorizationClaims.permissions;
+    }
+
+    const accessToken = await new SignJWT(accessTokenPayload)
       .setProtectedHeader({ alg: "RS256", kid: this.keys.kid })
       .setIssuer(this.appConfig.issuer)
       .setAudience(client.id)
@@ -53,12 +65,7 @@ export class JwtService {
       .setExpirationTime(now + accessTtl)
       .sign(this.keys.privateKey);
 
-    const idToken = await new SignJWT({
-      email: user.email,
-      preferred_username: user.username,
-      given_name: user.givenName,
-      family_name: user.familyName
-    })
+    const idToken = await new SignJWT(idTokenClaims ?? {})
       .setProtectedHeader({ alg: "RS256", kid: this.keys.kid })
       .setIssuer(this.appConfig.issuer)
       .setAudience(client.id)
@@ -153,21 +160,32 @@ export class JwtService {
     user: User;
     client: OAuthClient;
     scope: string[];
-    roles: string[];
     accessTokenId: string;
     tenantId?: string;
+    accessTokenAuthorizationClaims?: { roles?: string[]; groups?: string[]; permissions?: string[] };
   }) {
-    const { user, client, scope, roles, accessTokenId, tenantId } = params;
+    const { user, client, scope, accessTokenId, tenantId, accessTokenAuthorizationClaims } = params;
     const now = Math.floor(Date.now() / 1000);
     const scopeValue = scope.join(" ");
     const accessTtl = resolveAccessTokenTtlSeconds(client);
 
-    const accessToken = await new SignJWT({
+    const accessTokenPayload: Record<string, unknown> = {
       scope: scopeValue,
-      roles,
       client_id: client.id,
       tenant_id: tenantId
-    })
+    };
+
+    if (accessTokenAuthorizationClaims?.roles) {
+      accessTokenPayload.roles = accessTokenAuthorizationClaims.roles;
+    }
+    if (accessTokenAuthorizationClaims?.groups) {
+      accessTokenPayload.groups = accessTokenAuthorizationClaims.groups;
+    }
+    if (accessTokenAuthorizationClaims?.permissions) {
+      accessTokenPayload.permissions = accessTokenAuthorizationClaims.permissions;
+    }
+
+    const accessToken = await new SignJWT(accessTokenPayload)
       .setProtectedHeader({ alg: "RS256", kid: this.keys.kid })
       .setIssuer(this.appConfig.issuer)
       .setAudience(client.id)
@@ -189,16 +207,14 @@ export class JwtService {
     user: User;
     client: OAuthClient;
     nonce?: string;
+    claims?: Record<string, unknown>;
   }) {
-    const { user, client, nonce } = params;
+    const { user, client, nonce, claims } = params;
     const now = Math.floor(Date.now() / 1000);
 
     return await new SignJWT({
-      email: user.email,
-      preferred_username: user.username,
-      given_name: user.givenName,
-      family_name: user.familyName,
-      nonce
+      ...(claims ?? {}),
+      ...(nonce ? { nonce } : {})
     })
       .setProtectedHeader({ alg: "RS256", kid: this.keys.kid })
       .setIssuer(this.appConfig.issuer)

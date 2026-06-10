@@ -391,7 +391,7 @@ export const bootstrap = async (config: AppConfig) => {
       name: "SSO Admin UI",
       secret: "super-secret-admin-client",
       redirectUris: ["http://localhost:3000/callback"],
-      allowedScopes: ["openid", "profile", "email", "offline_access", "roles"],
+      allowedScopes: ["openid", "profile", "email", "offline_access", "roles", "groups", "permissions"],
       grants: ["authorization_code", "refresh_token"],
       requirePkce: true,
       resources: [],
@@ -405,7 +405,7 @@ export const bootstrap = async (config: AppConfig) => {
       name: "SSO Device CLI",
       secret: "super-secret-device-client",
       redirectUris: [],
-      allowedScopes: ["openid", "profile", "email", "offline_access", "roles"],
+      allowedScopes: ["openid", "profile", "email", "offline_access", "roles", "groups", "permissions"],
       grants: ["device_code", "refresh_token"],
       requirePkce: false,
       resources: [],
@@ -419,7 +419,7 @@ export const bootstrap = async (config: AppConfig) => {
       name: "SSO Password CLI",
       secret: "super-secret-password-client",
       redirectUris: [],
-      allowedScopes: ["openid", "profile", "email", "offline_access", "roles"],
+      allowedScopes: ["openid", "profile", "email", "offline_access", "roles", "groups", "permissions"],
       grants: ["password", "refresh_token"],
       requirePkce: false,
       resources: [],
@@ -433,12 +433,23 @@ export const bootstrap = async (config: AppConfig) => {
       name: "SSO Service Client",
       secret: "super-secret-service-client",
       redirectUris: [],
-      allowedScopes: ["roles"],
+      allowedScopes: ["roles", "groups", "permissions"],
       grants: ["client_credentials"],
       requirePkce: false,
       resources: [],
       flowIds: []
     });
+  }
+
+  const builtinUserClientScopes = ["openid", "profile", "email", "offline_access", "roles", "groups", "permissions"];
+  for (const clientId of ["sso-admin-ui", "sso-device-cli", "sso-password-cli"]) {
+    const client = await clientRepository.findById(clientId);
+    if (!client) continue;
+
+    const mergedScopes = [...new Set([...client.allowedScopes, ...builtinUserClientScopes])];
+    if (mergedScopes.length !== client.allowedScopes.length) {
+      await clientRepository.update(client.id, { allowedScopes: mergedScopes });
+    }
   }
 
   const defaultApps = await appRepository.list();
@@ -481,7 +492,7 @@ export const bootstrap = async (config: AppConfig) => {
     securityService,
     serviceIdentityService
   );
-  const oidcService = new OidcService(config, jwtService);
+  const oidcService = new OidcService(config, jwtService, scopeService);
 
   return {
     config,

@@ -23,7 +23,7 @@ test("OAuth/OIDC grant flows: authorization_code, refresh, client_credentials, p
         "device_code"
       ],
       response_types: ["code", "token"],
-      scope: "openid profile email roles"
+      scope: "openid profile email roles groups permissions"
     }
   });
 
@@ -51,7 +51,7 @@ test("OAuth/OIDC grant flows: authorization_code, refresh, client_credentials, p
 
   const authorizeCodeResponse = await app.inject({
     method: "GET",
-    url: `/oauth/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent("http://localhost:3000/callback")}&scope=${encodeURIComponent("openid profile email roles")}&state=abc123&consent=approve&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`,
+    url: `/oauth/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent("http://localhost:3000/callback")}&scope=${encodeURIComponent("openid profile email roles groups permissions")}&state=abc123&consent=approve&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`,
     headers: {
       cookie: sid
     }

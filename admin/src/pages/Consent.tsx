@@ -3,13 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { ShieldCheck, AlertCircle, KeyRound } from "lucide-react";
 import Button from '../components/ui/Button'
 
-const SCOPE_LABELS: Record<string, string> = {
-  openid: "Verify your identity (OpenID Connect)",
-  profile: "Access your name and username",
-  email: "Access your email address",
-  offline_access: "Stay signed in with refresh tokens",
-  roles: "Read your assigned roles",
-};
+import { SCOPE_CONSENT_LABELS } from '../constants/oidc-scopes'
 
 interface UiCustomization {
   title?: string;
@@ -127,7 +121,7 @@ export default function Consent() {
             {scopes.map(s => (
               <div key={s} className="flex items-start gap-2 text-sm text-slate-700">
                 <ShieldCheck size={14} className="mt-0.5 shrink-0 text-emerald-500" />
-                <span>{SCOPE_LABELS[s] ?? s}</span>
+                <span>{SCOPE_CONSENT_LABELS[s] ?? s}</span>
               </div>
             ))}
           </div>

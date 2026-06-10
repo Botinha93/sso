@@ -10,6 +10,7 @@ import Input, { inputBaseClassName } from '../components/ui/Input'
 import Card from '../components/ui/Card'
 import StatusBadge from '../components/ui/StatusBadge'
 import { useClients, useCreateClient, useDeleteClient, useUpdateClient, useScopes, useCreateScope, useDeleteScope, useAuthenticationFlows, useApps } from '../hooks/useApi'
+import { DEFAULT_CLIENT_SCOPES, SCOPE_CLAIM_MAP } from '../constants/oidc-scopes'
 import React from 'react';
 
 interface OAuthClient {
@@ -54,7 +55,7 @@ const defaultForm = () => ({
   name: '',
   secret: generateClientSecret(),
   redirectUris: '',
-  allowedScopes: ['openid', 'profile', 'email'] as string[],
+  allowedScopes: [...DEFAULT_CLIENT_SCOPES] as string[],
   grants: ['authorization_code', 'refresh_token'] as GrantType[],
   requirePkce: false,
   flowIds: [] as string[],
@@ -440,19 +441,35 @@ const Clients = () => {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelCls}>Allowed Scopes</label>
-              <div className="rounded-lg border border-slate-200 p-2 max-h-[180px] overflow-auto bg-slate-50/40 space-y-1.5">
+              <p className="mb-1.5 text-[11px] text-slate-500">
+                Select which scopes this client may request. Known scopes map to specific token claims.
+              </p>
+              <div className="rounded-lg border border-slate-200 p-2 max-h-[220px] overflow-auto bg-slate-50/40 space-y-1.5">
                 {scopes.length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No scopes defined.</p>}
-                {scopes.map((scope: any) => (
-                  <label key={scope.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.allowedScopes.includes(scope.name)}
-                      onChange={() => toggleScope(scope.name)}
-                      className="rounded border-slate-300"
-                    />
-                    <span className="font-mono">{scope.name}</span>
-                  </label>
-                ))}
+                {scopes.map((scope: any) => {
+                  const claimHints = SCOPE_CLAIM_MAP[scope.name]
+                  return (
+                    <label key={scope.id} className="flex items-start gap-2 text-xs text-slate-700 cursor-pointer rounded-md px-1 py-1 hover:bg-white/70">
+                      <input
+                        type="checkbox"
+                        checked={formData.allowedScopes.includes(scope.name)}
+                        onChange={() => toggleScope(scope.name)}
+                        className="mt-0.5 rounded border-slate-300"
+                      />
+                      <span className="min-w-0">
+                        <span className="font-mono text-slate-800">{scope.name}</span>
+                        {scope.description && (
+                          <span className="block text-[11px] text-slate-500">{scope.description}</span>
+                        )}
+                        {claimHints && (
+                          <span className="block text-[10px] text-slate-400 font-mono">
+                            claims: {claimHints.join(', ')}
+                          </span>
+                        )}
+                      </span>
+                    </label>
+                  )
+                })}
               </div>
             </div>
             <div>
@@ -492,7 +509,10 @@ const Clients = () => {
             </div>
           </div>
           <div className="rounded-lg border border-slate-200 p-3 bg-slate-50/40 space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Create Scope</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Scope Catalog</p>
+            <p className="text-[11px] text-slate-500">
+              Add custom API scopes here, then enable them for clients above. Built-in scopes unlock standard OIDC claims.
+            </p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Input
                 type="text"

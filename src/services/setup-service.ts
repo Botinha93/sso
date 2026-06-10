@@ -6,6 +6,7 @@ import type { RoleService } from "./role-service.js";
 import type { ScopeService } from "./scope-service.js";
 import type { UserService } from "./user-service.js";
 import type { InstanceSettingsService } from "./instance-settings-service.js";
+import { DEFAULT_SCOPES } from "../domain/oidc-scopes.js";
 
 const ALL_RESOURCES = [
   "users",
@@ -331,17 +332,9 @@ export class SetupService {
     }
 
     // Ensure core OIDC scopes exist even on first run.
-    const defaults = [
-      { name: "openid", description: "Authenticate user with OpenID Connect" },
-      { name: "profile", description: "Read basic profile claims" },
-      { name: "email", description: "Read user email claims" },
-      { name: "offline_access", description: "Request refresh tokens" },
-      { name: "roles", description: "Read role claims" }
-    ];
-
     const existingScopes = (await this.scopeService.listScopes()).map((scope) => scope.name);
     const known = new Set(existingScopes);
-    for (const scope of defaults) {
+    for (const scope of DEFAULT_SCOPES) {
       if (!known.has(scope.name)) {
         await this.scopeService.createScope(scope);
       }

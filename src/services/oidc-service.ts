@@ -1,15 +1,20 @@
 import type { AppConfig } from "../core/config.js";
 import { JwtService, resolveAccessTokenTtlSeconds } from "../security/jwt.js";
 import type { OAuthClient } from "../domain/models.js";
+import { DEFAULT_SCOPES, OIDC_CLAIMS_SUPPORTED } from "../domain/oidc-scopes.js";
+import type { ScopeService } from "./scope-service.js";
 
 export class OidcService {
   constructor(
     private readonly appConfig: AppConfig,
-    private readonly jwtService: JwtService
+    private readonly jwtService: JwtService,
+    private readonly scopeService: ScopeService
   ) {}
 
-  discoveryDocument() {
+  async discoveryDocument() {
     const issuer = this.appConfig.issuer;
+    const catalogScopes = (await this.scopeService.listScopes()).map((scope) => scope.name);
+    const scopesSupported = [...new Set([...DEFAULT_SCOPES.map((scope) => scope.name), ...catalogScopes])];
 
     return {
       issuer,
@@ -30,18 +35,8 @@ export class OidcService {
       subject_types_supported: ["public"],
       id_token_signing_alg_values_supported: ["RS256"],
       token_endpoint_auth_methods_supported: ["client_secret_post"],
-      scopes_supported: ["openid", "profile", "email", "offline_access", "roles"],
-      claims_supported: [
-        "sub",
-        "iss",
-        "aud",
-        "exp",
-        "iat",
-        "email",
-        "preferred_username",
-        "given_name",
-        "family_name"
-      ],
+      scopes_supported: scopesSupported,
+      claims_supported: [...OIDC_CLAIMS_SUPPORTED],
       grant_types_supported: [
         "authorization_code",
         "refresh_token",
