@@ -13,7 +13,7 @@ export const DEFAULT_SCOPES = [
 
 /** Claims emitted when each scope is granted (sub is always included separately). */
 export const SCOPE_CLAIM_MAP: Record<string, readonly string[]> = {
-  profile: ["preferred_username", "given_name", "family_name", "picture"],
+  profile: ["name", "preferred_username", "given_name", "family_name", "picture"],
   email: ["email", "email_verified"],
   roles: ["roles"],
   groups: ["groups"],
@@ -28,6 +28,7 @@ export const OIDC_CLAIMS_SUPPORTED = [
   "iat",
   "email",
   "email_verified",
+  "name",
   "preferred_username",
   "given_name",
   "family_name",
@@ -65,6 +66,7 @@ export async function buildScopeGatedClaims(
   const claims: Record<string, unknown> = { sub: user.id };
 
   if (scopes.includes("profile")) {
+    claims.name = `${user.givenName} ${user.familyName}`.trim() || user.username;
     claims.preferred_username = user.username;
     claims.given_name = user.givenName;
     claims.family_name = user.familyName;

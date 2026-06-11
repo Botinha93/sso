@@ -251,6 +251,18 @@ export class UserService {
       throw new ValidationError("User not found");
     }
 
+    // Guard against profile syncs that echo the user's `id` (i.e. the OIDC
+    // `sub`) back as their username/email. Some OIDC clients fall back to `sub`
+    // when no `name`/`preferred_username` is mapped and then push that value
+    // back through profile updates, which would otherwise overwrite a real
+    // username with an opaque id. Drop those fields instead of corrupting them.
+    if (input.username !== undefined && input.username === existing.id) {
+      input = { ...input, username: undefined };
+    }
+    if (input.email !== undefined && input.email === existing.id) {
+      input = { ...input, email: undefined };
+    }
+
     if (input.email && input.email.toLowerCase() !== existing.email.toLowerCase()) {
       const byEmail = await this.userRepository.findByEmail(input.email);
       if (byEmail && byEmail.id !== id) {

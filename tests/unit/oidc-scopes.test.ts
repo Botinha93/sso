@@ -29,6 +29,7 @@ test("buildScopeGatedClaims returns only claims for granted scopes", async () =>
   });
 
   assert.equal(claims.sub, "user-1");
+  assert.equal(claims.name, "Alex Example");
   assert.equal(claims.preferred_username, "alex");
   assert.equal(claims.picture, "https://cdn.example.com/alex.png");
   assert.deepEqual(claims.groups, ["ops"]);

@@ -195,3 +195,68 @@ test("admin user creation accepts passwordHash for API migration", async (t) => 
   });
   assert.equal(importedLogin.statusCode, 200);
 });
+
+test("user update does not overwrite username with the user's id", async (t) => {
+  const { app, admin } = await createTestContext("integration-admin-users-username-id-guard");
+
+  t.after(async () => {
+    await app.close();
+  });
+
+  const login = await app.inject({
+    method: "POST",
+    url: "/auth/login",
+    payload: {
+      email: admin.email,
+      password: admin.password,
+      clientId: "sso-admin-ui",
+      scope: ["openid", "profile", "email"]
+    }
+  });
+  assert.equal(login.statusCode, 200);
+
+  const sid = extractCookie(login.headers["set-cookie"], "sid");
+  const csrfResponse = await app.inject({
+    method: "GET",
+    url: "/api/csrf-token",
+    headers: { cookie: sid }
+  });
+  assert.equal(csrfResponse.statusCode, 200);
+
+  const csrfCookie = extractCookie(csrfResponse.headers["set-cookie"], "csrf_token");
+  const csrfToken = String(csrfResponse.json().csrf_token);
+  const headers = {
+    cookie: `${sid}; ${csrfCookie}`,
+    "x-csrf-token": csrfToken
+  };
+
+  const created = await app.inject({
+    method: "POST",
+    url: "/api/admin/users",
+    headers,
+    payload: {
+      email: "guarded-user@example.com",
+      username: "guarded_user",
+      password: "Change-Me-Now1!",
+      givenName: "Guarded",
+      familyName: "User"
+    }
+  });
+  assert.equal(created.statusCode, 201);
+  const userId = created.json().id as string;
+
+  // Simulate an OIDC client echoing the `sub` (== user id) back as the
+  // username via a profile sync. The username must be preserved.
+  const updated = await app.inject({
+    method: "PATCH",
+    url: `/api/admin/users/${userId}`,
+    headers,
+    payload: {
+      username: userId,
+      givenName: "Still"
+    }
+  });
+  assert.equal(updated.statusCode, 200);
+  assert.equal(updated.json().username, "guarded_user");
+  assert.equal(updated.json().givenName, "Still");
+});
