@@ -6,6 +6,11 @@ export type MaybePromise<T> = T | Promise<T>;
 export interface RetryPolicy {
   maxAttempts?: number;
   retryableStatusCodes?: number[];
+  /**
+   * Minimum delay in milliseconds enforced between consecutive requests issued
+   * by this client. Useful for throttling bulk operations against rate limits.
+   */
+  interRequestDelayMs?: number;
 }
 
 export type AuthConfig =

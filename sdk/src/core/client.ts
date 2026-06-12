@@ -144,11 +144,27 @@ const parseResponseBody = async (response: Response, parseAs: RequestOptions["pa
   return text.length > 0 ? text : undefined;
 };
 
+const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
 const createRequestMethod = (options: ClientOptions): ClientInstance["request"] => {
   const baseUrl = normalizeBaseUrl(options.baseUrl);
   const fetchImpl = options.fetch ?? fetch;
   const maxAttempts = Math.max(1, options.retry?.maxAttempts ?? 1);
   const retryableStatusCodes = options.retry?.retryableStatusCodes ?? DEFAULT_RETRYABLE_STATUS_CODES;
+  const interRequestDelayMs = Math.max(0, options.retry?.interRequestDelayMs ?? 0);
+  let lastRequestFinishedAt: number | undefined;
+
+  const throttleBeforeRequest = async (): Promise<void> => {
+    if (interRequestDelayMs <= 0 || lastRequestFinishedAt === undefined) {
+      return;
+    }
+
+    const elapsed = Date.now() - lastRequestFinishedAt;
+    const remaining = interRequestDelayMs - elapsed;
+    if (remaining > 0) {
+      await delay(remaining);
+    }
+  };
 
   return async <T>(requestOptions: RequestOptions): Promise<T> => {
     const method = requestOptions.method ?? "GET";
@@ -176,12 +192,19 @@ const createRequestMethod = (options: ClientOptions): ClientInstance["request"] 
           headers.set("content-type", serialized.contentType);
         }
 
-        const response = await fetchImpl(url, {
-          method,
-          headers,
-          body: serialized.body,
-          signal: mergeSignals(controller.signal, requestOptions.signal)
-        });
+        await throttleBeforeRequest();
+
+        let response: Response;
+        try {
+          response = await fetchImpl(url, {
+            method,
+            headers,
+            body: serialized.body,
+            signal: mergeSignals(controller.signal, requestOptions.signal)
+          });
+        } finally {
+          lastRequestFinishedAt = Date.now();
+        }
 
         const acceptedStatuses = requestOptions.acceptStatuses ?? [];
         const isSuccess = response.ok || acceptedStatuses.includes(response.status);

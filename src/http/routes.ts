@@ -3418,7 +3418,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       inheritedAppSources: userAppAccess.inheritedAppSources,
       roles: roleDetails.map((role) => role.name),
       groups: await deps.groupService.resolveGroupNamesForUser(user.id),
-      permissions: Array.from(new Set(roleDetails.flatMap((role) => role.permissions))),
+      permissions: await deps.roleService.resolvePermissionsForUser(user.id),
       rolePermissions: roleDetails,
       apps: userApps.map(a => ({ id: a.id, name: a.name, description: a.description, icon: a.icon, imageUrl: a.imageUrl, url: a.url }))
     };

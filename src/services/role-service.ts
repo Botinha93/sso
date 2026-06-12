@@ -1,4 +1,5 @@
 import { ValidationError } from "../core/errors.js";
+import { canonicalizeRolePermissionDetails, flattenRolePermissions } from "../domain/permissions.js";
 import type {
   GroupRoleAssignmentRepository,
   TenantRepository,
@@ -91,15 +92,15 @@ export class RoleService {
 
   async resolvePermissionsForAssignments(roleIds: string[], groupIds: string[]) {
     const effectiveRoleIds = await this.resolveEffectiveRoleIds(roleIds, groupIds);
-    const permissions = (await this.roleRepository.findByIds(effectiveRoleIds)).flatMap((role) => role.permissions);
-    return Array.from(new Set(permissions));
+    const roles = await this.roleRepository.findByIds(effectiveRoleIds);
+    return flattenRolePermissions(roles);
   }
 
   async resolveRolePermissionDetailsForAssignments(roleIds: string[], groupIds: string[]) {
     const effectiveRoleIds = await this.resolveEffectiveRoleIds(roleIds, groupIds);
     const roles = await this.roleRepository.findByIds(effectiveRoleIds);
 
-    return roles.map((role) => ({
+    return roles.map((role) => canonicalizeRolePermissionDetails({
       id: role.id,
       name: role.name,
       scope: role.scope,

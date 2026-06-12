@@ -22,6 +22,7 @@ class RetryPolicy:
     max_attempts: int = 1
     retryable_status_codes: tuple[int, ...] = (408, 425, 429, 500, 502, 503, 504)
     backoff_seconds: float = 0.15
+    inter_request_delay_seconds: float = 0.0
 
 
 class NexusIDClient:
@@ -41,6 +42,7 @@ class NexusIDClient:
         self._retry = retry or RetryPolicy()
         self._default_headers = dict(default_headers or {})
         self._http = http_client or httpx.Client(timeout=timeout_seconds)
+        self._last_request_finished_at: float | None = None
 
     @property
     def base_url(self) -> str:
@@ -193,6 +195,7 @@ class NexusIDClient:
         files: Mapping[str, Any] | None,
         timeout: float,
     ) -> httpx.Response:
+        self._sleep_before_request()
         kwargs: dict[str, Any] = {
             "method": method,
             "url": url,
@@ -212,7 +215,10 @@ class NexusIDClient:
             else:
                 kwargs["content"] = body
 
-        return self._http.request(**kwargs)
+        try:
+            return self._http.request(**kwargs)
+        finally:
+            self._last_request_finished_at = time.monotonic()
 
     def _response_error(self, response: httpx.Response) -> APIResponseError:
         payload: Any = None
@@ -247,6 +253,16 @@ class NexusIDClient:
 
     def _sleep_before_retry(self, attempt: int) -> None:
         sleep_seconds = self._retry.backoff_seconds * attempt
+        if sleep_seconds > 0:
+            time.sleep(sleep_seconds)
+
+    def _sleep_before_request(self) -> None:
+        delay_seconds = self._retry.inter_request_delay_seconds
+        if delay_seconds <= 0 or self._last_request_finished_at is None:
+            return
+
+        elapsed_seconds = time.monotonic() - self._last_request_finished_at
+        sleep_seconds = delay_seconds - elapsed_seconds
         if sleep_seconds > 0:
             time.sleep(sleep_seconds)
 
