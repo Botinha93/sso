@@ -453,6 +453,25 @@ export function useGroups(search?: string) {
   })
 }
 
+export function useGroupUsers(groupId?: string) {
+  return useQuery({
+    queryKey: ['group-users', groupId ?? 'none'],
+    queryFn: () => jsonFetch(`${API_BASE}/groups/${groupId}/users`) as Promise<{
+      userIds: string[]
+      users: Array<{
+        id: string
+        email: string
+        username: string
+        givenName: string
+        familyName: string
+        isServiceUser: boolean
+        active: boolean
+      }>
+    }>,
+    enabled: Boolean(groupId)
+  })
+}
+
 export function useCreateGroup() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -543,7 +562,10 @@ export function useAssignUserToGroup() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, groupId })
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] })
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      queryClient.invalidateQueries({ queryKey: ['group-users'] })
+    }
   })
 }
 
@@ -556,7 +578,10 @@ export function useRemoveUserFromGroup() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, groupId })
       }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] })
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      queryClient.invalidateQueries({ queryKey: ['group-users'] })
+    }
   })
 }
 

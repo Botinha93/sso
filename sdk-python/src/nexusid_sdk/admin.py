@@ -107,6 +107,13 @@ class UsersAPI:
     def list(self, **query: Any) -> gm.GetApiAdminUsersResponse:
         return cast(gm.GetApiAdminUsersResponse, self._client.get("/api/admin/users", query=query))
 
+    def get(self, user_id: str) -> gm.GetApiAdminUsersByIdResponse:
+        """Return a single user's full admin detail (profile, custom attributes, groups, roles)."""
+        return cast(
+            gm.GetApiAdminUsersByIdResponse,
+            self._client.get(f"/api/admin/users/{user_id}"),
+        )
+
     def create(self, payload: gm.PostApiAdminUsersRequestBody) -> gm.PostApiAdminUsersResponse:
         return cast(gm.PostApiAdminUsersResponse, self._client.post("/api/admin/users", body=payload))
 

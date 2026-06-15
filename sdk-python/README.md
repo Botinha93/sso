@@ -53,6 +53,7 @@ print(users)
 - `auth.get_userinfo_signed()` — signed JWT UserInfo
 - `admin.me.get()` — current admin user with roles, groups, permissions
 - `admin.users.list(...)`
+- `admin.users.get(user_id)` — full admin detail for a single user (profile, custom attributes, groups, roles)
 - `admin.clients.list(...)`
 - `admin.permissions.list()`
 - `admin.access_requests.create(...)`

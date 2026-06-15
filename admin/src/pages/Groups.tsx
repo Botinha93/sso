@@ -14,13 +14,17 @@ import React from 'react';
 
 import {
   useAssignRoleToGroup,
+  useAssignUserToGroup,
   useCreateGroup,
   useDeleteGroup,
   useApps,
   useGroups,
+  useGroupUsers,
   useRemoveRoleFromGroup,
+  useRemoveUserFromGroup,
   useUpdateGroup,
   useUserAttributes,
+  useUsers,
   useRoles
 } from '../hooks/useApi'
 
@@ -40,6 +44,16 @@ interface RoleItem {
   id: string
   name: string
   appId?: string
+}
+
+interface UserItem {
+  id: string
+  email: string
+  username: string
+  givenName: string
+  familyName: string
+  isServiceUser?: boolean
+  active?: boolean
 }
 
 interface AppItem {
@@ -129,9 +143,11 @@ const Groups = () => {
   const [attributePicker, setAttributePicker] = useState<{ create: string; edit: string }>({ create: '', edit: '' })
   const [createFormError, setCreateFormError] = useState('')
   const [editFormError, setEditFormError] = useState('')
-  const [editActiveTab, setEditActiveTab] = useState<'details' | 'roles'>('details')
+  const [editActiveTab, setEditActiveTab] = useState<'details' | 'roles' | 'users'>('details')
   const [editRoleSearch, setEditRoleSearch] = useState('')
   const [editRoleAppFilter, setEditRoleAppFilter] = useState<string>('all')
+  const [editUserSearch, setEditUserSearch] = useState('')
+  const [userToAddId, setUserToAddId] = useState('')
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([])
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkRoleAction, setBulkRoleAction] = useState<null | 'assign' | 'remove'>(null)
@@ -145,11 +161,21 @@ const Groups = () => {
   const { data: apps = [] } = useApps()
   const { data: roles = [] } = useRoles()
   const { data: attributeDefinitions = [] } = useUserAttributes()
+  const { data: allUsers = [] } = useUsers()
   const createGroup = useCreateGroup()
   const deleteGroup = useDeleteGroup()
   const updateGroup = useUpdateGroup()
   const assignRole = useAssignRoleToGroup()
   const removeRole = useRemoveRoleFromGroup()
+  const assignUser = useAssignUserToGroup()
+  const removeUser = useRemoveUserFromGroup()
+
+  const {
+    data: groupUsersData,
+    isLoading: groupUsersLoading,
+    isFetching: groupUsersFetching
+  } = useGroupUsers(editModalOpen && groupToEdit ? groupToEdit.id : undefined)
+  const groupUsers = groupUsersData?.users ?? []
 
   const roleOptions = roles as RoleItem[]
   const appNameById = new Map((apps as AppItem[]).map((a) => [a.id, a.name]))
@@ -200,6 +226,23 @@ const Groups = () => {
     if (filteredEditRoles.length === 0) return
     setEditSelectedRoleIds((prev) => prev.filter((id) => !filteredEditRoleIds.includes(id)))
   }
+
+  const groupUserIdSet = useMemo(() => new Set(groupUsers.map((user) => user.id)), [groupUsers])
+
+  const filteredGroupUsers = useMemo(() => {
+    const term = editUserSearch.trim().toLowerCase()
+    if (!term) return groupUsers
+    return groupUsers.filter((user) =>
+      user.email.toLowerCase().includes(term) ||
+      user.username.toLowerCase().includes(term) ||
+      `${user.givenName} ${user.familyName}`.toLowerCase().includes(term)
+    )
+  }, [groupUsers, editUserSearch])
+
+  const availableUsersToAdd = useMemo(
+    () => (allUsers as UserItem[]).filter((user) => !groupUserIdSet.has(user.id)),
+    [allUsers, groupUserIdSet]
+  )
 
   const filteredGroupIds = useMemo(() => filteredGroups.map((group) => group.id), [filteredGroups])
   const selectedFilteredGroupCount = useMemo(
@@ -412,6 +455,8 @@ const Groups = () => {
     setEditActiveTab('details')
     setEditRoleSearch('')
     setEditRoleAppFilter('all')
+    setEditUserSearch('')
+    setUserToAddId('')
     setEditModalOpen(true)
   }
 
@@ -451,6 +496,29 @@ const Groups = () => {
     const roleId = rolePickerByGroup[group.id]
     if (!roleId) return
     assignRole.mutate({ groupId: group.id, roleId })
+  }
+
+  const onAddUserToGroup = () => {
+    if (!groupToEdit || !userToAddId) return
+    setEditFormError('')
+    assignUser.mutate(
+      { userId: userToAddId, groupId: groupToEdit.id },
+      {
+        onSuccess: () => setUserToAddId(''),
+        onError: (error) => setEditFormError(error instanceof Error ? error.message : 'Failed to add user')
+      }
+    )
+  }
+
+  const onRemoveUserFromGroup = (userId: string) => {
+    if (!groupToEdit) return
+    setEditFormError('')
+    removeUser.mutate(
+      { userId, groupId: groupToEdit.id },
+      {
+        onError: (error) => setEditFormError(error instanceof Error ? error.message : 'Failed to remove user')
+      }
+    )
   }
 
   return (
@@ -789,7 +857,8 @@ const Groups = () => {
           <div className="flex gap-2 border-b border-slate-200 -mt-2">
             {([
               { key: 'details', label: 'Details' },
-              { key: 'roles', label: `Roles (${editSelectedRoleIds.length})` }
+              { key: 'roles', label: `Roles (${editSelectedRoleIds.length})` },
+              { key: 'users', label: `Users (${groupUsers.length})` }
             ] as const).map((tab) => (
               <button
                 key={tab.key}
@@ -901,7 +970,7 @@ const Groups = () => {
                 </div>
               </div>
             </div>
-          ) : (
+          ) : editActiveTab === 'roles' ? (
             <div className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -981,6 +1050,95 @@ const Groups = () => {
                       </label>
                     )
                   })
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <label className={labelCls}>Add User</label>
+                <div className="flex items-center gap-2">
+                  <select
+                    className={fieldCls}
+                    value={userToAddId}
+                    onChange={(e) => setUserToAddId(e.target.value)}
+                  >
+                    {availableUsersToAdd.length === 0 ? (
+                      <option value="">No users available</option>
+                    ) : (
+                      <>
+                        <option value="">Select a user…</option>
+                        {availableUsersToAdd.map((user) => (
+                          <option key={user.id} value={user.id}>
+                            {user.givenName} {user.familyName} · {user.email}
+                          </option>
+                        ))}
+                      </>
+                    )}
+                  </select>
+                  <Button
+                    variant="outline"
+                    onClick={onAddUserToGroup}
+                    disabled={!userToAddId || assignUser.isPending}
+                  >
+                    <Plus size={12} />Add
+                  </Button>
+                </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>Search Members</label>
+                <Input
+                  type="text"
+                  value={editUserSearch}
+                  onChange={(e) => setEditUserSearch(e.target.value)}
+                  placeholder="Search by name, email or username…"
+                />
+              </div>
+
+              <p className="text-xs text-slate-500">
+                {groupUsersLoading
+                  ? 'Loading members…'
+                  : groupUsers.length === 0
+                    ? 'No users in this group yet'
+                    : `${filteredGroupUsers.length} of ${groupUsers.length} member${groupUsers.length === 1 ? '' : 's'}${groupUsersFetching ? ' · refreshing…' : ''}`}
+              </p>
+
+              <div className="border border-slate-200 rounded-lg p-2 max-h-80 overflow-auto space-y-1">
+                {groupUsersLoading ? (
+                  <p className="text-xs text-slate-400 px-1 py-1">Loading…</p>
+                ) : groupUsers.length === 0 ? (
+                  <p className="text-xs text-slate-400 px-1 py-1">Use the selector above to add the first member.</p>
+                ) : filteredGroupUsers.length === 0 ? (
+                  <p className="text-xs text-slate-400 px-1 py-1">No members match your search.</p>
+                ) : (
+                  filteredGroupUsers.map((user) => (
+                    <div
+                      key={user.id}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-slate-900 truncate">
+                            {user.givenName} {user.familyName}
+                          </p>
+                          {user.isServiceUser && <StatusBadge tone="accent">Service</StatusBadge>}
+                          {user.active === false && <StatusBadge tone="danger">Inactive</StatusBadge>}
+                        </div>
+                        <p className="text-xs text-slate-500 truncate">{user.email} · @{user.username}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="hover:bg-red-50 hover:text-red-600"
+                        onClick={() => onRemoveUserFromGroup(user.id)}
+                        disabled={removeUser.isPending}
+                        title="Remove from group"
+                      >
+                        <X size={14} />
+                      </Button>
+                    </div>
+                  ))
                 )}
               </div>
             </div>

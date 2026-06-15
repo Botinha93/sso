@@ -147,6 +147,9 @@ class DeleteApiAdminConnectorsByConnectorIdMappingsByMappingIdPathParams(TypedDi
 class DeleteApiAdminConnectorsByIdPathParams(TypedDict):
     id: str
 
+class DeleteApiAdminPluginsByIdPathParams(TypedDict):
+    id: str
+
 class DeleteApiAdminProvisioningMappingsByIdPathParams(TypedDict):
     id: str
 
@@ -202,6 +205,9 @@ class ElevationSession(TypedDict):
     endedAt: NotRequired[str | None]
     createdAt: str
     updatedAt: NotRequired[str]
+
+class GetApiAccountMfaTotpResponse200(TypedDict):
+    enabled: NotRequired[bool]
 
 class GetApiAccountMfaWebauthnCredentialsResponse200Item(TypedDict):
     id: NotRequired[str]
@@ -300,6 +306,9 @@ class GetApiAdminMetricsAuthResponse200Item(TypedDict):
     count: NotRequired[int]
     successCount: NotRequired[int]
     failureCount: NotRequired[int]
+
+class GetApiAdminPluginsResponse200(TypedDict):
+    data: NotRequired[list[dict[str, Any]]]
 
 class GetApiAdminPoliciesDecisionsQueryParams(TypedDict):
     limit: NotRequired[int]
@@ -423,11 +432,17 @@ class GetApiAdminUsersByIdGroupsResponse200GroupsItem(TypedDict):
     name: NotRequired[str]
     description: NotRequired[str]
 
+class GetApiAdminUsersByIdPathParams(TypedDict):
+    id: str
+
 class GetApiAdminUsersByIdPermissionsPathParams(TypedDict):
     id: str
 
 class GetApiAdminUsersByIdPermissionsResponse200(TypedDict):
     permissions: NotRequired[list[str]]
+
+class GetApiAdminUsersByIdResponse200(TypedDict):
+    pass
 
 class GetApiAdminUsersByIdRolesPathParams(TypedDict):
     id: str
@@ -464,6 +479,10 @@ class GetApiAdminUsersResponse200ItemsItem(TypedDict):
     isServiceUser: NotRequired[bool]
     createdAt: NotRequired[str]
 
+class GetApiPortalLanguageDefaultResponse200(TypedDict):
+    language: NotRequired[str]
+    supportedLanguages: NotRequired[list[str]]
+
 class GetApiPortalMeResponse200(TypedDict):
     id: NotRequired[str]
     username: NotRequired[str]
@@ -485,6 +504,10 @@ class GetApiPortalMeResponse200AppsItem(TypedDict):
     name: NotRequired[str]
     url: NotRequired[str | None]
     icon: NotRequired[str | None]
+
+class GetAuthFederationProvidersResponse200Item(TypedDict):
+    id: NotRequired[str]
+    label: NotRequired[str]
 
 class GetOauthAuthorizeQueryParams(TypedDict):
     response_type: Literal["code", "token", "code token", "code id_token", "id_token token", "code id_token token"]
@@ -670,6 +693,19 @@ class PatchScimV2UsersByIdResponse200(TypedDict):
     schemas: NotRequired[list[str]]
     id: NotRequired[str]
 
+class PostApiAccountMfaTotpEnrollResponse200(TypedDict):
+    enrollmentId: NotRequired[str]
+    secret: NotRequired[str]
+    otpauthUri: NotRequired[str]
+    expiresIn: NotRequired[int]
+
+class PostApiAccountMfaTotpVerifyRequestBody(TypedDict):
+    enrollmentId: str
+    code: str
+
+class PostApiAccountMfaTotpVerifyResponse200(TypedDict):
+    enabled: NotRequired[bool]
+
 class PostApiAccountMfaWebauthnRegisterBeginRequestBody(TypedDict):
     displayName: NotRequired[str]
 
@@ -744,6 +780,15 @@ class PostApiAdminAccessReviewsItemsByIdDecisionPathParams(TypedDict):
 class PostApiAdminAccessReviewsItemsByIdDecisionRequestBody(TypedDict):
     decision: Literal["certified", "revoked"]
     rationale: NotRequired[str]
+
+class PostApiAdminAppsByIdImagePathParams(TypedDict):
+    id: str
+
+class PostApiAdminAppsByIdImageRequestBody(TypedDict):
+    file: str
+
+class PostApiAdminAppsByIdImageResponse200(TypedDict):
+    imageUrl: NotRequired[str]
 
 class PostApiAdminAuthorizationCheckRequestBody(TypedDict):
     userId: str
@@ -849,6 +894,23 @@ class PostApiAdminElevationsRequestBody(TypedDict):
     resource: str
     action: str
     durationMinutes: int
+
+class PostApiAdminPluginsRequestBody(TypedDict):
+    manifest: dict[str, Any]
+    bundleBase64: str
+    activate: NotRequired[bool]
+
+class PostApiAdminPluginsResponse201(TypedDict):
+    pass
+
+class PostApiAdminPluginsValidateRequestBody(TypedDict):
+    manifest: dict[str, Any]
+    bundleBase64: NotRequired[str]
+
+class PostApiAdminPluginsValidateResponse200(TypedDict):
+    valid: NotRequired[bool]
+    errors: NotRequired[list[str]]
+    warnings: NotRequired[list[str]]
 
 class PostApiAdminPoliciesEvaluateRequestBody(TypedDict):
     userId: str
@@ -963,6 +1025,38 @@ class PostApiAdminServiceIdentitiesRequestBody(TypedDict):
     ownerId: NotRequired[str]
     metadata: NotRequired[dict[str, Any]]
 
+class PostApiAdminSettingsDatabaseMigrateRequestBody(TypedDict):
+    provider: Literal["postgresql", "mysql"]
+    externalDatabaseUrl: str
+    sqlitePath: NotRequired[str]
+
+class PostApiAdminSettingsDatabaseMigrateResponse200(TypedDict):
+    pass
+
+class PostApiAdminSettingsDatabaseTestRequestBody(TypedDict):
+    provider: Literal["postgresql", "mysql"]
+    externalDatabaseUrl: str
+
+class PostApiAdminSettingsDatabaseTestResponse200(TypedDict):
+    pass
+
+class PostApiAdminSettingsTestEmailRequestBody(TypedDict):
+    to: str
+    subject: NotRequired[str]
+    message: NotRequired[str]
+
+class PostApiAdminSettingsTestEmailResponse200(TypedDict):
+    ok: NotRequired[bool]
+
+class PostApiAdminUsersByIdAvatarPathParams(TypedDict):
+    id: str
+
+class PostApiAdminUsersByIdAvatarRequestBody(TypedDict):
+    file: str
+
+class PostApiAdminUsersByIdAvatarResponse200(TypedDict):
+    avatarUrl: NotRequired[str]
+
 class PostApiAdminUsersRequestBody(TypedDict):
     appId: NotRequired[str]
     appIds: NotRequired[list[str]]
@@ -998,6 +1092,28 @@ class PostApiPortalChangePasswordRequestBody(TypedDict):
 class PostApiPortalChangePasswordResponse200(TypedDict):
     message: NotRequired[str]
 
+class PostAuthLoginMfaRequestBody(TypedDict):
+    mfaTicket: str
+    code: str
+
+class PostAuthLoginMfaResponse200(TypedDict):
+    pass
+
+class PostAuthLoginRequestBody(TypedDict):
+    email: str
+    password: str
+    clientId: NotRequired[str]
+    tenantSlug: NotRequired[str]
+    scope: NotRequired[list[str]]
+
+class PostAuthLoginResponse200(TypedDict):
+    pass
+
+class PostAuthLoginResponse202(TypedDict):
+    mfaRequired: NotRequired[bool]
+    mfaTicket: NotRequired[str]
+    expiresIn: NotRequired[int]
+
 class PostAuthLoginWebauthnBeginRequestBody(TypedDict):
     identifier: str
     clientId: NotRequired[str | None]
@@ -1019,6 +1135,27 @@ class PostAuthLoginWebauthnFinishResponse200(TypedDict):
     sessionId: NotRequired[str]
     accessToken: NotRequired[str]
     expiresIn: NotRequired[int]
+
+class PostAuthRecoveryRequestBody(TypedDict):
+    recoveryTicket: str
+    code: NotRequired[str]
+    verificationCode: NotRequired[str]
+    newPassword: str
+    clientId: NotRequired[str]
+    tenantSlug: NotRequired[str]
+    scope: NotRequired[list[str]]
+
+class PostAuthRecoveryRequestRequestBody(TypedDict):
+    identifier: str
+    clientId: NotRequired[str]
+    tenantSlug: NotRequired[str]
+
+class PostAuthRecoveryRequestResponse200(TypedDict):
+    status: NotRequired[str]
+    expiresIn: NotRequired[int]
+
+class PostAuthRecoveryResponse200(TypedDict):
+    pass
 
 class PostConnectRegisterRequestBody(TypedDict):
     app_id: NotRequired[str]
@@ -1063,6 +1200,27 @@ class PostOauthCibaAuthenticateResponse200(TypedDict):
     auth_req_id: str
     expires_in: int
     interval: int
+
+class PostOauthDeviceAuthorizeRequestBody(TypedDict):
+    client_id: str
+    client_secret: str
+    scope: NotRequired[str]
+
+class PostOauthDeviceAuthorizeResponse200(TypedDict):
+    device_code: NotRequired[str]
+    user_code: NotRequired[str]
+    verification_uri: NotRequired[str]
+    expires_in: NotRequired[int]
+    interval: NotRequired[int]
+
+class PostOauthDeviceVerifyRequestBody(TypedDict):
+    user_code: str
+    username: str
+    password: str
+    approve: NotRequired[bool]
+
+class PostOauthDeviceVerifyResponse200(TypedDict):
+    status: NotRequired[Literal["approved", "denied"]]
 
 class PostOauthIntrospectRequestBody(TypedDict):
     token: str
@@ -1285,10 +1443,12 @@ class ServiceIdentityWithCredentials(TypedDict):
 
 AssignGroupRoleRequestBody: TypeAlias = "Any"
 AssignUserGroupRequestBody: TypeAlias = "Any"
+DeleteApiAccountMfaTotpResponse: TypeAlias = "None"
 DeleteApiAccountMfaWebauthnCredentialsByCredentialIdResponse: TypeAlias = "None"
 DeleteApiAdminAuthenticationFlowsByIdResponse: TypeAlias = "None"
 DeleteApiAdminConnectorsByConnectorIdMappingsByMappingIdResponse: TypeAlias = "None"
 DeleteApiAdminConnectorsByIdResponse: TypeAlias = "None"
+DeleteApiAdminPluginsByIdResponse: TypeAlias = "None"
 DeleteApiAdminProvisioningMappingsByIdResponse: TypeAlias = "None"
 DeleteApiAdminProvisioningTokensByIdResponse: TypeAlias = "None"
 DeleteApiAdminSamlServiceProvidersByIdResponse: TypeAlias = "None"
@@ -1297,6 +1457,7 @@ DeleteApiAdminServiceIdentitiesByIdResponse: TypeAlias = "None"
 DeleteApiPortalAccountResponse: TypeAlias = "None"
 DeleteScimV2GroupsByIdResponse: TypeAlias = "None"
 DeleteScimV2UsersByIdResponse: TypeAlias = "None"
+GetApiAccountMfaTotpResponse: TypeAlias = "GetApiAccountMfaTotpResponse200"
 GetApiAccountMfaWebauthnCredentialsResponse: TypeAlias = "GetApiAccountMfaWebauthnCredentialsResponse200"
 GetApiAccountMfaWebauthnCredentialsResponse200: TypeAlias = "list[GetApiAccountMfaWebauthnCredentialsResponse200Item]"
 GetApiAdminAccessRequestsResponse: TypeAlias = "GetApiAdminAccessRequestsResponse200"
@@ -1334,6 +1495,7 @@ GetApiAdminGroupsResponse: TypeAlias = "Any"
 GetApiAdminMeResponse: TypeAlias = "GetApiAdminMeResponse200"
 GetApiAdminMetricsAuthResponse: TypeAlias = "GetApiAdminMetricsAuthResponse200"
 GetApiAdminMetricsAuthResponse200: TypeAlias = "list[GetApiAdminMetricsAuthResponse200Item]"
+GetApiAdminPluginsResponse: TypeAlias = "GetApiAdminPluginsResponse200"
 GetApiAdminPoliciesDecisionsResponse: TypeAlias = "GetApiAdminPoliciesDecisionsResponse200"
 GetApiAdminPoliciesDecisionsResponse200: TypeAlias = "list[GetApiAdminPoliciesDecisionsResponse200Item]"
 GetApiAdminPoliciesResponse: TypeAlias = "Any"
@@ -1364,9 +1526,13 @@ GetApiAdminTenantsResponse: TypeAlias = "Any"
 GetApiAdminUserAttributesResponse: TypeAlias = "Any"
 GetApiAdminUsersByIdGroupsResponse: TypeAlias = "GetApiAdminUsersByIdGroupsResponse200"
 GetApiAdminUsersByIdPermissionsResponse: TypeAlias = "GetApiAdminUsersByIdPermissionsResponse200"
+GetApiAdminUsersByIdResponse: TypeAlias = "GetApiAdminUsersByIdResponse200"
 GetApiAdminUsersByIdRolesResponse: TypeAlias = "GetApiAdminUsersByIdRolesResponse200"
 GetApiAdminUsersResponse: TypeAlias = "GetApiAdminUsersResponse200"
+GetApiPortalLanguageDefaultResponse: TypeAlias = "GetApiPortalLanguageDefaultResponse200"
 GetApiPortalMeResponse: TypeAlias = "GetApiPortalMeResponse200"
+GetAuthFederationProvidersResponse: TypeAlias = "GetAuthFederationProvidersResponse200"
+GetAuthFederationProvidersResponse200: TypeAlias = "list[GetAuthFederationProvidersResponse200Item]"
 GetOauthAuthorizeResponse: TypeAlias = "Any"
 GetOauthFrontchannelLogoutResponse: TypeAlias = "GetOauthFrontchannelLogoutResponse200"
 GetOauthFrontchannelLogoutResponse200: TypeAlias = "str"
@@ -1394,6 +1560,8 @@ PatchApiAdminUsersByIdResponse: TypeAlias = "Any"
 PatchApiPortalProfileResponse: TypeAlias = "PatchApiPortalProfileResponse200"
 PatchScimV2GroupsByIdResponse: TypeAlias = "PatchScimV2GroupsByIdResponse200"
 PatchScimV2UsersByIdResponse: TypeAlias = "PatchScimV2UsersByIdResponse200"
+PostApiAccountMfaTotpEnrollResponse: TypeAlias = "PostApiAccountMfaTotpEnrollResponse200"
+PostApiAccountMfaTotpVerifyResponse: TypeAlias = "PostApiAccountMfaTotpVerifyResponse200"
 PostApiAccountMfaWebauthnRegisterBeginResponse: TypeAlias = "PostApiAccountMfaWebauthnRegisterBeginResponse200"
 PostApiAccountMfaWebauthnRegisterFinishResponse: TypeAlias = "PostApiAccountMfaWebauthnRegisterFinishResponse200"
 PostApiAdminAccessRequestsByIdApproveResponse: TypeAlias = "PostApiAdminAccessRequestsByIdApproveResponse200"
@@ -1406,6 +1574,7 @@ PostApiAdminAccessRequestsResponse201: TypeAlias = "AccessRequest"
 PostApiAdminAccessReviewsCampaignsResponse: TypeAlias = "PostApiAdminAccessReviewsCampaignsResponse201"
 PostApiAdminAccessReviewsItemsByIdDecisionResponse: TypeAlias = "PostApiAdminAccessReviewsItemsByIdDecisionResponse200"
 PostApiAdminAccessReviewsItemsByIdDecisionResponse200: TypeAlias = "AccessReviewItem"
+PostApiAdminAppsByIdImageResponse: TypeAlias = "PostApiAdminAppsByIdImageResponse200"
 PostApiAdminAppsRequestBody: TypeAlias = "Any"
 PostApiAdminAppsResponse: TypeAlias = "Any"
 PostApiAdminAuthenticationFlowsRequestBody: TypeAlias = "AuthenticationFlowCreate"
@@ -1437,6 +1606,8 @@ PostApiAdminFederationProvidersResponse: TypeAlias = "Any"
 PostApiAdminGroupRoleAssignmentsRequestBody: TypeAlias = "Any"
 PostApiAdminGroupsRequestBody: TypeAlias = "Any"
 PostApiAdminGroupsResponse: TypeAlias = "Any"
+PostApiAdminPluginsResponse: TypeAlias = "PostApiAdminPluginsResponse201"
+PostApiAdminPluginsValidateResponse: TypeAlias = "PostApiAdminPluginsValidateResponse200"
 PostApiAdminPoliciesEvaluateResponse: TypeAlias = "PostApiAdminPoliciesEvaluateResponse200"
 PostApiAdminPoliciesRequestBody: TypeAlias = "Any"
 PostApiAdminPoliciesResponse: TypeAlias = "Any"
@@ -1459,21 +1630,32 @@ PostApiAdminServiceIdentitiesByIdCredentialsRotateResponse: TypeAlias = "PostApi
 PostApiAdminServiceIdentitiesByIdCredentialsRotateResponse201: TypeAlias = "IssuedServiceIdentityCredential"
 PostApiAdminServiceIdentitiesResponse: TypeAlias = "PostApiAdminServiceIdentitiesResponse201"
 PostApiAdminServiceIdentitiesResponse201: TypeAlias = "ServiceIdentity"
+PostApiAdminSettingsDatabaseMigrateResponse: TypeAlias = "PostApiAdminSettingsDatabaseMigrateResponse200"
+PostApiAdminSettingsDatabaseTestResponse: TypeAlias = "PostApiAdminSettingsDatabaseTestResponse200"
+PostApiAdminSettingsTestEmailResponse: TypeAlias = "PostApiAdminSettingsTestEmailResponse200"
 PostApiAdminTenantsRequestBody: TypeAlias = "Any"
 PostApiAdminTenantsResponse: TypeAlias = "Any"
 PostApiAdminUserAttributesRequestBody: TypeAlias = "Any"
 PostApiAdminUserAttributesResponse: TypeAlias = "Any"
 PostApiAdminUserGroupsRequestBody: TypeAlias = "Any"
+PostApiAdminUsersByIdAvatarResponse: TypeAlias = "PostApiAdminUsersByIdAvatarResponse200"
 PostApiAdminUsersByIdResetPasswordRequestBody: TypeAlias = "Any"
 PostApiAdminUsersResponse: TypeAlias = "PostApiAdminUsersResponse201"
 PostApiPortalAvatarResponse: TypeAlias = "PostApiPortalAvatarResponse200"
 PostApiPortalChangePasswordResponse: TypeAlias = "PostApiPortalChangePasswordResponse200"
+PostAuthLoginMfaResponse: TypeAlias = "PostAuthLoginMfaResponse200"
+PostAuthLoginResponse: TypeAlias = "Union[PostAuthLoginResponse200, PostAuthLoginResponse202]"
 PostAuthLoginWebauthnBeginResponse: TypeAlias = "PostAuthLoginWebauthnBeginResponse200"
 PostAuthLoginWebauthnFinishResponse: TypeAlias = "PostAuthLoginWebauthnFinishResponse200"
+PostAuthLogoutResponse: TypeAlias = "Any"
+PostAuthRecoveryRequestResponse: TypeAlias = "PostAuthRecoveryRequestResponse200"
+PostAuthRecoveryResponse: TypeAlias = "PostAuthRecoveryResponse200"
 PostConnectRegisterResponse: TypeAlias = "PostConnectRegisterResponse201"
 PostOauthBackchannelLogoutResponse: TypeAlias = "PostOauthBackchannelLogoutResponse200"
 PostOauthCibaApproveResponse: TypeAlias = "PostOauthCibaApproveResponse200"
 PostOauthCibaAuthenticateResponse: TypeAlias = "PostOauthCibaAuthenticateResponse200"
+PostOauthDeviceAuthorizeResponse: TypeAlias = "PostOauthDeviceAuthorizeResponse200"
+PostOauthDeviceVerifyResponse: TypeAlias = "PostOauthDeviceVerifyResponse200"
 PostOauthIntrospectResponse: TypeAlias = "PostOauthIntrospectResponse200"
 PostOauthTokenExchangeResponse: TypeAlias = "PostOauthTokenExchangeResponse200"
 PostOauthTokenRequestBody: TypeAlias = "Union[PostOauthTokenRequestBodyOption1, PostOauthTokenRequestBodyOption2, PostOauthTokenRequestBodyOption3, PostOauthTokenRequestBodyOption4, PostOauthTokenRequestBodyOption5, PostOauthTokenRequestBodyOption6, PostOauthTokenRequestBodyOption7, PostOauthTokenRequestBodyOption8]"
@@ -1530,6 +1712,7 @@ __all__ = [
     "Connector",
     "ConnectorMapping",
     "ConnectorRun",
+    "DeleteApiAccountMfaTotpResponse",
     "DeleteApiAccountMfaWebauthnCredentialsByCredentialIdPathParams",
     "DeleteApiAccountMfaWebauthnCredentialsByCredentialIdResponse",
     "DeleteApiAdminAuthenticationFlowsByIdPathParams",
@@ -1538,6 +1721,8 @@ __all__ = [
     "DeleteApiAdminConnectorsByConnectorIdMappingsByMappingIdResponse",
     "DeleteApiAdminConnectorsByIdPathParams",
     "DeleteApiAdminConnectorsByIdResponse",
+    "DeleteApiAdminPluginsByIdPathParams",
+    "DeleteApiAdminPluginsByIdResponse",
     "DeleteApiAdminProvisioningMappingsByIdPathParams",
     "DeleteApiAdminProvisioningMappingsByIdResponse",
     "DeleteApiAdminProvisioningTokensByIdPathParams",
@@ -1556,6 +1741,8 @@ __all__ = [
     "DeleteScimV2UsersByIdResponse",
     "ElevationRequest",
     "ElevationSession",
+    "GetApiAccountMfaTotpResponse",
+    "GetApiAccountMfaTotpResponse200",
     "GetApiAccountMfaWebauthnCredentialsResponse",
     "GetApiAccountMfaWebauthnCredentialsResponse200",
     "GetApiAccountMfaWebauthnCredentialsResponse200Item",
@@ -1614,6 +1801,8 @@ __all__ = [
     "GetApiAdminMetricsAuthResponse",
     "GetApiAdminMetricsAuthResponse200",
     "GetApiAdminMetricsAuthResponse200Item",
+    "GetApiAdminPluginsResponse",
+    "GetApiAdminPluginsResponse200",
     "GetApiAdminPoliciesDecisionsQueryParams",
     "GetApiAdminPoliciesDecisionsResponse",
     "GetApiAdminPoliciesDecisionsResponse200",
@@ -1665,9 +1854,12 @@ __all__ = [
     "GetApiAdminUsersByIdGroupsResponse",
     "GetApiAdminUsersByIdGroupsResponse200",
     "GetApiAdminUsersByIdGroupsResponse200GroupsItem",
+    "GetApiAdminUsersByIdPathParams",
     "GetApiAdminUsersByIdPermissionsPathParams",
     "GetApiAdminUsersByIdPermissionsResponse",
     "GetApiAdminUsersByIdPermissionsResponse200",
+    "GetApiAdminUsersByIdResponse",
+    "GetApiAdminUsersByIdResponse200",
     "GetApiAdminUsersByIdRolesPathParams",
     "GetApiAdminUsersByIdRolesResponse",
     "GetApiAdminUsersByIdRolesResponse200",
@@ -1676,9 +1868,14 @@ __all__ = [
     "GetApiAdminUsersResponse",
     "GetApiAdminUsersResponse200",
     "GetApiAdminUsersResponse200ItemsItem",
+    "GetApiPortalLanguageDefaultResponse",
+    "GetApiPortalLanguageDefaultResponse200",
     "GetApiPortalMeResponse",
     "GetApiPortalMeResponse200",
     "GetApiPortalMeResponse200AppsItem",
+    "GetAuthFederationProvidersResponse",
+    "GetAuthFederationProvidersResponse200",
+    "GetAuthFederationProvidersResponse200Item",
     "GetOauthAuthorizeQueryParams",
     "GetOauthAuthorizeResponse",
     "GetOauthFrontchannelLogoutQueryParams",
@@ -1739,6 +1936,11 @@ __all__ = [
     "PatchScimV2UsersByIdPathParams",
     "PatchScimV2UsersByIdResponse",
     "PatchScimV2UsersByIdResponse200",
+    "PostApiAccountMfaTotpEnrollResponse",
+    "PostApiAccountMfaTotpEnrollResponse200",
+    "PostApiAccountMfaTotpVerifyRequestBody",
+    "PostApiAccountMfaTotpVerifyResponse",
+    "PostApiAccountMfaTotpVerifyResponse200",
     "PostApiAccountMfaWebauthnRegisterBeginRequestBody",
     "PostApiAccountMfaWebauthnRegisterBeginResponse",
     "PostApiAccountMfaWebauthnRegisterBeginResponse200",
@@ -1768,6 +1970,10 @@ __all__ = [
     "PostApiAdminAccessReviewsItemsByIdDecisionRequestBody",
     "PostApiAdminAccessReviewsItemsByIdDecisionResponse",
     "PostApiAdminAccessReviewsItemsByIdDecisionResponse200",
+    "PostApiAdminAppsByIdImagePathParams",
+    "PostApiAdminAppsByIdImageRequestBody",
+    "PostApiAdminAppsByIdImageResponse",
+    "PostApiAdminAppsByIdImageResponse200",
     "PostApiAdminAppsRequestBody",
     "PostApiAdminAppsResponse",
     "PostApiAdminAuthenticationFlowsRequestBody",
@@ -1819,6 +2025,12 @@ __all__ = [
     "PostApiAdminGroupRoleAssignmentsRequestBody",
     "PostApiAdminGroupsRequestBody",
     "PostApiAdminGroupsResponse",
+    "PostApiAdminPluginsRequestBody",
+    "PostApiAdminPluginsResponse",
+    "PostApiAdminPluginsResponse201",
+    "PostApiAdminPluginsValidateRequestBody",
+    "PostApiAdminPluginsValidateResponse",
+    "PostApiAdminPluginsValidateResponse200",
     "PostApiAdminPoliciesEvaluateRequestBody",
     "PostApiAdminPoliciesEvaluateResponse",
     "PostApiAdminPoliciesEvaluateResponse200",
@@ -1862,11 +2074,24 @@ __all__ = [
     "PostApiAdminServiceIdentitiesRequestBody",
     "PostApiAdminServiceIdentitiesResponse",
     "PostApiAdminServiceIdentitiesResponse201",
+    "PostApiAdminSettingsDatabaseMigrateRequestBody",
+    "PostApiAdminSettingsDatabaseMigrateResponse",
+    "PostApiAdminSettingsDatabaseMigrateResponse200",
+    "PostApiAdminSettingsDatabaseTestRequestBody",
+    "PostApiAdminSettingsDatabaseTestResponse",
+    "PostApiAdminSettingsDatabaseTestResponse200",
+    "PostApiAdminSettingsTestEmailRequestBody",
+    "PostApiAdminSettingsTestEmailResponse",
+    "PostApiAdminSettingsTestEmailResponse200",
     "PostApiAdminTenantsRequestBody",
     "PostApiAdminTenantsResponse",
     "PostApiAdminUserAttributesRequestBody",
     "PostApiAdminUserAttributesResponse",
     "PostApiAdminUserGroupsRequestBody",
+    "PostApiAdminUsersByIdAvatarPathParams",
+    "PostApiAdminUsersByIdAvatarRequestBody",
+    "PostApiAdminUsersByIdAvatarResponse",
+    "PostApiAdminUsersByIdAvatarResponse200",
     "PostApiAdminUsersByIdResetPasswordRequestBody",
     "PostApiAdminUsersRequestBody",
     "PostApiAdminUsersResponse",
@@ -1877,12 +2102,26 @@ __all__ = [
     "PostApiPortalChangePasswordRequestBody",
     "PostApiPortalChangePasswordResponse",
     "PostApiPortalChangePasswordResponse200",
+    "PostAuthLoginMfaRequestBody",
+    "PostAuthLoginMfaResponse",
+    "PostAuthLoginMfaResponse200",
+    "PostAuthLoginRequestBody",
+    "PostAuthLoginResponse",
+    "PostAuthLoginResponse200",
+    "PostAuthLoginResponse202",
     "PostAuthLoginWebauthnBeginRequestBody",
     "PostAuthLoginWebauthnBeginResponse",
     "PostAuthLoginWebauthnBeginResponse200",
     "PostAuthLoginWebauthnFinishRequestBody",
     "PostAuthLoginWebauthnFinishResponse",
     "PostAuthLoginWebauthnFinishResponse200",
+    "PostAuthLogoutResponse",
+    "PostAuthRecoveryRequestBody",
+    "PostAuthRecoveryRequestRequestBody",
+    "PostAuthRecoveryRequestResponse",
+    "PostAuthRecoveryRequestResponse200",
+    "PostAuthRecoveryResponse",
+    "PostAuthRecoveryResponse200",
     "PostConnectRegisterRequestBody",
     "PostConnectRegisterResponse",
     "PostConnectRegisterResponse201",
@@ -1895,6 +2134,12 @@ __all__ = [
     "PostOauthCibaAuthenticateRequestBody",
     "PostOauthCibaAuthenticateResponse",
     "PostOauthCibaAuthenticateResponse200",
+    "PostOauthDeviceAuthorizeRequestBody",
+    "PostOauthDeviceAuthorizeResponse",
+    "PostOauthDeviceAuthorizeResponse200",
+    "PostOauthDeviceVerifyRequestBody",
+    "PostOauthDeviceVerifyResponse",
+    "PostOauthDeviceVerifyResponse200",
     "PostOauthIntrospectRequestBody",
     "PostOauthIntrospectResponse",
     "PostOauthIntrospectResponse200",
