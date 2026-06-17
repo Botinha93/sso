@@ -302,13 +302,29 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   <circle cx="140" cy="168" r="6" fill="white" />
   <circle cx="180" cy="168" r="6" fill="white" />
   <path d="M160 178 152 190h16Z" fill="white" />
-  <path d="M128 192h-26M128 204h-26M192 192h26M192 204h26" stroke="white" stroke-width="8" stroke-linecap="round" />`
+  <path d="M128 192h-26M128 204h-26M192 192h26M192 204h26" stroke="white" stroke-width="8" stroke-linecap="round" />`,
+      sunset: `
+  <circle cx="220" cy="96" r="34" fill="white" opacity="0.95" />
+  <path d="M68 228h184" stroke="white" stroke-width="12" stroke-linecap="round" />
+  <path d="M96 228c18-36 36-54 64-54s46 18 64 54" stroke="white" stroke-width="10" fill="none" stroke-linecap="round" />`,
+      forest: `
+  <path d="M108 232V168l-24 32h16l-16 24h16l-24 32h64l-24-32h16l-16-24h16l-24-32v64" stroke="white" stroke-width="8" fill="none" stroke-linejoin="round" />
+  <path d="M188 232V156l-28 38h18l-18 28h18l-28 38h76l-28-38h18l-18-28h18l-28-38v76" stroke="white" stroke-width="8" fill="none" stroke-linejoin="round" />`,
+      ocean: `
+  <path d="M64 176c24-24 48-24 72 0s48 24 72 0 48-24 72 0" stroke="white" stroke-width="12" fill="none" stroke-linecap="round" />
+  <path d="M64 216c24-24 48-24 72 0s48 24 72 0 48-24 72 0" stroke="white" stroke-width="12" fill="none" stroke-linecap="round" opacity="0.85" />`,
+      mono: `
+  <circle cx="160" cy="160" r="72" stroke="white" stroke-width="12" fill="none" />
+  <circle cx="160" cy="160" r="38" stroke="white" stroke-width="10" fill="none" opacity="0.85" />
+  <circle cx="160" cy="160" r="10" fill="white" />`
     };
 
     const icon = iconByVariant[variant];
-    const content = icon
-      ? `<g>${icon}\n  </g>`
-      : `<text x="160" y="182" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="108" font-weight="700" fill="white">${initials}</text>`;
+    const content = variant === "initials"
+      ? `<text x="160" y="182" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="108" font-weight="700" fill="white">${initials}</text>`
+      : icon
+        ? `<g>${icon}\n  </g>`
+        : "";
 
     return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320" fill="none">

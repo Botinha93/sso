@@ -196,8 +196,12 @@ const Users = () => {
   const [editFormError, setEditFormError] = useState<string>('')
   const [resetFormError, setResetFormError] = useState<string>('')
   const [appFilterId, setAppFilterId] = useState<string>('all')
-  const createInitials = `${formData.givenName?.[0] ?? ''}${formData.familyName?.[0] ?? ''}`.toUpperCase() || 'AB'
-  const editInitials = `${editFormData.givenName?.[0] ?? ''}${editFormData.familyName?.[0] ?? ''}`.toUpperCase() || 'AB'
+  const createInitials = `${formData.givenName?.[0] ?? ''}${formData.familyName?.[0] ?? ''}`.toUpperCase()
+    || formData.username?.slice(0, 2).toUpperCase()
+    || 'AB'
+  const editInitials = `${editFormData.givenName?.[0] ?? ''}${editFormData.familyName?.[0] ?? ''}`.toUpperCase()
+    || editFormData.username?.slice(0, 2).toUpperCase()
+    || 'AB'
   const { data: createDefaultAvatars } = useDefaultUserAvatars(createInitials)
   const { data: editDefaultAvatars } = useDefaultUserAvatars(editInitials)
 
