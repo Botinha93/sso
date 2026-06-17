@@ -8,6 +8,8 @@ import type { SamlSignatureService } from "../services/saml-signature-service.js
 import type { UserService } from "../services/user-service.js";
 import { AppError, ValidationError } from "../core/errors.js";
 import type { SamlReplayProtectionService } from "../services/saml-replay-protection-service.js";
+import type { InstanceSettingsService } from "../services/instance-settings-service.js";
+import { clearSessionCookie } from "./session-cookie.js";
 import {
   samlAcsSchema,
   samlMetadataSchema,
@@ -29,6 +31,7 @@ interface SamlProtocolRouteDeps {
   auditRepository: AuditRepository;
   samlReplayProtectionService: SamlReplayProtectionService;
   samlSignatureService: SamlSignatureService;
+  instanceSettingsService: InstanceSettingsService;
 }
 
 const htmlForm = (input: { action: string; fields: Array<{ name: string; value: string }> }) => {
@@ -249,9 +252,7 @@ export const registerSamlProtocolRoutes = async (app: FastifyInstance, deps: Sam
       await deps.authService.sessionRepository.revoke(sid, new Date());
     }
 
-    reply.clearCookie("sid", {
-      path: "/"
-    });
+    await clearSessionCookie(reply, deps.instanceSettingsService);
 
     await deps.auditRepository.log({
       type: "saml_slo_initiated",

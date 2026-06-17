@@ -12,6 +12,7 @@ import { hasAdminPermission, toAdminAction, toAdminResource } from "./admin-auth
 import { registerScimRoutes } from "./scim-routes.js";
 import { registerSamlAdminRoutes } from "./saml-routes.js";
 import { registerSamlProtocolRoutes } from "./saml-protocol-routes.js";
+import { clearSessionCookie, setSessionCookie } from "./session-cookie.js";
 import { registerAccessGovernanceRoutes } from "./routes/access-governance.js";
 import { registerProvisioningRoutes } from "./routes/provisioning.js";
 import { registerElevationRoutes } from "./routes/elevations.js";
@@ -1001,7 +1002,8 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     userService: deps.userService,
     auditRepository: deps.auditRepository,
     samlReplayProtectionService: deps.samlReplayProtectionService,
-    samlSignatureService: deps.samlSignatureService
+    samlSignatureService: deps.samlSignatureService,
+    instanceSettingsService: deps.instanceSettingsService
   });
 
   app.get("/.well-known/openid-configuration", async () => await deps.oidcService.discoveryDocument());
@@ -1648,13 +1650,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
           ip: request.ip
         });
       });
-      reply.setCookie("sid", session.id, {
-        httpOnly: true,
-        secure: await deps.instanceSettingsService.shouldUseSecureCookies(),
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 60 * 8
-      });
+      await setSessionCookie(reply, deps.instanceSettingsService, session.id);
       return { session, ...tokens };
     } catch (err) {
       const reason = err instanceof Error ? err.message : "unknown";
@@ -1747,13 +1743,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         });
       });
 
-      reply.setCookie("sid", session.id, {
-        httpOnly: true,
-        secure: await deps.instanceSettingsService.shouldUseSecureCookies(),
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 60 * 8
-      });
+      await setSessionCookie(reply, deps.instanceSettingsService, session.id);
 
       return { session, ...tokens };
     } catch (err) {
@@ -1828,13 +1818,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         });
       });
 
-      reply.setCookie("sid", session.id, {
-        httpOnly: true,
-        secure: await deps.instanceSettingsService.shouldUseSecureCookies(),
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 60 * 8
-      });
+      await setSessionCookie(reply, deps.instanceSettingsService, session.id);
 
       return { session, ...tokens };
     } catch (error) {
@@ -2387,13 +2371,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       metadata: { method: "federation", providerId, sessionId: session.id }
     });
 
-    reply.setCookie("sid", session.id, {
-      httpOnly: true,
-      secure: await deps.instanceSettingsService.shouldUseSecureCookies(),
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 8
-    });
+    await setSessionCookie(reply, deps.instanceSettingsService, session.id);
 
     return reply.redirect(asSafeRedirect(completed.redirectAfterLogin));
   });
@@ -2415,7 +2393,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         ip: request.ip
       });
     }
-    reply.clearCookie("sid", { path: "/" });
+    await clearSessionCookie(reply, deps.instanceSettingsService);
     return reply.redirect("/login");
   });
 
@@ -2447,7 +2425,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       deps.securityService.revokeSessionObservation(session.id);
       await enforceInvalidationForSession({ session, ip: request.ip });
     }
-    reply.clearCookie("sid", { path: "/" });
+    await clearSessionCookie(reply, deps.instanceSettingsService);
     if (post_logout_redirect_uri) {
       const redirectClientId = session?.clientId ?? hintedClientId ?? client_id;
       if (!redirectClientId) {
@@ -2481,7 +2459,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       await deps.authService.sessionRepository.revoke(session.id, new Date());
     }
 
-    reply.clearCookie("sid", { path: "/" });
+    await clearSessionCookie(reply, deps.instanceSettingsService);
 
     if (input.post_logout_redirect_uri) {
       const redirectUrl = await resolveValidatedPostLogoutRedirect({
@@ -2671,13 +2649,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         tenantSlug: input.tenantSlug
       });
 
-      reply.setCookie("sid", session.id, {
-        httpOnly: true,
-        secure: await deps.instanceSettingsService.shouldUseSecureCookies(),
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 60 * 8
-      });
+      await setSessionCookie(reply, deps.instanceSettingsService, session.id);
 
       return { session, ...tokens, recovery: true };
     } catch (err) {
@@ -3329,24 +3301,24 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return session;
   }
 
-  // Resolves the current portal user id from either a cookie session or a
-  // Bearer access token, so token-based clients can call read-only portal
-  // endpoints (e.g. /api/portal/me) without a browser session cookie.
+  // Resolves the current portal user id from either a Bearer access token or a
+  // cookie session. Bearer tokens take precedence so API clients are not
+  // shadowed by a stale browser session cookie left from another user.
   async function getPortalUserId(request: any): Promise<string | null> {
+    const authorization = request.headers?.authorization;
+    if (typeof authorization === "string" && authorization.startsWith("Bearer ")) {
+      try {
+        const token = authorization.slice("Bearer ".length);
+        const { user } = await deps.authService.getUserFromAccessToken(token);
+        return user.id;
+      } catch {
+        return null;
+      }
+    }
+
     const session = await getPortalSession(request);
     if (session) return session.userId;
-
-    const authorization = request.headers?.authorization;
-    if (typeof authorization !== "string" || !authorization.startsWith("Bearer ")) {
-      return null;
-    }
-    try {
-      const token = authorization.slice("Bearer ".length);
-      const { user } = await deps.authService.getUserFromAccessToken(token);
-      return user.id;
-    } catch {
-      return null;
-    }
+    return null;
   }
 
   app.get("/api/portal/language/default", async (request) => {
@@ -3385,6 +3357,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   // GET /api/portal/me — current user profile + apps + custom attributes
   // Accepts either a portal session cookie or a Bearer access token.
   app.get("/api/portal/me", async (request, reply) => {
+    reply.header("Cache-Control", "private, no-store");
     const userId = await getPortalUserId(request);
     if (!userId) return reply.status(401).send({ error: "unauthorized" });
     const user = await deps.userService.findUserById(userId);
@@ -3484,7 +3457,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       await deps.authService.sessionRepository.revoke(s.id, now);
     }
     await deps.userService.deleteUser(session.userId);
-    reply.clearCookie("sid", { path: "/" });
+    await clearSessionCookie(reply, deps.instanceSettingsService);
     return reply.status(204).send();
   });
 

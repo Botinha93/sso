@@ -83,7 +83,7 @@ export default function Login() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ email: username, password })
       })
       if (res.status === 202) {
         const json = await res.json().catch(() => ({}))
