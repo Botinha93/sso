@@ -6,6 +6,10 @@ import type {
   UserAttributeRepository
 } from "../repositories/contracts.js";
 import type { UserAttributeType } from "../domain/models.js";
+import {
+  normalizeCustomAttributeMap,
+  normalizeUserAttributeKey
+} from "../domain/user-attribute-keys.js";
 
 export class UserAttributeService {
   constructor(
@@ -39,7 +43,7 @@ export class UserAttributeService {
     type: UserAttributeType;
     enabled: boolean;
   }) {
-    const key = this.normalizeKey(input.key);
+    const key = normalizeUserAttributeKey(input.key);
 
     if (await this.userAttributeRepository.findByKey(key)) {
       throw new ValidationError("User attribute key already exists");
@@ -70,7 +74,7 @@ export class UserAttributeService {
       throw new ValidationError("User attribute not found");
     }
 
-    const normalizedKey = input.key ? this.normalizeKey(input.key) : undefined;
+    const normalizedKey = input.key ? normalizeUserAttributeKey(input.key) : undefined;
     if (normalizedKey && normalizedKey !== existing.key) {
       const duplicate = await this.userAttributeRepository.findByKey(normalizedKey);
       if (duplicate && duplicate.id !== id) {
@@ -117,14 +121,6 @@ export class UserAttributeService {
     await this.groupUserAttributeAssignmentRepository.delete(input.attributeId, input.groupId);
   }
 
-  private normalizeKey(key: string) {
-    const normalized = key.trim().toLowerCase().replace(/[^a-z0-9_]/g, "_");
-    if (!normalized || normalized.length < 2) {
-      throw new ValidationError("Attribute key must be at least 2 characters");
-    }
-    return normalized;
-  }
-
   async listDefinitions() {
     return this.userAttributeRepository.list();
   }
@@ -141,8 +137,9 @@ export class UserAttributeService {
 
   async validateCustomAttributeMap(customAttributes: Record<string, string>) {
     const definitionsByKey = await this.listDefinitionsByKey();
+    const normalizedCustomAttributes = normalizeCustomAttributeMap(customAttributes);
 
-    for (const [key, value] of Object.entries(customAttributes)) {
+    for (const [key, value] of Object.entries(normalizedCustomAttributes)) {
       const definition = definitionsByKey.get(key);
       if (!definition) {
         throw new ValidationError(`Unknown custom attribute: ${key}`);
@@ -176,11 +173,12 @@ export class UserAttributeService {
   }
 
   async setGroupCustomAttributes(groupId: string, customAttributes: Record<string, string>) {
+    const normalizedCustomAttributes = normalizeCustomAttributeMap(customAttributes);
     const definitions = await this.userAttributeRepository.list();
     const enabledDefinitions = definitions.filter((definition) => definition.enabled);
     const definitionsByKey = new Map(enabledDefinitions.map((definition) => [definition.key, definition]));
     const existingAssignments = await this.groupUserAttributeAssignmentRepository.listByGroup(groupId);
-    for (const [key, value] of Object.entries(customAttributes)) {
+    for (const [key, value] of Object.entries(normalizedCustomAttributes)) {
       const definition = definitionsByKey.get(key);
       if (!definition) {
         throw new ValidationError(`Unknown custom attribute: ${key}`);
@@ -190,12 +188,12 @@ export class UserAttributeService {
 
     for (const assignment of existingAssignments) {
       const definition = definitions.find((item) => item.id === assignment.attributeId);
-      if (!definition || !(definition.key in customAttributes)) {
+      if (!definition || !(definition.key in normalizedCustomAttributes)) {
         await this.groupUserAttributeAssignmentRepository.delete(assignment.attributeId, groupId);
       }
     }
 
-    for (const [key, value] of Object.entries(customAttributes)) {
+    for (const [key, value] of Object.entries(normalizedCustomAttributes)) {
       const definition = definitionsByKey.get(key);
       if (!definition) {
         continue;

@@ -94,6 +94,16 @@ export const buildApp = async () => {
     frameguard: { action: "deny" },
     referrerPolicy: { policy: "strict-origin-when-cross-origin" }
   });
+
+  // Helmet defaults to CORP same-origin, which blocks avatars and other media
+  // from being embedded in third-party apps (e.g. via OIDC picture claims).
+  app.addHook("onSend", async (request, reply, payload) => {
+    const path = request.url.split("?")[0] ?? "";
+    if (path.startsWith("/media/")) {
+      reply.header("Cross-Origin-Resource-Policy", "cross-origin");
+    }
+    return payload;
+  });
   await app.register(cookie, { secret: config.cookieSecret });
   await app.register(cors, {
     origin(origin, callback) {

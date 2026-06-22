@@ -10,6 +10,10 @@ import type {
   UserGroupAssignmentRepository,
   UserRepository
 } from "../repositories/contracts.js";
+import {
+  normalizeCustomAttributeMap,
+  normalizeUserAttributeKey
+} from "../domain/user-attribute-keys.js";
 
 export class GroupService {
   constructor(
@@ -56,7 +60,7 @@ export class GroupService {
     const definitionsByKey = new Map(definitions.filter((definition) => definition.enabled).map((definition) => [definition.key, definition]));
 
     for (const [key, value] of Object.entries(customAttributes)) {
-      const definition = definitionsByKey.get(key);
+      const definition = definitionsByKey.get(normalizeUserAttributeKey(key));
       if (!definition) {
         throw new ValidationError(`Unknown custom attribute: ${key}`);
       }
@@ -84,18 +88,19 @@ export class GroupService {
   }
 
   private async setGroupCustomAttributes(groupId: string, customAttributes: Record<string, string>) {
+    const normalizedCustomAttributes = normalizeCustomAttributeMap(customAttributes);
     const definitions = await this.userAttributeRepository.list();
     const definitionsByKey = new Map(definitions.map((definition) => [definition.key, definition]));
     const existingAssignments = await this.groupUserAttributeAssignmentRepository.listByGroup(groupId);
 
     for (const assignment of existingAssignments) {
       const definition = definitions.find((item) => item.id === assignment.attributeId);
-      if (!definition || !(definition.key in customAttributes)) {
+      if (!definition || !(definition.key in normalizedCustomAttributes)) {
         await this.groupUserAttributeAssignmentRepository.delete(assignment.attributeId, groupId);
       }
     }
 
-    for (const [key, value] of Object.entries(customAttributes)) {
+    for (const [key, value] of Object.entries(normalizedCustomAttributes)) {
       const definition = definitionsByKey.get(key);
       if (!definition) {
         continue;
@@ -145,7 +150,7 @@ export class GroupService {
     const appIds = this.normalizeAppIds(input);
     const roleIds = Array.from(new Set(input.roleIds));
     const knownRoles = await this.roleRepository.findByIds(roleIds);
-    const customAttributes = input.customAttributes ?? {};
+    const customAttributes = normalizeCustomAttributeMap(input.customAttributes);
 
     await this.validateAppIds(appIds);
     await this.validateCustomAttributes(customAttributes);
@@ -214,7 +219,7 @@ export class GroupService {
       await this.validateAppIds(appIds);
     }
     if (input.customAttributes) {
-      await this.validateCustomAttributes(input.customAttributes);
+      await this.validateCustomAttributes(normalizeCustomAttributeMap(input.customAttributes));
     }
 
     const updated = await this.groupRepository.update(id, {

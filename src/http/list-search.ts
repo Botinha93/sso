@@ -1,3 +1,5 @@
+import { normalizeUserAttributeKey } from "../domain/user-attribute-keys.js";
+
 export interface AdminListQuery {
   search?: string;
   page?: number;
@@ -21,7 +23,7 @@ export const parseCustomAttributeFilters = (
     if (!attributeKey || rawValue === undefined || rawValue === null) {
       continue;
     }
-    filters[attributeKey] = String(rawValue);
+    filters[normalizeUserAttributeKey(attributeKey)] = String(rawValue);
   }
   return filters;
 };

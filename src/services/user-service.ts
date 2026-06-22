@@ -3,6 +3,10 @@ import { hashPassword } from "../security/password.js";
 import type { AppRepository, UserAppAssignmentRepository, UserAttributeRepository, UserRepository } from "../repositories/contracts.js";
 import { RoleService } from "./role-service.js";
 import { GroupService } from "./group-service.js";
+import {
+  normalizeCustomAttributeMap,
+  normalizeUserAttributeKey
+} from "../domain/user-attribute-keys.js";
 
 export class UserService {
   constructor(
@@ -46,7 +50,7 @@ export class UserService {
     const definitionsByKey = new Map(definitions.filter((definition) => definition.enabled).map((definition) => [definition.key, definition]));
 
     for (const [key, value] of Object.entries(customAttributes)) {
-      const definition = definitionsByKey.get(key);
+      const definition = definitionsByKey.get(normalizeUserAttributeKey(key));
       if (!definition) {
         throw new ValidationError(`Unknown custom attribute: ${key}`);
       }
@@ -74,13 +78,7 @@ export class UserService {
   }
 
   private normalizeCustomAttributes(customAttributes: Record<string, string> | undefined) {
-    if (!customAttributes) {
-      return {} as Record<string, string>;
-    }
-
-    return Object.fromEntries(
-      Object.entries(customAttributes).filter(([, value]) => value.trim().length > 0)
-    );
+    return normalizeCustomAttributeMap(customAttributes, { omitEmptyValues: true });
   }
 
   async createUser(input: {
@@ -213,7 +211,8 @@ export class UserService {
       );
     }
     if (filters?.customAttributes) {
-      for (const [key, value] of Object.entries(filters.customAttributes)) {
+      const normalizedFilters = normalizeCustomAttributeMap(filters.customAttributes);
+      for (const [key, value] of Object.entries(normalizedFilters)) {
         results = results.filter((user) => (user.customAttributes ?? {})[key] === value);
       }
     }
