@@ -421,11 +421,18 @@ export interface GroupUserSummary {
   familyName: string;
   isServiceUser: boolean;
   active: boolean;
+  customAttributes?: Record<string, string>;
 }
 
 export interface GroupUsersResult {
   userIds: string[];
   users: GroupUserSummary[];
+}
+
+export interface GroupUsersQuery extends ListPageQuery {
+  active?: boolean;
+  search?: string;
+  customAttributes?: Record<string, string>;
 }
 
 export interface GroupsAPI {
@@ -445,8 +452,8 @@ export interface GroupsAPI {
   assignUser(input: AssignUserGroupInput): Promise<unknown>;
   /** Removes a user from a group. */
   removeUser(input: AssignUserGroupInput): Promise<void>;
-  /** Lists users assigned to a group. */
-  listUsers(id: string): Promise<GroupUsersResult>;
+  /** Lists users assigned to a group with optional active/search/customAttribute filters. */
+  listUsers(id: string, query?: GroupUsersQuery): Promise<GroupUsersResult>;
 }
 
 export interface GroupListQuery extends ListPageQuery {

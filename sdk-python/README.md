@@ -52,7 +52,8 @@ print(users)
 - `auth.get_userinfo(...)` — roles, groups, and flattened permissions
 - `auth.get_userinfo_signed()` — signed JWT UserInfo
 - `admin.me.get()` — current admin user with roles, groups, permissions
-- `admin.users.list(...)`
+- `admin.users.list(...)` — supports `group`, `active`, `search`, `page`, `pageSize`, and `customAttribute.{key}` filters (see `docs/ADMIN_USER_FILTERING.md`)
+- `admin.groups.users(group_id, ...)` — same filters for direct group members
 - `admin.users.get(user_id)` — full admin detail for a single user (profile, custom attributes, groups, roles)
 - `admin.clients.list(...)`
 - `admin.permissions.list()`

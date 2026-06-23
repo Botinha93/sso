@@ -321,6 +321,17 @@ const activeSupportUsers = await admin.users.list({
   active: true,
   search: "analyst"
 });
+
+const managersInArea = await admin.users.list({
+  group: "gestor",
+  active: true,
+  customAttributes: { connect_jc_area_principal: "RH" }
+});
+
+const groupMembers = await admin.groups.listUsers(group.id, {
+  active: true,
+  customAttributes: { connect_jc_area_principal: "RH" }
+});
 ```
 
 ## Roles And Groups

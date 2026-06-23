@@ -502,11 +502,15 @@ class GroupsAPI:
     def remove_user(self, payload: gm.AssignUserGroupRequestBody) -> None:
         self._client.delete("/api/admin/user-groups", body=payload)
 
-    def users(self, group_id: str) -> gm.GetApiAdminGroupsByIdUsersResponse:
-        """Return users that belong to the given group (humans and service identities)."""
+    def users(self, group_id: str, **query: Any) -> gm.GetApiAdminGroupsByIdUsersResponse:
+        """Return users that belong to the given group (humans and service identities).
+
+        Supports optional query filters: active, search, page, pageSize, and
+        customAttribute.{key} params (e.g. customAttribute_connect_jc_area_principal=RH).
+        """
         return cast(
             gm.GetApiAdminGroupsByIdUsersResponse,
-            self._client.get(f"/api/admin/groups/{group_id}/users"),
+            self._client.get(f"/api/admin/groups/{group_id}/users", query=query),
         )
 
 

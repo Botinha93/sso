@@ -5,6 +5,7 @@ import type {
   AssignUserGroupInput,
   CreateGroupInput,
   GroupListQuery,
+  GroupUsersQuery,
   GroupUsersResult,
   GroupsAPI,
   SDKGroup,
@@ -41,5 +42,19 @@ export const createGroupsAPI = (client: ClientInstance): GroupsAPI => ({
   removeUser: async (input: AssignUserGroupInput) => {
     await client.delete("/api/admin/user-groups", { body: input });
   },
-  listUsers: (id: string) => client.get<GroupUsersResult>(`/api/admin/groups/${id}/users`)
+  listUsers: (id: string, query?: GroupUsersQuery) => {
+    const queryParams: Record<string, string | number | boolean> = {};
+    if (query?.active !== undefined) queryParams.active = query.active;
+    if (query?.search) queryParams.search = query.search;
+    if (query?.page) queryParams.page = query.page;
+    if (query?.pageSize) queryParams.pageSize = query.pageSize;
+    if (query?.customAttributes) {
+      for (const [key, value] of Object.entries(query.customAttributes)) {
+        queryParams[`customAttribute.${key}`] = value;
+      }
+    }
+    return client.get<GroupUsersResult>(`/api/admin/groups/${id}/users`, {
+      query: Object.keys(queryParams).length > 0 ? queryParams : undefined
+    });
+  }
 });

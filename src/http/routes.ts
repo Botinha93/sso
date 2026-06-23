@@ -126,7 +126,7 @@ import { ConnectorService, AuthMetricsService } from "../services/connector-serv
 import { PluginService } from "../services/plugin-service.js";
 import { PluginRuntimeService } from "../services/plugin-runtime-service.js";
 import { MediaService } from "../services/media-service.js";
-import { filterAdminList, parseAdminListQuery } from "./list-search.js";
+import { filterAdminList, filterAdminUsers, parseAdminListQuery } from "./list-search.js";
 import { GeolocationService } from "../services/geolocation-service.js";
 import { TranslationService } from "../services/translation-service.js";
 import type {
@@ -3016,21 +3016,28 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     if (!group) {
       return reply.status(404).send({ error: "not_found", message: "Group not found" });
     }
-    const userIds = await deps.groupService.listUserIdsForGroup(id);
-    const allUsers = await deps.userService.listUsers();
-    const allowed = new Set(userIds);
-    const users = allUsers
-      .filter((user) => allowed.has(user.id))
-      .map((user) => ({
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        givenName: user.givenName,
-        familyName: user.familyName,
-        isServiceUser: user.isServiceUser ?? false,
-        active: user.active
-      }));
-    return { userIds, users };
+    const query = request.query as Record<string, unknown>;
+    const memberIds = await deps.groupService.listUserIdsForGroup(id);
+    const serialized = (
+      await Promise.all(memberIds.map((userId) => deps.userService.serializeAdminUser(userId)))
+    ).filter((user): user is NonNullable<typeof user> => user !== null);
+    const users = filterAdminUsers(serialized, query, [
+      (user) => user.username,
+      (user) => user.email,
+      (user) => user.givenName,
+      (user) => user.familyName,
+      (user) => user.id
+    ]).map((user) => ({
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      givenName: user.givenName,
+      familyName: user.familyName,
+      isServiceUser: user.isServiceUser ?? false,
+      active: user.active,
+      customAttributes: user.customAttributes ?? {}
+    }));
+    return { userIds: users.map((user) => user.id), users };
   });
   app.get("/api/admin/tenants", async (request) => {
     const tenants = await deps.tenantService.listTenants();

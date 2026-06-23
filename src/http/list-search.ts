@@ -87,3 +87,33 @@ export const filterAdminList = <T>(
   const filtered = applyListSearch(items, parsed.search, fields);
   return applyListPagination(filtered, parsed);
 };
+
+type AdminUserFilterShape = {
+  active?: boolean;
+  customAttributes?: Record<string, string>;
+};
+
+export const applyAdminUserFilters = <T extends AdminUserFilterShape>(
+  items: T[],
+  parsed: AdminListQuery
+): T[] => {
+  let results = items;
+  if (parsed.active !== undefined) {
+    results = results.filter((user) => user.active === parsed.active);
+  }
+  const attributeFilters = parsed.customAttributes ?? {};
+  for (const [key, value] of Object.entries(attributeFilters)) {
+    results = results.filter((user) => (user.customAttributes ?? {})[key] === value);
+  }
+  return results;
+};
+
+export const filterAdminUsers = <T extends AdminUserFilterShape>(
+  items: T[],
+  query: Record<string, unknown>,
+  fields: Array<(item: T) => unknown>
+): T[] => {
+  const parsed = parseAdminListQuery(query);
+  const filtered = applyAdminUserFilters(applyListSearch(items, parsed.search, fields), parsed);
+  return applyListPagination(filtered, parsed);
+};
