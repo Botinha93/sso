@@ -41,6 +41,11 @@ test("parseAdminListQuery parses group, active, and pagination", () => {
   );
 });
 
+test("parseAdminListQuery accepts Python-style True/False active values", () => {
+  assert.deepEqual(parseAdminListQuery({ active: "True" }).active, true);
+  assert.deepEqual(parseAdminListQuery({ active: "False" }).active, false);
+});
+
 test("applyAdminUserFilters matches active and custom attributes", () => {
   const users = [
     { id: "1", active: true, customAttributes: { connect_jc_area_principal: "RH" } },

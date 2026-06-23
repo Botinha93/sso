@@ -41,10 +41,18 @@ export const parseAdminListQuery = (query: Record<string, unknown>): AdminListQu
   const group = typeof groupRaw === "string" && groupRaw.trim() ? groupRaw.trim() : undefined;
 
   let active: boolean | undefined;
-  if (query.active === "true" || query.active === true) {
+  const activeRaw = query.active;
+  if (activeRaw === "true" || activeRaw === true) {
     active = true;
-  } else if (query.active === "false" || query.active === false) {
+  } else if (activeRaw === "false" || activeRaw === false) {
     active = false;
+  } else if (typeof activeRaw === "string") {
+    const normalized = activeRaw.trim().toLowerCase();
+    if (normalized === "true") {
+      active = true;
+    } else if (normalized === "false") {
+      active = false;
+    }
   }
 
   const customAttributes = parseCustomAttributeFilters(query);

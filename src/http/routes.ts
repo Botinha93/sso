@@ -7,6 +7,7 @@ import { bootstrap } from "../bootstrap.js";
 import { AppError, AuthenticationError, ValidationError } from "../core/errors.js";
 import { ensureExternalDatabaseSchema, saveRuntimeDatabaseConfig } from "../core/runtime-database-config.js";
 import { verifyPassword } from "../security/password.js";
+import { isJwtVerificationError } from "../security/jwt.js";
 import { getAssetContentType, readFrontendAsset } from "./view-assets.js";
 import { hasAdminPermission, toAdminAction, toAdminResource } from "./admin-authorization.js";
 import { registerScimRoutes } from "./scim-routes.js";
@@ -1597,6 +1598,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       if (err instanceof AppError) {
         return reply.status(err.statusCode).send({ error: "invalid_token", error_description: publicErrorMessageForPath("/oauth/userinfo", err) });
       }
+      if (isJwtVerificationError(err)) {
+        return reply.status(401).send({ error: "invalid_token", error_description: "Access token is invalid or expired" });
+      }
       throw err;
     }
   });
@@ -2679,18 +2683,14 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.get("/api/admin/users", async (request) => {
     const query = request.query as Record<string, unknown>;
     const parsed = parseAdminListQuery(query);
-    const users = await deps.userService.listUsers({
+    return deps.userService.listUsers({
       group: parsed.group,
       active: parsed.active,
-      customAttributes: Object.keys(parsed.customAttributes ?? {}).length > 0 ? parsed.customAttributes : undefined
+      customAttributes: Object.keys(parsed.customAttributes ?? {}).length > 0 ? parsed.customAttributes : undefined,
+      search: parsed.search,
+      page: parsed.page,
+      pageSize: parsed.pageSize
     });
-    return filterAdminList(users, query, [
-      (user) => user.username,
-      (user) => user.email,
-      (user) => user.givenName,
-      (user) => user.familyName,
-      (user) => user.id
-    ]);
   });
   app.get("/api/admin/users/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -3017,10 +3017,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       return reply.status(404).send({ error: "not_found", message: "Group not found" });
     }
     const query = request.query as Record<string, unknown>;
+    const parsed = parseAdminListQuery(query);
     const memberIds = await deps.groupService.listUserIdsForGroup(id);
-    const serialized = (
-      await Promise.all(memberIds.map((userId) => deps.userService.serializeAdminUser(userId)))
-    ).filter((user): user is NonNullable<typeof user> => user !== null);
+    const serialized = await deps.userService.serializeAdminUsers(memberIds);
     const users = filterAdminUsers(serialized, query, [
       (user) => user.username,
       (user) => user.email,
@@ -3562,6 +3561,28 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         message: validationErrorMessageFromIssues(details),
         details
       });
+    }
+    if (typeof error === "object" && error !== null && "statusCode" in error) {
+      const statusCode = Number((error as { statusCode?: number }).statusCode);
+      if (statusCode === 429) {
+        const retryAfter = (error as { headers?: Record<string, string> }).headers?.["retry-after"];
+        if (retryAfter) {
+          reply.header("Retry-After", retryAfter);
+        }
+        return reply.status(429).send({
+          error: "rate_limited",
+          message: error instanceof Error ? error.message : "Rate limit exceeded"
+        });
+      }
+    }
+    if (isJwtVerificationError(error)) {
+      const path = request.url.split("?")[0];
+      if (path === "/oauth/userinfo" || path === "/oauth/introspect") {
+        return reply.status(401).send({
+          error: "invalid_token",
+          error_description: "Access token is invalid or expired"
+        });
+      }
     }
     request.log.error(error);
     return reply.status(500).send({ error: "InternalServerError", message: "Unexpected server error" });

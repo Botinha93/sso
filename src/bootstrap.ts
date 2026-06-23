@@ -1,5 +1,5 @@
 import type { AppConfig } from "./core/config.js";
-import { createSigningKeys } from "./security/keys.js";
+import { loadOrCreateSigningKeys } from "./security/keys.js";
 import { JwtService } from "./security/jwt.js";
 import { createRepositoryBundle } from "./repositories/factory.js";
 import { AuthService } from "./services/auth-service.js";
@@ -163,6 +163,13 @@ export const bootstrap = async (config: AppConfig) => {
     appRepository,
     userAppAssignmentRepository,
     userAttributeRepository,
+    userGroupAssignmentRepository,
+    assignmentRepository,
+    groupRepository,
+    roleRepository,
+    groupAppAssignmentRepository,
+    groupRoleAssignmentRepository,
+    groupUserAttributeAssignmentRepository,
     roleService,
     groupService
   );
@@ -473,7 +480,7 @@ export const bootstrap = async (config: AppConfig) => {
     }
   }
 
-  const signingKeys = await createSigningKeys();
+  const signingKeys = await loadOrCreateSigningKeys(resolve(dirname(config.databasePath), ".jwt-signing-keys.json"));
   const jwtService = new JwtService(signingKeys, config);
   const authService = new AuthService(
     userService,

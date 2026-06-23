@@ -152,6 +152,7 @@ export interface GroupRepository {
 
 export interface UserGroupAssignmentRepository {
   assign(input: Omit<UserGroupAssignment, "id" | "createdAt">): Awaitable<UserGroupAssignment>;
+  list(): Awaitable<UserGroupAssignment[]>;
   listByUser(userId: string): Awaitable<UserGroupAssignment[]>;
   listByGroup(groupId: string): Awaitable<UserGroupAssignment[]>;
   remove(userId: string, groupId: string): Awaitable<void>;
@@ -159,6 +160,7 @@ export interface UserGroupAssignmentRepository {
 
 export interface UserAppAssignmentRepository {
   assign(input: Omit<UserAppAssignment, "id" | "createdAt">): Awaitable<UserAppAssignment>;
+  list(): Awaitable<UserAppAssignment[]>;
   listByUser(userId: string): Awaitable<UserAppAssignment[]>;
   remove(userId: string, appId: string): Awaitable<void>;
 }
@@ -179,6 +181,7 @@ export interface GroupRoleAssignmentRepository {
 
 export interface UserRoleAssignmentRepository {
   assign(input: Omit<UserRoleAssignment, "id" | "createdAt">): Awaitable<UserRoleAssignment>;
+  list(): Awaitable<UserRoleAssignment[]>;
   listByUser(userId: string): Awaitable<UserRoleAssignment[]>;
   remove(input: { userId: string; roleId: string; tenantId?: string }): Awaitable<void>;
 }

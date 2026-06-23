@@ -1456,6 +1456,11 @@ class PrismaUserGroupAssignmentRepository {
     return assignment;
   }
 
+  async list(): Promise<UserGroupAssignment[]> {
+    const rows = await this.prisma.userGroupAssignment.findMany({ orderBy: { createdAt: "asc" } });
+    return rows.map((row: PrismaRow) => mapUserGroupAssignment(row));
+  }
+
   async listByUser(userId: string): Promise<UserGroupAssignment[]> {
     const rows = await this.prisma.userGroupAssignment.findMany({ where: { userId } });
     return rows.map((row: PrismaRow) => mapUserGroupAssignment(row));
@@ -1488,6 +1493,13 @@ class PrismaUserAppAssignmentRepository implements UserAppAssignmentRepository {
       RETURNING *
     `;
     return mapUserAppAssignment(rows[0]);
+  }
+
+  async list(): Promise<UserAppAssignment[]> {
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      SELECT * FROM user_app_assignments ORDER BY created_at ASC
+    `;
+    return rows.map((row) => mapUserAppAssignment(row));
   }
 
   async listByUser(userId: string): Promise<UserAppAssignment[]> {
@@ -1590,6 +1602,11 @@ class PrismaUserRoleAssignmentRepository {
     const assignment: UserRoleAssignment = { ...input, id: nanoid(), createdAt: new Date() };
     await this.prisma.userRoleAssignment.create({ data: { id: assignment.id, userId: assignment.userId, roleId: assignment.roleId, tenantId: assignment.tenantId ?? null, createdAt: assignment.createdAt.toISOString() } });
     return assignment;
+  }
+
+  async list(): Promise<UserRoleAssignment[]> {
+    const rows = await this.prisma.userRoleAssignment.findMany({ orderBy: { createdAt: "asc" } });
+    return rows.map((row: PrismaRow) => mapAssignment(row));
   }
 
   async listByUser(userId: string): Promise<UserRoleAssignment[]> {

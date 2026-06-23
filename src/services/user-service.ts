@@ -1,19 +1,49 @@
 import { ValidationError } from "../core/errors.js";
 import { hashPassword } from "../security/password.js";
-import type { AppRepository, UserAppAssignmentRepository, UserAttributeRepository, UserRepository } from "../repositories/contracts.js";
+import type {
+  AppRepository,
+  GroupAppAssignmentRepository,
+  GroupRepository,
+  GroupRoleAssignmentRepository,
+  GroupUserAttributeAssignmentRepository,
+  RoleRepository,
+  UserAppAssignmentRepository,
+  UserAttributeRepository,
+  UserGroupAssignmentRepository,
+  UserRepository,
+  UserRoleAssignmentRepository
+} from "../repositories/contracts.js";
 import { RoleService } from "./role-service.js";
 import { GroupService } from "./group-service.js";
 import {
   normalizeCustomAttributeMap,
   normalizeUserAttributeKey
 } from "../domain/user-attribute-keys.js";
+import {
+  buildAdminUserListCache,
+  serializeAdminUserFromCache,
+  type AdminUserListCache,
+  type SerializedAdminUser
+} from "./admin-user-list-cache.js";
+import { applyListPagination, applyListSearch } from "../http/list-search.js";
 
 export class UserService {
+  private adminUserListCache?: AdminUserListCache;
+  private adminUserListCacheLoadedAt = 0;
+  private static readonly ADMIN_USER_LIST_CACHE_TTL_MS = 5_000;
+
   constructor(
     private readonly userRepository: UserRepository,
     private readonly appRepository: AppRepository,
     private readonly userAppAssignmentRepository: UserAppAssignmentRepository,
     private readonly userAttributeRepository: UserAttributeRepository,
+    private readonly userGroupAssignmentRepository: UserGroupAssignmentRepository,
+    private readonly userRoleAssignmentRepository: UserRoleAssignmentRepository,
+    private readonly groupRepository: GroupRepository,
+    private readonly roleRepository: RoleRepository,
+    private readonly groupAppAssignmentRepository: GroupAppAssignmentRepository,
+    private readonly groupRoleAssignmentRepository: GroupRoleAssignmentRepository,
+    private readonly groupUserAttributeAssignmentRepository: GroupUserAttributeAssignmentRepository,
     private readonly roleService: RoleService,
     private readonly groupService: GroupService
   ) {}
@@ -79,6 +109,54 @@ export class UserService {
 
   private normalizeCustomAttributes(customAttributes: Record<string, string> | undefined) {
     return normalizeCustomAttributeMap(customAttributes, { omitEmptyValues: true });
+  }
+
+  private invalidateAdminUserListCache() {
+    this.adminUserListCache = undefined;
+    this.adminUserListCacheLoadedAt = 0;
+  }
+
+  private async loadAdminUserListCache(): Promise<AdminUserListCache> {
+    const now = Date.now();
+    if (this.adminUserListCache && now - this.adminUserListCacheLoadedAt < UserService.ADMIN_USER_LIST_CACHE_TTL_MS) {
+      return this.adminUserListCache;
+    }
+
+    const groups = await this.groupRepository.list();
+    const groupIds = groups.map((group) => group.id);
+    const [
+      roles,
+      userRoleAssignments,
+      userGroupAssignments,
+      userAppAssignments,
+      groupRoleAssignments,
+      groupAppAssignments,
+      groupUserAttributeAssignments,
+      attributeDefinitions
+    ] = await Promise.all([
+      this.roleRepository.list(),
+      this.userRoleAssignmentRepository.list(),
+      this.userGroupAssignmentRepository.list(),
+      this.userAppAssignmentRepository.list(),
+      groupIds.length > 0 ? this.groupRoleAssignmentRepository.listByGroups(groupIds) : Promise.resolve([]),
+      groupIds.length > 0 ? this.groupAppAssignmentRepository.listByGroups(groupIds) : Promise.resolve([]),
+      this.groupUserAttributeAssignmentRepository.list(),
+      this.userAttributeRepository.list()
+    ]);
+
+    this.adminUserListCache = buildAdminUserListCache({
+      groups,
+      roles,
+      userRoleAssignments,
+      userGroupAssignments,
+      userAppAssignments,
+      groupRoleAssignments,
+      groupAppAssignments,
+      groupUserAttributeAssignments,
+      attributeDefinitions
+    });
+    this.adminUserListCacheLoadedAt = now;
+    return this.adminUserListCache;
   }
 
   async createUser(input: {
@@ -154,6 +232,7 @@ export class UserService {
       await this.groupService.assignUserToGroup({ userId: user.id, groupId });
     }
 
+    this.invalidateAdminUserListCache();
     return user;
   }
 
@@ -163,61 +242,90 @@ export class UserService {
       return null;
     }
 
-    const { passwordHash: _passwordHash, ...safeUser } = user;
-    const directRoleIds = Array.from(
-      new Set((await this.roleService.listAssignmentsForUser(userId)).map((assignment) => assignment.roleId))
-    );
+    const cache = await this.loadAdminUserListCache();
+    return serializeAdminUserFromCache(user, cache);
+  }
 
-    return {
-      ...safeUser,
-      ...(await this.resolveCustomAttributesForUser(userId)),
-      ...(await this.resolveAppAccessForUser(userId)),
-      roles: await this.roleService.resolveNamesForUser(userId),
-      directRoleIds,
-      groups: await this.groupService.resolveGroupNamesForUser(userId)
-    };
+  async serializeAdminUsers(userIds: string[]): Promise<SerializedAdminUser[]> {
+    if (userIds.length === 0) {
+      return [];
+    }
+
+    const uniqueIds = Array.from(new Set(userIds));
+    const [cache, users] = await Promise.all([
+      this.loadAdminUserListCache(),
+      Promise.all(uniqueIds.map((userId) => this.userRepository.findById(userId)))
+    ]);
+
+    return users
+      .filter((user): user is NonNullable<typeof user> => user !== null && user !== undefined)
+      .map((user) => serializeAdminUserFromCache(user, cache));
   }
 
   async listUsers(filters?: {
     group?: string;
     customAttributes?: Record<string, string>;
     active?: boolean;
+    search?: string;
+    page?: number;
+    pageSize?: number;
+    userIds?: string[];
   }) {
-    const users = await this.userRepository.list();
-    const serialized = await Promise.all(
-      users.map(async ({ passwordHash, ...user }) => {
-        const directRoleIds = Array.from(
-          new Set((await this.roleService.listAssignmentsForUser(user.id)).map((assignment) => assignment.roleId))
-        );
-        return {
-          ...user,
-          ...(await this.resolveCustomAttributesForUser(user.id)),
-          ...(await this.resolveAppAccessForUser(user.id)),
-          roles: await this.roleService.resolveNamesForUser(user.id),
-          directRoleIds,
-          groups: await this.groupService.resolveGroupNamesForUser(user.id)
-        };
-      })
-    );
+    const [users, cache] = await Promise.all([
+      this.userRepository.list(),
+      this.loadAdminUserListCache()
+    ]);
 
-    let results = serialized;
+    const allowedUserIds = filters?.userIds ? new Set(filters.userIds) : undefined;
+    let candidates = users.filter((user) => !allowedUserIds || allowedUserIds.has(user.id));
+
     if (filters?.active !== undefined) {
-      results = results.filter((user) => user.active === filters.active);
-    }
-    if (filters?.group) {
-      const needle = filters.group.trim().toLowerCase();
-      results = results.filter((user) =>
-        (user.groups ?? []).some((groupName) => groupName.toLowerCase() === needle || groupName.toLowerCase().includes(needle))
-      );
-    }
-    if (filters?.customAttributes) {
-      const normalizedFilters = normalizeCustomAttributeMap(filters.customAttributes);
-      for (const [key, value] of Object.entries(normalizedFilters)) {
-        results = results.filter((user) => (user.customAttributes ?? {})[key] === value);
-      }
+      candidates = candidates.filter((user) => user.active === filters.active);
     }
 
-    return results;
+    if (filters?.search) {
+      candidates = applyListSearch(candidates, filters.search, [
+        (user) => user.username,
+        (user) => user.email,
+        (user) => user.givenName,
+        (user) => user.familyName,
+        (user) => user.id
+      ]);
+    }
+
+    const normalizedAttributeFilters = filters?.customAttributes
+      ? normalizeCustomAttributeMap(filters.customAttributes)
+      : undefined;
+    const groupNeedle = filters?.group?.trim().toLowerCase();
+
+    const matched: SerializedAdminUser[] = [];
+    for (const user of candidates) {
+      const serialized = serializeAdminUserFromCache(user, cache);
+
+      if (groupNeedle) {
+        const hasGroup = (serialized.groups ?? []).some(
+          (groupName) => groupName.toLowerCase() === groupNeedle || groupName.toLowerCase().includes(groupNeedle)
+        );
+        if (!hasGroup) {
+          continue;
+        }
+      }
+
+      if (normalizedAttributeFilters) {
+        const attributes = serialized.customAttributes ?? {};
+        const matchesAttributes = Object.entries(normalizedAttributeFilters).every(([key, value]) => attributes[key] === value);
+        if (!matchesAttributes) {
+          continue;
+        }
+      }
+
+      matched.push(serialized);
+    }
+
+    return applyListPagination(matched, {
+      page: filters?.page,
+      pageSize: filters?.pageSize
+    });
   }
 
   async findUserByEmail(email: string) {
@@ -250,11 +358,6 @@ export class UserService {
       throw new ValidationError("User not found");
     }
 
-    // Guard against profile syncs that echo the user's `id` (i.e. the OIDC
-    // `sub`) back as their username/email. Some OIDC clients fall back to `sub`
-    // when no `name`/`preferred_username` is mapped and then push that value
-    // back through profile updates, which would otherwise overwrite a real
-    // username with an opaque id. Drop those fields instead of corrupting them.
     if (input.username !== undefined && input.username === existing.id) {
       input = { ...input, username: undefined };
     }
@@ -298,6 +401,7 @@ export class UserService {
 
     if (appIds) {
       await this.setUserAppAssignments(id, appIds);
+      this.invalidateAdminUserListCache();
       return {
         ...updated,
         appId: appIds[0],
@@ -306,6 +410,7 @@ export class UserService {
       };
     }
 
+    this.invalidateAdminUserListCache();
     return updated;
   }
 
@@ -320,12 +425,14 @@ export class UserService {
 
   async setUserActive(id: string, active: boolean) {
     await this.userRepository.setActive(id, active);
+    this.invalidateAdminUserListCache();
   }
 
   async setCustomAttributes(id: string, customAttributes: Record<string, string>) {
     const normalizedCustomAttributes = this.normalizeCustomAttributes(customAttributes);
     await this.validateCustomAttributes(normalizedCustomAttributes);
     await this.userRepository.setCustomAttributes(id, normalizedCustomAttributes);
+    this.invalidateAdminUserListCache();
   }
 
   async deleteUser(id: string) {
@@ -340,6 +447,7 @@ export class UserService {
     }
 
     await this.userRepository.delete(id);
+    this.invalidateAdminUserListCache();
   }
 
   async resolveAppAccessForUser(userId: string) {

@@ -260,3 +260,27 @@ export class JwtService {
       .sign(this.keys.privateKey);
   }
 }
+
+const JWT_VERIFICATION_ERROR_CODES = new Set([
+  "ERR_JWS_SIGNATURE_VERIFICATION_FAILED",
+  "ERR_JWS_INVALID",
+  "ERR_JWT_EXPIRED",
+  "ERR_JWT_CLAIM_VALIDATION_FAILED",
+  "ERR_JWS_ALG_NOT_ALLOWED"
+]);
+
+export const isJwtVerificationError = (error: unknown) => {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as { code?: string; name?: string };
+  if (candidate.code && JWT_VERIFICATION_ERROR_CODES.has(candidate.code)) {
+    return true;
+  }
+
+  return candidate.name === "JWSSignatureVerificationFailed"
+    || candidate.name === "JWSInvalid"
+    || candidate.name === "JWTExpired"
+    || candidate.name === "JWTClaimValidationFailed";
+};
