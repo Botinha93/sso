@@ -4,11 +4,13 @@ import { bootstrap } from "../bootstrap.js";
 import { AppError, AuthenticationError, ValidationError } from "../core/errors.js";
 import { ensureExternalDatabaseSchema, saveRuntimeDatabaseConfig } from "../core/runtime-database-config.js";
 import { verifyPassword } from "../security/password.js";
+import { isJwtVerificationError } from "../security/jwt.js";
 import { getAssetContentType, readFrontendAsset } from "./view-assets.js";
 import { hasAdminPermission, toAdminAction, toAdminResource } from "./admin-authorization.js";
 import { registerScimRoutes } from "./scim-routes.js";
 import { registerSamlAdminRoutes } from "./saml-routes.js";
 import { registerSamlProtocolRoutes } from "./saml-protocol-routes.js";
+import { clearSessionCookie, setSessionCookie } from "./session-cookie.js";
 import { registerAccessGovernanceRoutes } from "./routes/access-governance.js";
 import { registerProvisioningRoutes } from "./routes/provisioning.js";
 import { registerElevationRoutes } from "./routes/elevations.js";
@@ -16,13 +18,13 @@ import { registerServiceIdentityRoutes } from "./routes/service-identities.js";
 import { deriveRiskEventsFromAudit } from "./routes/security-risk-events.js";
 import { registerConnectorRoutes } from "./routes/connectors.js";
 import { registerPluginRoutes } from "./routes/plugins.js";
+import { MAX_IMAGE_UPLOAD_BYTES } from "./upload-limits.js";
 import { assignGroupRoleSchema, assignRoleSchema, assignUserGroupSchema, backChannelLogoutSchema, authorizeSchema, createAppSchema, createClientSchema, createScopeSchema, createAuthenticationFlowSchema, cibaApprovalSchema, cibaAuthenticationRequestSchema, deviceAuthorizationSchema, deviceVerificationSchema, dynamicClientRegistrationSchema, frontChannelLogoutSchema, createFederationProviderSchema, createGroupSchema, createUserAttributeSchema, createPolicySchema, createEventHookSchema, createTenantSchema, createRoleSchema, updateGroupSchema, updateRoleSchema, createUserSchema, introspectSchema, loginSchema, migrateDatabaseSchema, oidcRevokeSchema, oauthLogoutSchema, portalChangePasswordSchema, portalUpdateProfileSchema, recoverySchema, recoveryRequestSchema, sendTestEmailSchema, testDatabaseConnectionSchema, mfaLoginSchema, verifyTotpEnrollmentSchema, webauthnLoginBeginSchema, webauthnLoginFinishSchema, webauthnRegisterBeginSchema, webauthnRegisterFinishSchema, resetUserPasswordSchema, revokeTokenSchema, tokenSchema, setUserAttributeGroupAssignmentSchema, setPolicyAssignmentSchema, evaluatePolicyDecisionSchema, authorizationCheckSchema, removePolicyAssignmentSchema, setupInitializeSchema, testEventHookSchema, updateInstanceSettingsSchema, updateAppSchema, updateAuthenticationFlowSchema, updateClientSchema, updateEventHookSchema, updateFederationProviderSchema, updatePolicySchema, updateTenantSchema, updateUserAttributeSchema, updateUserSchema } from "./schemas.js";
-import { filterAdminList } from "./list-search.js";
+import { filterAdminList, filterAdminUsers, parseAdminListQuery } from "./list-search.js";
 import { GeolocationService } from "../services/geolocation-service.js";
 import { TranslationService } from "../services/translation-service.js";
 export const registerRoutes = async (app, deps) => {
     const USER_PICTURE_ATTRIBUTE_KEY = "picture";
-    const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
     const allowedImageMimeTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"]);
     const extensionToMimeType = {
         ".jpg": "image/jpeg",
@@ -124,12 +126,28 @@ export const registerRoutes = async (app, deps) => {
   <circle cx="140" cy="168" r="6" fill="white" />
   <circle cx="180" cy="168" r="6" fill="white" />
   <path d="M160 178 152 190h16Z" fill="white" />
-  <path d="M128 192h-26M128 204h-26M192 192h26M192 204h26" stroke="white" stroke-width="8" stroke-linecap="round" />`
+  <path d="M128 192h-26M128 204h-26M192 192h26M192 204h26" stroke="white" stroke-width="8" stroke-linecap="round" />`,
+            sunset: `
+  <circle cx="220" cy="96" r="34" fill="white" opacity="0.95" />
+  <path d="M68 228h184" stroke="white" stroke-width="12" stroke-linecap="round" />
+  <path d="M96 228c18-36 36-54 64-54s46 18 64 54" stroke="white" stroke-width="10" fill="none" stroke-linecap="round" />`,
+            forest: `
+  <path d="M108 232V168l-24 32h16l-16 24h16l-24 32h64l-24-32h16l-16-24h16l-24-32v64" stroke="white" stroke-width="8" fill="none" stroke-linejoin="round" />
+  <path d="M188 232V156l-28 38h18l-18 28h18l-28 38h76l-28-38h18l-18-28h18l-28-38v76" stroke="white" stroke-width="8" fill="none" stroke-linejoin="round" />`,
+            ocean: `
+  <path d="M64 176c24-24 48-24 72 0s48 24 72 0 48-24 72 0" stroke="white" stroke-width="12" fill="none" stroke-linecap="round" />
+  <path d="M64 216c24-24 48-24 72 0s48 24 72 0 48-24 72 0" stroke="white" stroke-width="12" fill="none" stroke-linecap="round" opacity="0.85" />`,
+            mono: `
+  <circle cx="160" cy="160" r="72" stroke="white" stroke-width="12" fill="none" />
+  <circle cx="160" cy="160" r="38" stroke="white" stroke-width="10" fill="none" opacity="0.85" />
+  <circle cx="160" cy="160" r="10" fill="white" />`
         };
         const icon = iconByVariant[variant];
-        const content = icon
-            ? `<g>${icon}\n  </g>`
-            : `<text x="160" y="182" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="108" font-weight="700" fill="white">${initials}</text>`;
+        const content = variant === "initials"
+            ? `<text x="160" y="182" text-anchor="middle" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="108" font-weight="700" fill="white">${initials}</text>`
+            : icon
+                ? `<g>${icon}\n  </g>`
+                : "";
         return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320" fill="none">
   <defs>
@@ -173,8 +191,8 @@ export const registerRoutes = async (app, deps) => {
         let total = 0;
         for await (const chunk of part.file) {
             total += chunk.length;
-            if (total > MAX_IMAGE_BYTES) {
-                reply.status(413).send({ error: "payload_too_large", message: "Image must be 2MB or less" });
+            if (total > MAX_IMAGE_UPLOAD_BYTES) {
+                reply.status(413).send({ error: "payload_too_large", message: "Image must be 20MB or less" });
                 return null;
             }
             chunks.push(chunk);
@@ -695,9 +713,10 @@ export const registerRoutes = async (app, deps) => {
         userService: deps.userService,
         auditRepository: deps.auditRepository,
         samlReplayProtectionService: deps.samlReplayProtectionService,
-        samlSignatureService: deps.samlSignatureService
+        samlSignatureService: deps.samlSignatureService,
+        instanceSettingsService: deps.instanceSettingsService
     });
-    app.get("/.well-known/openid-configuration", async () => deps.oidcService.discoveryDocument());
+    app.get("/.well-known/openid-configuration", async () => await deps.oidcService.discoveryDocument());
     app.get("/.well-known/jwks.json", async () => deps.oidcService.jwks());
     app.post("/connect/register", async (request, reply) => {
         const input = dynamicClientRegistrationSchema.parse(request.body);
@@ -824,7 +843,8 @@ export const registerRoutes = async (app, deps) => {
             const idToken = await deps.authService.issueFrontChannelIdToken({
                 userId: user.id,
                 clientId: input.client_id,
-                nonce: String(input.nonce)
+                nonce: String(input.nonce),
+                scope: input.scope.split(" ").map((value) => value.trim()).filter(Boolean)
             });
             params.id_token = idToken;
         }
@@ -856,7 +876,7 @@ export const registerRoutes = async (app, deps) => {
         }
         try {
             if (parsed.data.grant_type === "authorization_code") {
-                return await deps.authService.exchangeAuthorizationCode({
+                const tokens = await deps.authService.exchangeAuthorizationCode({
                     code: parsed.data.code,
                     clientId: parsed.data.client_id,
                     clientSecret: parsed.data.client_secret,
@@ -865,13 +885,29 @@ export const registerRoutes = async (app, deps) => {
                     ip: request.ip,
                     userAgent: clientUserAgent(request)
                 });
+                return {
+                    access_token: tokens.accessToken,
+                    token_type: tokens.tokenType,
+                    expires_in: tokens.expiresIn,
+                    refresh_token: tokens.refreshToken,
+                    id_token: tokens.idToken,
+                    scope: tokens.scope
+                };
             }
             if (parsed.data.grant_type === "refresh_token") {
-                return await deps.authService.refreshTokens({
+                const tokens = await deps.authService.refreshTokens({
                     refreshToken: parsed.data.refresh_token,
                     clientId: parsed.data.client_id,
                     clientSecret: parsed.data.client_secret
                 });
+                return {
+                    access_token: tokens.accessToken,
+                    token_type: tokens.tokenType,
+                    expires_in: tokens.expiresIn,
+                    refresh_token: tokens.refreshToken,
+                    id_token: tokens.idToken,
+                    scope: tokens.scope
+                };
             }
             if (parsed.data.grant_type === "client_credentials") {
                 return await deps.authService.issueClientCredentialsTokens({
@@ -1220,6 +1256,9 @@ export const registerRoutes = async (app, deps) => {
             if (err instanceof AppError) {
                 return reply.status(err.statusCode).send({ error: "invalid_token", error_description: publicErrorMessageForPath("/oauth/userinfo", err) });
             }
+            if (isJwtVerificationError(err)) {
+                return reply.status(401).send({ error: "invalid_token", error_description: "Access token is invalid or expired" });
+            }
             throw err;
         }
     });
@@ -1281,13 +1320,7 @@ export const registerRoutes = async (app, deps) => {
                     ip: request.ip
                 });
             });
-            reply.setCookie("sid", session.id, {
-                httpOnly: true,
-                secure: await deps.instanceSettingsService.shouldUseSecureCookies(),
-                sameSite: "lax",
-                path: "/",
-                maxAge: 60 * 60 * 8
-            });
+            await setSessionCookie(reply, deps.instanceSettingsService, session.id);
             return { session, ...tokens };
         }
         catch (err) {
@@ -1372,13 +1405,7 @@ export const registerRoutes = async (app, deps) => {
                     mfa: "totp"
                 });
             });
-            reply.setCookie("sid", session.id, {
-                httpOnly: true,
-                secure: await deps.instanceSettingsService.shouldUseSecureCookies(),
-                sameSite: "lax",
-                path: "/",
-                maxAge: 60 * 60 * 8
-            });
+            await setSessionCookie(reply, deps.instanceSettingsService, session.id);
             return { session, ...tokens };
         }
         catch (err) {
@@ -1443,13 +1470,7 @@ export const registerRoutes = async (app, deps) => {
                     mfa: "webauthn"
                 });
             });
-            reply.setCookie("sid", session.id, {
-                httpOnly: true,
-                secure: await deps.instanceSettingsService.shouldUseSecureCookies(),
-                sameSite: "lax",
-                path: "/",
-                maxAge: 60 * 60 * 8
-            });
+            await setSessionCookie(reply, deps.instanceSettingsService, session.id);
             return { session, ...tokens };
         }
         catch (error) {
@@ -1952,13 +1973,7 @@ export const registerRoutes = async (app, deps) => {
             clientId: "sso-admin-ui",
             metadata: { method: "federation", providerId, sessionId: session.id }
         });
-        reply.setCookie("sid", session.id, {
-            httpOnly: true,
-            secure: await deps.instanceSettingsService.shouldUseSecureCookies(),
-            sameSite: "lax",
-            path: "/",
-            maxAge: 60 * 60 * 8
-        });
+        await setSessionCookie(reply, deps.instanceSettingsService, session.id);
         return reply.redirect(asSafeRedirect(completed.redirectAfterLogin));
     });
     app.post("/auth/logout", async (request, reply) => {
@@ -1978,7 +1993,7 @@ export const registerRoutes = async (app, deps) => {
                 ip: request.ip
             });
         }
-        reply.clearCookie("sid", { path: "/" });
+        await clearSessionCookie(reply, deps.instanceSettingsService);
         return reply.redirect("/login");
     });
     app.get("/oauth/logout", async (request, reply) => {
@@ -2002,7 +2017,7 @@ export const registerRoutes = async (app, deps) => {
             deps.securityService.revokeSessionObservation(session.id);
             await enforceInvalidationForSession({ session, ip: request.ip });
         }
-        reply.clearCookie("sid", { path: "/" });
+        await clearSessionCookie(reply, deps.instanceSettingsService);
         if (post_logout_redirect_uri) {
             const redirectClientId = session?.clientId ?? hintedClientId ?? client_id;
             if (!redirectClientId) {
@@ -2031,7 +2046,7 @@ export const registerRoutes = async (app, deps) => {
         if (!session.revokedAt) {
             await deps.authService.sessionRepository.revoke(session.id, new Date());
         }
-        reply.clearCookie("sid", { path: "/" });
+        await clearSessionCookie(reply, deps.instanceSettingsService);
         if (input.post_logout_redirect_uri) {
             const redirectUrl = await resolveValidatedPostLogoutRedirect({
                 clientId: session.clientId,
@@ -2196,13 +2211,7 @@ export const registerRoutes = async (app, deps) => {
                 scope: input.scope,
                 tenantSlug: input.tenantSlug
             });
-            reply.setCookie("sid", session.id, {
-                httpOnly: true,
-                secure: await deps.instanceSettingsService.shouldUseSecureCookies(),
-                sameSite: "lax",
-                path: "/",
-                maxAge: 60 * 60 * 8
-            });
+            await setSessionCookie(reply, deps.instanceSettingsService, session.id);
             return { session, ...tokens, recovery: true };
         }
         catch (err) {
@@ -2213,14 +2222,25 @@ export const registerRoutes = async (app, deps) => {
         }
     });
     app.get("/api/admin/users", async (request) => {
-        const users = await deps.userService.listUsers();
-        return filterAdminList(users, request.query, [
-            (user) => user.username,
-            (user) => user.email,
-            (user) => user.givenName,
-            (user) => user.familyName,
-            (user) => user.id
-        ]);
+        const query = request.query;
+        const parsed = parseAdminListQuery(query);
+        return deps.userService.listUsers({
+            group: parsed.group,
+            active: parsed.active,
+            customAttributes: Object.keys(parsed.customAttributes ?? {}).length > 0 ? parsed.customAttributes : undefined,
+            search: parsed.search,
+            page: parsed.page,
+            pageSize: parsed.pageSize
+        });
+    });
+    app.get("/api/admin/users/:id", async (request, reply) => {
+        const { id } = request.params;
+        const user = await deps.userService.serializeAdminUser(id);
+        if (!user) {
+            reply.code(404);
+            return { error: "User not found" };
+        }
+        return user;
     });
     app.post("/api/admin/users", async (request, reply) => {
         const input = createUserSchema.parse(request.body);
@@ -2234,8 +2254,9 @@ export const registerRoutes = async (app, deps) => {
             email: user.email,
             username: user.username
         });
+        const serialized = await deps.userService.serializeAdminUser(user.id);
         reply.code(201);
-        return { id: user.id, email: user.email, username: user.username };
+        return serialized ?? { id: user.id, email: user.email, username: user.username };
     });
     app.patch("/api/admin/users/:id", async (request, reply) => {
         const { id } = request.params;
@@ -2304,7 +2325,8 @@ export const registerRoutes = async (app, deps) => {
             updatedGroupIds: groupIds,
             updatedCustomAttributes: customAttributes ? Object.keys(customAttributes) : undefined
         });
-        return { id, appId, appIds, externalSource, externalId, isServiceUser, avatarUrl, active, email, username, givenName, familyName };
+        const serialized = await deps.userService.serializeAdminUser(id);
+        return serialized ?? { id, appId, appIds, externalSource, externalId, isServiceUser, avatarUrl, active, email, username, givenName, familyName };
     });
     app.post("/api/admin/users/:id/reset-password", async (request, reply) => {
         const { id } = request.params;
@@ -2496,6 +2518,61 @@ export const registerRoutes = async (app, deps) => {
         const input = assignUserGroupSchema.parse(request.body);
         await deps.groupService.removeUserFromGroup(input);
         return reply.status(204).send();
+    });
+    app.get("/api/admin/users/:id/groups", async (request, reply) => {
+        const { id } = request.params;
+        const user = await deps.userService.findUserById(id);
+        if (!user) {
+            return reply.status(404).send({ error: "not_found", message: "User not found" });
+        }
+        const groups = await deps.groupService.resolveGroupsForUser(id);
+        return { groupIds: groups.map((group) => group.id), groups };
+    });
+    app.get("/api/admin/users/:id/roles", async (request, reply) => {
+        const { id } = request.params;
+        const user = await deps.userService.findUserById(id);
+        if (!user) {
+            return reply.status(404).send({ error: "not_found", message: "User not found" });
+        }
+        const roles = await deps.roleService.resolveRolePermissionDetailsForUser(id);
+        return { roleIds: roles.map((role) => role.id), roles };
+    });
+    app.get("/api/admin/users/:id/permissions", async (request, reply) => {
+        const { id } = request.params;
+        const user = await deps.userService.findUserById(id);
+        if (!user) {
+            return reply.status(404).send({ error: "not_found", message: "User not found" });
+        }
+        const permissions = await deps.roleService.resolvePermissionsForUser(id);
+        return { permissions };
+    });
+    app.get("/api/admin/groups/:id/users", async (request, reply) => {
+        const { id } = request.params;
+        const group = await deps.groupService.findGroupById(id);
+        if (!group) {
+            return reply.status(404).send({ error: "not_found", message: "Group not found" });
+        }
+        const query = request.query;
+        const parsed = parseAdminListQuery(query);
+        const memberIds = await deps.groupService.listUserIdsForGroup(id);
+        const serialized = await deps.userService.serializeAdminUsers(memberIds);
+        const users = filterAdminUsers(serialized, query, [
+            (user) => user.username,
+            (user) => user.email,
+            (user) => user.givenName,
+            (user) => user.familyName,
+            (user) => user.id
+        ]).map((user) => ({
+            id: user.id,
+            email: user.email,
+            username: user.username,
+            givenName: user.givenName,
+            familyName: user.familyName,
+            isServiceUser: user.isServiceUser ?? false,
+            active: user.active,
+            customAttributes: user.customAttributes ?? {}
+        }));
+        return { userIds: users.map((user) => user.id), users };
     });
     app.get("/api/admin/tenants", async (request) => {
         const tenants = await deps.tenantService.listTenants();
@@ -2765,6 +2842,26 @@ export const registerRoutes = async (app, deps) => {
             return null;
         return session;
     }
+    // Resolves the current portal user id from either a Bearer access token or a
+    // cookie session. Bearer tokens take precedence so API clients are not
+    // shadowed by a stale browser session cookie left from another user.
+    async function getPortalUserId(request) {
+        const authorization = request.headers?.authorization;
+        if (typeof authorization === "string" && authorization.startsWith("Bearer ")) {
+            try {
+                const token = authorization.slice("Bearer ".length);
+                const { user } = await deps.authService.getUserFromAccessToken(token);
+                return user.id;
+            }
+            catch {
+                return null;
+            }
+        }
+        const session = await getPortalSession(request);
+        if (session)
+            return session.userId;
+        return null;
+    }
     app.get("/api/portal/language/default", async (request) => {
         const countryHeaders = ["cf-ipcountry", "x-vercel-ip-country", "x-country-code"];
         let countryCode = null;
@@ -2792,11 +2889,13 @@ export const registerRoutes = async (app, deps) => {
         };
     });
     // GET /api/portal/me — current user profile + apps + custom attributes
+    // Accepts either a portal session cookie or a Bearer access token.
     app.get("/api/portal/me", async (request, reply) => {
-        const session = await getPortalSession(request);
-        if (!session)
+        reply.header("Cache-Control", "private, no-store");
+        const userId = await getPortalUserId(request);
+        if (!userId)
             return reply.status(401).send({ error: "unauthorized" });
-        const user = await deps.userService.findUserById(session.userId);
+        const user = await deps.userService.findUserById(userId);
         if (!user)
             return reply.status(401).send({ error: "unauthorized" });
         const userAppAccess = await deps.userService.resolveAppAccessForUser(user.id);
@@ -2825,9 +2924,10 @@ export const registerRoutes = async (app, deps) => {
             appIds: userAppAccess.appIds,
             directAppIds: userAppAccess.directAppIds,
             inheritedAppIds: userAppAccess.inheritedAppIds,
+            inheritedAppSources: userAppAccess.inheritedAppSources,
             roles: roleDetails.map((role) => role.name),
             groups: await deps.groupService.resolveGroupNamesForUser(user.id),
-            permissions: Array.from(new Set(roleDetails.flatMap((role) => role.permissions))),
+            permissions: await deps.roleService.resolvePermissionsForUser(user.id),
             rolePermissions: roleDetails,
             apps: userApps.map(a => ({ id: a.id, name: a.name, description: a.description, icon: a.icon, imageUrl: a.imageUrl, url: a.url }))
         };
@@ -2894,7 +2994,7 @@ export const registerRoutes = async (app, deps) => {
             await deps.authService.sessionRepository.revoke(s.id, now);
         }
         await deps.userService.deleteUser(session.userId);
-        reply.clearCookie("sid", { path: "/" });
+        await clearSessionCookie(reply, deps.instanceSettingsService);
         return reply.status(204).send();
     });
     app.post("/api/portal/avatar", async (request, reply) => {
@@ -2963,6 +3063,28 @@ export const registerRoutes = async (app, deps) => {
                 message: validationErrorMessageFromIssues(details),
                 details
             });
+        }
+        if (typeof error === "object" && error !== null && "statusCode" in error) {
+            const statusCode = Number(error.statusCode);
+            if (statusCode === 429) {
+                const retryAfter = error.headers?.["retry-after"];
+                if (retryAfter) {
+                    reply.header("Retry-After", retryAfter);
+                }
+                return reply.status(429).send({
+                    error: "rate_limited",
+                    message: error instanceof Error ? error.message : "Rate limit exceeded"
+                });
+            }
+        }
+        if (isJwtVerificationError(error)) {
+            const path = request.url.split("?")[0];
+            if (path === "/oauth/userinfo" || path === "/oauth/introspect") {
+                return reply.status(401).send({
+                    error: "invalid_token",
+                    error_description: "Access token is invalid or expired"
+                });
+            }
         }
         request.log.error(error);
         return reply.status(500).send({ error: "InternalServerError", message: "Unexpected server error" });

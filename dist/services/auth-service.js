@@ -4,9 +4,11 @@ import { AppError, AuthenticationError, ValidationError } from "../core/errors.j
 import { verifyPassword } from "../security/password.js";
 import { hashOpaqueToken } from "../security/token-hash.js";
 import { resolveAccessTokenTtlSeconds, resolveRefreshTokenTtlSeconds } from "../security/jwt.js";
+import { buildAccessTokenAuthorizationClaims, buildScopeGatedClaims, claimsWithoutSubject } from "../domain/oidc-scopes.js";
 export class AuthService {
     userService;
     roleService;
+    groupService;
     authenticationFlowService;
     clientRepository;
     sessionRepository;
@@ -21,9 +23,10 @@ export class AuthService {
     serviceIdentityService;
     deviceAuthorizations = new Map();
     cibaAuthorizations = new Map();
-    constructor(userService, roleService, authenticationFlowService, clientRepository, sessionRepository, authorizationCodeRepository, consentRepository, refreshTokenRepository, accessTokenRepository, tenantRepository, jwtService, auditRepository, securityService, serviceIdentityService) {
+    constructor(userService, roleService, groupService, authenticationFlowService, clientRepository, sessionRepository, authorizationCodeRepository, consentRepository, refreshTokenRepository, accessTokenRepository, tenantRepository, jwtService, auditRepository, securityService, serviceIdentityService) {
         this.userService = userService;
         this.roleService = roleService;
+        this.groupService = groupService;
         this.authenticationFlowService = authenticationFlowService;
         this.clientRepository = clientRepository;
         this.sessionRepository = sessionRepository;
@@ -753,13 +756,14 @@ export class AuthService {
             userAgent: input.userAgent
         });
         const accessTokenId = nanoid();
+        const claimContext = this.scopeClaimContext(user, allowedScope, input.tenantId);
         const token = await this.jwtService.issueUserAccessToken({
             user,
             client,
             scope: allowedScope,
-            roles: await this.roleService.resolveNamesForUser(user.id, input.tenantId),
             accessTokenId,
-            tenantId: input.tenantId
+            tenantId: input.tenantId,
+            accessTokenAuthorizationClaims: await buildAccessTokenAuthorizationClaims(claimContext)
         });
         await this.accessTokenRepository.create({
             tokenId: accessTokenId,
@@ -793,10 +797,14 @@ export class AuthService {
         if (!client.grants.includes("authorization_code")) {
             throw new AuthenticationError("Client does not support authorization_code grant");
         }
+        const allowedScope = input.scope.filter((scope) => client.allowedScopes.includes(scope));
+        const claimContext = this.scopeClaimContext(user, allowedScope);
+        const claims = claimsWithoutSubject(await buildScopeGatedClaims(claimContext));
         return await this.jwtService.issueIdToken({
             user,
             client,
-            nonce: input.nonce
+            nonce: input.nonce,
+            claims
         });
     }
     async issueUserScopedAccessToken(input) {
@@ -814,12 +822,13 @@ export class AuthService {
             userAgent: input.userAgent
         });
         const accessTokenId = nanoid();
+        const claimContext = this.scopeClaimContext(input.user, input.scope);
         const token = await this.jwtService.issueUserAccessToken({
             user: input.user,
             client: input.client,
             scope: input.scope,
-            roles: await this.roleService.resolveNamesForUser(input.user.id),
-            accessTokenId
+            accessTokenId,
+            accessTokenAuthorizationClaims: await buildAccessTokenAuthorizationClaims(claimContext)
         });
         await this.accessTokenRepository.create({
             tokenId: accessTokenId,
@@ -891,7 +900,7 @@ export class AuthService {
     async revokeRefreshToken(tokenId) {
         await this.refreshTokenRepository.revokeByTokenId(tokenId, new Date());
     }
-    async getUserInfoFromAccessToken(accessToken) {
+    async getUserFromAccessToken(accessToken) {
         const payload = await this.jwtService.verifyAccessToken(accessToken);
         const subject = payload.sub;
         const tokenId = payload.jti;
@@ -905,40 +914,45 @@ export class AuthService {
         if (!user) {
             throw new AuthenticationError("User not found for access token");
         }
+        return { user, payload };
+    }
+    async getUserInfoFromAccessToken(accessToken) {
+        const { user, payload } = await this.getUserFromAccessToken(accessToken);
         const tenantId = typeof payload.tenant_id === "string" ? payload.tenant_id : undefined;
         const scopes = Array.isArray(payload.scope)
             ? payload.scope
             : typeof payload.scope === "string"
                 ? payload.scope.split(" ")
                 : [];
-        const claims = { sub: user.id };
-        if (scopes.includes("profile")) {
-            claims.preferred_username = user.username;
-            claims.given_name = user.givenName;
-            claims.family_name = user.familyName;
-            claims.roles = await this.roleService.resolveNamesForUser(user.id, tenantId);
-        }
-        if (scopes.includes("email")) {
-            claims.email = user.email;
-            claims.email_verified = true;
-        }
-        // Always include roles if explicitly in scope
-        if (scopes.includes("roles") && !claims.roles) {
-            claims.roles = await this.roleService.resolveNamesForUser(user.id, tenantId);
-        }
-        return claims;
+        return await buildScopeGatedClaims(this.scopeClaimContext(user, scopes, tenantId));
+    }
+    scopeClaimContext(user, scopes, tenantId) {
+        return {
+            user,
+            scopes,
+            tenantId,
+            resolveRoles: () => this.roleService.resolveNamesForUser(user.id, tenantId),
+            resolveGroups: () => this.groupService.resolveGroupNamesForUser(user.id),
+            resolvePermissions: () => this.roleService.resolvePermissionsForUser(user.id, tenantId)
+        };
     }
     async issuePersistedTokens(input) {
         const accessTokenId = nanoid();
         const refreshTokenId = nanoid();
+        const claimContext = this.scopeClaimContext(input.user, input.scope, input.tenantId);
+        const [idTokenClaims, accessTokenAuthorizationClaims] = await Promise.all([
+            buildScopeGatedClaims(claimContext).then(claimsWithoutSubject),
+            buildAccessTokenAuthorizationClaims(claimContext)
+        ]);
         const tokens = await this.jwtService.issueTokens({
             user: input.user,
             client: input.client,
             scope: input.scope,
-            roles: await this.roleService.resolveNamesForUser(input.user.id, input.tenantId),
             accessTokenId,
             refreshTokenId,
-            tenantId: input.tenantId
+            tenantId: input.tenantId,
+            idTokenClaims,
+            accessTokenAuthorizationClaims
         });
         const accessTtlSeconds = resolveAccessTokenTtlSeconds(input.client);
         const refreshTtlSeconds = resolveRefreshTokenTtlSeconds(input.client);

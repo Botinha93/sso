@@ -1,4 +1,4 @@
-import { createSigningKeys } from "./security/keys.js";
+import { loadOrCreateSigningKeys } from "./security/keys.js";
 import { JwtService } from "./security/jwt.js";
 import { createRepositoryBundle } from "./repositories/factory.js";
 import { AuthService } from "./services/auth-service.js";
@@ -76,7 +76,7 @@ export const bootstrap = async (config) => {
     const roleService = new RoleService(roleRepository, assignmentRepository, tenantRepository, userGroupAssignmentRepository, groupRoleAssignmentRepository);
     const authenticationFlowService = new AuthenticationFlowService(authenticationFlowRepository);
     const groupService = new GroupService(groupRepository, appRepository, groupAppAssignmentRepository, userAttributeRepository, groupUserAttributeAssignmentRepository, groupRoleAssignmentRepository, userGroupAssignmentRepository, roleRepository, userRepository);
-    const userService = new UserService(userRepository, appRepository, userAppAssignmentRepository, userAttributeRepository, roleService, groupService);
+    const userService = new UserService(userRepository, appRepository, userAppAssignmentRepository, userAttributeRepository, userGroupAssignmentRepository, assignmentRepository, groupRepository, roleRepository, groupAppAssignmentRepository, groupRoleAssignmentRepository, groupUserAttributeAssignmentRepository, roleService, groupService);
     const userAttributeService = new UserAttributeService(userAttributeRepository, groupUserAttributeAssignmentRepository, groupRepository);
     const existingUserAttributeDefinitions = await userAttributeService.listDefinitions();
     if (!existingUserAttributeDefinitions.some((attribute) => attribute.key === "picture")) {
@@ -233,7 +233,7 @@ export const bootstrap = async (config) => {
             name: "SSO Admin UI",
             secret: "super-secret-admin-client",
             redirectUris: ["http://localhost:3000/callback"],
-            allowedScopes: ["openid", "profile", "email", "offline_access", "roles"],
+            allowedScopes: ["openid", "profile", "email", "offline_access", "roles", "groups", "permissions"],
             grants: ["authorization_code", "refresh_token"],
             requirePkce: true,
             resources: [],
@@ -246,7 +246,7 @@ export const bootstrap = async (config) => {
             name: "SSO Device CLI",
             secret: "super-secret-device-client",
             redirectUris: [],
-            allowedScopes: ["openid", "profile", "email", "offline_access", "roles"],
+            allowedScopes: ["openid", "profile", "email", "offline_access", "roles", "groups", "permissions"],
             grants: ["device_code", "refresh_token"],
             requirePkce: false,
             resources: [],
@@ -259,7 +259,7 @@ export const bootstrap = async (config) => {
             name: "SSO Password CLI",
             secret: "super-secret-password-client",
             redirectUris: [],
-            allowedScopes: ["openid", "profile", "email", "offline_access", "roles"],
+            allowedScopes: ["openid", "profile", "email", "offline_access", "roles", "groups", "permissions"],
             grants: ["password", "refresh_token"],
             requirePkce: false,
             resources: [],
@@ -272,12 +272,22 @@ export const bootstrap = async (config) => {
             name: "SSO Service Client",
             secret: "super-secret-service-client",
             redirectUris: [],
-            allowedScopes: ["roles"],
+            allowedScopes: ["roles", "groups", "permissions"],
             grants: ["client_credentials"],
             requirePkce: false,
             resources: [],
             flowIds: []
         });
+    }
+    const builtinUserClientScopes = ["openid", "profile", "email", "offline_access", "roles", "groups", "permissions"];
+    for (const clientId of ["sso-admin-ui", "sso-device-cli", "sso-password-cli"]) {
+        const client = await clientRepository.findById(clientId);
+        if (!client)
+            continue;
+        const mergedScopes = [...new Set([...client.allowedScopes, ...builtinUserClientScopes])];
+        if (mergedScopes.length !== client.allowedScopes.length) {
+            await clientRepository.update(client.id, { allowedScopes: mergedScopes });
+        }
     }
     const defaultApps = await appRepository.list();
     const accountPortalApp = defaultApps.find((app) => app.name === "Account Portal");
@@ -297,10 +307,10 @@ export const bootstrap = async (config) => {
             }
         }
     }
-    const signingKeys = await createSigningKeys();
+    const signingKeys = await loadOrCreateSigningKeys(resolve(dirname(config.databasePath), ".jwt-signing-keys.json"));
     const jwtService = new JwtService(signingKeys, config);
-    const authService = new AuthService(userService, roleService, authenticationFlowService, clientRepository, sessionRepository, authorizationCodeRepository, consentRepository, refreshTokenRepository, accessTokenRepository, tenantRepository, jwtService, auditRepository, securityService, serviceIdentityService);
-    const oidcService = new OidcService(config, jwtService);
+    const authService = new AuthService(userService, roleService, groupService, authenticationFlowService, clientRepository, sessionRepository, authorizationCodeRepository, consentRepository, refreshTokenRepository, accessTokenRepository, tenantRepository, jwtService, auditRepository, securityService, serviceIdentityService);
+    const oidcService = new OidcService(config, jwtService, scopeService);
     return {
         config,
         roleService,
@@ -348,6 +358,9 @@ export const bootstrap = async (config) => {
         oidcService,
         auditRepository,
         policyDecisionLogRepository,
-        dispose: repositories.dispose ?? (async () => undefined)
+        dispose: async () => {
+            await eventHookService.waitForIdle();
+            await (repositories.dispose ?? (async () => undefined))();
+        }
     };
 };

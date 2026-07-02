@@ -6,6 +6,7 @@ import helmet from "@fastify/helmet";
 import multipart from "@fastify/multipart";
 import { loadConfig } from "./core/config.js";
 import { registerRoutes } from "./http/routes.js";
+import { MAX_IMAGE_UPLOAD_BYTES } from "./http/upload-limits.js";
 import { bootstrap } from "./bootstrap.js";
 import { hasSqlInjectionPayload } from "./http/sql-injection-guard.js";
 const parseBasicAuthClient = (authorization) => {
@@ -79,6 +80,15 @@ export const buildApp = async () => {
         frameguard: { action: "deny" },
         referrerPolicy: { policy: "strict-origin-when-cross-origin" }
     });
+    // Helmet defaults to CORP same-origin, which blocks avatars and other media
+    // from being embedded in third-party apps (e.g. via OIDC picture claims).
+    app.addHook("onSend", async (request, reply, payload) => {
+        const path = request.url.split("?")[0] ?? "";
+        if (path.startsWith("/media/")) {
+            reply.header("Cross-Origin-Resource-Policy", "cross-origin");
+        }
+        return payload;
+    });
     await app.register(cookie, { secret: config.cookieSecret });
     await app.register(cors, {
         origin(origin, callback) {
@@ -122,7 +132,7 @@ export const buildApp = async () => {
     await app.register(multipart, {
         limits: {
             files: 1,
-            fileSize: 2 * 1024 * 1024
+            fileSize: MAX_IMAGE_UPLOAD_BYTES
         }
     });
     app.addHook("preValidation", async (request, reply) => {

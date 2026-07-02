@@ -18,17 +18,26 @@ export class JwtService {
         this.appConfig = appConfig;
     }
     async issueTokens(params) {
-        const { user, client, scope, roles, accessTokenId, refreshTokenId, tenantId } = params;
+        const { user, client, scope, accessTokenId, refreshTokenId, tenantId, idTokenClaims, accessTokenAuthorizationClaims } = params;
         const now = Math.floor(Date.now() / 1000);
         const scopeValue = scope.join(" ");
         const accessTtl = resolveAccessTokenTtlSeconds(client);
         const refreshTtl = resolveRefreshTokenTtlSeconds(client);
-        const accessToken = await new SignJWT({
+        const accessTokenPayload = {
             scope: scopeValue,
-            roles,
             client_id: client.id,
             tenant_id: tenantId
-        })
+        };
+        if (accessTokenAuthorizationClaims?.roles) {
+            accessTokenPayload.roles = accessTokenAuthorizationClaims.roles;
+        }
+        if (accessTokenAuthorizationClaims?.groups) {
+            accessTokenPayload.groups = accessTokenAuthorizationClaims.groups;
+        }
+        if (accessTokenAuthorizationClaims?.permissions) {
+            accessTokenPayload.permissions = accessTokenAuthorizationClaims.permissions;
+        }
+        const accessToken = await new SignJWT(accessTokenPayload)
             .setProtectedHeader({ alg: "RS256", kid: this.keys.kid })
             .setIssuer(this.appConfig.issuer)
             .setAudience(client.id)
@@ -37,12 +46,7 @@ export class JwtService {
             .setIssuedAt(now)
             .setExpirationTime(now + accessTtl)
             .sign(this.keys.privateKey);
-        const idToken = await new SignJWT({
-            email: user.email,
-            preferred_username: user.username,
-            given_name: user.givenName,
-            family_name: user.familyName
-        })
+        const idToken = await new SignJWT(idTokenClaims ?? {})
             .setProtectedHeader({ alg: "RS256", kid: this.keys.kid })
             .setIssuer(this.appConfig.issuer)
             .setAudience(client.id)
@@ -112,16 +116,25 @@ export class JwtService {
         return { accessToken, tokenType: "Bearer", expiresIn: accessTtl, scope: scopeValue };
     }
     async issueUserAccessToken(params) {
-        const { user, client, scope, roles, accessTokenId, tenantId } = params;
+        const { user, client, scope, accessTokenId, tenantId, accessTokenAuthorizationClaims } = params;
         const now = Math.floor(Date.now() / 1000);
         const scopeValue = scope.join(" ");
         const accessTtl = resolveAccessTokenTtlSeconds(client);
-        const accessToken = await new SignJWT({
+        const accessTokenPayload = {
             scope: scopeValue,
-            roles,
             client_id: client.id,
             tenant_id: tenantId
-        })
+        };
+        if (accessTokenAuthorizationClaims?.roles) {
+            accessTokenPayload.roles = accessTokenAuthorizationClaims.roles;
+        }
+        if (accessTokenAuthorizationClaims?.groups) {
+            accessTokenPayload.groups = accessTokenAuthorizationClaims.groups;
+        }
+        if (accessTokenAuthorizationClaims?.permissions) {
+            accessTokenPayload.permissions = accessTokenAuthorizationClaims.permissions;
+        }
+        const accessToken = await new SignJWT(accessTokenPayload)
             .setProtectedHeader({ alg: "RS256", kid: this.keys.kid })
             .setIssuer(this.appConfig.issuer)
             .setAudience(client.id)
@@ -138,14 +151,11 @@ export class JwtService {
         };
     }
     async issueIdToken(params) {
-        const { user, client, nonce } = params;
+        const { user, client, nonce, claims } = params;
         const now = Math.floor(Date.now() / 1000);
         return await new SignJWT({
-            email: user.email,
-            preferred_username: user.username,
-            given_name: user.givenName,
-            family_name: user.familyName,
-            nonce
+            ...(claims ?? {}),
+            ...(nonce ? { nonce } : {})
         })
             .setProtectedHeader({ alg: "RS256", kid: this.keys.kid })
             .setIssuer(this.appConfig.issuer)
@@ -182,3 +192,23 @@ export class JwtService {
             .sign(this.keys.privateKey);
     }
 }
+const JWT_VERIFICATION_ERROR_CODES = new Set([
+    "ERR_JWS_SIGNATURE_VERIFICATION_FAILED",
+    "ERR_JWS_INVALID",
+    "ERR_JWT_EXPIRED",
+    "ERR_JWT_CLAIM_VALIDATION_FAILED",
+    "ERR_JWS_ALG_NOT_ALLOWED"
+]);
+export const isJwtVerificationError = (error) => {
+    if (!error || typeof error !== "object") {
+        return false;
+    }
+    const candidate = error;
+    if (candidate.code && JWT_VERIFICATION_ERROR_CODES.has(candidate.code)) {
+        return true;
+    }
+    return candidate.name === "JWSSignatureVerificationFailed"
+        || candidate.name === "JWSInvalid"
+        || candidate.name === "JWTExpired"
+        || candidate.name === "JWTClaimValidationFailed";
+};

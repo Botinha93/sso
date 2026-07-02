@@ -1,17 +1,37 @@
 import { ValidationError } from "../core/errors.js";
 import { hashPassword } from "../security/password.js";
+import { normalizeCustomAttributeMap, normalizeUserAttributeKey } from "../domain/user-attribute-keys.js";
+import { buildAdminUserListCache, serializeAdminUserFromCache } from "./admin-user-list-cache.js";
+import { applyListPagination, applyListSearch } from "../http/list-search.js";
 export class UserService {
     userRepository;
     appRepository;
     userAppAssignmentRepository;
     userAttributeRepository;
+    userGroupAssignmentRepository;
+    userRoleAssignmentRepository;
+    groupRepository;
+    roleRepository;
+    groupAppAssignmentRepository;
+    groupRoleAssignmentRepository;
+    groupUserAttributeAssignmentRepository;
     roleService;
     groupService;
-    constructor(userRepository, appRepository, userAppAssignmentRepository, userAttributeRepository, roleService, groupService) {
+    adminUserListCache;
+    adminUserListCacheLoadedAt = 0;
+    static ADMIN_USER_LIST_CACHE_TTL_MS = 5_000;
+    constructor(userRepository, appRepository, userAppAssignmentRepository, userAttributeRepository, userGroupAssignmentRepository, userRoleAssignmentRepository, groupRepository, roleRepository, groupAppAssignmentRepository, groupRoleAssignmentRepository, groupUserAttributeAssignmentRepository, roleService, groupService) {
         this.userRepository = userRepository;
         this.appRepository = appRepository;
         this.userAppAssignmentRepository = userAppAssignmentRepository;
         this.userAttributeRepository = userAttributeRepository;
+        this.userGroupAssignmentRepository = userGroupAssignmentRepository;
+        this.userRoleAssignmentRepository = userRoleAssignmentRepository;
+        this.groupRepository = groupRepository;
+        this.roleRepository = roleRepository;
+        this.groupAppAssignmentRepository = groupAppAssignmentRepository;
+        this.groupRoleAssignmentRepository = groupRoleAssignmentRepository;
+        this.groupUserAttributeAssignmentRepository = groupUserAttributeAssignmentRepository;
         this.roleService = roleService;
         this.groupService = groupService;
     }
@@ -41,7 +61,7 @@ export class UserService {
         const definitions = await this.userAttributeRepository.list();
         const definitionsByKey = new Map(definitions.filter((definition) => definition.enabled).map((definition) => [definition.key, definition]));
         for (const [key, value] of Object.entries(customAttributes)) {
-            const definition = definitionsByKey.get(key);
+            const definition = definitionsByKey.get(normalizeUserAttributeKey(key));
             if (!definition) {
                 throw new ValidationError(`Unknown custom attribute: ${key}`);
             }
@@ -65,10 +85,42 @@ export class UserService {
         }
     }
     normalizeCustomAttributes(customAttributes) {
-        if (!customAttributes) {
-            return {};
+        return normalizeCustomAttributeMap(customAttributes, { omitEmptyValues: true });
+    }
+    invalidateAdminUserListCache() {
+        this.adminUserListCache = undefined;
+        this.adminUserListCacheLoadedAt = 0;
+    }
+    async loadAdminUserListCache() {
+        const now = Date.now();
+        if (this.adminUserListCache && now - this.adminUserListCacheLoadedAt < UserService.ADMIN_USER_LIST_CACHE_TTL_MS) {
+            return this.adminUserListCache;
         }
-        return Object.fromEntries(Object.entries(customAttributes).filter(([, value]) => value.trim().length > 0));
+        const groups = await this.groupRepository.list();
+        const groupIds = groups.map((group) => group.id);
+        const [roles, userRoleAssignments, userGroupAssignments, userAppAssignments, groupRoleAssignments, groupAppAssignments, groupUserAttributeAssignments, attributeDefinitions] = await Promise.all([
+            this.roleRepository.list(),
+            this.userRoleAssignmentRepository.list(),
+            this.userGroupAssignmentRepository.list(),
+            this.userAppAssignmentRepository.list(),
+            groupIds.length > 0 ? this.groupRoleAssignmentRepository.listByGroups(groupIds) : Promise.resolve([]),
+            groupIds.length > 0 ? this.groupAppAssignmentRepository.listByGroups(groupIds) : Promise.resolve([]),
+            this.groupUserAttributeAssignmentRepository.list(),
+            this.userAttributeRepository.list()
+        ]);
+        this.adminUserListCache = buildAdminUserListCache({
+            groups,
+            roles,
+            userRoleAssignments,
+            userGroupAssignments,
+            userAppAssignments,
+            groupRoleAssignments,
+            groupAppAssignments,
+            groupUserAttributeAssignments,
+            attributeDefinitions
+        });
+        this.adminUserListCacheLoadedAt = now;
+        return this.adminUserListCache;
     }
     async createUser(input) {
         const appIds = this.normalizeAppIds(input);
@@ -115,21 +167,75 @@ export class UserService {
         for (const groupId of input.groupIds ?? []) {
             await this.groupService.assignUserToGroup({ userId: user.id, groupId });
         }
+        this.invalidateAdminUserListCache();
         return user;
     }
-    async listUsers() {
-        const users = await this.userRepository.list();
-        return Promise.all(users.map(async ({ passwordHash, ...user }) => {
-            const directRoleIds = Array.from(new Set((await this.roleService.listAssignmentsForUser(user.id)).map((assignment) => assignment.roleId)));
-            return {
-                ...user,
-                ...(await this.resolveCustomAttributesForUser(user.id)),
-                ...(await this.resolveAppAccessForUser(user.id)),
-                roles: await this.roleService.resolveNamesForUser(user.id),
-                directRoleIds,
-                groups: await this.groupService.resolveGroupNamesForUser(user.id)
-            };
-        }));
+    async serializeAdminUser(userId) {
+        const user = await this.userRepository.findById(userId);
+        if (!user) {
+            return null;
+        }
+        const cache = await this.loadAdminUserListCache();
+        return serializeAdminUserFromCache(user, cache);
+    }
+    async serializeAdminUsers(userIds) {
+        if (userIds.length === 0) {
+            return [];
+        }
+        const uniqueIds = Array.from(new Set(userIds));
+        const [cache, users] = await Promise.all([
+            this.loadAdminUserListCache(),
+            Promise.all(uniqueIds.map((userId) => this.userRepository.findById(userId)))
+        ]);
+        return users
+            .filter((user) => user !== null && user !== undefined)
+            .map((user) => serializeAdminUserFromCache(user, cache));
+    }
+    async listUsers(filters) {
+        const [users, cache] = await Promise.all([
+            this.userRepository.list(),
+            this.loadAdminUserListCache()
+        ]);
+        const allowedUserIds = filters?.userIds ? new Set(filters.userIds) : undefined;
+        let candidates = users.filter((user) => !allowedUserIds || allowedUserIds.has(user.id));
+        if (filters?.active !== undefined) {
+            candidates = candidates.filter((user) => user.active === filters.active);
+        }
+        if (filters?.search) {
+            candidates = applyListSearch(candidates, filters.search, [
+                (user) => user.username,
+                (user) => user.email,
+                (user) => user.givenName,
+                (user) => user.familyName,
+                (user) => user.id
+            ]);
+        }
+        const normalizedAttributeFilters = filters?.customAttributes
+            ? normalizeCustomAttributeMap(filters.customAttributes)
+            : undefined;
+        const groupNeedle = filters?.group?.trim().toLowerCase();
+        const matched = [];
+        for (const user of candidates) {
+            const serialized = serializeAdminUserFromCache(user, cache);
+            if (groupNeedle) {
+                const hasGroup = (serialized.groups ?? []).some((groupName) => groupName.toLowerCase() === groupNeedle || groupName.toLowerCase().includes(groupNeedle));
+                if (!hasGroup) {
+                    continue;
+                }
+            }
+            if (normalizedAttributeFilters) {
+                const attributes = serialized.customAttributes ?? {};
+                const matchesAttributes = Object.entries(normalizedAttributeFilters).every(([key, value]) => attributes[key] === value);
+                if (!matchesAttributes) {
+                    continue;
+                }
+            }
+            matched.push(serialized);
+        }
+        return applyListPagination(matched, {
+            page: filters?.page,
+            pageSize: filters?.pageSize
+        });
     }
     async findUserByEmail(email) {
         return this.userRepository.findByEmail(email);
@@ -144,6 +250,12 @@ export class UserService {
         const existing = await this.userRepository.findById(id);
         if (!existing) {
             throw new ValidationError("User not found");
+        }
+        if (input.username !== undefined && input.username === existing.id) {
+            input = { ...input, username: undefined };
+        }
+        if (input.email !== undefined && input.email === existing.id) {
+            input = { ...input, email: undefined };
         }
         if (input.email && input.email.toLowerCase() !== existing.email.toLowerCase()) {
             const byEmail = await this.userRepository.findByEmail(input.email);
@@ -175,6 +287,7 @@ export class UserService {
         }
         if (appIds) {
             await this.setUserAppAssignments(id, appIds);
+            this.invalidateAdminUserListCache();
             return {
                 ...updated,
                 appId: appIds[0],
@@ -182,6 +295,7 @@ export class UserService {
                 directAppIds: appIds
             };
         }
+        this.invalidateAdminUserListCache();
         return updated;
     }
     async resetPassword(id, password) {
@@ -193,11 +307,13 @@ export class UserService {
     }
     async setUserActive(id, active) {
         await this.userRepository.setActive(id, active);
+        this.invalidateAdminUserListCache();
     }
     async setCustomAttributes(id, customAttributes) {
         const normalizedCustomAttributes = this.normalizeCustomAttributes(customAttributes);
         await this.validateCustomAttributes(normalizedCustomAttributes);
         await this.userRepository.setCustomAttributes(id, normalizedCustomAttributes);
+        this.invalidateAdminUserListCache();
     }
     async deleteUser(id) {
         const groupIds = await this.groupService.listGroupIdsForUser(id);
@@ -209,21 +325,24 @@ export class UserService {
             await this.userAppAssignmentRepository.remove(id, assignment.appId);
         }
         await this.userRepository.delete(id);
+        this.invalidateAdminUserListCache();
     }
     async resolveAppAccessForUser(userId) {
         const user = await this.userRepository.findById(userId);
         const assignedDirectAppIds = (await this.userAppAssignmentRepository.listByUser(userId)).map((assignment) => assignment.appId);
         const directAppIds = assignedDirectAppIds.length > 0 ? assignedDirectAppIds : (user?.appId ? [user.appId] : []);
         const groupIds = await this.groupService.listGroupIdsForUser(userId);
-        const inheritedAppIds = groupIds.length === 0
+        const inheritedAppSources = groupIds.length === 0
             ? []
-            : await this.groupService.resolveAppIdsForGroups(groupIds);
+            : await this.groupService.resolveAppSourcesForGroups(groupIds);
+        const inheritedAppIds = Array.from(new Set(inheritedAppSources.map((source) => source.appId)));
         const appIds = Array.from(new Set([...directAppIds, ...inheritedAppIds]));
         return {
             appId: appIds[0],
             appIds,
             directAppIds,
-            inheritedAppIds
+            inheritedAppIds,
+            inheritedAppSources
         };
     }
     async resolveCustomAttributesForUser(userId) {

@@ -6,6 +6,7 @@ import helmet from "@fastify/helmet";
 import multipart from "@fastify/multipart";
 import { loadConfig } from "./core/config.js";
 import { registerRoutes } from "./http/routes.js";
+import { MAX_IMAGE_UPLOAD_BYTES } from "./http/upload-limits.js";
 import { bootstrap } from "./bootstrap.js";
 import { hasSqlInjectionPayload } from "./http/sql-injection-guard.js";
 
@@ -152,7 +153,7 @@ export const buildApp = async () => {
   await app.register(multipart, {
     limits: {
       files: 1,
-      fileSize: 2 * 1024 * 1024
+      fileSize: MAX_IMAGE_UPLOAD_BYTES
     }
   });
 

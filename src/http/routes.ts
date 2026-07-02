@@ -21,6 +21,7 @@ import { registerServiceIdentityRoutes } from "./routes/service-identities.js";
 import { deriveRiskEventsFromAudit } from "./routes/security-risk-events.js";
 import { registerConnectorRoutes } from "./routes/connectors.js";
 import { registerPluginRoutes } from "./routes/plugins.js";
+import { MAX_IMAGE_UPLOAD_BYTES } from "./upload-limits.js";
 import {
   assignGroupRoleSchema,
   assignRoleSchema,
@@ -189,7 +190,6 @@ interface RouteDeps {
 
 export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   const USER_PICTURE_ATTRIBUTE_KEY = "picture";
-  const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
   const allowedImageMimeTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"]);
   const extensionToMimeType: Record<string, string> = {
     ".jpg": "image/jpeg",
@@ -375,8 +375,8 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     let total = 0;
     for await (const chunk of part.file) {
       total += chunk.length;
-      if (total > MAX_IMAGE_BYTES) {
-        reply.status(413).send({ error: "payload_too_large", message: "Image must be 2MB or less" });
+      if (total > MAX_IMAGE_UPLOAD_BYTES) {
+        reply.status(413).send({ error: "payload_too_large", message: "Image must be 20MB or less" });
         return null;
       }
       chunks.push(chunk);
@@ -1205,7 +1205,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     }
     try {
       if (parsed.data.grant_type === "authorization_code") {
-        return await deps.authService.exchangeAuthorizationCode({
+        const tokens = await deps.authService.exchangeAuthorizationCode({
           code: parsed.data.code,
           clientId: parsed.data.client_id,
           clientSecret: parsed.data.client_secret,
@@ -1214,13 +1214,29 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
           ip: request.ip,
           userAgent: clientUserAgent(request)
         });
+        return {
+          access_token: tokens.accessToken,
+          token_type: tokens.tokenType,
+          expires_in: tokens.expiresIn,
+          refresh_token: tokens.refreshToken,
+          id_token: tokens.idToken,
+          scope: tokens.scope
+        };
       }
       if (parsed.data.grant_type === "refresh_token") {
-        return await deps.authService.refreshTokens({
+        const tokens = await deps.authService.refreshTokens({
           refreshToken: parsed.data.refresh_token,
           clientId: parsed.data.client_id,
           clientSecret: parsed.data.client_secret
         });
+        return {
+          access_token: tokens.accessToken,
+          token_type: tokens.tokenType,
+          expires_in: tokens.expiresIn,
+          refresh_token: tokens.refreshToken,
+          id_token: tokens.idToken,
+          scope: tokens.scope
+        };
       }
       if (parsed.data.grant_type === "client_credentials") {
         return await deps.authService.issueClientCredentialsTokens({
