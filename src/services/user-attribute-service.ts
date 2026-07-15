@@ -88,15 +88,24 @@ export class UserAttributeService {
       }
     }
 
-    const updated = await this.userAttributeRepository.update(id, {
-      key: normalizedKey,
-      name: input.name?.trim(),
-      description: input.description?.trim(),
-      type: input.type,
-      enabled: input.enabled,
-      showOnPortal: input.showOnPortal,
-      userEditable: input.userEditable
-    });
+    const patch: Partial<{
+      key: string;
+      name: string;
+      description: string;
+      type: UserAttributeType;
+      enabled: boolean;
+      showOnPortal: boolean;
+      userEditable: boolean;
+    }> = {};
+    if (normalizedKey !== undefined) patch.key = normalizedKey;
+    if (input.name !== undefined) patch.name = input.name.trim();
+    if (input.description !== undefined) patch.description = input.description.trim();
+    if (input.type !== undefined) patch.type = input.type;
+    if (input.enabled !== undefined) patch.enabled = input.enabled;
+    if (input.showOnPortal !== undefined) patch.showOnPortal = input.showOnPortal;
+    if (input.userEditable !== undefined) patch.userEditable = input.userEditable;
+
+    const updated = await this.userAttributeRepository.update(id, patch);
 
     if (!updated) {
       throw new ValidationError("Failed to update user attribute");

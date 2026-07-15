@@ -159,7 +159,7 @@ function LineChart({ data }: { data: SeriesPoint[] }) {
         ))}
       </svg>
 
-      <div className="mt-2 grid grid-cols-7 gap-2 text-[11px] text-slate-500">
+      <div className="mt-2 grid grid-cols-7 gap-2 text-[11px] text-muted-foreground">
         {data.filter((_, i) => i % 2 === 0).map((d) => (
           <div key={d.label}>{d.label}</div>
         ))}
@@ -170,7 +170,7 @@ function LineChart({ data }: { data: SeriesPoint[] }) {
 
 function HorizontalBars({ data, emptyLabel }: { data: SeriesPoint[]; emptyLabel: string }) {
   if (data.length === 0) {
-    return <p className="text-sm text-slate-400">{emptyLabel}</p>
+    return <p className="text-sm text-muted-foreground">{emptyLabel}</p>
   }
 
   const maxValue = Math.max(...data.map((d) => d.value), 1)
@@ -182,10 +182,10 @@ function HorizontalBars({ data, emptyLabel }: { data: SeriesPoint[]; emptyLabel:
         return (
           <div key={item.label}>
             <div className="mb-1 flex items-center justify-between text-xs">
-              <span className="font-medium text-slate-700 truncate pr-2">{item.label}</span>
-              <span className="text-slate-500">{item.value}</span>
+              <span className="font-medium text-foreground truncate pr-2">{item.label}</span>
+              <span className="text-muted-foreground">{item.value}</span>
             </div>
-            <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
               <div className="h-full rounded-full bg-[linear-gradient(90deg,#0ea5e9,#22d3ee)]" style={{ width: `${ratio * 100}%` }} />
             </div>
           </div>
@@ -384,9 +384,9 @@ const Dashboard = () => {
       <div className="space-y-6">
         <PageHeaderSkeleton blocks={1} />
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-slate-100" />)}
+          {[...Array(4)].map((_, i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-muted" />)}
         </div>
-        <div className="h-72 animate-pulse rounded-xl bg-slate-100" />
+        <div className="h-72 animate-pulse rounded-xl bg-muted" />
       </div>
     )
   }
@@ -404,66 +404,66 @@ const Dashboard = () => {
           <Link
             key={item.to}
             to={item.to}
-            className="group rounded-xl border border-slate-200 bg-white p-4 text-sm shadow-sm transition-all hover:border-sky-200 hover:shadow-md"
+            className="group rounded-xl border border-border bg-white p-4 text-sm shadow-sm transition-all hover:border-sky-200 hover:shadow-md"
           >
-            <p className="font-semibold text-slate-900">{item.title}</p>
-            <p className="mt-1 text-xs text-slate-500 leading-relaxed">{item.description}</p>
+            <p className="font-semibold text-foreground">{item.title}</p>
+            <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{item.description}</p>
             <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-sky-600">
               Open <ArrowRight size={11} className="transition-transform group-hover:translate-x-1" />
             </span>
           </Link>
         ))}
         {operationLinks.length === 0 ? (
-          <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+          <p className="rounded-xl border border-border bg-muted px-3 py-2 text-xs text-muted-foreground">
             You do not currently have permission to access the operations views.
           </p>
         ) : null}
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Users</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Users</p>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600"><Users size={15} /></div>
           </div>
-          <div className="text-3xl font-bold tracking-tight text-slate-900">{userItems.length}</div>
-          <p className="mt-1 text-xs text-slate-400">{activeUsers} active · {inactiveUsers} inactive</p>
+          <div className="text-3xl font-bold tracking-tight text-foreground">{userItems.length}</div>
+          <p className="mt-1 text-xs text-muted-foreground">{activeUsers} active · {inactiveUsers} inactive</p>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Sessions</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sessions</p>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-50 text-sky-600"><Activity size={15} /></div>
           </div>
-          <div className="text-3xl font-bold tracking-tight text-slate-900">{activeSessions}</div>
-          <p className="mt-1 text-xs text-slate-400">{revokedSessions} revoked · {sessionItems.length} total</p>
+          <div className="text-3xl font-bold tracking-tight text-foreground">{activeSessions}</div>
+          <p className="mt-1 text-xs text-muted-foreground">{revokedSessions} revoked · {sessionItems.length} total</p>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Clients</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Clients</p>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-600"><AppWindow size={15} /></div>
           </div>
-          <div className="text-3xl font-bold tracking-tight text-slate-900">{clientItems.length}</div>
-          <p className="mt-1 text-xs text-slate-400">{pkceClients} with PKCE · {clientResourcesCount} resources</p>
+          <div className="text-3xl font-bold tracking-tight text-foreground">{clientItems.length}</div>
+          <p className="mt-1 text-xs text-muted-foreground">{pkceClients} with PKCE · {clientResourcesCount} resources</p>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Access Model</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Access Model</p>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><Shield size={15} /></div>
           </div>
-          <div className="text-3xl font-bold tracking-tight text-slate-900">{roles.length}</div>
-          <p className="mt-1 text-xs text-slate-400">roles · {groups.length} groups · {tenants.length} tenants</p>
+          <div className="text-3xl font-bold tracking-tight text-foreground">{roles.length}</div>
+          <p className="mt-1 text-xs text-muted-foreground">roles · {groups.length} groups · {tenants.length} tenants</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="xl:col-span-2 rounded-xl border border-border bg-card p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h3 className="text-base font-semibold text-slate-900">Authentication Activity</h3>
-              <p className="text-xs text-slate-500">Audit events over the last 14 days</p>
+              <h3 className="text-base font-semibold text-foreground">Authentication Activity</h3>
+              <p className="text-xs text-muted-foreground">Audit events over the last 14 days</p>
             </div>
             <span className="rounded-md bg-sky-50 px-2 py-1 text-[11px] font-medium text-sky-700 border border-sky-100">
               {timeline.reduce((sum, p) => sum + p.value, 0)} events
@@ -472,162 +472,162 @@ const Dashboard = () => {
           <LineChart data={timeline} />
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-base font-semibold text-slate-900">Security Posture</h3>
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <h3 className="text-base font-semibold text-foreground">Security Posture</h3>
           <div className="mt-4 space-y-4">
             <div>
-              <div className="mb-1 flex items-center justify-between text-xs text-slate-600">
+              <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1"><Fingerprint size={12} /> PKCE Coverage</span>
                 <span>{clientItems.length ? formatPct(pkceClients / clientItems.length) : '0%'}</span>
               </div>
-              <div className="h-2 rounded-full bg-slate-100">
+              <div className="h-2 rounded-full bg-muted">
                 <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${clientItems.length ? (pkceClients / clientItems.length) * 100 : 0}%` }} />
               </div>
             </div>
 
             <div>
-              <div className="mb-1 flex items-center justify-between text-xs text-slate-600">
+              <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1"><CheckSquare size={12} /> Webhook Success</span>
                 <span>{formatPct(notificationSuccessRate)}</span>
               </div>
-              <div className="h-2 rounded-full bg-slate-100">
+              <div className="h-2 rounded-full bg-muted">
                 <div className="h-2 rounded-full bg-cyan-500" style={{ width: `${notificationSuccessRate * 100}%` }} />
               </div>
             </div>
 
             <div>
-              <div className="mb-1 flex items-center justify-between text-xs text-slate-600">
+              <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1"><Users size={12} /> Session Coverage</span>
                 <span>{formatPct(sessionCoverage)}</span>
               </div>
-              <div className="h-2 rounded-full bg-slate-100">
+              <div className="h-2 rounded-full bg-muted">
                 <div className="h-2 rounded-full bg-violet-500" style={{ width: `${clamp(sessionCoverage, 0, 1) * 100}%` }} />
               </div>
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-              Avg permissions per role: <span className="font-semibold text-slate-800">{permissionDensity.toFixed(1)}</span>
+            <div className="rounded-lg border border-border bg-muted p-3 text-xs text-muted-foreground">
+              Avg permissions per role: <span className="font-semibold text-foreground">{permissionDensity.toFixed(1)}</span>
             </div>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-base font-semibold text-slate-900">Top Event Types</h3>
-          <p className="mb-4 text-xs text-slate-500">Most frequent actions in audit history</p>
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <h3 className="text-base font-semibold text-foreground">Top Event Types</h3>
+          <p className="mb-4 text-xs text-muted-foreground">Most frequent actions in audit history</p>
           <HorizontalBars data={eventDistribution} emptyLabel="No audit events yet." />
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-base font-semibold text-slate-900">Session Load by Client</h3>
-          <p className="mb-4 text-xs text-slate-500">Where active authentication traffic is concentrated</p>
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <h3 className="text-base font-semibold text-foreground">Session Load by Client</h3>
+          <p className="mb-4 text-xs text-muted-foreground">Where active authentication traffic is concentrated</p>
           <HorizontalBars data={sessionsByClient} emptyLabel="No sessions recorded yet." />
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-base font-semibold text-slate-900">Most Requested Scopes</h3>
-          <p className="mb-4 text-xs text-slate-500">Popularity derived from consent grants</p>
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <h3 className="text-base font-semibold text-foreground">Most Requested Scopes</h3>
+          <p className="mb-4 text-xs text-muted-foreground">Popularity derived from consent grants</p>
           <HorizontalBars data={scopePopularity} emptyLabel="No consent scopes recorded yet." />
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Pending Requests</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pending Requests</p>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600"><ShieldAlert size={15} /></div>
           </div>
-          <div className="text-3xl font-bold tracking-tight text-slate-900">{pendingAccessRequests}</div>
-          <p className="mt-1 text-xs text-slate-400">{approvedAccessRequests} approved · {accessRequestItems.length} total</p>
+          <div className="text-3xl font-bold tracking-tight text-foreground">{pendingAccessRequests}</div>
+          <p className="mt-1 text-xs text-muted-foreground">{approvedAccessRequests} approved · {accessRequestItems.length} total</p>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Elevation Sessions</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Elevation Sessions</p>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 text-rose-600"><Shield size={15} /></div>
           </div>
-          <div className="text-3xl font-bold tracking-tight text-slate-900">{activeElevationSessions}</div>
-          <p className="mt-1 text-xs text-slate-400">{pendingElevationRequests} pending requests</p>
+          <div className="text-3xl font-bold tracking-tight text-foreground">{activeElevationSessions}</div>
+          <p className="mt-1 text-xs text-muted-foreground">{pendingElevationRequests} pending requests</p>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Connectors</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Connectors</p>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600"><GitMerge size={15} /></div>
           </div>
-          <div className="text-3xl font-bold tracking-tight text-slate-900">{connectorItems.length}</div>
-          <p className="mt-1 text-xs text-slate-400">{activeConnectors} active · {failedConnectors} in error</p>
+          <div className="text-3xl font-bold tracking-tight text-foreground">{connectorItems.length}</div>
+          <p className="mt-1 text-xs text-muted-foreground">{activeConnectors} active · {failedConnectors} in error</p>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Risk Events</p>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-600"><AlertTriangle size={15} /></div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Risk Events</p>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 text-rose-600"><AlertTriangle size={15} /></div>
           </div>
-          <div className="text-3xl font-bold tracking-tight text-slate-900">{riskEventItems.length}</div>
-          <p className="mt-1 text-xs text-slate-400">{criticalRiskEvents} critical · {highRiskEvents} high</p>
+          <div className="text-3xl font-bold tracking-tight text-foreground">{riskEventItems.length}</div>
+          <p className="mt-1 text-xs text-muted-foreground">{criticalRiskEvents} critical · {highRiskEvents} high</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-base font-semibold text-slate-900">Governance And Elevation Activity</h3>
-          <p className="mb-4 text-xs text-slate-500">Operational status of access requests and privileged elevation lifecycle.</p>
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <h3 className="text-base font-semibold text-foreground">Governance And Elevation Activity</h3>
+          <p className="mb-4 text-xs text-muted-foreground">Operational status of access requests and privileged elevation lifecycle.</p>
           <div className="grid gap-5 md:grid-cols-2">
             <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Access Requests</p>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Access Requests</p>
               <HorizontalBars data={accessRequestStatusDistribution} emptyLabel="No access request data available yet." />
             </div>
             <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Elevation Requests</p>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Elevation Requests</p>
               <HorizontalBars data={elevationRequestStatusDistribution} emptyLabel="No elevation request data available yet." />
             </div>
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-base font-semibold text-slate-900">Connector And Risk Distribution</h3>
-          <p className="mb-4 text-xs text-slate-500">Integration footprint and current security event severity mix.</p>
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <h3 className="text-base font-semibold text-foreground">Connector And Risk Distribution</h3>
+          <p className="mb-4 text-xs text-muted-foreground">Integration footprint and current security event severity mix.</p>
           <div className="grid gap-5 md:grid-cols-2">
             <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Connector Types</p>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Connector Types</p>
               <HorizontalBars data={connectorTypeDistribution} emptyLabel="No connector data available yet." />
             </div>
             <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">Risk Severity</p>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Risk Severity</p>
               <HorizontalBars data={riskSeverityDistribution} emptyLabel="No risk events recorded yet." />
             </div>
           </div>
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-base font-semibold text-slate-900">Platform Inventory</h3>
+      <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+        <h3 className="text-base font-semibold text-foreground">Platform Inventory</h3>
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
-            <p className="text-[11px] uppercase tracking-wider text-slate-500">Tenants</p>
-            <p className="mt-1 text-xl font-semibold text-slate-900">{tenants.length}</p>
+          <div className="rounded-lg border border-border bg-muted p-3 text-center">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Tenants</p>
+            <p className="mt-1 text-xl font-semibold text-foreground">{tenants.length}</p>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
-            <p className="text-[11px] uppercase tracking-wider text-slate-500">Groups</p>
-            <p className="mt-1 text-xl font-semibold text-slate-900">{groups.length}</p>
+          <div className="rounded-lg border border-border bg-muted p-3 text-center">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Groups</p>
+            <p className="mt-1 text-xl font-semibold text-foreground">{groups.length}</p>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
-            <p className="text-[11px] uppercase tracking-wider text-slate-500">Roles</p>
-            <p className="mt-1 text-xl font-semibold text-slate-900">{roles.length}</p>
+          <div className="rounded-lg border border-border bg-muted p-3 text-center">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Roles</p>
+            <p className="mt-1 text-xl font-semibold text-foreground">{roles.length}</p>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
-            <p className="text-[11px] uppercase tracking-wider text-slate-500">Consents</p>
-            <p className="mt-1 text-xl font-semibold text-slate-900">{consentItems.length}</p>
+          <div className="rounded-lg border border-border bg-muted p-3 text-center">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Consents</p>
+            <p className="mt-1 text-xl font-semibold text-foreground">{consentItems.length}</p>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
-            <p className="text-[11px] uppercase tracking-wider text-slate-500">Event Hooks</p>
-            <p className="mt-1 text-xl font-semibold text-slate-900">{notificationItems.length}</p>
+          <div className="rounded-lg border border-border bg-muted p-3 text-center">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Event Hooks</p>
+            <p className="mt-1 text-xl font-semibold text-foreground">{notificationItems.length}</p>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
-            <p className="text-[11px] uppercase tracking-wider text-slate-500">Grants</p>
-            <p className="mt-1 text-xl font-semibold text-slate-900">
+          <div className="rounded-lg border border-border bg-muted p-3 text-center">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Grants</p>
+            <p className="mt-1 text-xl font-semibold text-foreground">
               {Array.from(new Set(clientItems.flatMap((c) => c.grants ?? []))).length}
             </p>
           </div>

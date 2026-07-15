@@ -11,6 +11,7 @@ import Button from '../components/ui/Button'
 import Input, { inputBaseClassName } from '../components/ui/Input'
 import Card from '../components/ui/Card'
 import StatusBadge from '../components/ui/StatusBadge'
+import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
 import BulkActionsBar, { SelectionCheckbox } from '../components/BulkActionsBar'
 import {
   useUsers,
@@ -690,8 +691,8 @@ const Users = () => {
         </div>
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
+      <Table>
+        <TableHeaderRow>
           <div className="flex items-center gap-3">
             <SelectionCheckbox
               checked={allFilteredUsersSelected}
@@ -700,13 +701,13 @@ const Users = () => {
               disabled={!filteredUsers?.length}
               title={allFilteredUsersSelected ? 'Deselect all' : 'Select all visible'}
             />
-            <h4 className="text-sm font-semibold text-slate-700">All Users</h4>
+            <h4 className="text-sm font-semibold text-foreground">All Users</h4>
           </div>
           <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </Button>
-        </div>
+        </TableHeaderRow>
         <BulkActionsBar
           count={selectedUserIds.length}
           noun="user"
@@ -783,11 +784,11 @@ const Users = () => {
         ) : !filteredUsers?.length ? (
           <EmptyState icon={UsersIcon} title="No users registered" description="Create the first user to get started." action={<Button size="sm" variant="primary" onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }}>New User</Button>} />
         ) : (
-          <div className="divide-y divide-slate-100">
+          <TableBody>
             {filteredUsers.map((user: User) => {
               const isSelected = selectedUserIds.includes(user.id)
               return (
-              <div key={user.id} className={`flex items-center justify-between px-5 py-3.5 hover:bg-slate-50/50 transition-colors gap-4 ${isSelected ? 'bg-sky-50/40' : ''}`}>
+              <TableRow key={user.id} selected={isSelected} className="items-center gap-4">
                 <div className="flex items-start gap-3 flex-1 min-w-0">
                   <div className="pt-1.5">
                     <SelectionCheckbox
@@ -801,7 +802,7 @@ const Users = () => {
                   </div>
                   <div className="space-y-0.5 flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-slate-900">{user.givenName} {user.familyName}</p>
+                    <p className="text-sm font-medium text-foreground">{user.givenName} {user.familyName}</p>
                     {(user.appIds ?? (user.appId ? [user.appId] : [])).length === 0 ? (
                       <StatusBadge tone="accent">
                         No Apps
@@ -833,7 +834,7 @@ const Users = () => {
                       <StatusBadge tone="danger">Inactive</StatusBadge>
                     )}
                   </div>
-                  <p className="text-xs text-slate-500">{user.email} · @{user.username}</p>
+                  <p className="text-xs text-muted-foreground">{user.email} · @{user.username}</p>
                   {user.roles.length > 0 && (
                     <div className="flex gap-1 flex-wrap">
                       {user.roles.map(r => (
@@ -858,7 +859,7 @@ const Users = () => {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="text-sky-500 hover:text-red-600"
+                          className="text-sky-500 hover:text-rose-600"
                           onClick={() => {
                             const group = (groups as GroupItem[]).find((g) => g.name === groupName)
                             if (!group) return
@@ -927,7 +928,7 @@ const Users = () => {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="hover:bg-red-50 hover:text-red-600"
+                    className="hover:bg-rose-50 hover:text-rose-600"
                     onClick={() => handleDelete(user.id, user.email)}
                     disabled={deleteUser.isPending}
                     title="Delete user"
@@ -935,12 +936,12 @@ const Users = () => {
                     <Trash2 size={14} />
                   </Button>
                 </div>
-              </div>
+              </TableRow>
               )
             })}
-          </div>
+          </TableBody>
         )}
-      </Card>
+      </Table>
 
       <Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Create New User">
         <div className="space-y-4">

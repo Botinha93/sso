@@ -1889,7 +1889,10 @@ class PrismaUserAttributeRepository {
     if (!existing) {
       return undefined;
     }
-    const updated: UserAttributeDefinition = { ...existing, ...input, updatedAt: new Date() };
+    const definedInput = Object.fromEntries(
+      Object.entries(input).filter(([, value]) => value !== undefined)
+    ) as Partial<Omit<UserAttributeDefinition, "id" | "createdAt" | "updatedAt">>;
+    const updated: UserAttributeDefinition = { ...existing, ...definedInput, updatedAt: new Date() };
     await this.prisma.userAttributeDefinition.update({
       where: { id },
       data: {

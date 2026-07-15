@@ -9,6 +9,7 @@ import StatusBadge from '../components/ui/StatusBadge'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 import Card from '../components/ui/Card'
+import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
 import BulkActionsBar, { SelectionCheckbox } from '../components/BulkActionsBar'
 import React from 'react';
 
@@ -548,8 +549,8 @@ const Groups = () => {
         </div>
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
+      <Table>
+        <TableHeaderRow>
           <div className="flex items-center gap-3">
             <SelectionCheckbox
               checked={allFilteredGroupsSelected}
@@ -558,13 +559,13 @@ const Groups = () => {
               disabled={filteredGroups.length === 0}
               title={allFilteredGroupsSelected ? 'Deselect all' : 'Select all visible'}
             />
-            <h4 className="text-sm font-semibold text-slate-700">All Groups</h4>
+            <h4 className="text-sm font-semibold text-foreground">All Groups</h4>
           </div>
           <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </Button>
-        </div>
+        </TableHeaderRow>
         <BulkActionsBar
           count={selectedGroupIds.length}
           noun="group"
@@ -608,14 +609,14 @@ const Groups = () => {
             description="Create a group to assign users, roles and attributes in bulk."
           />
         ) : (
-          <div className="divide-y divide-slate-100">
+          <TableBody>
             {filteredGroups.map((group) => {
               const availableRoles = roleOptions.filter((role) => !group.roleIds.includes(role.id))
               const pickerValue = rolePickerByGroup[group.id] ?? availableRoles[0]?.id ?? ''
               const isSelected = selectedGroupIds.includes(group.id)
               return (
-                <div key={group.id} className={`px-5 py-3.5 hover:bg-slate-50/50 transition-colors ${isSelected ? 'bg-sky-50/40' : ''}`}>
-                  <div className="flex items-start justify-between gap-4">
+                <TableRow key={group.id} selected={isSelected} className="block">
+                  <div className="flex w-full items-start justify-between gap-4">
                     <div className="flex items-start gap-3 min-w-0 flex-1">
                       <div className="pt-1.5">
                         <SelectionCheckbox
@@ -626,10 +627,10 @@ const Groups = () => {
                       </div>
                       <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-0.5">
-                        <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
-                          <Users size={14} className="text-slate-500" />
+                        <div className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center">
+                          <Users size={14} className="text-muted-foreground" />
                         </div>
-                        <h5 className="text-sm font-medium text-slate-900">{group.name}</h5>
+                        <h5 className="text-sm font-medium text-foreground">{group.name}</h5>
                         {(group.appIds ?? (group.appId ? [group.appId] : [])).length === 0 ? (
                           <StatusBadge tone="accent">
                             No Apps
@@ -642,7 +643,7 @@ const Groups = () => {
                           ))
                         )}
                       </div>
-                      <p className="text-xs text-slate-500">{group.description}</p>
+                      <p className="text-xs text-muted-foreground">{group.description}</p>
                       {group.customAttributes && Object.keys(group.customAttributes).length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           {Object.entries(group.customAttributes).map(([key, value]) => (
@@ -662,7 +663,7 @@ const Groups = () => {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-4 w-4 text-slate-400 hover:text-red-600"
+                              className="h-4 w-4 text-muted-foreground hover:text-rose-600"
                               onClick={() => removeRole.mutate({ groupId: group.id, roleId })}
                               title="Remove role"
                             >
@@ -709,7 +710,7 @@ const Groups = () => {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="hover:bg-red-50 hover:text-red-600"
+                        className="hover:bg-rose-50 hover:text-rose-600"
                         onClick={() => onDeleteGroup(group)}
                         disabled={deleteGroup.isPending}
                         title="Delete group"
@@ -718,12 +719,12 @@ const Groups = () => {
                       </Button>
                     </div>
                   </div>
-                </div>
+                </TableRow>
               )
             })}
-          </div>
+          </TableBody>
         )}
-      </Card>
+      </Table>
 
       <Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Create New Group">
         <div className="space-y-4">

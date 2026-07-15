@@ -1,6 +1,6 @@
-import { Pencil, Plus, RefreshCw, ToggleLeft, ToggleRight, Trash2, Fingerprint } from 'lucide-react'
+import { Pencil, Plus, RefreshCw, ToggleLeft, ToggleRight, Trash2 } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import ListSearch from '../components/ListSearch'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -9,6 +9,7 @@ import StatusBadge from '../components/ui/StatusBadge'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 import Card from '../components/ui/Card'
+import BulkActionsBar, { SelectionCheckbox } from '../components/BulkActionsBar'
 import React from 'react';
 import {
   useCreateUserAttribute,
@@ -29,6 +30,8 @@ interface UserAttribute {
   showOnPortal: boolean
   userEditable: boolean
 }
+
+type ToggleField = 'enabled' | 'showOnPortal' | 'userEditable'
 
 const TYPE_OPTIONS: AttributeType[] = ['text', 'number', 'boolean', 'date', 'json']
 
@@ -59,8 +62,26 @@ const UserAttributes = () => {
   const [attributeToDelete, setAttributeToDelete] = useState<UserAttribute | null>(null)
   const [editingId, setEditingId] = useState('')
   const [form, setForm] = useState(defaultForm)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [bulkPending, setBulkPending] = useState(false)
+  const [bulkError, setBulkError] = useState('')
 
   const attributes = useMemo(() => (data ?? []) as UserAttribute[], [data])
+  const attributeIds = useMemo(() => attributes.map((attribute) => attribute.id), [attributes])
+  const selectedCount = useMemo(
+    () => attributeIds.reduce((count, id) => (selectedIds.includes(id) ? count + 1 : count), 0),
+    [attributeIds, selectedIds]
+  )
+  const allSelected = attributeIds.length > 0 && selectedCount === attributeIds.length
+  const someSelected = selectedCount > 0 && !allSelected
+
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const valid = new Set(attributeIds)
+      const next = prev.filter((id) => valid.has(id))
+      return next.length === prev.length ? prev : next
+    })
+  }, [attributeIds])
 
   const openCreate = () => {
     setForm(defaultForm)
@@ -126,8 +147,57 @@ const UserAttributes = () => {
     deleteAttribute.mutate(attributeToDelete.id, { onSuccess: () => setAttributeToDelete(null) })
   }
 
-  const toggleGlobalEnabled = (attribute: UserAttribute) => {
-    updateAttribute.mutate({ id: attribute.id, enabled: !attribute.enabled })
+  const toggleField = (attribute: UserAttribute, field: ToggleField) => {
+    updateAttribute.mutate({ id: attribute.id, [field]: !attribute[field] })
+  }
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]))
+  }
+
+  const toggleSelectAll = () => {
+    if (attributeIds.length === 0) return
+    if (allSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !attributeIds.includes(id)))
+      return
+    }
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      for (const id of attributeIds) next.add(id)
+      return Array.from(next)
+    })
+  }
+
+  const clearSelection = () => {
+    setSelectedIds([])
+    setBulkError('')
+  }
+
+  const runBulkToggle = async (field: ToggleField, value: boolean) => {
+    if (selectedIds.length === 0) return
+    setBulkError('')
+    setBulkPending(true)
+    try {
+      const ids = [...selectedIds]
+      const targets = attributes.filter((attribute) => ids.includes(attribute.id) && attribute[field] !== value)
+      if (targets.length === 0) {
+        setBulkError(`Selected attributes already have that setting.`)
+        return
+      }
+      const results = await Promise.allSettled(
+        targets.map((attribute) => updateAttribute.mutateAsync({ id: attribute.id, [field]: value }))
+      )
+      const failures = results.filter((result) => result.status === 'rejected') as PromiseRejectedResult[]
+      if (failures.length > 0) {
+        const message = failures[0].reason instanceof Error ? failures[0].reason.message : 'Unknown error'
+        setBulkError(`${failures.length} of ${targets.length} update${targets.length === 1 ? '' : 's'} failed: ${message}`)
+        return
+      }
+    } catch (error) {
+      setBulkError(error instanceof Error ? error.message : 'Bulk update failed')
+    } finally {
+      setBulkPending(false)
+    }
   }
 
   return (
@@ -149,12 +219,58 @@ const UserAttributes = () => {
 
       <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
-          <h4 className="text-sm font-semibold text-slate-700">Attribute Definitions</h4>
+          <div className="flex items-center gap-3">
+            <SelectionCheckbox
+              checked={allSelected}
+              indeterminate={someSelected}
+              onChange={toggleSelectAll}
+              disabled={attributes.length === 0}
+              title={allSelected ? 'Deselect all' : 'Select all visible'}
+            />
+            <h4 className="text-sm font-semibold text-slate-700">Attribute Definitions</h4>
+          </div>
           <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </Button>
         </div>
+
+        <BulkActionsBar
+          count={selectedIds.length}
+          noun="attribute"
+          onClear={clearSelection}
+        >
+          <Button variant="secondary" size="sm" disabled={bulkPending} onClick={() => void runBulkToggle('enabled', true)}>
+            <ToggleRight size={12} />
+            Global On
+          </Button>
+          <Button variant="secondary" size="sm" disabled={bulkPending} onClick={() => void runBulkToggle('enabled', false)}>
+            <ToggleLeft size={12} />
+            Global Off
+          </Button>
+          <Button variant="secondary" size="sm" disabled={bulkPending} onClick={() => void runBulkToggle('showOnPortal', true)}>
+            <ToggleRight size={12} />
+            Portal Visible
+          </Button>
+          <Button variant="secondary" size="sm" disabled={bulkPending} onClick={() => void runBulkToggle('showOnPortal', false)}>
+            <ToggleLeft size={12} />
+            Portal Hidden
+          </Button>
+          <Button variant="secondary" size="sm" disabled={bulkPending} onClick={() => void runBulkToggle('userEditable', true)}>
+            <ToggleRight size={12} />
+            User Editable
+          </Button>
+          <Button variant="secondary" size="sm" disabled={bulkPending} onClick={() => void runBulkToggle('userEditable', false)}>
+            <ToggleLeft size={12} />
+            Read Only
+          </Button>
+        </BulkActionsBar>
+
+        {bulkError && (
+          <div className="px-5 py-2.5 text-xs text-rose-700 bg-rose-50 border-b border-rose-100">
+            {bulkError}
+          </div>
+        )}
 
         {isLoading ? (
           <TableSkeleton rows={4} />
@@ -166,46 +282,58 @@ const UserAttributes = () => {
         ) : (
           <div className="divide-y divide-slate-100">
             {attributes.map((attribute) => {
+              const isSelected = selectedIds.includes(attribute.id)
               return (
-                <div key={attribute.id} className="px-5 py-4 hover:bg-slate-50/50 transition-colors">
+                <div
+                  key={attribute.id}
+                  className={`px-5 py-4 hover:bg-slate-50/50 transition-colors ${isSelected ? 'bg-sky-50/40' : ''}`}
+                >
                   <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <h5 className="text-sm font-medium text-slate-900">{attribute.name}</h5>
-                        <StatusBadge tone="neutral" mono>{attribute.key}</StatusBadge>
-                        <StatusBadge tone="accent" mono>{attribute.type}</StatusBadge>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => toggleGlobalEnabled(attribute)}
-                          title="Toggle globally for all users"
-                        >
-                          {attribute.enabled ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
-                          {attribute.enabled ? 'Global On' : 'Global Off'}
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => updateAttribute.mutate({ id: attribute.id, showOnPortal: !attribute.showOnPortal })}
-                          title="Toggle visibility on the user portal"
-                        >
-                          {attribute.showOnPortal ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
-                          {attribute.showOnPortal ? 'Portal Visible' : 'Portal Hidden'}
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => updateAttribute.mutate({ id: attribute.id, userEditable: !attribute.userEditable })}
-                          title="Toggle whether portal users can edit this value"
-                        >
-                          {attribute.userEditable ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
-                          {attribute.userEditable ? 'User Editable' : 'Read Only'}
-                        </Button>
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <SelectionCheckbox
+                        className="mt-1"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(attribute.id)}
+                        aria-label={`Select attribute ${attribute.name}`}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <h5 className="text-sm font-medium text-slate-900">{attribute.name}</h5>
+                          <StatusBadge tone="neutral" mono>{attribute.key}</StatusBadge>
+                          <StatusBadge tone="accent" mono>{attribute.type}</StatusBadge>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => toggleField(attribute, 'enabled')}
+                            title="Toggle globally for all users"
+                          >
+                            {attribute.enabled ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
+                            {attribute.enabled ? 'Global On' : 'Global Off'}
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => toggleField(attribute, 'showOnPortal')}
+                            title="Toggle visibility on the user portal"
+                          >
+                            {attribute.showOnPortal ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
+                            {attribute.showOnPortal ? 'Portal Visible' : 'Portal Hidden'}
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => toggleField(attribute, 'userEditable')}
+                            title="Toggle whether portal users can edit this value"
+                          >
+                            {attribute.userEditable ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
+                            {attribute.userEditable ? 'User Editable' : 'Read Only'}
+                          </Button>
+                        </div>
+                        <p className="text-xs text-slate-500">{attribute.description}</p>
+                        <p className="mt-2 text-xs text-slate-400">
+                          Attribute values are assigned from the Users and Groups pages.
+                        </p>
                       </div>
-                      <p className="text-xs text-slate-500">{attribute.description}</p>
-                      <p className="mt-2 text-xs text-slate-400">
-                        Attribute values are assigned from the Users and Groups pages.
-                      </p>
                     </div>
                     <div className="flex items-center gap-1">
                       <Button
@@ -232,7 +360,7 @@ const UserAttributes = () => {
               )
             })}
           </div>
-        )}      
+        )}
       </Card>
 
       <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title="Create User Attribute">
