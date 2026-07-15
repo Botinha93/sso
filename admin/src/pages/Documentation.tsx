@@ -1193,9 +1193,9 @@ const ENTITY_FIELD_TUTORIALS: EntityFieldGuide[] = [
   {
     entity: 'User',
     view: 'Users',
-    purpose: 'Represents a person or managed identity that can authenticate, receive roles, and hold sessions or consents.',
-    whenToUse: 'Create a user when onboarding a local identity or preparing an account before federation or role assignment.',
-    learnMore: ['users', 'user-registration', 'groups', 'roles', 'role-assignments', 'attributes', 'sessions'],
+    purpose: 'Represents a person (or, when isServiceUser is set, a machine identity) that can authenticate, receive roles, and hold sessions or consents. The Users list API and view focus on human accounts; use Service Identities for M2M.',
+    whenToUse: 'Create a user when onboarding a local human identity or preparing an account before federation or role assignment. For automation credentials, create a Service Identity instead.',
+    learnMore: ['users', 'user-registration', 'groups', 'roles', 'role-assignments', 'attributes', 'sessions', 'workload-identity'],
     fields: [
       {
         field: 'App',
@@ -2311,11 +2311,12 @@ const ADMIN_VIEW_CATALOG = [
   {
     view: 'Users',
     route: '/users',
-    purpose: 'Lifecycle management of user accounts.',
+    purpose: 'Lifecycle management of human user accounts (service identities are listed separately).',
     functions: [
       'Create, update, deactivate, delete users.',
       'Assign app boundaries and group membership.',
-      'Set custom attributes and reset passwords.'
+      'Set custom attributes and reset passwords.',
+      'List via GET /api/admin/users excludes M2M accounts unless includeServiceUsers=true.'
     ]
   },
   {
@@ -2502,7 +2503,8 @@ const ADMIN_VIEW_CATALOG = [
     functions: [
       'Create service identities with explicit allowed scopes and audiences.',
       'Issue, rotate, and revoke credentials with one-time secret visibility.',
-      'Monitor credential usage telemetry and lifecycle status (active/expired/revoked).'
+      'Monitor credential usage telemetry and lifecycle status (active/expired/revoked).',
+      'List via GET /api/admin/service-identities (these accounts are omitted from GET /api/admin/users by default).'
     ]
   },
   {

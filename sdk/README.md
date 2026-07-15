@@ -316,6 +316,7 @@ const firstSupportApps = await admin.apps.list({
   pageSize: 10
 });
 
+// Human users only by default (M2M/service identities are excluded)
 const activeSupportUsers = await admin.users.list({
   appId: app.id,
   active: true,
@@ -328,11 +329,16 @@ const managersInArea = await admin.users.list({
   customAttributes: { connect_jc_area_principal: "RH" }
 });
 
+// Opt in when you need service identities in the same list
+const everyone = await admin.users.list({ includeServiceUsers: true });
+
 const groupMembers = await admin.groups.listUsers(group.id, {
   active: true,
   customAttributes: { connect_jc_area_principal: "RH" }
 });
 ```
+
+See also `docs/ADMIN_USER_FILTERING.md` for filter details including `includeServiceUsers`.
 
 ## Roles And Groups
 
