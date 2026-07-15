@@ -405,8 +405,8 @@ const ServiceIdentities = () => {
         </Select>
       </div>
 
-      <Table className="overflow-hidden">
-        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
+      <Table>
+        <TableHeaderRow>
           <h4 className="text-sm font-semibold text-foreground">All Service Identities</h4>
           <Button onClick={() => refetch()} disabled={isFetching} variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
@@ -422,7 +422,7 @@ const ServiceIdentities = () => {
             description="Create a machine identity, then issue an OAuth client ID and secret for client-credentials tokens."
           />
         ) : (
-          <TableBody className="divide-y divide-border">
+          <TableBody>
             {filteredIdentities.map((identity) => (
               <TableRow key={identity.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-muted/50 transition-colors gap-4">
                 <div className="space-y-0.5 flex-1 min-w-0">

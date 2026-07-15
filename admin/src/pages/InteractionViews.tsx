@@ -40,7 +40,7 @@ export default function InteractionViews() {
         {cards.map((card) => {
           const Icon = card.icon
           return (
-            <Card key={card.title} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+            <Card key={card.title} className="p-5">
               <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-muted text-foreground">
                 <Icon size={20} />
               </div>
@@ -62,7 +62,7 @@ export default function InteractionViews() {
         })}
       </div>
 
-      <Card className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <Card className="p-5">
         <div className="flex items-center gap-2 text-foreground">
           <KeyRound size={18} />
           <h2 className="text-base font-semibold">Usage Notes</h2>

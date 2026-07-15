@@ -42,8 +42,8 @@ const Sessions = () => {
         <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search sessions by user or client…" />
       </div>
 
-      <Table className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
+      <Table>
+        <TableHeaderRow>
           <h4 className="text-sm font-semibold text-foreground">All Sessions</h4>
           <Button
             variant="ghost"
@@ -64,7 +64,7 @@ const Sessions = () => {
             description="Active sessions will appear here once users authenticate."
           />
         ) : (
-          <TableBody className="divide-y divide-border">
+          <TableBody>
             {sessions.map((session: Session) => {
               const isRevoked = !!session.revokedAt
               const isExpired = new Date(session.expiresAt) < new Date()

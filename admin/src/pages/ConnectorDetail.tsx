@@ -68,7 +68,7 @@ export default function ConnectorDetail() {
       />
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <Card className="rounded-xl border border-border bg-card p-5 shadow-sm">
+        <Card className="p-5">
           <h2 className="text-sm font-semibold text-foreground">Recent Runs</h2>
           <div className="mt-3 space-y-2">
             {runs.length === 0 ? (
@@ -85,7 +85,7 @@ export default function ConnectorDetail() {
           </div>
         </Card>
 
-        <Card className="rounded-xl border border-border bg-card p-5 shadow-sm">
+        <Card className="p-5">
           <h2 className="text-sm font-semibold text-foreground">Field Mappings</h2>
           <div className="mt-3 space-y-2">
             {mappings.length === 0 ? (

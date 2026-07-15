@@ -502,8 +502,8 @@ const FederationProviders = () => {
         <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search federation providers…" />
       </div>
 
-      <Table className="overflow-hidden">
-        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
+      <Table>
+        <TableHeaderRow>
           <h4 className="text-sm font-semibold text-foreground">Configured Providers</h4>
           <Button onClick={() => refetch()} disabled={isProvidersRefreshing} variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
             <RefreshCw size={12} className={isProvidersRefreshing ? 'animate-spin' : ''} />
@@ -519,7 +519,7 @@ const FederationProviders = () => {
             description="Configure LDAP or SAML to sync users from external directories."
           />
         ) : (
-          <TableBody className="divide-y divide-border">
+          <TableBody>
             {providers.map((provider) => (
               <TableRow key={provider.id} className="px-5 py-3.5 hover:bg-muted/50 transition-colors flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
@@ -573,8 +573,8 @@ const FederationProviders = () => {
         )}
       </Table>
 
-      <Table className="mt-8 overflow-hidden">
-        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
+      <Table className="mt-8">
+        <TableHeaderRow>
           <div>
             <h4 className="text-sm font-semibold text-foreground">SAML Service Providers</h4>
             <p className="text-xs text-muted-foreground mt-0.5">Manage SAML 2.0 service provider registrations, metadata, and certificates.</p>
@@ -680,8 +680,8 @@ const FederationProviders = () => {
       </Table>
 
       {/* SAML Assertions Audit Log */}
-      <Table className="mt-8 overflow-hidden">
-        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
+      <Table className="mt-8">
+        <TableHeaderRow>
           <div>
             <h4 className="text-sm font-semibold text-foreground">SAML Assertion Audit Log</h4>
             <p className="text-xs text-muted-foreground mt-0.5">Recent assertion activity across all service providers.</p>

@@ -21,7 +21,7 @@ export default function ElevationSessionList() {
   const { data: sessions = [], isLoading } = useElevationSessions(statusFilter)
 
   return (
-    <Card className="rounded-xl border border-border bg-card p-5 shadow-sm">
+    <Card className="p-5">
       <div className="mb-4 flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-foreground">Elevation Sessions</h3>
         <Select

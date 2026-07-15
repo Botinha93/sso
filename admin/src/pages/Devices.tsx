@@ -84,19 +84,19 @@ export default function Devices() {
       />
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <Card className="p-5">
           <p className="text-sm text-muted-foreground">Pending Requests</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
             {requests.filter((item) => item.status === 'pending').length}
           </p>
         </Card>
-        <Card className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <Card className="p-5">
           <p className="text-sm text-muted-foreground">Active Device Sessions</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
             {sessions.filter((item) => item.status === 'active').length}
           </p>
         </Card>
-        <Card className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <Card className="p-5">
           <p className="text-sm text-muted-foreground">Managed Clients</p>
           <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
             {new Set([...requests.map((item) => item.clientId), ...sessions.map((item) => item.clientId)]).size}
@@ -104,8 +104,8 @@ export default function Devices() {
         </Card>
       </div>
 
-      <Table className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
-        <TableHeaderRow className="flex items-center justify-between border-b border-border bg-muted/50 px-5 py-3.5">
+      <Table>
+        <TableHeaderRow>
           <div>
             <h2 className="text-sm font-semibold text-foreground">Pending Device Requests</h2>
             <p className="mt-0.5 text-xs text-muted-foreground">Requests waiting for approval, already approved, or denied before token exchange.</p>
@@ -117,7 +117,7 @@ export default function Devices() {
         ) : !requests.length ? (
           <div className="p-10 text-center text-sm text-muted-foreground">No device requests found</div>
         ) : (
-          <TableBody className="divide-y divide-border">
+          <TableBody>
             {requests.map((request) => (
               <TableRow key={request.deviceCode} className="flex items-start justify-between gap-4 px-5 py-4 hover:bg-muted/50 transition-colors">
                 <div className="min-w-0 space-y-1">
@@ -157,8 +157,8 @@ export default function Devices() {
         )}
       </Table>
 
-      <Table className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
-        <TableHeaderRow className="flex items-center justify-between border-b border-border bg-muted/50 px-5 py-3.5">
+      <Table>
+        <TableHeaderRow>
           <div>
             <h2 className="text-sm font-semibold text-foreground">Device Sessions</h2>
             <p className="mt-0.5 text-xs text-muted-foreground">Sessions issued through clients that support the device_code grant.</p>
@@ -170,7 +170,7 @@ export default function Devices() {
         ) : !sessions.length ? (
           <div className="p-10 text-center text-sm text-muted-foreground">No device sessions found</div>
         ) : (
-          <TableBody className="divide-y divide-border">
+          <TableBody>
             {sessions.map((session) => (
               <TableRow key={session.id} className="flex items-start justify-between gap-4 px-5 py-4 hover:bg-muted/50 transition-colors">
                 <div className="min-w-0 space-y-1">

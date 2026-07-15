@@ -77,7 +77,7 @@ const Setup = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_28%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] p-4 font-sans">
-      <Card className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+      <Card className="w-full max-w-md overflow-hidden">
         <div className="bg-[linear-gradient(180deg,_#020617_0%,_#0f172a_100%)] px-8 py-7">
           <div className="text-xl font-semibold text-slate-50 tracking-tight">First-run Setup</div>
           <p className="text-muted-foreground text-sm mt-1">Create the initial administrator account with your own username and email.</p>

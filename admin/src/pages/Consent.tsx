@@ -94,7 +94,7 @@ export default function Consent() {
         background: ui?.backgroundCss ?? 'radial-gradient(circle at top left, rgba(14,165,233,0.14), transparent 28%),linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)'
       }}
     >
-      <Card className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+      <Card className="w-full max-w-md overflow-hidden">
         {/* Dark header */}
         <div className="px-8 py-7" style={{ background: `linear-gradient(180deg, ${ui?.primaryColor ?? '#020617'} 0%, ${ui?.accentColor ?? '#0f172a'} 100%)` }}>
           <div className="flex items-center gap-3 mb-2">

@@ -289,8 +289,8 @@ const Clients = () => {
         </div>
       </div>
 
-      <Table className="overflow-hidden">
-        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
+      <Table>
+        <TableHeaderRow>
           <h4 className="text-sm font-semibold text-foreground">All Clients</h4>
           <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
@@ -306,7 +306,7 @@ const Clients = () => {
             description="Register an OAuth client to start authorizing applications."
           />
         ) : (
-          <TableBody className="divide-y divide-border">
+          <TableBody>
             {filteredClients.map((client: OAuthClient) => (
               <TableRow key={client.id} className="px-5 py-3.5 flex items-center justify-between gap-4 hover:bg-muted/50 transition-colors group">
                 <div className="space-y-0.5 flex-1 min-w-0">

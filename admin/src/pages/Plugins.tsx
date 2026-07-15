@@ -166,7 +166,7 @@ export default function Plugins() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        <Card className="rounded-2xl border border-border bg-card p-5 shadow-sm space-y-4">
+        <Card className="p-5 space-y-4">
           <div className="flex items-center gap-2">
             <UploadCloud size={16} className="text-muted-foreground" />
             <h3 className="text-base font-semibold text-foreground">Upload Plugin Bundle</h3>
@@ -249,7 +249,7 @@ export default function Plugins() {
           </div>
         </Card>
 
-        <Card className="rounded-2xl border border-border bg-card p-5 shadow-sm space-y-3">
+        <Card className="p-5 space-y-3">
           <div className="flex items-center gap-2">
             <CheckCircle2 size={16} className="text-muted-foreground" />
             <h3 className="text-base font-semibold text-foreground">Validation Results</h3>
@@ -299,7 +299,7 @@ export default function Plugins() {
         </Card>
       </div>
 
-      <Card className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <Card className="p-5">
         <div className="mb-4 flex items-center gap-2">
           <FileArchive size={16} className="text-muted-foreground" />
           <h3 className="text-base font-semibold text-foreground">Uploaded Plugins</h3>

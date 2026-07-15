@@ -215,8 +215,8 @@ const AuthenticationFlows = () => {
         <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search authentication flows…" />
       </div>
 
-      <Table className="overflow-hidden">
-        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
+      <Table>
+        <TableHeaderRow>
           <h4 className="text-sm font-semibold text-foreground">Configured Authentication Flows</h4>
           <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
@@ -233,7 +233,7 @@ const AuthenticationFlows = () => {
             description="Create a flow to define how users authenticate."
           />
         ) : (
-          <TableBody className="divide-y divide-border">
+          <TableBody>
             {flows.map((flow) => (
               <TableRow key={flow.id} className="px-5 py-4 hover:bg-muted/50 transition-colors flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">

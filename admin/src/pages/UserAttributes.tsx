@@ -218,8 +218,8 @@ const UserAttributes = () => {
         <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search attribute definitions…" />
       </div>
 
-      <Table className="overflow-hidden">
-        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
+      <Table>
+        <TableHeaderRow>
           <div className="flex items-center gap-3">
             <SelectionCheckbox
               checked={allSelected}
@@ -281,7 +281,7 @@ const UserAttributes = () => {
             description="Define custom profile attributes to extend user data."
           />
         ) : (
-          <TableBody className="divide-y divide-border">
+          <TableBody>
             {attributes.map((attribute) => {
               const isSelected = selectedIds.includes(attribute.id)
               return (

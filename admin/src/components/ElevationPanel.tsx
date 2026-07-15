@@ -107,7 +107,7 @@ export default function ElevationPanel() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Create Form */}
-        <Card className="rounded-xl border border-border bg-card p-5 shadow-sm">
+        <Card className="p-5">
           <h3 className="mb-4 text-sm font-semibold text-foreground">Request Elevation</h3>
           <form onSubmit={handleCreate} className="space-y-4">
             <div>
@@ -163,7 +163,7 @@ export default function ElevationPanel() {
         </Card>
 
         {/* Requests List */}
-        <Card className="rounded-xl border border-border bg-card p-5 shadow-sm">
+        <Card className="p-5">
           <div className="mb-4 flex items-center justify-between gap-2">
             <h3 className="text-sm font-semibold text-foreground">Elevation Requests</h3>
             <Select

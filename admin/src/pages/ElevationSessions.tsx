@@ -50,7 +50,7 @@ export default function ElevationSessions() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <Card className="p-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total</p>
           <p className="mt-2 text-2xl font-bold text-foreground">{stats.total}</p>
         </Card>
@@ -68,8 +68,8 @@ export default function ElevationSessions() {
         </div>
       </div>
 
-      <Table className="rounded-xl border border-border bg-card shadow-sm">
-        <TableHeaderRow className="border-b border-border px-4 py-3">
+      <Table>
+        <TableHeaderRow className="px-4 py-3">
           <h2 className="text-sm font-semibold text-foreground">Session Timeline</h2>
         </TableHeaderRow>
 
@@ -82,7 +82,7 @@ export default function ElevationSessions() {
             description="Privilege escalation sessions will appear here."
           />
         ) : (
-          <TableBody className="divide-y divide-border">
+          <TableBody>
             {sessions.map((session) => (
               <TableRow key={session.id} className="px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">

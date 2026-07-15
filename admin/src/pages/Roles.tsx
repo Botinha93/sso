@@ -407,8 +407,8 @@ const Roles = () => {
         </div>
       </div>
 
-      <Table className="overflow-hidden">
-        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
+      <Table>
+        <TableHeaderRow>
           <div className="flex items-center gap-3">
             <SelectionCheckbox
               checked={allFilteredSelected}
@@ -440,7 +440,7 @@ const Roles = () => {
             Delete Selected
           </Button>
         </BulkActionsBar>
-        <TableBody className="divide-y divide-border">
+        <TableBody>
           {isLoading && <TableSkeleton rows={4} />}
           {!isLoading && filteredRoles.length === 0 && <EmptyState title="No roles yet" description="Create a role to define a set of permissions." />}
           {filteredRoles.map((role: any) => {

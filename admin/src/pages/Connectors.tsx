@@ -1,4 +1,5 @@
 import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
+import Card from '../components/ui/Card'
 import Textarea from '../components/ui/Textarea'
 import Select from '../components/ui/Select'
 import { useState } from 'react'

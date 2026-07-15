@@ -43,8 +43,8 @@ const Consents = () => {
         <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search consents by user or client…" />
       </div>
 
-      <Table className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
+      <Table>
+        <TableHeaderRow>
           <h4 className="text-sm font-semibold text-foreground">Consent Records</h4>
           <Button
             variant="ghost"
@@ -65,7 +65,7 @@ const Consents = () => {
             description="Granted OAuth consent scopes will appear here."
           />
         ) : (
-          <TableBody className="divide-y divide-border">
+          <TableBody>
             {consents.map((consent: Consent) => (
               <TableRow key={consent.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-muted/50 transition-colors">
                 <div className="space-y-0.5">

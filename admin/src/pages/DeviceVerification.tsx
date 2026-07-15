@@ -53,7 +53,7 @@ export default function DeviceVerification() {
     const approved = result === 'approved'
     return (
       <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_28%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] p-4 font-sans">
-        <Card className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-sm px-8 py-10 text-center">
+        <Card className="w-full max-w-md overflow-hidden px-8 py-10 text-center">
           <div className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl ${approved ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
             {approved ? <CheckCircle2 size={28} /> : <XCircle size={28} />}
           </div>
@@ -70,7 +70,7 @@ export default function DeviceVerification() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_28%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] p-4 font-sans">
-      <Card className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+      <Card className="w-full max-w-md overflow-hidden">
         <div className="bg-[linear-gradient(180deg,_#020617_0%,_#0f172a_100%)] px-8 py-7">
           <div className="flex items-center gap-3 mb-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/20 ring-1 ring-sky-400/30">

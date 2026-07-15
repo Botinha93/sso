@@ -48,8 +48,8 @@ const AuditLog = () => {
         <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search events by type, actor, client…" />
       </div>
 
-      <Table className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
+      <Table>
+        <TableHeaderRow>
           <h4 className="text-sm font-semibold text-foreground">Events</h4>
           <Button
             variant="ghost"
@@ -70,7 +70,7 @@ const AuditLog = () => {
             description="Authentication and administrative events will appear here."
           />
         ) : (
-          <TableBody className="divide-y divide-border">
+          <TableBody>
             {events.map((event: AuditEvent) => (
               <TableRow key={event.id} className="flex items-start gap-3 px-5 py-3.5 hover:bg-muted/50 transition-colors">
                 <span className={`text-[11px] px-2 py-0.5 rounded-md font-mono border mt-0.5 whitespace-nowrap ${eventBadge[event.type] ?? 'bg-muted text-muted-foreground border-border'}`}>

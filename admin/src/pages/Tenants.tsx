@@ -86,15 +86,15 @@ const Tenants = () => {
         <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search tenants by name or slug…" />
       </div>
 
-      <Table className="overflow-hidden">
-        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
+      <Table>
+        <TableHeaderRow>
           <h4 className="text-sm font-semibold text-foreground">All Tenants</h4>
           <Button onClick={() => refetch()} disabled={isFetching} variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </Button>
         </TableHeaderRow>
-        <TableBody className="divide-y divide-border">
+        <TableBody>
           {isLoading && <TableSkeleton rows={3} />}
           {!isLoading && tenants.length === 0 && <EmptyState title="No organizations yet" description="Create a tenant to enable multi-tenancy." />}
           {tenants.map((tenant: any) => (

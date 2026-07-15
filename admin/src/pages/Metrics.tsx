@@ -74,22 +74,22 @@ export default function Metrics() {
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <Card className="p-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Events</p>
           <p className="mt-2 text-2xl font-bold text-foreground">{totals.totalCount.toLocaleString()}</p>
         </Card>
-        <Card className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <Card className="p-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Distinct Types</p>
           <p className="mt-2 text-2xl font-bold text-foreground">{totals.distinctEvents}</p>
         </Card>
-        <Card className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <Card className="p-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Selected Window</p>
           <p className="mt-2 text-2xl font-bold text-foreground">{rangeHours}h</p>
         </Card>
       </div>
 
-      <Table className="rounded-xl border border-border bg-card shadow-sm">
-        <TableHeaderRow className="border-b border-border px-4 py-3">
+      <Table>
+        <TableHeaderRow className="px-4 py-3">
           <div className="flex items-center gap-2">
             <BarChart3 size={16} className="text-muted-foreground" />
             <h2 className="text-sm font-semibold text-foreground">Event Breakdown</h2>
@@ -101,7 +101,7 @@ export default function Metrics() {
         ) : Object.keys(totals.grouped).length === 0 ? (
           <div className="px-4 py-10 text-center text-sm text-muted-foreground">No metric data found for this filter.</div>
         ) : (
-          <TableBody className="divide-y divide-border">
+          <TableBody>
             {Object.entries(totals.grouped)
               .sort((a, b) => b[1] - a[1])
               .map(([event, count]) => (
