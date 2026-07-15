@@ -1,3 +1,4 @@
+import Card from '../components/ui/Card'
 import { ArrowUpRight, KeyRound, LogIn, MonitorSmartphone, ShieldCheck } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
 import React from 'react';
@@ -39,15 +40,15 @@ export default function InteractionViews() {
         {cards.map((card) => {
           const Icon = card.icon
           return (
-            <div key={card.title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
+            <Card key={card.title} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-muted text-foreground">
                 <Icon size={20} />
               </div>
-              <h2 className="text-lg font-semibold text-slate-900">{card.title}</h2>
-              <p className="mt-2 text-sm text-slate-600">{card.description}</p>
-              <p className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-500">{card.note}</p>
+              <h2 className="text-lg font-semibold text-foreground">{card.title}</h2>
+              <p className="mt-2 text-sm text-muted-foreground">{card.description}</p>
+              <p className="mt-3 rounded-xl border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">{card.note}</p>
               <div className="mt-4 flex items-center justify-between gap-3">
-                <code className="truncate text-xs text-slate-400">{card.href}</code>
+                <code className="truncate text-xs text-muted-foreground">{card.href}</code>
                 <a
                   href={card.href}
                   className="inline-flex items-center gap-1 rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-500"
@@ -56,22 +57,22 @@ export default function InteractionViews() {
                   <ArrowUpRight size={14} />
                 </a>
               </div>
-            </div>
+            </Card>
           )
         })}
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center gap-2 text-slate-900">
+      <Card className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <div className="flex items-center gap-2 text-foreground">
           <KeyRound size={18} />
           <h2 className="text-base font-semibold">Usage Notes</h2>
         </div>
-        <div className="mt-3 space-y-2 text-sm text-slate-600">
+        <div className="mt-3 space-y-2 text-sm text-muted-foreground">
           <p>The consent screen is most meaningful when opened by an authorize request that provides client_id, scope, redirect_uri, response_type, and response_mode.</p>
           <p>The device verification screen is now usable as a standalone page because it accepts a manual user code entry.</p>
           <p>These links are intended for operator validation and troubleshooting, not as the normal application launch path.</p>
         </div>
-      </div>
+      </Card>
     </div>
   )
 }

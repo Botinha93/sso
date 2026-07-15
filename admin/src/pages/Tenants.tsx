@@ -1,3 +1,4 @@
+import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
 import { Building2, Pencil, Plus, RefreshCw } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
@@ -10,8 +11,7 @@ import Input from '../components/ui/Input'
 import { useCreateTenant, useTenants, useUpdateTenant } from '../hooks/useApi'
 import React from 'react';
 
-const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
+const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
 
 const Tenants = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false)
@@ -86,26 +86,26 @@ const Tenants = () => {
         <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search tenants by name or slug…" />
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
-          <h4 className="text-sm font-semibold text-slate-700">All Tenants</h4>
-          <Button onClick={() => refetch()} disabled={isFetching} variant="ghost" size="sm" className="text-xs text-slate-500 hover:text-slate-900">
+      <Table className="overflow-hidden">
+        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
+          <h4 className="text-sm font-semibold text-foreground">All Tenants</h4>
+          <Button onClick={() => refetch()} disabled={isFetching} variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </Button>
-        </div>
-        <div className="divide-y divide-slate-100">
+        </TableHeaderRow>
+        <TableBody className="divide-y divide-border">
           {isLoading && <TableSkeleton rows={3} />}
           {!isLoading && tenants.length === 0 && <EmptyState title="No organizations yet" description="Create a tenant to enable multi-tenancy." />}
           {tenants.map((tenant: any) => (
-            <div key={tenant.id} className="flex items-center justify-between gap-4 px-5 py-3.5 hover:bg-slate-50/50 transition-colors">
+            <TableRow key={tenant.id} className="flex items-center justify-between gap-4 px-5 py-3.5 hover:bg-muted/50 transition-colors">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                  <Building2 size={14} className="text-slate-500" />
+                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                  <Building2 size={14} className="text-muted-foreground" />
                 </div>
                 <div>
-                  <h5 className="text-sm font-medium text-slate-900">{tenant.name}</h5>
-                  <p className="text-xs text-slate-500 font-mono">{tenant.slug}</p>
+                  <h5 className="text-sm font-medium text-foreground">{tenant.name}</h5>
+                  <p className="text-xs text-muted-foreground font-mono">{tenant.slug}</p>
                 </div>
               </div>
               <Button
@@ -113,25 +113,25 @@ const Tenants = () => {
                 disabled={updateTenant.isPending}
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-700"
+                className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
                 title="Edit tenant"
               >
                 <Pencil size={14} />
               </Button>
-            </div>
+            </TableRow>
           ))}
-        </div>
-      </Card>
+        </TableBody>
+      </Table>
 
       <Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Create New Tenant">
         <div className="space-y-4">
           <div>
             <label className={labelCls}>Organization Name</label>
-            <Input type="text" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} className={fieldCls} placeholder="Acme Corp" />
+            <Input type="text" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} placeholder="Acme Corp" />
           </div>
           <div>
             <label className={labelCls}>Identifier Slug</label>
-            <Input type="text" value={formData.slug} onChange={e => setFormData(p => ({ ...p, slug: e.target.value }))} className={`${fieldCls} font-mono`} placeholder="acme-corp" />
+            <Input type="text" value={formData.slug} onChange={e => setFormData(p => ({ ...p, slug: e.target.value }))} className="font-mono" placeholder="acme-corp" />
           </div>
           <div className="flex gap-2 justify-end pt-2">
             <Button onClick={() => setCreateModalOpen(false)} variant="secondary" className="h-9 rounded-lg">
@@ -146,7 +146,7 @@ const Tenants = () => {
               {createTenant.isPending ? 'Creating…' : 'Create Tenant'}
             </Button>
           </div>
-          {createFormError && <p className="text-xs text-red-600">{createFormError}</p>}
+          {createFormError && <p className="text-xs text-rose-600">{createFormError}</p>}
         </div>
       </Modal>
 
@@ -154,18 +154,18 @@ const Tenants = () => {
         <div className="space-y-4">
           <div>
             <label className={labelCls}>Organization Name</label>
-            <Input type="text" value={editFormData.name} onChange={e => setEditFormData(p => ({ ...p, name: e.target.value }))} className={fieldCls} placeholder="Acme Corp" />
+            <Input type="text" value={editFormData.name} onChange={e => setEditFormData(p => ({ ...p, name: e.target.value }))} placeholder="Acme Corp" />
           </div>
           <div>
             <label className={labelCls}>Identifier Slug</label>
-            <Input type="text" value={editFormData.slug} onChange={e => setEditFormData(p => ({ ...p, slug: e.target.value }))} className={`${fieldCls} font-mono`} placeholder="acme-corp" />
+            <Input type="text" value={editFormData.slug} onChange={e => setEditFormData(p => ({ ...p, slug: e.target.value }))} className="font-mono" placeholder="acme-corp" />
           </div>
-          <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+          <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
             <input
               type="checkbox"
               checked={editFormData.active}
               onChange={e => setEditFormData(p => ({ ...p, active: e.target.checked }))}
-              className="rounded border-slate-300"
+              className="rounded border-border"
             />
             Tenant is active
           </label>
@@ -182,7 +182,7 @@ const Tenants = () => {
               {updateTenant.isPending ? 'Saving…' : 'Save Changes'}
             </Button>
           </div>
-          {editFormError && <p className="text-xs text-red-600">{editFormError}</p>}
+          {editFormError && <p className="text-xs text-rose-600">{editFormError}</p>}
         </div>
       </Modal>
     </div>

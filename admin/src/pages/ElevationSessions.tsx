@@ -1,3 +1,6 @@
+import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
+import Card from '../components/ui/Card'
+import Select from '../components/ui/Select'
 import { useMemo, useState } from 'react'
 import { Clock3, ShieldAlert } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
@@ -33,24 +36,24 @@ export default function ElevationSessions() {
         title="Elevation Sessions"
         description="Inspect active and historical privileged sessions created through elevation approvals and emergency break-glass operations."
         action={
-          <select
+          <Select
             value={status}
             onChange={(event) => setStatus(event.target.value as ElevationSessionDto['status'] | 'all')}
-            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+            className="h-9 rounded-lg border border-border bg-card px-3 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/20"
           >
             <option value="all">All statuses</option>
             <option value="active">Active</option>
             <option value="revoked">Revoked</option>
             <option value="expired">Expired</option>
-          </select>
+          </Select>
         }
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total</p>
-          <p className="mt-2 text-2xl font-bold text-slate-900">{stats.total}</p>
-        </div>
+        <Card className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total</p>
+          <p className="mt-2 text-2xl font-bold text-foreground">{stats.total}</p>
+        </Card>
         <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Active</p>
           <p className="mt-2 text-2xl font-bold text-emerald-800">{stats.active}</p>
@@ -59,16 +62,16 @@ export default function ElevationSessions() {
           <p className="text-xs font-semibold uppercase tracking-wider text-rose-700">Revoked</p>
           <p className="mt-2 text-2xl font-bold text-rose-800">{stats.revoked}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-600">Expired</p>
-          <p className="mt-2 text-2xl font-bold text-slate-800">{stats.expired}</p>
+        <div className="rounded-xl border border-border bg-muted/50 p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Expired</p>
+          <p className="mt-2 text-2xl font-bold text-foreground">{stats.expired}</p>
         </div>
       </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-4 py-3">
-          <h2 className="text-sm font-semibold text-slate-900">Session Timeline</h2>
-        </div>
+      <Table className="rounded-xl border border-border bg-card shadow-sm">
+        <TableHeaderRow className="border-b border-border px-4 py-3">
+          <h2 className="text-sm font-semibold text-foreground">Session Timeline</h2>
+        </TableHeaderRow>
 
         {isLoading ? (
           <TableSkeleton rows={4} />
@@ -79,18 +82,18 @@ export default function ElevationSessions() {
             description="Privilege escalation sessions will appear here."
           />
         ) : (
-          <div className="divide-y divide-slate-100">
+          <TableBody className="divide-y divide-border">
             {sessions.map((session) => (
-              <div key={session.id} className="px-4 py-3">
+              <TableRow key={session.id} className="px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm text-slate-900">
+                  <p className="text-sm text-foreground">
                     <span className="font-mono">{session.resource}</span>
-                    <span className="mx-1 text-slate-400">→</span>
+                    <span className="mx-1 text-muted-foreground">→</span>
                     <span className="font-mono">{session.action}</span>
                   </p>
                   <StatusBadge tone={statusStyles[session.status]}>{session.status}</StatusBadge>
                 </div>
-                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   <span className="font-mono">session {session.id.slice(0, 12)}...</span>
                   <span className="flex items-center gap-1">
                     <Clock3 size={12} />
@@ -99,11 +102,11 @@ export default function ElevationSessions() {
                   <span>Expires {new Date(session.expiresAt).toLocaleString()}</span>
                   {session.endedAt ? <span>Ended {new Date(session.endedAt).toLocaleString()}</span> : null}
                 </div>
-              </div>
+              </TableRow>
             ))}
-          </div>
+          </TableBody>
         )}
-      </section>
+      </Table>
     </div>
   )
 }

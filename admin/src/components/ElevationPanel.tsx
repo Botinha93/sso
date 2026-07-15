@@ -1,3 +1,6 @@
+import Card from './ui/Card'
+import Textarea from './ui/Textarea'
+import Select from './ui/Select'
 import { useState } from 'react'
 import { ShieldAlert, Plus, CheckCircle, PlayCircle, XCircle, Clock, Zap } from 'lucide-react'
 import {
@@ -16,7 +19,7 @@ const statusColors: Record<ElevationRequestDto['status'], string> = {
   approved: 'bg-blue-100 text-blue-800',
   active: 'bg-emerald-100 text-emerald-800',
   revoked: 'bg-rose-100 text-rose-800',
-  expired: 'bg-slate-100 text-slate-500'
+  expired: 'bg-muted text-muted-foreground'
 }
 
 const statusLabels: Record<ElevationRequestDto['status'], string> = {
@@ -27,10 +30,9 @@ const statusLabels: Record<ElevationRequestDto['status'], string> = {
   expired: 'Expired'
 }
 
-const inputCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
+const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
 const btnPrimary = 'inline-flex h-9 items-center rounded-lg bg-sky-600 px-4 text-sm font-medium text-white transition-colors hover:bg-sky-500 disabled:opacity-50'
-const btnSecondary = 'inline-flex h-7 items-center rounded-md border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50'
+const btnSecondary = 'inline-flex h-7 items-center rounded-md border border-border bg-card px-2 text-xs font-medium text-foreground transition-colors hover:bg-muted/50 disabled:opacity-50'
 
 interface CreateFormState {
   justification: string
@@ -99,24 +101,24 @@ export default function ElevationPanel() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
-        <ShieldAlert size={18} className="text-slate-500" />
-        <h2 className="text-lg font-semibold text-slate-900">Privileged Access Elevations</h2>
+        <ShieldAlert size={18} className="text-muted-foreground" />
+        <h2 className="text-lg font-semibold text-foreground">Privileged Access Elevations</h2>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Create Form */}
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="mb-4 text-sm font-semibold text-slate-900">Request Elevation</h3>
+        <Card className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <h3 className="mb-4 text-sm font-semibold text-foreground">Request Elevation</h3>
           <form onSubmit={handleCreate} className="space-y-4">
             <div>
               <label className={labelCls}>Justification</label>
-              <textarea
+              <Textarea
                 value={form.justification}
                 onChange={e => setForm(v => ({ ...v, justification: e.target.value }))}
                 rows={3}
                 required
                 placeholder="Describe why elevated access is needed"
-                className="w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+                className="w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/20"
               />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -127,7 +129,6 @@ export default function ElevationPanel() {
                   onChange={e => setForm(v => ({ ...v, resource: e.target.value }))}
                   required
                   placeholder="admin:users"
-                  className={inputCls}
                 />
               </div>
               <div>
@@ -137,7 +138,6 @@ export default function ElevationPanel() {
                   onChange={e => setForm(v => ({ ...v, action: e.target.value }))}
                   required
                   placeholder="delete"
-                  className={inputCls}
                 />
               </div>
             </div>
@@ -149,9 +149,8 @@ export default function ElevationPanel() {
                 max={480}
                 value={form.durationMinutes}
                 onChange={e => setForm(v => ({ ...v, durationMinutes: e.target.value }))}
-                className={inputCls}
               />
-              <p className="mt-1 text-xs text-slate-500">Maximum 480 minutes (8 hours)</p>
+              <p className="mt-1 text-xs text-muted-foreground">Maximum 480 minutes (8 hours)</p>
             </div>
             {error ? (
               <p className="text-sm text-rose-600">{error}</p>
@@ -161,16 +160,16 @@ export default function ElevationPanel() {
               {createRequest.isPending ? 'Creating…' : 'Request Elevation'}
             </button>
           </form>
-        </section>
+        </Card>
 
         {/* Requests List */}
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <Card className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-slate-900">Elevation Requests</h3>
-            <select
+            <h3 className="text-sm font-semibold text-foreground">Elevation Requests</h3>
+            <Select
               value={statusFilter ?? ''}
               onChange={e => setStatusFilter((e.target.value as ElevationRequestDto['status']) || undefined)}
-              className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none"
+              className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground outline-none"
             >
               <option value="">All statuses</option>
               <option value="pending">Pending</option>
@@ -178,21 +177,21 @@ export default function ElevationPanel() {
               <option value="active">Active</option>
               <option value="revoked">Revoked</option>
               <option value="expired">Expired</option>
-            </select>
+            </Select>
           </div>
 
           {isLoading ? (
-            <p className="text-sm text-slate-500">Loading…</p>
+            <p className="text-sm text-muted-foreground">Loading…</p>
           ) : requests.length === 0 ? (
-            <p className="text-sm text-slate-400">No elevation requests found.</p>
+            <p className="text-sm text-muted-foreground">No elevation requests found.</p>
           ) : (
             <div className="space-y-3">
               {requests.map(req => (
-                <div key={req.id} className="rounded-lg border border-slate-100 bg-slate-50/50 p-3 space-y-2">
+                <div key={req.id} className="rounded-lg border border-border bg-muted/50 p-3 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-slate-900">{req.justification}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">
+                      <p className="truncate text-sm font-medium text-foreground">{req.justification}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
                         <span className="font-mono">{req.resource}</span>
                         {' → '}
                         <span className="font-mono">{req.action}</span>
@@ -203,7 +202,7 @@ export default function ElevationPanel() {
                     </span>
                   </div>
                   {req.expiresAt ? (
-                    <p className="flex items-center gap-1 text-xs text-slate-500">
+                    <p className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Clock size={11} />
                       Expires {new Date(req.expiresAt).toLocaleString()}
                     </p>
@@ -244,7 +243,7 @@ export default function ElevationPanel() {
               ))}
             </div>
           )}
-        </section>
+        </Card>
 
         <ElevationSessionList />
       </div>
@@ -260,20 +259,20 @@ export default function ElevationPanel() {
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label className={labelCls}>Resource</label>
-              <input value={bgForm.resource} onChange={e => setBgForm(v => ({ ...v, resource: e.target.value }))} required placeholder="admin:users" className={inputCls} />
+              <input value={bgForm.resource} onChange={e => setBgForm(v => ({ ...v, resource: e.target.value }))} required placeholder="admin:users" />
             </div>
             <div>
               <label className={labelCls}>Action</label>
-              <input value={bgForm.action} onChange={e => setBgForm(v => ({ ...v, action: e.target.value }))} required placeholder="delete" className={inputCls} />
+              <input value={bgForm.action} onChange={e => setBgForm(v => ({ ...v, action: e.target.value }))} required placeholder="delete" />
             </div>
           </div>
           <div>
             <label className={labelCls}>Reason (required)</label>
-            <textarea value={bgForm.reason} onChange={e => setBgForm(v => ({ ...v, reason: e.target.value }))} rows={2} required placeholder="Describe the emergency requiring break-glass access" className="w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-rose-400 focus:ring-2 focus:ring-rose-400/20" />
+            <Textarea value={bgForm.reason} onChange={e => setBgForm(v => ({ ...v, reason: e.target.value }))} rows={2} required placeholder="Describe the emergency requiring break-glass access" className="w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-rose-400 focus:ring-2 focus:ring-rose-400/20" />
           </div>
           <div>
             <label className={labelCls}>Duration (minutes)</label>
-            <input type="number" min={1} max={480} value={bgForm.durationMinutes} onChange={e => setBgForm(v => ({ ...v, durationMinutes: e.target.value }))} className={inputCls} />
+            <input type="number" min={1} max={480} value={bgForm.durationMinutes} onChange={e => setBgForm(v => ({ ...v, durationMinutes: e.target.value }))} />
           </div>
           {bgError ? <p className="text-sm text-rose-600">{bgError}</p> : null}
           {bgSuccess ? <p className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs text-emerald-700">{bgSuccess}</p> : null}

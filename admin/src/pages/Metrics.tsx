@@ -1,3 +1,6 @@
+import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
+import Card from '../components/ui/Card'
+import Select from '../components/ui/Select'
 import { useMemo, useState } from 'react'
 import { BarChart3 } from 'lucide-react'
 import { PageHeader, TableSkeleton } from '../components/PageHeader'
@@ -50,17 +53,17 @@ export default function Metrics() {
         description="Monitor authentication throughput trends and event distribution from the metrics rollup endpoint."
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <select
+            <Select
               value={rangeHours}
               onChange={(event) => setRangeHours(event.target.value)}
-              className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+              className="h-9 rounded-lg border border-border bg-card px-3 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/20"
             >
               <option value="1">Last 1 hour</option>
               <option value="6">Last 6 hours</option>
               <option value="24">Last 24 hours</option>
               <option value="72">Last 72 hours</option>
               <option value="168">Last 7 days</option>
-            </select>
+            </Select>
             <Input
               value={eventFilter}
               onChange={(event) => setEventFilter(event.target.value)}
@@ -71,45 +74,45 @@ export default function Metrics() {
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Events</p>
-          <p className="mt-2 text-2xl font-bold text-slate-900">{totals.totalCount.toLocaleString()}</p>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Distinct Types</p>
-          <p className="mt-2 text-2xl font-bold text-slate-900">{totals.distinctEvents}</p>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Selected Window</p>
-          <p className="mt-2 text-2xl font-bold text-slate-900">{rangeHours}h</p>
-        </div>
+        <Card className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Events</p>
+          <p className="mt-2 text-2xl font-bold text-foreground">{totals.totalCount.toLocaleString()}</p>
+        </Card>
+        <Card className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Distinct Types</p>
+          <p className="mt-2 text-2xl font-bold text-foreground">{totals.distinctEvents}</p>
+        </Card>
+        <Card className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Selected Window</p>
+          <p className="mt-2 text-2xl font-bold text-foreground">{rangeHours}h</p>
+        </Card>
       </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-4 py-3">
+      <Table className="rounded-xl border border-border bg-card shadow-sm">
+        <TableHeaderRow className="border-b border-border px-4 py-3">
           <div className="flex items-center gap-2">
-            <BarChart3 size={16} className="text-slate-500" />
-            <h2 className="text-sm font-semibold text-slate-900">Event Breakdown</h2>
+            <BarChart3 size={16} className="text-muted-foreground" />
+            <h2 className="text-sm font-semibold text-foreground">Event Breakdown</h2>
           </div>
-        </div>
+        </TableHeaderRow>
 
         {isLoading ? (
           <TableSkeleton rows={5} />
         ) : Object.keys(totals.grouped).length === 0 ? (
-          <div className="px-4 py-10 text-center text-sm text-slate-500">No metric data found for this filter.</div>
+          <div className="px-4 py-10 text-center text-sm text-muted-foreground">No metric data found for this filter.</div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <TableBody className="divide-y divide-border">
             {Object.entries(totals.grouped)
               .sort((a, b) => b[1] - a[1])
               .map(([event, count]) => (
-                <div key={event} className="flex items-center justify-between px-4 py-3">
-                  <p className="text-sm text-slate-800">{event}</p>
+                <TableRow key={event} className="flex items-center justify-between px-4 py-3">
+                  <p className="text-sm text-foreground">{event}</p>
                   <StatusBadge tone="neutral">{count.toLocaleString()}</StatusBadge>
-                </div>
+                </TableRow>
               ))}
-          </div>
+          </TableBody>
         )}
-      </section>
+      </Table>
     </div>
   )
 }

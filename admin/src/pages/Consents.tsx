@@ -1,3 +1,4 @@
+import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
 import { RefreshCw, Trash2, CheckSquare } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
@@ -42,9 +43,9 @@ const Consents = () => {
         <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search consents by user or client…" />
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
-          <h4 className="text-sm font-semibold text-slate-700">Consent Records</h4>
+      <Table className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
+          <h4 className="text-sm font-semibold text-foreground">Consent Records</h4>
           <Button
             variant="ghost"
             size="sm"
@@ -54,7 +55,7 @@ const Consents = () => {
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </Button>
-        </div>
+        </TableHeaderRow>
 
         {isLoading ? (
           <TableSkeleton rows={5} />
@@ -64,12 +65,12 @@ const Consents = () => {
             description="Granted OAuth consent scopes will appear here."
           />
         ) : (
-          <div className="divide-y divide-slate-100">
+          <TableBody className="divide-y divide-border">
             {consents.map((consent: Consent) => (
-              <div key={consent.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50/50 transition-colors">
+              <TableRow key={consent.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-muted/50 transition-colors">
                 <div className="space-y-0.5">
-                  <p className="text-sm font-medium font-mono text-slate-800">{consent.clientId}</p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-sm font-medium font-mono text-foreground">{consent.clientId}</p>
+                  <p className="text-xs text-muted-foreground">
                     User: <span className="font-mono">{consent.userId.slice(0, 12)}…</span>
                   </p>
                   <div className="flex gap-1 flex-wrap mt-1">
@@ -77,23 +78,23 @@ const Consents = () => {
                       <StatusBadge key={s} tone="neutral" mono>{s}</StatusBadge>
                     ))}
                   </div>
-                  <p className="text-xs text-slate-400">Granted {new Date(consent.createdAt).toLocaleString()}</p>
+                  <p className="text-xs text-muted-foreground">Granted {new Date(consent.createdAt).toLocaleString()}</p>
                 </div>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="hover:bg-red-50 hover:text-red-600"
+                  className="hover:bg-rose-50 hover:text-rose-600"
                   onClick={() => handleRevoke(consent.id)}
                   disabled={revokeConsent.isPending}
                   title="Revoke consent"
                 >
                   <Trash2 size={14} />
                 </Button>
-              </div>
+              </TableRow>
             ))}
-          </div>
+          </TableBody>
         )}
-      </div>
+      </Table>
 
       <ConfirmDialog
         isOpen={!!consentToRevoke}

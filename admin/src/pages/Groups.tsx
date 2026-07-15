@@ -1,3 +1,5 @@
+import Textarea from '../components/ui/Textarea'
+import Select from '../components/ui/Select'
 import { Link2, Pencil, Plus, RefreshCw, Trash2, Users, X } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useEffect, useMemo, useState } from 'react'
@@ -73,8 +75,7 @@ interface UserAttributeDefinition {
   enabled: boolean
 }
 
-const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
+const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
 
 const defaultValueForAttribute = (type?: AttributeType) => {
   if (type === 'boolean') return 'false'
@@ -92,10 +93,10 @@ const AttributeValueField = ({
 }) => {
   if (attribute?.type === 'boolean') {
     return (
-      <select value={value} onChange={(e) => onChange(e.target.value)} className={fieldCls}>
+      <Select value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="false">false</option>
         <option value="true">true</option>
-      </select>
+      </Select>
     )
   }
 
@@ -105,10 +106,10 @@ const AttributeValueField = ({
 
   if (attribute?.type === 'json') {
     return (
-      <textarea
+      <Textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 min-h-[88px] font-mono"
+        className="w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20 min-h-[88px] font-mono"
         placeholder='{"key":"value"}'
       />
     )
@@ -539,13 +540,13 @@ const Groups = () => {
         <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search groups by name or description…" />
         <div className="max-w-sm w-full">
           <label className={labelCls}>Filter by App</label>
-          <select className={fieldCls} value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
+          <Select value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
             <option value="all">All Apps</option>
             <option value="none">Unassigned</option>
             {(apps as AppItem[]).map((app) => (
               <option key={app.id} value={app.id}>{app.name}</option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
 
@@ -615,7 +616,7 @@ const Groups = () => {
               const pickerValue = rolePickerByGroup[group.id] ?? availableRoles[0]?.id ?? ''
               const isSelected = selectedGroupIds.includes(group.id)
               return (
-                <TableRow key={group.id} selected={isSelected} className="block">
+                <TableRow key={group.id} selected={isSelected} layout="block">
                   <div className="flex w-full items-start justify-between gap-4">
                     <div className="flex items-start gap-3 min-w-0 flex-1">
                       <div className="pt-1.5">
@@ -673,8 +674,7 @@ const Groups = () => {
                         ))}
                       </div>
                       <div className="mt-3 flex items-center gap-2 max-w-md">
-                        <select
-                          className={fieldCls}
+                        <Select
                           value={pickerValue}
                           onChange={(e) => setRolePickerByGroup((prev) => ({ ...prev, [group.id]: e.target.value }))}
                         >
@@ -685,7 +685,7 @@ const Groups = () => {
                               <option key={role.id} value={role.id}>{role.name}</option>
                             ))
                           )}
-                        </select>
+                        </Select>
                         <Button
                           variant="outline"
                           size="sm"
@@ -730,15 +730,15 @@ const Groups = () => {
         <div className="space-y-4">
           <div>
             <label className={labelCls}>Apps</label>
-            <div className="border border-slate-200 rounded-lg p-2 max-h-40 overflow-auto space-y-1">
-              {(apps as AppItem[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No apps available</p>}
+            <div className="border border-border rounded-lg p-2 max-h-40 overflow-auto space-y-1">
+              {(apps as AppItem[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No apps available</p>}
               {(apps as AppItem[]).map((app) => (
-                <label key={app.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 text-sm text-slate-700 cursor-pointer">
+                <label key={app.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 text-sm text-foreground cursor-pointer">
                   <input
                     type="checkbox"
                     checked={groupAppIds.includes(app.id)}
                     onChange={() => toggleGroupAppId(app.id, 'create')}
-                    className="rounded border-slate-300"
+                    className="rounded border-border"
                   />
                   {app.name}
                 </label>
@@ -767,21 +767,21 @@ const Groups = () => {
             <label className={labelCls}>Inherited User Attributes</label>
             <div className="space-y-2">
               {Object.entries(groupCustomAttributes).length === 0 ? (
-                <p className="text-xs text-slate-400">No group attributes selected</p>
+                <p className="text-xs text-muted-foreground">No group attributes selected</p>
               ) : (
                 Object.entries(groupCustomAttributes).map(([key, value]) => {
                   const attribute = attributeByKey.get(key)
                   return (
-                    <div key={key} className="rounded-lg border border-slate-200 p-3">
+                    <div key={key} className="rounded-lg border border-border p-3">
                       <div className="mb-2 flex items-center justify-between gap-2">
                         <div>
-                          <p className="text-sm font-medium text-slate-900">{attribute?.name ?? key}</p>
-                          <p className="text-xs text-slate-500 font-mono">{key}</p>
+                          <p className="text-sm font-medium text-foreground">{attribute?.name ?? key}</p>
+                          <p className="text-xs text-muted-foreground font-mono">{key}</p>
                         </div>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="hover:bg-red-50 hover:text-red-600"
+                          className="hover:bg-rose-50 hover:text-rose-600"
                           onClick={() => removeAttribute('create', key)}
                           title="Remove attribute"
                         >
@@ -798,10 +798,9 @@ const Groups = () => {
                 })
               )}
               <div className="flex items-center gap-2">
-                <select
+                <Select
                   value={attributePicker.create}
                   onChange={(e) => setAttributePicker((prev) => ({ ...prev, create: e.target.value }))}
-                  className={fieldCls}
                 >
                   <option value="">Add attribute...</option>
                   {enabledAttributeDefinitions
@@ -809,7 +808,7 @@ const Groups = () => {
                     .map((attribute) => (
                       <option key={attribute.id} value={attribute.key}>{attribute.name}</option>
                     ))}
-                </select>
+                </Select>
                 <Button
                   variant="outline"
                   onClick={() => addAttribute('create')}
@@ -822,15 +821,15 @@ const Groups = () => {
           </div>
           <div>
             <label className={labelCls}>Initial Roles</label>
-            <div className="border border-slate-200 rounded-lg p-2 max-h-44 overflow-auto space-y-1">
-              {roleOptions.length === 0 && <p className="text-xs text-slate-400 px-1 py-1">Create roles first</p>}
+            <div className="border border-border rounded-lg p-2 max-h-44 overflow-auto space-y-1">
+              {roleOptions.length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">Create roles first</p>}
               {roleOptions.map((role) => (
-                <label key={role.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 text-sm text-slate-700 cursor-pointer">
+                <label key={role.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 text-sm text-foreground cursor-pointer">
                   <input
                     type="checkbox"
                     checked={selectedRoleIds.includes(role.id)}
                     onChange={() => toggleCreateRole(role.id)}
-                    className="rounded border-slate-300"
+                    className="rounded border-border"
                   />
                   {role.name}
                 </label>
@@ -849,13 +848,13 @@ const Groups = () => {
               {createGroup.isPending ? 'Creating...' : 'Create Group'}
             </Button>
           </div>
-          {createFormError && <p className="text-xs text-red-600">{createFormError}</p>}
+          {createFormError && <p className="text-xs text-rose-600">{createFormError}</p>}
         </div>
       </Modal>
 
       <Modal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} title={`Edit Group${groupToEdit ? `: ${groupToEdit.name}` : ''}`}>
         <div className="space-y-4">
-          <div className="flex gap-2 border-b border-slate-200 -mt-2">
+          <div className="flex gap-2 border-b border-border -mt-2">
             {([
               { key: 'details', label: 'Details' },
               { key: 'roles', label: `Roles (${editSelectedRoleIds.length})` },
@@ -867,8 +866,8 @@ const Groups = () => {
                 onClick={() => setEditActiveTab(tab.key)}
                 className={`px-4 py-2 text-sm font-medium transition-colors ${
                   editActiveTab === tab.key
-                    ? 'border-b-2 border-slate-900 text-slate-900'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'border-b-2 border-primary text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 {tab.label}
@@ -880,15 +879,15 @@ const Groups = () => {
             <div className="space-y-4">
               <div>
                 <label className={labelCls}>Apps</label>
-                <div className="border border-slate-200 rounded-lg p-2 max-h-40 overflow-auto space-y-1">
-                  {(apps as AppItem[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No apps available</p>}
+                <div className="border border-border rounded-lg p-2 max-h-40 overflow-auto space-y-1">
+                  {(apps as AppItem[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No apps available</p>}
                   {(apps as AppItem[]).map((app) => (
-                    <label key={app.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 text-sm text-slate-700 cursor-pointer">
+                    <label key={app.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 text-sm text-foreground cursor-pointer">
                       <input
                         type="checkbox"
                         checked={editGroupAppIds.includes(app.id)}
                         onChange={() => toggleGroupAppId(app.id, 'edit')}
-                        className="rounded border-slate-300"
+                        className="rounded border-border"
                       />
                       {app.name}
                     </label>
@@ -917,21 +916,21 @@ const Groups = () => {
                 <label className={labelCls}>Inherited User Attributes</label>
                 <div className="space-y-2">
                   {Object.entries(editGroupCustomAttributes).length === 0 ? (
-                    <p className="text-xs text-slate-400">No group attributes selected</p>
+                    <p className="text-xs text-muted-foreground">No group attributes selected</p>
                   ) : (
                     Object.entries(editGroupCustomAttributes).map(([key, value]) => {
                       const attribute = attributeByKey.get(key)
                       return (
-                        <div key={key} className="rounded-lg border border-slate-200 p-3">
+                        <div key={key} className="rounded-lg border border-border p-3">
                           <div className="mb-2 flex items-center justify-between gap-2">
                             <div>
-                              <p className="text-sm font-medium text-slate-900">{attribute?.name ?? key}</p>
-                              <p className="text-xs text-slate-500 font-mono">{key}</p>
+                              <p className="text-sm font-medium text-foreground">{attribute?.name ?? key}</p>
+                              <p className="text-xs text-muted-foreground font-mono">{key}</p>
                             </div>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="hover:bg-red-50 hover:text-red-600"
+                              className="hover:bg-rose-50 hover:text-rose-600"
                               onClick={() => removeAttribute('edit', key)}
                               title="Remove attribute"
                             >
@@ -948,10 +947,9 @@ const Groups = () => {
                     })
                   )}
                   <div className="flex items-center gap-2">
-                    <select
+                    <Select
                       value={attributePicker.edit}
                       onChange={(e) => setAttributePicker((prev) => ({ ...prev, edit: e.target.value }))}
-                      className={fieldCls}
                     >
                       <option value="">Add attribute...</option>
                       {enabledAttributeDefinitions
@@ -959,7 +957,7 @@ const Groups = () => {
                         .map((attribute) => (
                           <option key={attribute.id} value={attribute.key}>{attribute.name}</option>
                         ))}
-                    </select>
+                    </Select>
                     <Button
                       variant="outline"
                       onClick={() => addAttribute('edit')}
@@ -985,8 +983,7 @@ const Groups = () => {
                 </div>
                 <div>
                   <label className={labelCls}>Filter by App</label>
-                  <select
-                    className={fieldCls}
+                  <Select
                     value={editRoleAppFilter}
                     onChange={(e) => setEditRoleAppFilter(e.target.value)}
                   >
@@ -995,12 +992,12 @@ const Groups = () => {
                     {(apps as AppItem[]).map((app) => (
                       <option key={app.id} value={app.id}>{app.name}</option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-muted-foreground">
                   {filteredEditRoles.length === 0
                     ? 'No matching roles'
                     : `Showing ${filteredEditRoles.length} of ${roleOptions.length} roles · ${filteredEditRoleSelectedCount} selected`}
@@ -1025,24 +1022,24 @@ const Groups = () => {
                 </div>
               </div>
 
-              <div className="border border-slate-200 rounded-lg p-2 max-h-80 overflow-auto space-y-1">
+              <div className="border border-border rounded-lg p-2 max-h-80 overflow-auto space-y-1">
                 {roleOptions.length === 0 ? (
-                  <p className="text-xs text-slate-400 px-1 py-1">Create roles first</p>
+                  <p className="text-xs text-muted-foreground px-1 py-1">Create roles first</p>
                 ) : filteredEditRoles.length === 0 ? (
-                  <p className="text-xs text-slate-400 px-1 py-1">No roles match the current filters</p>
+                  <p className="text-xs text-muted-foreground px-1 py-1">No roles match the current filters</p>
                 ) : (
                   filteredEditRoles.map((role) => {
                     const appName = role.appId ? appNameById.get(role.appId) : null
                     return (
                       <label
                         key={role.id}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 text-sm text-slate-700 cursor-pointer"
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 text-sm text-foreground cursor-pointer"
                       >
                         <input
                           type="checkbox"
                           checked={editSelectedRoleIds.includes(role.id)}
                           onChange={() => toggleEditRole(role.id)}
-                          className="rounded border-slate-300"
+                          className="rounded border-border"
                         />
                         <span className="flex-1 min-w-0 truncate">{role.name}</span>
                         <StatusBadge tone={appName ? 'accent' : 'neutral'}>
@@ -1059,8 +1056,7 @@ const Groups = () => {
               <div>
                 <label className={labelCls}>Add User</label>
                 <div className="flex items-center gap-2">
-                  <select
-                    className={fieldCls}
+                  <Select
                     value={userToAddId}
                     onChange={(e) => setUserToAddId(e.target.value)}
                   >
@@ -1076,7 +1072,7 @@ const Groups = () => {
                         ))}
                       </>
                     )}
-                  </select>
+                  </Select>
                   <Button
                     variant="outline"
                     onClick={onAddUserToGroup}
@@ -1097,7 +1093,7 @@ const Groups = () => {
                 />
               </div>
 
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 {groupUsersLoading
                   ? 'Loading members…'
                   : groupUsers.length === 0
@@ -1105,33 +1101,33 @@ const Groups = () => {
                     : `${filteredGroupUsers.length} of ${groupUsers.length} member${groupUsers.length === 1 ? '' : 's'}${groupUsersFetching ? ' · refreshing…' : ''}`}
               </p>
 
-              <div className="border border-slate-200 rounded-lg p-2 max-h-80 overflow-auto space-y-1">
+              <div className="border border-border rounded-lg p-2 max-h-80 overflow-auto space-y-1">
                 {groupUsersLoading ? (
-                  <p className="text-xs text-slate-400 px-1 py-1">Loading…</p>
+                  <p className="text-xs text-muted-foreground px-1 py-1">Loading…</p>
                 ) : groupUsers.length === 0 ? (
-                  <p className="text-xs text-slate-400 px-1 py-1">Use the selector above to add the first member.</p>
+                  <p className="text-xs text-muted-foreground px-1 py-1">Use the selector above to add the first member.</p>
                 ) : filteredGroupUsers.length === 0 ? (
-                  <p className="text-xs text-slate-400 px-1 py-1">No members match your search.</p>
+                  <p className="text-xs text-muted-foreground px-1 py-1">No members match your search.</p>
                 ) : (
                   filteredGroupUsers.map((user) => (
                     <div
                       key={user.id}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50"
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50"
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-slate-900 truncate">
+                          <p className="text-sm font-medium text-foreground truncate">
                             {user.givenName} {user.familyName}
                           </p>
                           {user.isServiceUser && <StatusBadge tone="accent">Service</StatusBadge>}
                           {user.active === false && <StatusBadge tone="danger">Inactive</StatusBadge>}
                         </div>
-                        <p className="text-xs text-slate-500 truncate">{user.email} · @{user.username}</p>
+                        <p className="text-xs text-muted-foreground truncate">{user.email} · @{user.username}</p>
                       </div>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="hover:bg-red-50 hover:text-red-600"
+                        className="hover:bg-rose-50 hover:text-rose-600"
                         onClick={() => onRemoveUserFromGroup(user.id)}
                         disabled={removeUser.isPending}
                         title="Remove from group"
@@ -1145,7 +1141,7 @@ const Groups = () => {
             </div>
           )}
 
-          <div className="flex gap-2 justify-end pt-2 border-t border-slate-100">
+          <div className="flex gap-2 justify-end pt-2 border-t border-border">
             <Button variant="secondary" onClick={() => setEditModalOpen(false)}>
               Cancel
             </Button>
@@ -1157,7 +1153,7 @@ const Groups = () => {
               {updateGroup.isPending ? 'Saving…' : 'Save Changes'}
             </Button>
           </div>
-          {editFormError && <p className="text-xs text-red-600">{editFormError}</p>}
+          {editFormError && <p className="text-xs text-rose-600">{editFormError}</p>}
         </div>
       </Modal>
 
@@ -1173,10 +1169,10 @@ const Groups = () => {
 
       <Modal isOpen={bulkDeleteOpen} onClose={() => !bulkPending && setBulkDeleteOpen(false)} title="Delete Selected Groups" size="md">
         <div className="space-y-4">
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-foreground">
             Permanently delete <span className="font-semibold">{selectedGroupIds.length}</span> group{selectedGroupIds.length === 1 ? '' : 's'}? Users and role assignments tied to these groups will be removed.
           </p>
-          {bulkError && <p className="text-xs text-red-600">{bulkError}</p>}
+          {bulkError && <p className="text-xs text-rose-600">{bulkError}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setBulkDeleteOpen(false)} disabled={bulkPending}>
               Cancel
@@ -1199,13 +1195,12 @@ const Groups = () => {
         size="md"
       >
         <div className="space-y-4">
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-muted-foreground">
             {bulkRoleAction === 'assign' ? 'Assign' : 'Remove'} a role {bulkRoleAction === 'assign' ? 'to' : 'from'} the {selectedGroupIds.length} selected group{selectedGroupIds.length === 1 ? '' : 's'}.
           </p>
           <div>
             <label className={labelCls}>Role</label>
-            <select
-              className={fieldCls}
+            <Select
               value={bulkRoleId}
               onChange={(e) => setBulkRoleId(e.target.value)}
             >
@@ -1215,9 +1210,9 @@ const Groups = () => {
                   {role.name}{role.appId ? ` (${appNameById.get(role.appId) ?? 'App'})` : ''}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
-          {bulkError && <p className="text-xs text-red-600">{bulkError}</p>}
+          {bulkError && <p className="text-xs text-rose-600">{bulkError}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={closeBulkRoleModal} disabled={bulkPending}>
               Cancel

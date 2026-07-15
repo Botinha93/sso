@@ -1,3 +1,5 @@
+import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
+import Select from '../components/ui/Select'
 import { Pencil, Plus, RefreshCw, ToggleLeft, ToggleRight, Trash2 } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useEffect, useMemo, useState } from 'react'
@@ -35,8 +37,7 @@ type ToggleField = 'enabled' | 'showOnPortal' | 'userEditable'
 
 const TYPE_OPTIONS: AttributeType[] = ['text', 'number', 'boolean', 'date', 'json']
 
-const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
+const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
 
 const defaultForm = {
   key: '',
@@ -217,8 +218,8 @@ const UserAttributes = () => {
         <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search attribute definitions…" />
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
+      <Table className="overflow-hidden">
+        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
           <div className="flex items-center gap-3">
             <SelectionCheckbox
               checked={allSelected}
@@ -227,13 +228,13 @@ const UserAttributes = () => {
               disabled={attributes.length === 0}
               title={allSelected ? 'Deselect all' : 'Select all visible'}
             />
-            <h4 className="text-sm font-semibold text-slate-700">Attribute Definitions</h4>
+            <h4 className="text-sm font-semibold text-foreground">Attribute Definitions</h4>
           </div>
           <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </Button>
-        </div>
+        </TableHeaderRow>
 
         <BulkActionsBar
           count={selectedIds.length}
@@ -280,13 +281,13 @@ const UserAttributes = () => {
             description="Define custom profile attributes to extend user data."
           />
         ) : (
-          <div className="divide-y divide-slate-100">
+          <TableBody className="divide-y divide-border">
             {attributes.map((attribute) => {
               const isSelected = selectedIds.includes(attribute.id)
               return (
-                <div
+                <TableRow
                   key={attribute.id}
-                  className={`px-5 py-4 hover:bg-slate-50/50 transition-colors ${isSelected ? 'bg-sky-50/40' : ''}`}
+                  className={`px-5 py-4 hover:bg-muted/50 transition-colors ${isSelected ? 'bg-sky-50/40' : ''}`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -298,7 +299,7 @@ const UserAttributes = () => {
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <h5 className="text-sm font-medium text-slate-900">{attribute.name}</h5>
+                          <h5 className="text-sm font-medium text-foreground">{attribute.name}</h5>
                           <StatusBadge tone="neutral" mono>{attribute.key}</StatusBadge>
                           <StatusBadge tone="accent" mono>{attribute.type}</StatusBadge>
                           <Button
@@ -329,8 +330,8 @@ const UserAttributes = () => {
                             {attribute.userEditable ? 'User Editable' : 'Read Only'}
                           </Button>
                         </div>
-                        <p className="text-xs text-slate-500">{attribute.description}</p>
-                        <p className="mt-2 text-xs text-slate-400">
+                        <p className="text-xs text-muted-foreground">{attribute.description}</p>
+                        <p className="mt-2 text-xs text-muted-foreground">
                           Attribute values are assigned from the Users and Groups pages.
                         </p>
                       </div>
@@ -347,7 +348,7 @@ const UserAttributes = () => {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="hover:bg-red-50 hover:text-red-600"
+                        className="hover:bg-rose-50 hover:text-rose-600"
                         onClick={() => onDelete(attribute)}
                         disabled={deleteAttribute.isPending}
                         title="Delete attribute"
@@ -356,12 +357,12 @@ const UserAttributes = () => {
                       </Button>
                     </div>
                   </div>
-                </div>
+                </TableRow>
               )
             })}
-          </div>
+          </TableBody>
         )}
-      </Card>
+      </Table>
 
       <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title="Create User Attribute">
         <AttributeForm
@@ -418,11 +419,11 @@ function AttributeForm({
         </div>
         <div>
           <label className={labelCls}>Type</label>
-          <select className={fieldCls} value={form.type} onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value as AttributeType }))}>
+          <Select value={form.type} onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value as AttributeType }))}>
             {TYPE_OPTIONS.map((type) => (
               <option key={type} value={type}>{type}</option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
       <div>
@@ -433,16 +434,16 @@ function AttributeForm({
         <label className={labelCls}>Description</label>
         <Input value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} placeholder="Business unit for user segmentation" />
       </div>
-      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-        <input type="checkbox" className="rounded border-slate-300" checked={form.enabled} onChange={(e) => setForm((prev) => ({ ...prev, enabled: e.target.checked }))} />
+      <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+        <input type="checkbox" className="rounded border-border" checked={form.enabled} onChange={(e) => setForm((prev) => ({ ...prev, enabled: e.target.checked }))} />
         Enabled for all users
       </label>
-      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-        <input type="checkbox" className="rounded border-slate-300" checked={form.showOnPortal} onChange={(e) => setForm((prev) => ({ ...prev, showOnPortal: e.target.checked }))} />
+      <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+        <input type="checkbox" className="rounded border-border" checked={form.showOnPortal} onChange={(e) => setForm((prev) => ({ ...prev, showOnPortal: e.target.checked }))} />
         Show on portal
       </label>
-      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-        <input type="checkbox" className="rounded border-slate-300" checked={form.userEditable} onChange={(e) => setForm((prev) => ({ ...prev, userEditable: e.target.checked }))} />
+      <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+        <input type="checkbox" className="rounded border-border" checked={form.userEditable} onChange={(e) => setForm((prev) => ({ ...prev, userEditable: e.target.checked }))} />
         Editable by users
       </label>
       <div className="flex justify-end">

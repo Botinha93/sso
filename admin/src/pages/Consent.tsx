@@ -1,3 +1,4 @@
+import Card from '../components/ui/Card'
 import React, { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ShieldCheck, AlertCircle, KeyRound } from "lucide-react";
@@ -93,7 +94,7 @@ export default function Consent() {
         background: ui?.backgroundCss ?? 'radial-gradient(circle at top left, rgba(14,165,233,0.14), transparent 28%),linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)'
       }}
     >
-      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <Card className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
         {/* Dark header */}
         <div className="px-8 py-7" style={{ background: `linear-gradient(180deg, ${ui?.primaryColor ?? '#020617'} 0%, ${ui?.accentColor ?? '#0f172a'} 100%)` }}>
           <div className="flex items-center gap-3 mb-2">
@@ -106,20 +107,20 @@ export default function Consent() {
             )}
             <div className="text-xl font-semibold text-slate-50 tracking-tight">{ui?.title ?? 'Authorization Request'}</div>
           </div>
-          <p className="text-slate-400 text-sm">
+          <p className="text-muted-foreground text-sm">
             {ui?.subtitle ?? (<><strong className="text-slate-200">{clientId}</strong> is requesting access to your account.</>)}
           </p>
         </div>
 
         {/* Body */}
         <div className="px-8 py-7 space-y-5">
-          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 space-y-2">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+          <div className="rounded-xl border border-border bg-muted/50 p-4 space-y-2">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
               <KeyRound size={12} />
               Requested permissions
             </div>
             {scopes.map(s => (
-              <div key={s} className="flex items-start gap-2 text-sm text-slate-700">
+              <div key={s} className="flex items-start gap-2 text-sm text-foreground">
                 <ShieldCheck size={14} className="mt-0.5 shrink-0 text-emerald-500" />
                 <span>{SCOPE_CONSENT_LABELS[s] ?? s}</span>
               </div>
@@ -154,11 +155,11 @@ export default function Consent() {
             </Button>
           </div>
 
-          <p className="text-center text-xs text-slate-400">
-            You'll be redirected to <span className="font-mono text-slate-600">{redirectUri}</span>
+          <p className="text-center text-xs text-muted-foreground">
+            You'll be redirected to <span className="font-mono text-muted-foreground">{redirectUri}</span>
           </p>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

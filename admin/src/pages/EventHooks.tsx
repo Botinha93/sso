@@ -1,3 +1,4 @@
+import Select from '../components/ui/Select'
 import { useState } from 'react'
 import ListSearch from '../components/ListSearch'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
@@ -16,8 +17,6 @@ import {
   useUpdateEventHook,
 } from '../hooks/useApi'
 
-const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
-const compactSelectCls = 'h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-700 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
 
 export default function EventHooks() {
   const [searchInput, setSearchInput] = useState('')
@@ -70,23 +69,22 @@ export default function EventHooks() {
       <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search hooks by event type or URL…" />
 
       <Card className="p-4">
-        <h2 className="text-sm font-semibold text-slate-900">Create Hook</h2>
-        <p className="mt-1 text-xs text-slate-500">Choose one of the supported system events. Use <span className="font-mono">*</span> to receive all events.</p>
+        <h2 className="text-sm font-semibold text-foreground">Create Hook</h2>
+        <p className="mt-1 text-xs text-muted-foreground">Choose one of the supported system events. Use <span className="font-mono">*</span> to receive all events.</p>
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-5">
-          <select
-            className={fieldCls}
+          <Select
             value={form.eventType}
             onChange={(e) => setForm((v) => ({ ...v, eventType: e.target.value }))}
           >
             {eventOptions.map((eventType) => (
               <option key={eventType} value={eventType}>{eventType}</option>
             ))}
-          </select>
+          </Select>
           <Input value={form.targetUrl} onChange={(e) => setForm((v) => ({ ...v, targetUrl: e.target.value }))} placeholder="https://hooks.example.com/identity" />
-          <select className={fieldCls} value={form.method} onChange={(e) => setForm((v) => ({ ...v, method: e.target.value }))}>
+          <Select value={form.method} onChange={(e) => setForm((v) => ({ ...v, method: e.target.value }))}>
             <option value="POST">POST</option>
             <option value="PUT">PUT</option>
-          </select>
+          </Select>
           <Input className="font-mono text-xs" value={form.headers} onChange={(e) => setForm((v) => ({ ...v, headers: e.target.value }))} placeholder='{"x-key":"123"}' />
           <Button
             variant="primary"
@@ -113,11 +111,11 @@ export default function EventHooks() {
       </Card>
 
       <Card className="p-4">
-        <h2 className="text-sm font-semibold text-slate-900">Configured Hooks</h2>
+        <h2 className="text-sm font-semibold text-foreground">Configured Hooks</h2>
         <div className="mt-3 space-y-2">
           {hooks.map((hook: any) => (
-            <div key={hook.id} className="flex flex-wrap items-center gap-2 rounded border border-slate-200 px-3 py-2 text-xs text-slate-700">
-              <span className="rounded bg-slate-100 px-2 py-0.5 font-mono">{hook.eventType}</span>
+            <div key={hook.id} className="flex flex-wrap items-center gap-2 rounded border border-border px-3 py-2 text-xs text-foreground">
+              <span className="rounded bg-muted px-2 py-0.5 font-mono">{hook.eventType}</span>
               <span>{hook.method}</span>
               <span className="truncate">{hook.targetUrl}</span>
               <Button
@@ -150,19 +148,17 @@ export default function EventHooks() {
 
       <Card className="p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-slate-900">Notification Log</h2>
+          <h2 className="text-sm font-semibold text-foreground">Notification Log</h2>
           <div className="flex flex-wrap items-center gap-2">
-            <select
-              className={compactSelectCls}
+            <Select className="h-8 w-auto text-xs"
               value={notificationFilter}
               onChange={(e) => setNotificationFilter(e.target.value)}
             >
               <option value="all">All statuses</option>
               <option value="delivered">Delivered</option>
               <option value="failed">Failed</option>
-            </select>
-            <select
-              className={compactSelectCls}
+            </Select>
+            <Select className="h-8 w-auto text-xs"
               value={eventFilter}
               onChange={(e) => setEventFilter(e.target.value)}
             >
@@ -170,12 +166,12 @@ export default function EventHooks() {
               {eventOptions.filter((eventType) => eventType !== '*').map((eventType) => (
                 <option key={eventType} value={eventType}>{eventType}</option>
               ))}
-            </select>
+            </Select>
           </div>
         </div>
         <div className="mt-3 overflow-auto">
           <table className="w-full min-w-[700px] text-left text-xs">
-            <thead className="text-slate-500">
+            <thead className="text-muted-foreground">
               <tr>
                 <th className="py-2">When</th>
                 <th className="py-2">Event</th>
@@ -186,7 +182,7 @@ export default function EventHooks() {
             </thead>
             <tbody>
               {filteredNotifications.map((item: any) => (
-                <tr key={item.id} className="border-t border-slate-100">
+                <tr key={item.id} className="border-t border-border">
                   <td className="py-2">{new Date(item.createdAt).toLocaleString()}</td>
                   <td className="py-2 font-mono">{item.eventType}</td>
                   <td className="py-2">{item.status}</td>

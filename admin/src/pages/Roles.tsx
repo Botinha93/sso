@@ -1,3 +1,5 @@
+import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
+import Select from '../components/ui/Select'
 import { ChevronRight, Plus, RefreshCw, Shield, Trash2 } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useEffect, useMemo, useState } from 'react'
@@ -12,8 +14,7 @@ import BulkActionsBar, { SelectionCheckbox } from '../components/BulkActionsBar'
 import { useRoles, useCreateRole, useUpdateRole, useDeleteRole, useApps, useClients } from '../hooks/useApi'
 import React from 'react';
 
-const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
+const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
 
 // Built-in system resources
 const SYSTEM_RESOURCES = [
@@ -138,13 +139,13 @@ function PermissionMatrix({ permissions, onChange, appResources }: {
   const uniqueApps = Array.from(new Set(allResources.filter(r => !r.isSystem).map(r => r.groupKey)))
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200">
+    <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full text-xs border-collapse">
         <thead>
-          <tr className="bg-slate-50">
-            <th className="text-left px-3 py-2 font-semibold text-slate-600 border-r border-slate-200 min-w-[160px]">Resource</th>
+          <tr className="bg-muted/50">
+            <th className="text-left px-3 py-2 font-semibold text-muted-foreground border-r border-border min-w-[160px]">Resource</th>
             {ACTIONS.map(action => (
-              <th key={action} className="px-3 py-2 font-semibold text-slate-600 border-r border-slate-200 last:border-r-0 uppercase tracking-wider cursor-pointer select-none hover:bg-slate-100 transition-colors" onClick={() => toggleCol(action)}>
+              <th key={action} className="px-3 py-2 font-semibold text-muted-foreground border-r border-border last:border-r-0 uppercase tracking-wider cursor-pointer select-none hover:bg-muted transition-colors" onClick={() => toggleCol(action)}>
                 {action}
               </th>
             ))}
@@ -153,26 +154,26 @@ function PermissionMatrix({ permissions, onChange, appResources }: {
         <tbody>
           {/* System resources */}
           <tr>
-            <td colSpan={ACTIONS.length + 1} className="px-3 py-1.5 bg-slate-100 text-[10px] font-bold uppercase tracking-widest text-slate-500 border-b border-slate-200">
+            <td colSpan={ACTIONS.length + 1} className="px-3 py-1.5 bg-muted text-[10px] font-bold uppercase tracking-widest text-muted-foreground border-b border-border">
               System
             </td>
           </tr>
           {allResources.filter(r => r.isSystem).map((resource, i) => {
             const allChecked = ACTIONS.every(action => hasResourceAction(resource.keyVariants, action))
             return (
-              <tr key={resource.label} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+              <tr key={resource.label} className={i % 2 === 0 ? 'bg-card' : 'bg-muted/50'}>
                 <td
-                  className="px-3 py-2 font-medium text-slate-700 border-r border-slate-200 cursor-pointer select-none hover:bg-slate-100 transition-colors"
+                  className="px-3 py-2 font-medium text-foreground border-r border-border cursor-pointer select-none hover:bg-muted transition-colors"
                   onClick={() => toggleRow(resource.keyVariants)}
                   title="Click to toggle all"
                 >
-                  <span className={allChecked ? 'text-slate-900 font-semibold' : ''}>{resource.label}</span>
+                  <span className={allChecked ? 'text-foreground font-semibold' : ''}>{resource.label}</span>
                 </td>
                 {ACTIONS.map(action => {
                   const checked = hasResourceAction(resource.keyVariants, action)
                   return (
-                    <td key={action} className="px-3 py-2 text-center border-r border-slate-200 last:border-r-0">
-                      <input type="checkbox" checked={checked} onChange={() => toggleResourceAction(resource.keyVariants, action)} className="rounded border-slate-300 text-slate-900 focus:ring-slate-400" />
+                    <td key={action} className="px-3 py-2 text-center border-r border-border last:border-r-0">
+                      <input type="checkbox" checked={checked} onChange={() => toggleResourceAction(resource.keyVariants, action)} className="rounded border-border text-foreground focus:ring-ring" />
                     </td>
                   )
                 })}
@@ -186,26 +187,26 @@ function PermissionMatrix({ permissions, onChange, appResources }: {
             const appName = appRows[0]?.groupLabel ?? appId
             return [
               <tr key={`section-${appId}`}>
-                <td colSpan={ACTIONS.length + 1} className="px-3 py-1.5 bg-violet-50 text-[10px] font-bold uppercase tracking-widest text-violet-600 border-b border-violet-100">
+                <td colSpan={ACTIONS.length + 1} className="px-3 py-1.5 bg-sky-50 text-[10px] font-bold uppercase tracking-widest text-sky-600 border-b border-sky-100">
                   {appName}
                 </td>
               </tr>,
               ...appRows.map((ar, i) => {
                 const allChecked = ACTIONS.every(action => hasResourceAction(ar.keyVariants, action))
                 return (
-                  <tr key={`${appId}:${ar.label}`} className={i % 2 === 0 ? 'bg-white' : 'bg-violet-50/30'}>
+                  <tr key={`${appId}:${ar.label}`} className={i % 2 === 0 ? 'bg-card' : 'bg-sky-50/30'}>
                     <td
-                      className="px-3 py-2 font-medium text-slate-700 border-r border-slate-200 cursor-pointer select-none hover:bg-violet-50 transition-colors pl-5"
+                      className="px-3 py-2 font-medium text-foreground border-r border-border cursor-pointer select-none hover:bg-sky-50 transition-colors pl-5"
                       onClick={() => toggleRow(ar.keyVariants)}
                       title="Click to toggle all"
                     >
-                      <span className={allChecked ? 'text-slate-900 font-semibold' : ''}>{ar.label}</span>
+                      <span className={allChecked ? 'text-foreground font-semibold' : ''}>{ar.label}</span>
                     </td>
                     {ACTIONS.map(action => {
                       const checked = hasResourceAction(ar.keyVariants, action)
                       return (
-                        <td key={action} className="px-3 py-2 text-center border-r border-slate-200 last:border-r-0">
-                          <input type="checkbox" checked={checked} onChange={() => toggleResourceAction(ar.keyVariants, action)} className="rounded border-slate-300 text-violet-600 focus:ring-violet-400" />
+                        <td key={action} className="px-3 py-2 text-center border-r border-border last:border-r-0">
+                          <input type="checkbox" checked={checked} onChange={() => toggleResourceAction(ar.keyVariants, action)} className="rounded border-border text-sky-600 focus:ring-sky-400" />
                         </td>
                       )
                     })}
@@ -217,7 +218,7 @@ function PermissionMatrix({ permissions, onChange, appResources }: {
 
           {appResources.length === 0 && (
             <tr>
-              <td colSpan={ACTIONS.length + 1} className="px-3 py-2 text-xs text-slate-400 italic text-center border-t border-slate-100">
+              <td colSpan={ACTIONS.length + 1} className="px-3 py-2 text-xs text-muted-foreground italic text-center border-t border-border">
                 No app resources defined. Add resources to an app to see them here.
               </td>
             </tr>
@@ -396,18 +397,18 @@ const Roles = () => {
         <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search roles by name or description…" />
         <div className="max-w-sm w-full">
           <label className={labelCls}>Filter by App</label>
-          <select className={fieldCls} value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
+          <Select value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
             <option value="all">All Apps</option>
             <option value="none">Unassigned</option>
             {(apps as any[]).map((app: any) => (
               <option key={app.id} value={app.id}>{app.name}</option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
+      <Table className="overflow-hidden">
+        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
           <div className="flex items-center gap-3">
             <SelectionCheckbox
               checked={allFilteredSelected}
@@ -416,13 +417,13 @@ const Roles = () => {
               disabled={filteredRoles.length === 0}
               title={allFilteredSelected ? 'Deselect all' : 'Select all visible'}
             />
-            <h4 className="text-sm font-semibold text-slate-700">All Roles</h4>
+            <h4 className="text-sm font-semibold text-foreground">All Roles</h4>
           </div>
-          <Button onClick={() => refetch()} disabled={isFetching} variant="ghost" size="sm" className="text-xs text-slate-500 hover:text-slate-900">
+          <Button onClick={() => refetch()} disabled={isFetching} variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </Button>
-        </div>
+        </TableHeaderRow>
         <BulkActionsBar
           count={selectedRoleIds.length}
           noun="role"
@@ -439,29 +440,29 @@ const Roles = () => {
             Delete Selected
           </Button>
         </BulkActionsBar>
-        <div className="divide-y divide-slate-100">
+        <TableBody className="divide-y divide-border">
           {isLoading && <TableSkeleton rows={4} />}
           {!isLoading && filteredRoles.length === 0 && <EmptyState title="No roles yet" description="Create a role to define a set of permissions." />}
           {filteredRoles.map((role: any) => {
             const isSelected = selectedRoleIds.includes(role.id)
             return (
-            <div key={role.id} className={`flex items-center justify-between px-5 py-3.5 hover:bg-slate-50/50 transition-colors group ${isSelected ? 'bg-sky-50/40' : ''}`}>
+            <TableRow key={role.id} className={`flex items-center justify-between px-5 py-3.5 hover:bg-muted/50 transition-colors group ${isSelected ? 'bg-sky-50/40' : ''}`}>
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <SelectionCheckbox
                   checked={isSelected}
                   onChange={() => toggleSelectRole(role.id)}
                   aria-label={`Select role ${role.name}`}
                 />
-                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                  <Shield size={14} className="text-slate-500" />
+                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                  <Shield size={14} className="text-muted-foreground" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h5 className="text-sm font-medium text-slate-900">{role.name}</h5>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">{role.appId ? appNameById.get(role.appId) ?? 'App' : 'No App'}</span>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-500">{role.scope}</span>
+                    <h5 className="text-sm font-medium text-foreground">{role.name}</h5>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-100">{role.appId ? appNameById.get(role.appId) ?? 'App' : 'No App'}</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground">{role.scope}</span>
                   </div>
-                  <p className="text-xs text-slate-500">{role.description || 'No description'} · <span className="font-medium text-slate-600">{activePermCount(role)} permission{activePermCount(role) !== 1 ? 's' : ''}</span></p>
+                  <p className="text-xs text-muted-foreground">{role.description || 'No description'} · <span className="font-medium text-muted-foreground">{activePermCount(role)} permission{activePermCount(role) !== 1 ? 's' : ''}</span></p>
                 </div>
               </div>
               <div className="flex items-center gap-1 shrink-0">
@@ -469,7 +470,7 @@ const Roles = () => {
                   onClick={() => openEdit(role)}
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-700 opacity-0 group-hover:opacity-100"
+                  className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100"
                   title="Edit permissions"
                 >
                   <ChevronRight size={14} />
@@ -478,16 +479,16 @@ const Roles = () => {
                   onClick={() => setRoleToDelete(role)}
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"
+                  className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
                 >
                   <Trash2 size={14} />
                 </Button>
               </div>
-            </div>
+            </TableRow>
             )
           })}
-        </div>
-      </Card>
+        </TableBody>
+      </Table>
 
       {/* Create modal */}
       <Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Create New Role">
@@ -495,31 +496,31 @@ const Roles = () => {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelCls}>App</label>
-              <select value={formData.appId} onChange={e => setFormData(p => ({ ...p, appId: e.target.value }))} className={fieldCls}>
+              <Select value={formData.appId} onChange={e => setFormData(p => ({ ...p, appId: e.target.value }))}>
                 <option value="">No app</option>
                 {(apps as any[]).map((app: any) => (
                   <option key={app.id} value={app.id}>{app.name}</option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div>
               <label className={labelCls}>Role Name</label>
-              <Input type="text" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} className={`${fieldCls} font-mono`} placeholder="application_user" />
+              <Input type="text" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} className="font-mono" placeholder="application_user" />
             </div>
             <div>
               <label className={labelCls}>Scope</label>
-              <select value={formData.scope} onChange={e => setFormData(p => ({ ...p, scope: e.target.value as any }))} className={fieldCls}>
+              <Select value={formData.scope} onChange={e => setFormData(p => ({ ...p, scope: e.target.value as any }))}>
                 <option value="platform">Platform</option>
                 <option value="tenant">Tenant</option>
-              </select>
+              </Select>
             </div>
           </div>
           <div>
             <label className={labelCls}>Description</label>
-            <Input type="text" value={formData.description} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} className={fieldCls} placeholder="Role description" />
+            <Input type="text" value={formData.description} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} placeholder="Role description" />
           </div>
           <div>
-            <label className={labelCls}>Permissions <span className="text-slate-400 normal-case font-normal">(click header to toggle column, resource name to toggle row)</span></label>
+            <label className={labelCls}>Permissions <span className="text-muted-foreground normal-case font-normal">(click header to toggle column, resource name to toggle row)</span></label>
             <PermissionMatrix permissions={formData.permissions} onChange={perms => setFormData(p => ({ ...p, permissions: perms }))} appResources={appResources} />
           </div>
           <div className="flex gap-2 justify-end pt-2">
@@ -535,7 +536,7 @@ const Roles = () => {
               {createRole.isPending ? 'Creating…' : 'Create Role'}
             </Button>
           </div>
-          {createFormError && <p className="text-xs text-red-600">{createFormError}</p>}
+          {createFormError && <p className="text-xs text-rose-600">{createFormError}</p>}
         </div>
       </Modal>
 
@@ -545,28 +546,28 @@ const Roles = () => {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelCls}>App</label>
-              <select value={formData.appId} onChange={e => setFormData(p => ({ ...p, appId: e.target.value }))} className={fieldCls}>
+              <Select value={formData.appId} onChange={e => setFormData(p => ({ ...p, appId: e.target.value }))}>
                 <option value="">No app</option>
                 {(apps as any[]).map((app: any) => (
                   <option key={app.id} value={app.id}>{app.name}</option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div>
               <label className={labelCls}>Role Name</label>
-              <Input type="text" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} className={`${fieldCls} font-mono`} />
+              <Input type="text" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} className="font-mono" />
             </div>
             <div>
               <label className={labelCls}>Scope</label>
-              <select value={formData.scope} onChange={e => setFormData(p => ({ ...p, scope: e.target.value as any }))} className={fieldCls}>
+              <Select value={formData.scope} onChange={e => setFormData(p => ({ ...p, scope: e.target.value as any }))}>
                 <option value="platform">Platform</option>
                 <option value="tenant">Tenant</option>
-              </select>
+              </Select>
             </div>
           </div>
           <div>
             <label className={labelCls}>Description</label>
-            <Input type="text" value={formData.description} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} className={fieldCls} />
+            <Input type="text" value={formData.description} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} />
           </div>
           <div>
             <label className={labelCls}>Permissions</label>
@@ -585,7 +586,7 @@ const Roles = () => {
               {updateRole.isPending ? 'Saving…' : 'Save Changes'}
             </Button>
           </div>
-          {editFormError && <p className="text-xs text-red-600">{editFormError}</p>}
+          {editFormError && <p className="text-xs text-rose-600">{editFormError}</p>}
         </div>
       </Modal>
 
@@ -601,10 +602,10 @@ const Roles = () => {
 
       <Modal isOpen={bulkDeleteOpen} onClose={() => !bulkPending && setBulkDeleteOpen(false)} title="Delete Selected Roles" size="md">
         <div className="space-y-4">
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-foreground">
             Permanently delete <span className="font-semibold">{selectedRoleIds.length}</span> role{selectedRoleIds.length === 1 ? '' : 's'}? This action cannot be undone.
           </p>
-          {bulkError && <p className="text-xs text-red-600">{bulkError}</p>}
+          {bulkError && <p className="text-xs text-rose-600">{bulkError}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setBulkDeleteOpen(false)} disabled={bulkPending}>
               Cancel

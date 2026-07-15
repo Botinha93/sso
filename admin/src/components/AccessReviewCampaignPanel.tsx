@@ -1,3 +1,5 @@
+import Card from './ui/Card'
+import Textarea from './ui/Textarea'
 import { useMemo, useState } from 'react'
 import {
   useAccessReviewCampaign,
@@ -8,7 +10,6 @@ import {
   useUsers
 } from '../hooks/useApi'
 
-const sectionCls = 'rounded-xl border border-slate-200 bg-white p-5 shadow-sm'
 
 export default function AccessReviewCampaignPanel() {
   const [name, setName] = useState('Quarterly Access Recertification')
@@ -75,22 +76,22 @@ export default function AccessReviewCampaignPanel() {
 
   return (
     <div className="grid gap-6 xl:grid-cols-2">
-      <section className={sectionCls}>
-        <h2 className="text-base font-semibold text-slate-900">Access Review Campaign</h2>
-        <p className="mt-1 text-sm text-slate-600">Generate recertification items from current role and group assignments.</p>
+      <Card className="p-5">
+        <h2 className="text-base font-semibold text-foreground">Access Review Campaign</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Generate recertification items from current role and group assignments.</p>
 
         <div className="mt-4 space-y-2">
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
-            className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+            className="h-9 w-full rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
             placeholder="Campaign name"
           />
-          <textarea
+          <Textarea
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             rows={3}
-            className="w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+            className="w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
             placeholder="Campaign scope and reviewer guidance"
           />
           <div className="grid grid-cols-2 gap-2">
@@ -98,7 +99,7 @@ export default function AccessReviewCampaignPanel() {
               type="date"
               value={dueAtDate}
               onChange={(event) => setDueAtDate(event.target.value)}
-              className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+              className="h-9 w-full rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
             />
             <input
               type="time"
@@ -106,10 +107,10 @@ export default function AccessReviewCampaignPanel() {
               onChange={(event) => setDueAtTime(event.target.value)}
               step={60}
               disabled={!dueAtDate}
-              className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 disabled:bg-slate-50 disabled:text-slate-400"
+              className="h-9 w-full rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:bg-muted/50 disabled:text-muted-foreground"
             />
           </div>
-          <p className="text-xs text-slate-500">Due date is optional. Select date first, then time.</p>
+          <p className="text-xs text-muted-foreground">Due date is optional. Select date first, then time.</p>
           <button
             onClick={runCreateCampaign}
             disabled={createCampaign.isPending || name.trim().length < 3}
@@ -117,22 +118,22 @@ export default function AccessReviewCampaignPanel() {
           >
             {createCampaign.isPending ? 'Generating…' : 'Create Campaign'}
           </button>
-          {message ? <p className="text-xs text-slate-600">{message}</p> : null}
+          {message ? <p className="text-xs text-muted-foreground">{message}</p> : null}
         </div>
-      </section>
+      </Card>
 
-      <section className={sectionCls}>
-        <h2 className="text-base font-semibold text-slate-900">Campaign Items</h2>
-        <p className="mt-1 text-sm text-slate-600">Certify or revoke each generated entitlement entry.</p>
+      <Card className="p-5">
+        <h2 className="text-base font-semibold text-foreground">Campaign Items</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Certify or revoke each generated entitlement entry.</p>
 
-        {!campaignId ? <p className="mt-4 text-sm text-slate-500">Create a campaign to load review items.</p> : null}
-        {reviewCampaign.isLoading ? <p className="mt-4 text-sm text-slate-500">Loading campaign…</p> : null}
+        {!campaignId ? <p className="mt-4 text-sm text-muted-foreground">Create a campaign to load review items.</p> : null}
+        {reviewCampaign.isLoading ? <p className="mt-4 text-sm text-muted-foreground">Loading campaign…</p> : null}
         {payload?.campaign ? (
           <div className="mt-4 space-y-2">
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               {payload.campaign.name} • {payload.campaign.status} • {payload.items.length} item(s)
             </p>
-            {payload.items.length === 0 ? <p className="text-sm text-slate-500">No assignments are currently in scope.</p> : null}
+            {payload.items.length === 0 ? <p className="text-sm text-muted-foreground">No assignments are currently in scope.</p> : null}
             {payload.items.map((item) => {
               const subjectLabel = userLabelById.get(item.subjectUserId) ?? item.subjectUserId
               const entitlementLabel = item.entitlementType === 'role'
@@ -140,29 +141,29 @@ export default function AccessReviewCampaignPanel() {
                 : (groupLabelById.get(item.entitlementValue) ?? item.entitlementValue)
 
               return (
-                <div key={item.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+                <div key={item.id} className="rounded-lg border border-border bg-muted/50 p-3 text-sm">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="font-medium text-slate-900">{item.entitlementType}: {entitlementLabel}</p>
-                    <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700">
+                    <p className="font-medium text-foreground">{item.entitlementType}: {entitlementLabel}</p>
+                    <StatusBadge tone={item.decision === 'certified' ? 'success' : item.decision === 'revoked' ? 'danger' : 'warning'}>
                       {item.decision ?? 'pending'}
-                    </span>
+                    </StatusBadge>
                   </div>
-                  <p className="mt-1 text-xs text-slate-600">Subject: {subjectLabel}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Subject: {subjectLabel}</p>
                   {item.decision ? (
-                    <p className="mt-1 text-xs text-slate-500">Decision recorded at {new Date(item.updatedAt).toLocaleString()}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Decision recorded at {new Date(item.updatedAt).toLocaleString()}</p>
                   ) : (
                     <div className="mt-2 flex gap-2">
                       <button
                         onClick={() => runDecision(item.id, 'certified')}
                         disabled={decideItem.isPending}
-                        className="rounded border border-emerald-200 bg-white px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                        className="rounded border border-emerald-200 bg-card px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
                       >
                         Certify
                       </button>
                       <button
                         onClick={() => runDecision(item.id, 'revoked')}
                         disabled={decideItem.isPending}
-                        className="rounded border border-rose-200 bg-white px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                        className="rounded border border-rose-200 bg-card px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50"
                       >
                         Revoke
                       </button>
@@ -173,7 +174,8 @@ export default function AccessReviewCampaignPanel() {
             })}
           </div>
         ) : null}
-      </section>
+      </Card>
     </div>
   )
 }
+import StatusBadge from './ui/StatusBadge'

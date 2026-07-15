@@ -1,3 +1,4 @@
+import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
 import { RefreshCw, ShieldOff, MonitorSmartphone } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
@@ -41,9 +42,9 @@ const Sessions = () => {
         <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search sessions by user or client…" />
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
-          <h4 className="text-sm font-semibold text-slate-700">All Sessions</h4>
+      <Table className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
+          <h4 className="text-sm font-semibold text-foreground">All Sessions</h4>
           <Button
             variant="ghost"
             size="sm"
@@ -53,7 +54,7 @@ const Sessions = () => {
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </Button>
-        </div>
+        </TableHeaderRow>
 
         {isLoading ? (
           <TableSkeleton rows={5} />
@@ -63,36 +64,36 @@ const Sessions = () => {
             description="Active sessions will appear here once users authenticate."
           />
         ) : (
-          <div className="divide-y divide-slate-100">
+          <TableBody className="divide-y divide-border">
             {sessions.map((session: Session) => {
               const isRevoked = !!session.revokedAt
               const isExpired = new Date(session.expiresAt) < new Date()
               return (
-                <div key={session.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50/50 transition-colors">
+                <TableRow key={session.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-muted/50 transition-colors">
                   <div className="space-y-0.5">
-                    <p className="text-sm font-medium font-mono text-slate-800">{session.id.slice(0, 16)}…</p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-sm font-medium font-mono text-foreground">{session.id.slice(0, 16)}…</p>
+                    <p className="text-xs text-muted-foreground">
                       User: <span className="font-mono">{session.userId.slice(0, 8)}…</span>
                       {' · '}Client: <span className="font-mono">{session.clientId}</span>
                     </p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-muted-foreground">
                       Created {new Date(session.createdAt).toLocaleString()}
                       {' · '} Expires {new Date(session.expiresAt).toLocaleString()}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     {isRevoked ? (
-                      <span className="text-xs px-2 py-0.5 rounded-md bg-red-50 text-red-600 border border-red-100">Revoked</span>
+                      <StatusBadge tone="danger">Revoked</StatusBadge>
                     ) : isExpired ? (
-                      <span className="text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200">Expired</span>
+                      <StatusBadge tone="neutral">Expired</StatusBadge>
                     ) : (
-                      <span className="text-xs px-2 py-0.5 rounded-md bg-green-50 text-green-700 border border-green-100">Active</span>
+                      <StatusBadge tone="success">Active</StatusBadge>
                     )}
                     {!isRevoked && !isExpired && (
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="hover:bg-red-50 hover:text-red-600"
+                        className="hover:bg-rose-50 hover:text-rose-600"
                         onClick={() => handleRevoke(session.id)}
                         disabled={revokeSession.isPending}
                         title="Revoke session"
@@ -101,12 +102,12 @@ const Sessions = () => {
                       </Button>
                     )}
                   </div>
-                </div>
+                </TableRow>
               )
             })}
-          </div>
+          </TableBody>
         )}
-      </div>
+      </Table>
 
       <ConfirmDialog
         isOpen={!!sessionToRevoke}
@@ -122,3 +123,4 @@ const Sessions = () => {
 }
 
 export default Sessions
+import StatusBadge from '../components/ui/StatusBadge'

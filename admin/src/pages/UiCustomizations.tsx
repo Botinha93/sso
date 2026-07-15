@@ -1,3 +1,6 @@
+import Card from '../components/ui/Card'
+import Textarea from '../components/ui/Textarea'
+import Select from '../components/ui/Select'
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowUpRight, RefreshCw, Save, Sparkles, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -34,9 +37,7 @@ const surfaces: Array<{ key: UiSurface; label: string; route: string }> = [
   { key: 'portal_launcher', label: 'Portal Launcher', route: '/portal/' },
 ]
 
-const fieldCls = 'h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
-const labelCls = 'mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500'
-const sectionCls = 'rounded-xl border border-slate-200 bg-white p-5 shadow-sm'
+const labelCls = 'mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground'
 
 const emptyDraft: UiSurfaceCustomization = {
   title: '',
@@ -242,9 +243,9 @@ export default function UiCustomizations() {
       />
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <section className={sectionCls}>
-          <h2 className="text-base font-semibold text-slate-900">Editor</h2>
-          <p className="mt-2 text-xs text-slate-500">Select scope and surface, update fields, apply to scope, then save all changes.</p>
+        <Card className="p-5">
+          <h2 className="text-base font-semibold text-foreground">Editor</h2>
+          <p className="mt-2 text-xs text-muted-foreground">Select scope and surface, update fields, apply to scope, then save all changes.</p>
 
           <div className="mt-4 grid gap-4">
             <div>
@@ -254,7 +255,7 @@ export default function UiCustomizations() {
                   <Button
                     key={value}
                     onClick={() => setScope(value)}
-                    className={`capitalize ${scope === value ? 'border-slate-900 bg-sky-600 text-white hover:bg-sky-500' : ''}`}
+                    className={`capitalize ${scope === value ? 'border-primary bg-sky-600 text-white hover:bg-sky-500' : ''}`}
                     variant={scope === value ? 'primary' : 'secondary'}
                   >
                     {value}
@@ -266,24 +267,24 @@ export default function UiCustomizations() {
             {scope === 'client' ? (
               <div>
                 <label className={labelCls}>Client Override Target</label>
-                <select value={clientId} onChange={(e) => setClientId(e.target.value)} className={fieldCls}>
+                <Select value={clientId} onChange={(e) => setClientId(e.target.value)}>
                   {clientOptions.length === 0 ? <option value="">No clients available</option> : null}
                   {clientOptions.map((option) => (
                     <option key={option.id} value={option.id}>{option.name} ({option.id})</option>
                   ))}
-                </select>
+                </Select>
               </div>
             ) : null}
 
             {scope === 'app' ? (
               <div>
                 <label className={labelCls}>App Override Target</label>
-                <select value={appId} onChange={(e) => setAppId(e.target.value)} className={fieldCls}>
+                <Select value={appId} onChange={(e) => setAppId(e.target.value)}>
                   {appOptions.length === 0 ? <option value="">No apps available</option> : null}
                   {appOptions.map((option) => (
                     <option key={option.id} value={option.id}>{option.name} ({option.id})</option>
                   ))}
-                </select>
+                </Select>
               </div>
             ) : null}
 
@@ -295,7 +296,7 @@ export default function UiCustomizations() {
                     key={item.key}
                     onClick={() => setSurface(item.key)}
                     variant={surface === item.key ? 'primary' : 'secondary'}
-                    className={`justify-start text-left ${surface === item.key ? 'border-slate-900 bg-sky-600 text-white hover:bg-sky-500' : ''}`}
+                    className={`justify-start text-left ${surface === item.key ? 'border-primary bg-sky-600 text-white hover:bg-sky-500' : ''}`}
                   >
                     {item.label}
                   </Button>
@@ -326,7 +327,6 @@ export default function UiCustomizations() {
                   onChange={(value) => setDraft((v) => ({ ...v, primaryColor: value }))}
                   placeholder="#0f172a"
                   defaultColor="#0f172a"
-                  className={fieldCls}
                 />
               </div>
               <div>
@@ -336,17 +336,16 @@ export default function UiCustomizations() {
                   onChange={(value) => setDraft((v) => ({ ...v, accentColor: value }))}
                   placeholder="#0ea5e9"
                   defaultColor="#0ea5e9"
-                  className={fieldCls}
                 />
               </div>
             </div>
 
             <div>
               <label className={labelCls}>Background CSS</label>
-              <textarea
+              <Textarea
                 value={draft.backgroundCss ?? ''}
                 onChange={(e) => setDraft((v) => ({ ...v, backgroundCss: e.target.value }))}
-                className="min-h-[100px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+                className="min-h-[100px] w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
                 placeholder="linear-gradient(130deg, #e2e8f0, #f8fafc)"
               />
             </div>
@@ -362,18 +361,18 @@ export default function UiCustomizations() {
               </Button>
             </div>
           </div>
-        </section>
+        </Card>
 
-        <section className={sectionCls}>
-          <h2 className="text-base font-semibold text-slate-900">Preview</h2>
-          <p className="mt-2 text-xs text-slate-500">Preview approximates the selected surface styling. Final rendering can vary by page layout.</p>
+        <Card className="p-5">
+          <h2 className="text-base font-semibold text-foreground">Preview</h2>
+          <p className="mt-2 text-xs text-muted-foreground">Preview approximates the selected surface styling. Final rendering can vary by page layout.</p>
 
-          <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200" style={previewStyles}>
+          <div className="mt-4 overflow-hidden rounded-2xl border border-border" style={previewStyles}>
             <div className="min-h-[300px] px-6 py-8" style={{ color: draft.primaryColor?.trim() || '#0f172a' }}>
               {draft.logoUrl?.trim() ? (
                 <img src={draft.logoUrl} alt="Customization logo" className="mb-5 h-10 w-auto max-w-[180px] rounded object-contain" />
               ) : (
-                <div className="mb-5 inline-flex h-10 items-center rounded-lg bg-white/70 px-3 text-xs font-semibold text-slate-600">Logo preview</div>
+                <div className="mb-5 inline-flex h-10 items-center rounded-lg bg-card/70 px-3 text-xs font-semibold text-muted-foreground">Logo preview</div>
               )}
               <h3 className="text-2xl font-bold tracking-tight">{draft.title?.trim() || 'Sign in to continue'}</h3>
               <p className="mt-2 max-w-md text-sm opacity-90">{draft.subtitle?.trim() || 'Use your organization account to access protected applications.'}</p>
@@ -387,14 +386,14 @@ export default function UiCustomizations() {
             </div>
           </div>
 
-          <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Open Surface</p>
+          <div className="mt-5 rounded-lg border border-border bg-muted/50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Open Surface</p>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {surfaces.map((item) => (
                 <Link
                   key={item.key}
                   to={item.route}
-                  className="inline-flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                  className="inline-flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground hover:bg-muted/50"
                 >
                   {item.label}
                   <ArrowUpRight size={14} />
@@ -403,10 +402,10 @@ export default function UiCustomizations() {
             </div>
           </div>
 
-          <p className="mt-4 text-xs text-slate-500">
+          <p className="mt-4 text-xs text-muted-foreground">
             Scope precedence: default values are baseline, client overrides apply when a client context exists, and app overrides apply when an app context exists.
           </p>
-        </section>
+        </Card>
       </div>
 
       {(message || error) ? (

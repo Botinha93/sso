@@ -1,3 +1,6 @@
+import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
+import Textarea from '../components/ui/Textarea'
+import Select from '../components/ui/Select'
 import { Plus, RefreshCw, Trash2, Shield, ChevronRight, X, Pencil } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
@@ -6,7 +9,7 @@ import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
 import Button from '../components/ui/Button'
-import Input, { inputBaseClassName } from '../components/ui/Input'
+import Input from '../components/ui/Input'
 import Card from '../components/ui/Card'
 import StatusBadge from '../components/ui/StatusBadge'
 import { useClients, useCreateClient, useDeleteClient, useUpdateClient, useScopes, useCreateScope, useDeleteScope, useAuthenticationFlows, useApps } from '../hooks/useApi'
@@ -77,8 +80,7 @@ const formFromClient = (client: OAuthClient) => ({
   refreshTokenTtlSeconds: (client.refreshTokenTtlSeconds ?? '') as number | ''
 })
 
-const fieldCls = inputBaseClassName
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
+const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
 
 const Clients = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false)
@@ -277,24 +279,24 @@ const Clients = () => {
         <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search clients by id or name…" />
         <div className="max-w-sm w-full">
           <label className={labelCls}>Filter by App</label>
-          <select className={fieldCls} value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
+          <Select value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
             <option value="all">All Apps</option>
             <option value="none">Unassigned</option>
             {(apps as any[]).map((app: any) => (
               <option key={app.id} value={app.id}>{app.name}</option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
-          <h4 className="text-sm font-semibold text-slate-700">All Clients</h4>
+      <Table className="overflow-hidden">
+        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
+          <h4 className="text-sm font-semibold text-foreground">All Clients</h4>
           <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </Button>
-        </div>
+        </TableHeaderRow>
 
         {isLoading ? (
           <TableSkeleton rows={5} />
@@ -304,12 +306,12 @@ const Clients = () => {
             description="Register an OAuth client to start authorizing applications."
           />
         ) : (
-          <div className="divide-y divide-slate-100">
+          <TableBody className="divide-y divide-border">
             {filteredClients.map((client: OAuthClient) => (
-              <div key={client.id} className="px-5 py-3.5 flex items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors group">
+              <TableRow key={client.id} className="px-5 py-3.5 flex items-center justify-between gap-4 hover:bg-muted/50 transition-colors group">
                 <div className="space-y-0.5 flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h5 className="text-sm font-medium text-slate-900">{client.name}</h5>
+                    <h5 className="text-sm font-medium text-foreground">{client.name}</h5>
                     <StatusBadge tone="accent">
                       {client.appId ? appNameById.get(client.appId) ?? 'App' : 'No App'}
                     </StatusBadge>
@@ -329,13 +331,13 @@ const Clients = () => {
                       </StatusBadge>
                     )}
                   </div>
-                  <p className="text-xs text-slate-500 font-mono">{client.id}</p>
+                  <p className="text-xs text-muted-foreground font-mono">{client.id}</p>
                   <div className="flex gap-1 flex-wrap">
                     {client.grants.map(g => (
                       <StatusBadge key={g} tone="neutral" mono>{g}</StatusBadge>
                     ))}
                   </div>
-                  <p className="text-xs text-slate-400 truncate">
+                  <p className="text-xs text-muted-foreground truncate">
                     {client.redirectUris.join(', ')}
                   </p>
                 </div>
@@ -352,7 +354,7 @@ const Clients = () => {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="opacity-0 group-hover:opacity-100 hover:bg-violet-50 hover:text-violet-600"
+                    className="opacity-0 group-hover:opacity-100 hover:bg-sky-50 hover:text-sky-600"
                     onClick={() => { setResourcesClient(client); setNewResource('') }}
                     title="Manage resources"
                   >
@@ -361,7 +363,7 @@ const Clients = () => {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="hover:bg-red-50 hover:text-red-600"
+                    className="hover:bg-rose-50 hover:text-rose-600"
                     onClick={() => handleDelete(client.id)}
                     disabled={deleteClient.isPending}
                     title="Delete client"
@@ -369,23 +371,23 @@ const Clients = () => {
                     <Trash2 size={14} />
                   </Button>
                 </div>
-              </div>
+              </TableRow>
             ))}
-          </div>
+          </TableBody>
         )}
-      </Card>
+      </Table>
 
       <Modal isOpen={createModalOpen || !!editClient} onClose={closeClientModal} title={editClient ? `Edit OAuth Client: ${editClient.name}` : 'Create OAuth Client'}>
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelCls}>App</label>
-              <select value={formData.appId} onChange={e => setFormData(f => ({ ...f, appId: e.target.value }))} className={fieldCls}>
+              <Select value={formData.appId} onChange={e => setFormData(f => ({ ...f, appId: e.target.value }))}>
                 <option value="">No app</option>
                 {(apps as any[]).map((app: any) => (
                   <option key={app.id} value={app.id}>{app.name}</option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div>
               <label className={labelCls}>Client ID</label>
@@ -394,7 +396,7 @@ const Clients = () => {
                 value={formData.id}
                 onChange={e => setFormData(f => ({ ...f, id: e.target.value }))}
                 disabled={!!editClient}
-                className={`font-mono ${editClient ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
+                className={`font-mono ${editClient ? 'cursor-not-allowed bg-muted text-muted-foreground' : ''}`}
                 placeholder="my-app"
               />
             </div>
@@ -421,7 +423,7 @@ const Clients = () => {
                 ) : null}
               </div>
               {!editClient ? (
-                <p className="mt-1 text-xs text-slate-500">A strong secret is generated automatically for new confidential clients.</p>
+                <p className="mt-1 text-xs text-muted-foreground">A strong secret is generated automatically for new confidential clients.</p>
               ) : null}
             </div>
           </div>
@@ -431,38 +433,38 @@ const Clients = () => {
           </div>
           <div>
             <label className={labelCls}>Redirect URIs (one per line)</label>
-            <textarea
+            <Textarea
               value={formData.redirectUris}
               onChange={e => setFormData(f => ({ ...f, redirectUris: e.target.value }))}
-              className="w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 min-h-[72px] font-mono"
+              className="w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20 min-h-[72px] font-mono"
               placeholder="https://app.example.com/callback"
             />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelCls}>Allowed Scopes</label>
-              <p className="mb-1.5 text-[11px] text-slate-500">
+              <p className="mb-1.5 text-[11px] text-muted-foreground">
                 Select which scopes this client may request. Known scopes map to specific token claims.
               </p>
-              <div className="rounded-lg border border-slate-200 p-2 max-h-[220px] overflow-auto bg-slate-50/40 space-y-1.5">
-                {scopes.length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No scopes defined.</p>}
+              <div className="rounded-lg border border-border p-2 max-h-[220px] overflow-auto bg-muted/40 space-y-1.5">
+                {scopes.length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No scopes defined.</p>}
                 {scopes.map((scope: any) => {
                   const claimHints = SCOPE_CLAIM_MAP[scope.name]
                   return (
-                    <label key={scope.id} className="flex items-start gap-2 text-xs text-slate-700 cursor-pointer rounded-md px-1 py-1 hover:bg-white/70">
+                    <label key={scope.id} className="flex items-start gap-2 text-xs text-foreground cursor-pointer rounded-md px-1 py-1 hover:bg-card/70">
                       <input
                         type="checkbox"
                         checked={formData.allowedScopes.includes(scope.name)}
                         onChange={() => toggleScope(scope.name)}
-                        className="mt-0.5 rounded border-slate-300"
+                        className="mt-0.5 rounded border-border"
                       />
                       <span className="min-w-0">
-                        <span className="font-mono text-slate-800">{scope.name}</span>
+                        <span className="font-mono text-foreground">{scope.name}</span>
                         {scope.description && (
-                          <span className="block text-[11px] text-slate-500">{scope.description}</span>
+                          <span className="block text-[11px] text-muted-foreground">{scope.description}</span>
                         )}
                         {claimHints && (
-                          <span className="block text-[10px] text-slate-400 font-mono">
+                          <span className="block text-[10px] text-muted-foreground font-mono">
                             claims: {claimHints.join(', ')}
                           </span>
                         )}
@@ -474,17 +476,17 @@ const Clients = () => {
             </div>
             <div>
               <label className={labelCls}>Grants</label>
-              <div className="rounded-lg border border-slate-200 p-2 max-h-[180px] overflow-auto bg-slate-50/40 space-y-1.5">
+              <div className="rounded-lg border border-border p-2 max-h-[180px] overflow-auto bg-muted/40 space-y-1.5">
                 {GRANT_OPTIONS.map((grant) => (
-                  <label key={grant.value} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer rounded-md px-1 py-1 hover:bg-white/70">
+                  <label key={grant.value} className="flex items-center gap-2 text-xs text-foreground cursor-pointer rounded-md px-1 py-1 hover:bg-card/70">
                     <input
                       type="checkbox"
                       checked={formData.grants.includes(grant.value)}
                       onChange={() => toggleGrant(grant.value)}
-                      className="rounded border-slate-300"
+                      className="rounded border-border"
                     />
                     <span className="font-mono">{grant.value}</span>
-                    <span className="text-slate-400">{grant.label}</span>
+                    <span className="text-muted-foreground">{grant.label}</span>
                   </label>
                 ))}
               </div>
@@ -492,15 +494,15 @@ const Clients = () => {
           </div>
           <div>
             <label className={labelCls}>Allowed Authentication Flows</label>
-            <div className="rounded-lg border border-slate-200 p-2 max-h-[120px] overflow-auto bg-slate-50/40 space-y-1.5">
-              {(flows as any[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No flows defined.</p>}
+            <div className="rounded-lg border border-border p-2 max-h-[120px] overflow-auto bg-muted/40 space-y-1.5">
+              {(flows as any[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No flows defined.</p>}
               {(flows as any[]).map((flow: any) => (
-                <label key={flow.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                <label key={flow.id} className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
                   <input
                     type="checkbox"
                     checked={formData.flowIds.includes(flow.id)}
                     onChange={() => toggleFlow(flow.id)}
-                    className="rounded border-slate-300"
+                    className="rounded border-border"
                   />
                   <span>{flow.name}</span>
                   {flow.enabled && <span className="text-[10px] px-1 py-0.5 rounded bg-emerald-100 text-emerald-700">active</span>}
@@ -508,9 +510,9 @@ const Clients = () => {
               ))}
             </div>
           </div>
-          <div className="rounded-lg border border-slate-200 p-3 bg-slate-50/40 space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Scope Catalog</p>
-            <p className="text-[11px] text-slate-500">
+          <div className="rounded-lg border border-border p-3 bg-muted/40 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Scope Catalog</p>
+            <p className="text-[11px] text-muted-foreground">
               Add custom API scopes here, then enable them for clients above. Built-in scopes unlock standard OIDC claims.
             </p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -540,18 +542,18 @@ const Clients = () => {
             </div>
             <div className="space-y-1.5">
               {scopes.length === 0 ? (
-                <p className="text-xs text-slate-400">No scopes available.</p>
+                <p className="text-xs text-muted-foreground">No scopes available.</p>
               ) : (
                 scopes.map((scope: any) => (
-                  <div key={scope.id} className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-2.5 py-1.5">
+                  <div key={scope.id} className="flex items-center justify-between rounded-md border border-border bg-card px-2.5 py-1.5">
                     <div className="min-w-0">
-                      <p className="truncate text-xs font-mono text-slate-700">{scope.name}</p>
-                      <p className="truncate text-[11px] text-slate-500">{scope.description || 'No description'}</p>
+                      <p className="truncate text-xs font-mono text-foreground">{scope.name}</p>
+                      <p className="truncate text-[11px] text-muted-foreground">{scope.description || 'No description'}</p>
                     </div>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="ml-2 hover:bg-red-50 hover:text-red-600"
+                      className="ml-2 hover:bg-rose-50 hover:text-rose-600"
                       onClick={() => handleDeleteScope(scope)}
                       disabled={deleteScope.isPending}
                       title="Delete scope"
@@ -563,12 +565,12 @@ const Clients = () => {
               )}
             </div>
           </div>
-          <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+          <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
             <input
               type="checkbox"
               checked={formData.requirePkce}
               onChange={e => setFormData(f => ({ ...f, requirePkce: e.target.checked }))}
-              className="rounded border-slate-300"
+              className="rounded border-border"
             />
             Require PKCE (recommended for public clients)
           </label>
@@ -583,7 +585,7 @@ const Clients = () => {
                 onChange={(e) => setFormData(f => ({ ...f, accessTokenTtlSeconds: e.target.value === '' ? '' : Number(e.target.value) }))}
                 placeholder="900"
               />
-              <p className="mt-1 text-xs text-slate-500">Lifetime of issued access tokens. Leave blank to use the default (900 = 15 min). Allowed: 60 – 86,400.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Lifetime of issued access tokens. Leave blank to use the default (900 = 15 min). Allowed: 60 – 86,400.</p>
             </div>
             <div>
               <label className={labelCls}>Refresh token TTL (seconds)</label>
@@ -595,10 +597,10 @@ const Clients = () => {
                 onChange={(e) => setFormData(f => ({ ...f, refreshTokenTtlSeconds: e.target.value === '' ? '' : Number(e.target.value) }))}
                 placeholder="2592000"
               />
-              <p className="mt-1 text-xs text-slate-500">Lifetime of issued refresh tokens. Leave blank to use the default (2,592,000 = 30 days). Allowed: 300 – 31,536,000.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Lifetime of issued refresh tokens. Leave blank to use the default (2,592,000 = 30 days). Allowed: 300 – 31,536,000.</p>
             </div>
           </div>
-          {formError && <p className="text-xs text-red-600">{formError}</p>}
+          {formError && <p className="text-xs text-rose-600">{formError}</p>}
           <div className="flex gap-2 justify-end pt-2">
             <Button onClick={closeClientModal} variant="secondary">
               Cancel
@@ -621,7 +623,7 @@ const Clients = () => {
       {/* Resources modal */}
       <Modal isOpen={!!resourcesClient} onClose={() => setResourcesClient(null)} title={`Resources: ${resourcesClient?.name ?? ''}`}>
         <div className="space-y-4">
-          <p className="text-xs text-slate-500">Define the resource identifiers for this client. These appear as selectable resources in the role permission matrix.</p>
+          <p className="text-xs text-muted-foreground">Define the resource identifiers for this client. These appear as selectable resources in the role permission matrix.</p>
           <div className="flex gap-2">
             <Input
               type="text"
@@ -642,15 +644,15 @@ const Clients = () => {
           </div>
           <div className="space-y-1.5">
             {(resourcesClient?.resources ?? []).length === 0 && (
-              <p className="text-xs text-slate-400 py-2 text-center">No resources defined yet.</p>
+              <p className="text-xs text-muted-foreground py-2 text-center">No resources defined yet.</p>
             )}
             {(resourcesClient?.resources ?? []).map(r => (
-              <div key={r} className="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-50 border border-slate-200">
-                <span className="text-sm font-mono text-slate-700">{r}</span>
+              <div key={r} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/50 border border-border">
+                <span className="text-sm font-mono text-foreground">{r}</span>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="hover:text-red-600"
+                  className="hover:text-rose-600"
                   onClick={() => handleRemoveResource(r)}
                 >
                   <X size={13} />

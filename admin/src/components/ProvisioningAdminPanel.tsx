@@ -1,3 +1,4 @@
+import Card from './ui/Card'
 import { useMemo, useState } from 'react'
 import { AlertCircle, CheckCircle2, Clock, XCircle } from 'lucide-react'
 import {
@@ -13,7 +14,6 @@ import {
   type DeprovisioningQueueItemDto
 } from '../hooks/useApi'
 
-const sectionCls = 'rounded-xl border border-slate-200 bg-white p-5 shadow-sm'
 
 export default function ProvisioningAdminPanel() {
   const { data: tokens = [] } = useProvisioningTokens()
@@ -42,7 +42,7 @@ export default function ProvisioningAdminPanel() {
       case 'completed':
         return <CheckCircle2 size={16} className="text-emerald-600" />
       case 'failed':
-        return <XCircle size={16} className="text-red-600" />
+        return <XCircle size={16} className="text-rose-600" />
       case 'in_progress':
         return <Clock size={16} className="text-blue-600 animate-spin" />
       default:
@@ -55,7 +55,7 @@ export default function ProvisioningAdminPanel() {
       case 'completed':
         return 'bg-emerald-50 text-emerald-700 border-emerald-200'
       case 'failed':
-        return 'bg-red-50 text-red-700 border-red-200'
+        return 'bg-rose-50 text-rose-700 border-rose-200'
       case 'in_progress':
         return 'bg-blue-50 text-blue-700 border-blue-200'
       default:
@@ -95,23 +95,23 @@ export default function ProvisioningAdminPanel() {
 
   return (
     <div className="grid gap-6 xl:grid-cols-2">
-      <section className={sectionCls}>
-        <h2 className="text-base font-semibold text-slate-900">SCIM Provisioning Tokens</h2>
-        <p className="mt-1 text-sm text-slate-600">Issue one-time display bearer tokens for directory connectors and revoke them when rotating integrations.</p>
+      <Card className="p-5">
+        <h2 className="text-base font-semibold text-foreground">SCIM Provisioning Tokens</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Issue one-time display bearer tokens for directory connectors and revoke them when rotating integrations.</p>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <input
             value={tokenLabel}
             onChange={(event) => setTokenLabel(event.target.value)}
             placeholder="okta-prod"
-            className="h-9 rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+            className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
           />
           <div className="grid grid-cols-2 gap-2">
             <input
               type="date"
               value={tokenExpiryDate}
               onChange={(event) => setTokenExpiryDate(event.target.value)}
-              className="h-9 rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+              className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
             />
             <input
               type="time"
@@ -119,11 +119,11 @@ export default function ProvisioningAdminPanel() {
               onChange={(event) => setTokenExpiryTime(event.target.value)}
               step={60}
               disabled={!tokenExpiryDate}
-              className="h-9 rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 disabled:bg-slate-50 disabled:text-slate-400"
+              className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:bg-muted/50 disabled:text-muted-foreground"
             />
           </div>
         </div>
-        <p className="mt-2 text-xs text-slate-500">Expiry is optional. Pick a date first, then an end time.</p>
+        <p className="mt-2 text-xs text-muted-foreground">Expiry is optional. Pick a date first, then an end time.</p>
         <div className="mt-3">
           <button
             onClick={createNewToken}
@@ -137,60 +137,60 @@ export default function ProvisioningAdminPanel() {
         {issuedToken ? (
           <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
             <p className="font-semibold">Copy now, this token is shown once</p>
-            <p className="mt-2 break-all rounded border border-amber-200 bg-white px-2 py-1 font-mono">{issuedToken}</p>
+            <p className="mt-2 break-all rounded border border-amber-200 bg-card px-2 py-1 font-mono">{issuedToken}</p>
           </div>
         ) : null}
 
         <div className="mt-4 space-y-2">
-          {tokens.length === 0 ? <p className="text-sm text-slate-500">No provisioning tokens yet.</p> : null}
+          {tokens.length === 0 ? <p className="text-sm text-muted-foreground">No provisioning tokens yet.</p> : null}
           {tokens.map((token) => (
-            <div key={token.id} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+            <div key={token.id} className="flex items-center justify-between rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm">
               <div>
-                <p className="font-medium text-slate-900">{token.label}</p>
-                <p className="text-xs text-slate-500">Last used: {token.lastUsedAt ? new Date(token.lastUsedAt).toLocaleString() : 'never'}</p>
+                <p className="font-medium text-foreground">{token.label}</p>
+                <p className="text-xs text-muted-foreground">Last used: {token.lastUsedAt ? new Date(token.lastUsedAt).toLocaleString() : 'never'}</p>
               </div>
               <button
                 onClick={() => deleteToken.mutate(token.id)}
                 disabled={deleteToken.isPending}
-                className="rounded border border-rose-200 bg-white px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                className="rounded border border-rose-200 bg-card px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50"
               >
                 Revoke
               </button>
             </div>
           ))}
         </div>
-      </section>
+      </Card>
 
-      <section className={sectionCls}>
-        <h2 className="text-base font-semibold text-slate-900">Provisioning Mappings</h2>
-        <p className="mt-1 text-sm text-slate-600">Map external directory attributes into local profile fields for lifecycle sync.</p>
+      <Card className="p-5">
+        <h2 className="text-base font-semibold text-foreground">Provisioning Mappings</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Map external directory attributes into local profile fields for lifecycle sync.</p>
 
         <div className="mt-4 grid gap-2">
           <input
             value={mappingName}
             onChange={(event) => setMappingName(event.target.value)}
             placeholder="Workday manager mapping"
-            className="h-9 rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+            className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
           />
           <div className="grid gap-2 sm:grid-cols-2">
             <input
               value={sourceAttribute}
               onChange={(event) => setSourceAttribute(event.target.value)}
               placeholder="urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:manager"
-              className="h-9 rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+              className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
             />
             <input
               value={targetAttribute}
               onChange={(event) => setTargetAttribute(event.target.value)}
               placeholder="customAttributes.managerId"
-              className="h-9 rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+              className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
             />
           </div>
           <input
             value={transformExpression}
             onChange={(event) => setTransformExpression(event.target.value)}
             placeholder="value?.toLowerCase()"
-            className="h-9 rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+            className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
           />
           <div>
             <button
@@ -204,102 +204,103 @@ export default function ProvisioningAdminPanel() {
         </div>
 
         <div className="mt-4 space-y-2">
-          {mappings.length === 0 ? <p className="text-sm text-slate-500">No mappings configured.</p> : null}
+          {mappings.length === 0 ? <p className="text-sm text-muted-foreground">No mappings configured.</p> : null}
           {mappings.map((mapping) => (
-            <div key={mapping.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+            <div key={mapping.id} className="rounded-lg border border-border bg-muted/50 p-3 text-sm">
               <div className="flex items-center justify-between gap-3">
-                <p className="font-medium text-slate-900">{mapping.name}</p>
+                <p className="font-medium text-foreground">{mapping.name}</p>
                 <button
                   onClick={() => deleteMapping.mutate(mapping.id)}
                   disabled={deleteMapping.isPending}
-                  className="rounded border border-rose-200 bg-white px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                  className="rounded border border-rose-200 bg-card px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50"
                 >
                   Delete
                 </button>
               </div>
-              <p className="mt-1 text-xs text-slate-600">{mapping.sourceAttribute} → {mapping.targetAttribute}</p>
-              {mapping.transformExpression ? <p className="mt-1 text-xs text-slate-500">Transform: {mapping.transformExpression}</p> : null}
+              <p className="mt-1 text-xs text-muted-foreground">{mapping.sourceAttribute} → {mapping.targetAttribute}</p>
+              {mapping.transformExpression ? <p className="mt-1 text-xs text-muted-foreground">Transform: {mapping.transformExpression}</p> : null}
             </div>
           ))}
         </div>
 
-        <div className="mt-5 rounded-lg border border-slate-200 bg-white p-3">
+        <div className="mt-5 rounded-lg border border-border bg-card p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-medium text-slate-900">Run Reconciliation</p>
+            <p className="text-sm font-medium text-foreground">Run Reconciliation</p>
             <button
               onClick={() => runReconcile.mutate({ dryRun: true })}
               disabled={runReconcile.isPending}
-              className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+              className="inline-flex h-8 items-center rounded-lg border border-border bg-muted/50 px-3 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
             >
               {runReconcile.isPending ? 'Running…' : 'Run Dry-Run'}
             </button>
           </div>
           {latestJob ? (
-            <p className="mt-2 text-xs text-slate-600">
+            <p className="mt-2 text-xs text-muted-foreground">
               Last job: {latestJob.status} at {new Date(latestJob.createdAt).toLocaleString()} ({String((latestJob.summary as Record<string, unknown>).usersEvaluated ?? 0)} users scanned)
             </p>
           ) : (
-            <p className="mt-2 text-xs text-slate-500">No reconcile jobs yet.</p>
+            <p className="mt-2 text-xs text-muted-foreground">No reconcile jobs yet.</p>
           )}
         </div>
-      </section>
+      </Card>
 
-      <section className={`${sectionCls} xl:col-span-2`}>
-        <h2 className="text-base font-semibold text-slate-900">Deprovisioning Queue</h2>
-        <p className="mt-1 text-sm text-slate-600">Monitor pending revocation and deactivation tasks from provisioning sync operations.</p>
+      <Card className="p-5 xl:col-span-2">
+        <h2 className="text-base font-semibold text-foreground">Deprovisioning Queue</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Monitor pending revocation and deactivation tasks from provisioning sync operations.</p>
 
         {deprovisioningQueue.length === 0 ? (
-          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-600">
+          <div className="mt-4 rounded-lg border border-border bg-muted/50 p-4 text-center text-sm text-muted-foreground">
             No pending deprovisioning tasks.
           </div>
         ) : (
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="border-b border-slate-200 bg-slate-50">
+              <thead className="border-b border-border bg-muted/50">
                 <tr>
-                  <th className="px-3 py-2 text-left font-medium text-slate-700">Status</th>
-                  <th className="px-3 py-2 text-left font-medium text-slate-700">User</th>
-                  <th className="px-3 py-2 text-left font-medium text-slate-700">Action</th>
-                  <th className="px-3 py-2 text-left font-medium text-slate-700">Resource</th>
-                  <th className="px-3 py-2 text-left font-medium text-slate-700">Reason</th>
-                  <th className="px-3 py-2 text-left font-medium text-slate-700">Created</th>
+                  <th className="px-3 py-2 text-left font-medium text-foreground">Status</th>
+                  <th className="px-3 py-2 text-left font-medium text-foreground">User</th>
+                  <th className="px-3 py-2 text-left font-medium text-foreground">Action</th>
+                  <th className="px-3 py-2 text-left font-medium text-foreground">Resource</th>
+                  <th className="px-3 py-2 text-left font-medium text-foreground">Reason</th>
+                  <th className="px-3 py-2 text-left font-medium text-foreground">Created</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
+              <tbody className="divide-y divide-border">
                 {deprovisioningQueue.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50">
+                  <tr key={item.id} className="hover:bg-muted/50">
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
                         {getStatusIcon(item.status)}
-                        <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${getStatusColor(item.status)}`}>
+                        <StatusBadge tone={item.status === 'completed' ? 'success' : item.status === 'failed' ? 'danger' : 'warning'}>
                           {item.status}
-                        </span>
+                        </StatusBadge>
                       </div>
                     </td>
-                    <td className="px-3 py-2 font-mono text-xs text-slate-600">{item.userId.slice(0, 12)}…</td>
+                    <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{item.userId.slice(0, 12)}…</td>
                     <td className="px-3 py-2">
-                      <code className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-700">{item.action}</code>
+                      <code className="rounded bg-muted px-2 py-1 text-xs text-foreground">{item.action}</code>
                     </td>
-                    <td className="px-3 py-2 truncate text-slate-700">{item.resourceName}</td>
-                    <td className="px-3 py-2 text-xs text-slate-600">{item.reason || '—'}</td>
-                    <td className="px-3 py-2 text-xs text-slate-500">{new Date(item.createdAt).toLocaleString()}</td>
+                    <td className="px-3 py-2 truncate text-foreground">{item.resourceName}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">{item.reason || '—'}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
             {deprovisioningQueue.length > 10 && (
-              <p className="mt-2 text-xs text-slate-500">Showing {deprovisioningQueue.length} tasks. Older tasks are automatically cleaned after completion.</p>
+              <p className="mt-2 text-xs text-muted-foreground">Showing {deprovisioningQueue.length} tasks. Older tasks are automatically cleaned after completion.</p>
             )}
           </div>
         )}
 
         {deprovisioningQueue.some(item => item.status === 'failed') && (
-          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
             <p className="font-medium">⚠️ Failed deprovisioning tasks detected</p>
             <p className="mt-1 text-xs">Some deprovisioning operations have failed and may require manual intervention.</p>
           </div>
         )}
-      </section>
+      </Card>
     </div>
   )
 }
+import StatusBadge from './ui/StatusBadge'

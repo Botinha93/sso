@@ -1,3 +1,6 @@
+import Card from '../components/ui/Card'
+import Textarea from '../components/ui/Textarea'
+import Select from '../components/ui/Select'
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, ArrowRight, Lock, Mail, Network, RefreshCw, ShieldCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -44,9 +47,8 @@ interface SettingsForm {
   uiCustomizationsText: string
 }
 
-const checkboxCls = 'h-4 w-4 rounded border-slate-300 text-slate-900 accent-sky-600'
-const sectionCls = 'rounded-xl border border-slate-200 bg-white p-5 shadow-sm'
-const sectionIconCls = 'flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600'
+const checkboxCls = 'h-4 w-4 rounded border-border text-foreground accent-sky-600'
+const sectionIconCls = 'flex h-7 w-7 items-center justify-center rounded-lg bg-muted text-muted-foreground'
 const parseOrigins = (value: string) => value.split('\n').map((item) => item.trim()).filter(Boolean)
 
 const parseHttpOrigin = (value: unknown) => {
@@ -315,48 +317,48 @@ export default function Administration() {
         </div>
       </div>
 
-      <section className={sectionCls}>
+      <Card className="p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className={sectionIconCls}><ShieldCheck size={14} /></div>
-            <h2 className="text-base font-semibold text-slate-900">Recent Security Risk Events</h2>
+            <h2 className="text-base font-semibold text-foreground">Recent Security Risk Events</h2>
           </div>
           <Button variant="ghost" size="sm" onClick={() => refetchRiskEvents()} disabled={isRiskEventsRefreshing}>
             <RefreshCw size={12} className={isRiskEventsRefreshing ? 'animate-spin' : ''} />
             Refresh
           </Button>
         </div>
-        <p className="mt-2 text-xs text-slate-500">Normalized risk telemetry derived from audit activity (login failures, lockouts, anomaly detections, protocol guardrails).</p>
-        <div className="mt-4 divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
+        <p className="mt-2 text-xs text-muted-foreground">Normalized risk telemetry derived from audit activity (login failures, lockouts, anomaly detections, protocol guardrails).</p>
+        <div className="mt-4 divide-y divide-border rounded-lg border border-border bg-card">
           {(riskEvents ?? []).length === 0 ? (
-            <div className="px-3 py-3 text-sm text-slate-500">No risk events recorded yet.</div>
+            <div className="px-3 py-3 text-sm text-muted-foreground">No risk events recorded yet.</div>
           ) : (
             (riskEvents ?? []).map((event) => (
               <div key={event.id} className="flex items-center justify-between px-3 py-2.5">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-slate-900">{event.title}</p>
-                  <p className="text-xs text-slate-500">{event.sourceType} {event.ip ? `• ${event.ip}` : ''}</p>
+                  <p className="truncate text-sm font-medium text-foreground">{event.title}</p>
+                  <p className="text-xs text-muted-foreground">{event.sourceType} {event.ip ? `• ${event.ip}` : ''}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase ${event.severity === 'critical' ? 'border-red-200 bg-red-50 text-red-700' : event.severity === 'high' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>
+                  <StatusBadge tone={event.severity === 'critical' ? 'danger' : event.severity === 'high' ? 'warning' : 'neutral'} className="uppercase">
                     {event.severity}
-                  </span>
-                  <span className="text-xs text-slate-400">{new Date(event.createdAt).toLocaleString()}</span>
+                  </StatusBadge>
+                  <span className="text-xs text-muted-foreground">{new Date(event.createdAt).toLocaleString()}</span>
                 </div>
               </div>
             ))
           )}
         </div>
-      </section>
+      </Card>
 
       <ProvisioningAdminPanel />
 
-      <section className={sectionCls}>
+      <Card className="p-5">
         <div className="flex items-center gap-2">
           <div className={sectionIconCls}><ShieldCheck size={14} /></div>
-          <h2 className="text-base font-semibold text-slate-900">Dedicated Operations Views</h2>
+          <h2 className="text-base font-semibold text-foreground">Dedicated Operations Views</h2>
         </div>
-        <p className="mt-2 text-xs text-slate-500">
+        <p className="mt-2 text-xs text-muted-foreground">
           Governance, elevation tracking, and auth metrics now have dedicated pages for focused workflows.
         </p>
         <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -364,46 +366,46 @@ export default function Administration() {
             <Link
               key={item.to}
               to={item.to}
-              className="group rounded-lg border border-slate-200 bg-white p-4 text-sm transition-colors hover:border-slate-300 hover:bg-slate-50"
+              className="group rounded-lg border border-border bg-card p-4 text-sm transition-colors hover:border-border hover:bg-muted/50"
             >
-              <p className="font-semibold text-slate-900">{item.title}</p>
-              <p className="mt-1 text-xs text-slate-600">{item.description}</p>
-              <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-slate-700">
+              <p className="font-semibold text-foreground">{item.title}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{item.description}</p>
+              <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-foreground">
                 Open view <ArrowRight size={12} className="transition-transform group-hover:translate-x-0.5" />
               </span>
             </Link>
           ))}
           {operationLinks.length === 0 ? (
-            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+            <p className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
               You do not currently have permission to access these dedicated operations views.
             </p>
           ) : null}
         </div>
-      </section>
+      </Card>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <section className={sectionCls}>
+        <Card className="p-5">
           <div className="flex items-center gap-2">
             <div className={sectionIconCls}><Network size={14} /></div>
-            <h2 className="text-base font-semibold text-slate-900">Database Provider</h2>
+            <h2 className="text-base font-semibold text-foreground">Database Provider</h2>
           </div>
           <div className="mt-4 space-y-4">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Provider</label>
-              <select
+              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Provider</label>
+              <Select
                 value={form.databaseProvider}
                 onChange={(e) => setForm((v) => ({ ...v, databaseProvider: e.target.value as SettingsForm['databaseProvider'] }))}
-                className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+                className="h-9 w-full rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/20"
               >
                 <option value="sqlite">SQLite</option>
                 <option value="postgresql">PostgreSQL</option>
                 <option value="mysql">MySQL</option>
-              </select>
+              </Select>
             </div>
 
             {form.databaseProvider === 'sqlite' ? (
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">SQLite Database Path</label>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">SQLite Database Path</label>
                 <Input
                   value={form.databasePath}
                   onChange={(e) => setForm((v) => ({ ...v, databasePath: e.target.value }))}
@@ -412,7 +414,7 @@ export default function Administration() {
               </div>
             ) : (
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">External Database URL</label>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">External Database URL</label>
                 <Input
                   value={form.externalDatabaseUrl}
                   onChange={(e) => setForm((v) => ({ ...v, externalDatabaseUrl: e.target.value }))}
@@ -421,7 +423,7 @@ export default function Administration() {
               </div>
             )}
 
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               Provider settings are persisted now; full PostgreSQL/MySQL runtime persistence is part of the ongoing repository rewrite.
             </p>
 
@@ -444,125 +446,125 @@ export default function Administration() {
               </div>
             ) : null}
           </div>
-        </section>
+        </Card>
 
-        <section className={sectionCls}>
+        <Card className="p-5">
           <div className="flex items-center gap-2">
             <div className={sectionIconCls}><Lock size={14} /></div>
-            <h2 className="text-base font-semibold text-slate-900">Transport Security</h2>
+            <h2 className="text-base font-semibold text-foreground">Transport Security</h2>
           </div>
           <div className="mt-4 space-y-4">
-            <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-700">
+            <label className="flex items-start gap-3 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
               <input type="checkbox" checked={form.requireHttps} onChange={(e) => setForm((v) => ({ ...v, requireHttps: e.target.checked }))} className={checkboxCls} />
               <div>
-                <p className="font-medium text-slate-900">Require HTTPS</p>
-                <p className="mt-1 text-slate-600">Reject non-HTTPS requests at the server edge unless they arrive through a forwarded HTTPS proxy.</p>
+                <p className="font-medium text-foreground">Require HTTPS</p>
+                <p className="mt-1 text-muted-foreground">Reject non-HTTPS requests at the server edge unless they arrive through a forwarded HTTPS proxy.</p>
               </div>
             </label>
 
-            <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-700">
+            <label className="flex items-start gap-3 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
               <input type="checkbox" checked={form.secureCookies} onChange={(e) => setForm((v) => ({ ...v, secureCookies: e.target.checked }))} className={checkboxCls} />
               <div>
-                <p className="font-medium text-slate-900">Use secure cookies</p>
-                <p className="mt-1 text-slate-600">Marks admin session and CSRF cookies as secure so browsers only send them over HTTPS.</p>
+                <p className="font-medium text-foreground">Use secure cookies</p>
+                <p className="mt-1 text-muted-foreground">Marks admin session and CSRF cookies as secure so browsers only send them over HTTPS.</p>
               </div>
             </label>
 
-            <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-700">
+            <label className="flex items-start gap-3 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
               <input type="checkbox" checked={form.requireHttpsRedirectUris} onChange={(e) => setForm((v) => ({ ...v, requireHttpsRedirectUris: e.target.checked }))} className={checkboxCls} />
               <div>
-                <p className="font-medium text-slate-900">Require HTTPS redirect URIs</p>
-                <p className="mt-1 text-slate-600">Enforces HTTPS for newly created or updated client redirect URIs, except localhost development callbacks.</p>
+                <p className="font-medium text-foreground">Require HTTPS redirect URIs</p>
+                <p className="mt-1 text-muted-foreground">Enforces HTTPS for newly created or updated client redirect URIs, except localhost development callbacks.</p>
               </div>
             </label>
           </div>
-        </section>
+        </Card>
 
-        <section className={sectionCls}>
+        <Card className="p-5">
           <div className="flex items-center gap-2">
             <div className={sectionIconCls}><Network size={14} /></div>
-            <h2 className="text-base font-semibold text-slate-900">CORS Policy</h2>
+            <h2 className="text-base font-semibold text-foreground">CORS Policy</h2>
           </div>
           <div className="mt-4 space-y-4">
-            <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-700">
+            <label className="flex items-start gap-3 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
               <input type="checkbox" checked={form.allowAnyCorsOrigin} onChange={(e) => setForm((v) => ({ ...v, allowAnyCorsOrigin: e.target.checked }))} className={checkboxCls} />
               <div>
-                <p className="font-medium text-slate-900">Allow any origin</p>
-                <p className="mt-1 text-slate-600">Permits cross-origin requests from any browser origin. Disable this for production-grade isolation.</p>
+                <p className="font-medium text-foreground">Allow any origin</p>
+                <p className="mt-1 text-muted-foreground">Permits cross-origin requests from any browser origin. Disable this for production-grade isolation.</p>
               </div>
             </label>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Auto-Added App Origins</label>
-              <div className="min-h-[48px] w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Auto-Added App Origins</label>
+              <div className="min-h-[48px] w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground">
                 {appCorsOrigins.length === 0 ? (
-                  <p className="text-xs text-slate-500">No app URLs or resource URLs found to auto-allow.</p>
+                  <p className="text-xs text-muted-foreground">No app URLs or resource URLs found to auto-allow.</p>
                 ) : (
                   <div className="flex flex-wrap gap-1.5">
                     {appCorsOrigins.map((origin) => (
-                      <span key={origin} className="rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-mono text-slate-700">
+                      <span key={origin} className="rounded border border-border bg-card px-2 py-0.5 text-xs font-mono text-foreground">
                         {origin}
                       </span>
                     ))}
                   </div>
                 )}
               </div>
-              <p className="mt-2 text-xs text-slate-500">These origins are synced from app URL and app resource URLs and are included automatically when saving.</p>
+              <p className="mt-2 text-xs text-muted-foreground">These origins are synced from app URL and app resource URLs and are included automatically when saving.</p>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Allowed Origins</label>
-              <textarea
+              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Allowed Origins</label>
+              <Textarea
                 value={form.corsAllowedOriginsText}
                 onChange={(e) => setForm((v) => ({ ...v, corsAllowedOriginsText: e.target.value }))}
                 disabled={form.allowAnyCorsOrigin}
-                className="min-h-[140px] w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 disabled:bg-slate-50 disabled:text-slate-400 font-mono"
+                className="min-h-[140px] w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:bg-muted/50 disabled:text-muted-foreground font-mono"
                 placeholder={'https://admin.example.com\nhttps://portal.example.com'}
               />
-              <p className="mt-2 text-xs text-slate-500">One origin per line. Include scheme and host, for example <span className="font-mono">https://admin.example.com</span>. Manual values here are merged with the auto-added app origins.</p>
+              <p className="mt-2 text-xs text-muted-foreground">One origin per line. Include scheme and host, for example <span className="font-mono">https://admin.example.com</span>. Manual values here are merged with the auto-added app origins.</p>
             </div>
           </div>
-        </section>
+        </Card>
 
-        <section className={sectionCls}>
+        <Card className="p-5">
           <div className="flex items-center gap-2">
             <div className={sectionIconCls}><ShieldCheck size={14} /></div>
-            <h2 className="text-base font-semibold text-slate-900">OAuth And Token Security</h2>
+            <h2 className="text-base font-semibold text-foreground">OAuth And Token Security</h2>
           </div>
           <div className="mt-4 space-y-4">
-            <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-700">
+            <label className="flex items-start gap-3 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
               <input type="checkbox" checked={form.requireS256Pkce} onChange={(e) => setForm((v) => ({ ...v, requireS256Pkce: e.target.checked }))} className={checkboxCls} />
               <div>
-                <p className="font-medium text-slate-900">Require S256 PKCE</p>
-                <p className="mt-1 text-slate-600">Rejects plain PKCE and requires the stronger S256 code challenge method for authorization requests.</p>
+                <p className="font-medium text-foreground">Require S256 PKCE</p>
+                <p className="mt-1 text-muted-foreground">Rejects plain PKCE and requires the stronger S256 code challenge method for authorization requests.</p>
               </div>
             </label>
 
-            <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-700">
+            <label className="flex items-start gap-3 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
               <input type="checkbox" checked={form.allowImplicitFlow} onChange={(e) => setForm((v) => ({ ...v, allowImplicitFlow: e.target.checked }))} className={checkboxCls} />
               <div>
-                <p className="font-medium text-slate-900">Allow implicit flow</p>
-                <p className="mt-1 text-slate-600">Keeps front-channel token responses available, including <span className="font-mono">response_type=token</span>, <span className="font-mono">id_token token</span>, and <span className="font-mono">code id_token token</span>. Disable this to remove weaker implicit and hybrid front-channel paths.</p>
+                <p className="font-medium text-foreground">Allow implicit flow</p>
+                <p className="mt-1 text-muted-foreground">Keeps front-channel token responses available, including <span className="font-mono">response_type=token</span>, <span className="font-mono">id_token token</span>, and <span className="font-mono">code id_token token</span>. Disable this to remove weaker implicit and hybrid front-channel paths.</p>
               </div>
             </label>
 
-            <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-700">
-              <p className="font-medium text-slate-900">Token signing algorithm</p>
+            <div className="rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
+              <p className="font-medium text-foreground">Token signing algorithm</p>
               <div className="mt-2"><StatusBadge tone="success" mono>RS256</StatusBadge></div>
-              <p className="mt-2 text-slate-600">Tokens are currently signed using RS256. This implementation remains enforced server-side.</p>
-              <p className="mt-1 text-slate-600">Access and refresh token lifetimes are configured per OAuth client on the <Link to="/clients" className="text-sky-600 hover:underline">Clients</Link> page.</p>
+              <p className="mt-2 text-muted-foreground">Tokens are currently signed using RS256. This implementation remains enforced server-side.</p>
+              <p className="mt-1 text-muted-foreground">Access and refresh token lifetimes are configured per OAuth client on the <Link to="/clients" className="text-sky-600 hover:underline">Clients</Link> page.</p>
             </div>
           </div>
-        </section>
+        </Card>
 
-        <section className={sectionCls}>
+        <Card className="p-5">
           <div className="flex items-center gap-2">
             <div className={sectionIconCls}><ShieldCheck size={14} /></div>
-            <h2 className="text-base font-semibold text-slate-900">Runtime Attack Controls</h2>
+            <h2 className="text-base font-semibold text-foreground">Runtime Attack Controls</h2>
           </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Login Failure Window</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Login Failure Window</label>
               <Input
                 type="number"
                 min={1}
@@ -570,11 +572,11 @@ export default function Administration() {
                 value={form.loginFailureWindowMinutes}
                 onChange={(e) => setForm((v) => ({ ...v, loginFailureWindowMinutes: Number(e.target.value || 1) }))}
               />
-              <p className="mt-2 text-xs text-slate-500">How long failed logins are counted before the counter resets, in minutes.</p>
+              <p className="mt-2 text-xs text-muted-foreground">How long failed logins are counted before the counter resets, in minutes.</p>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Lockout Threshold</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Lockout Threshold</label>
               <Input
                 type="number"
                 min={1}
@@ -582,11 +584,11 @@ export default function Administration() {
                 value={form.loginLockoutThreshold}
                 onChange={(e) => setForm((v) => ({ ...v, loginLockoutThreshold: Number(e.target.value || 1) }))}
               />
-              <p className="mt-2 text-xs text-slate-500">Number of failed logins allowed before the account is temporarily locked.</p>
+              <p className="mt-2 text-xs text-muted-foreground">Number of failed logins allowed before the account is temporarily locked.</p>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Lockout Duration</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Lockout Duration</label>
               <Input
                 type="number"
                 min={1}
@@ -594,11 +596,11 @@ export default function Administration() {
                 value={form.loginLockoutDurationMinutes}
                 onChange={(e) => setForm((v) => ({ ...v, loginLockoutDurationMinutes: Number(e.target.value || 1) }))}
               />
-              <p className="mt-2 text-xs text-slate-500">How long the lockout remains active after the threshold is reached, in minutes.</p>
+              <p className="mt-2 text-xs text-muted-foreground">How long the lockout remains active after the threshold is reached, in minutes.</p>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Session Anomaly Concurrency</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Session Anomaly Concurrency</label>
               <Input
                 type="number"
                 min={1}
@@ -606,37 +608,37 @@ export default function Administration() {
                 value={form.sessionAnomalyConcurrencyThreshold}
                 onChange={(e) => setForm((v) => ({ ...v, sessionAnomalyConcurrencyThreshold: Number(e.target.value || 1) }))}
               />
-              <p className="mt-2 text-xs text-slate-500">Raises a session anomaly event when a user exceeds this many concurrent active sessions.</p>
+              <p className="mt-2 text-xs text-muted-foreground">Raises a session anomaly event when a user exceeds this many concurrent active sessions.</p>
             </div>
           </div>
 
-          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-700">
-            <p className="font-medium text-slate-900">What these controls affect</p>
-            <p className="mt-2 text-slate-600">These values are applied immediately to login lockout tracking and session anomaly detection without restarting the server.</p>
+          <div className="mt-4 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
+            <p className="font-medium text-foreground">What these controls affect</p>
+            <p className="mt-2 text-muted-foreground">These values are applied immediately to login lockout tracking and session anomaly detection without restarting the server.</p>
           </div>
-        </section>
+        </Card>
 
-        <section className={sectionCls}>
+        <Card className="p-5">
           <div className="flex items-center gap-2">
             <div className={sectionIconCls}><Mail size={14} /></div>
-            <h2 className="text-base font-semibold text-slate-900">Email Delivery</h2>
+            <h2 className="text-base font-semibold text-foreground">Email Delivery</h2>
           </div>
           <div className="mt-4 space-y-4">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Transport</label>
-              <select
+              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Transport</label>
+              <Select
                 value={form.emailTransport}
                 onChange={(e) => setForm((v) => ({ ...v, emailTransport: e.target.value as SettingsForm['emailTransport'] }))}
-                className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+                className="h-9 w-full rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/20"
               >
                 <option value="disabled">Disabled</option>
                 <option value="log">Log only (development)</option>
                 <option value="smtp">SMTP</option>
-              </select>
+              </Select>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">From Address</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">From Address</label>
               <Input
                 type="email"
                 value={form.emailFrom}
@@ -647,7 +649,7 @@ export default function Administration() {
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">SMTP Host</label>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">SMTP Host</label>
                 <Input
                   value={form.smtpHost}
                   onChange={(e) => setForm((v) => ({ ...v, smtpHost: e.target.value }))}
@@ -656,7 +658,7 @@ export default function Administration() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">SMTP Port</label>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">SMTP Port</label>
                 <Input
                   type="number"
                   value={form.smtpPort}
@@ -666,7 +668,7 @@ export default function Administration() {
               </div>
             </div>
 
-            <label className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-sm text-slate-700">
+            <label className="flex items-start gap-3 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
               <input
                 type="checkbox"
                 checked={form.smtpSecure}
@@ -675,14 +677,14 @@ export default function Administration() {
                 className={checkboxCls}
               />
               <div>
-                <p className="font-medium text-slate-900">Use TLS (secure)</p>
-                <p className="mt-1 text-slate-600">Enable for SMTPS transports, usually port 465.</p>
+                <p className="font-medium text-foreground">Use TLS (secure)</p>
+                <p className="mt-1 text-muted-foreground">Enable for SMTPS transports, usually port 465.</p>
               </div>
             </label>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">SMTP Username</label>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">SMTP Username</label>
                 <Input
                   value={form.smtpUser}
                   onChange={(e) => setForm((v) => ({ ...v, smtpUser: e.target.value }))}
@@ -690,7 +692,7 @@ export default function Administration() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">SMTP Password</label>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">SMTP Password</label>
                 <Input
                   type="password"
                   value={form.smtpPass}
@@ -700,8 +702,8 @@ export default function Administration() {
               </div>
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Send Test Email</label>
+            <div className="rounded-lg border border-border bg-muted/50 p-3">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Send Test Email</label>
               <div className="flex flex-wrap gap-2">
                 <Input
                   type="email"
@@ -720,32 +722,32 @@ export default function Administration() {
               </div>
             </div>
           </div>
-        </section>
+        </Card>
 
-        <section className={sectionCls}>
+        <Card className="p-5">
           <div className="flex items-center gap-2">
             <div className={sectionIconCls}><ShieldCheck size={14} /></div>
-            <h2 className="text-base font-semibold text-slate-900">Experience Customization</h2>
+            <h2 className="text-base font-semibold text-foreground">Experience Customization</h2>
           </div>
           <div className="mt-4 space-y-3">
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-muted-foreground">
               Manage login, consent, and portal branding in the dedicated Experience Customization workspace.
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               The dedicated editor supports default, client, and app scopes with guided fields and preview.
             </p>
             <Link
               to="/experience-customization"
-              className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              className="inline-flex h-9 items-center rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted/50"
             >
               Open Experience Customization
             </Link>
           </div>
-        </section>
+        </Card>
 
-        <section className={sectionCls}>
-          <h2 className="text-base font-semibold text-slate-900">What Changes Immediately</h2>
-          <ul className="mt-4 space-y-2 text-sm text-slate-700">
+        <Card className="p-5">
+          <h2 className="text-base font-semibold text-foreground">What Changes Immediately</h2>
+          <ul className="mt-4 space-y-2 text-sm text-foreground">
             <li>HTTPS requirement is applied on the next incoming request.</li>
             <li>CORS origin policy is checked on the next browser preflight or cross-origin request.</li>
             <li>Cookie security changes affect the next issued CSRF or session cookie.</li>
@@ -755,7 +757,7 @@ export default function Administration() {
             <li>Database provider settings are persisted immediately and take effect once the backend storage rewrite path is activated.</li>
             <li>Email transport settings are used immediately for recovery and other email-driven flows.</li>
           </ul>
-        </section>
+        </Card>
       </div>
 
       {(saveMessage || saveError) ? (

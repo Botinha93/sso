@@ -1,3 +1,6 @@
+import Card from './ui/Card'
+import Textarea from './ui/Textarea'
+import Select from './ui/Select'
 import { useMemo, useState } from 'react'
 import {
   useAccessRequests,
@@ -11,7 +14,6 @@ import {
   useStalledAccessRequests
 } from '../hooks/useApi'
 
-const sectionCls = 'rounded-xl border border-slate-200 bg-white p-5 shadow-sm'
 
 type AccessRequestStatusFilter = 'all' | 'pending' | 'approved' | 'rejected' | 'expired' | 'cancelled'
 
@@ -82,52 +84,52 @@ export default function AccessGovernancePanel() {
 
   return (
     <div className="grid gap-6 xl:grid-cols-2">
-      <section className={sectionCls}>
-        <h2 className="text-base font-semibold text-slate-900">Access Request Intake</h2>
-        <p className="mt-1 text-sm text-slate-600">Create lightweight governance requests before assignment approval workflows are introduced.</p>
+      <Card className="p-5">
+        <h2 className="text-base font-semibold text-foreground">Access Request Intake</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Create lightweight governance requests before assignment approval workflows are introduced.</p>
 
         <div className="mt-4 grid gap-2">
-          <select
+          <Select
             value={subjectUserId}
             onChange={(event) => setSubjectUserId(event.target.value)}
-            className="h-9 rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+            className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
           >
             <option value="">Select target user</option>
             {users.map((user) => (
               <option key={user.id} value={user.id}>{user.username} ({user.email})</option>
             ))}
-          </select>
+          </Select>
 
           <div className="grid gap-2 sm:grid-cols-2">
-            <select
+            <Select
               value={entitlementType}
               onChange={(event) => {
                 setEntitlementType(event.target.value)
                 setEntitlementValue('')
               }}
-              className="h-9 rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+              className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
             >
               <option value="role">Role</option>
               <option value="group">Group</option>
-            </select>
-            <select
+            </Select>
+            <Select
               value={entitlementValue}
               onChange={(event) => setEntitlementValue(event.target.value)}
-              className="h-9 rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+              className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
             >
               <option value="">Select {entitlementType}</option>
               {entitlementOptions.map((option) => (
                 <option key={option.id} value={option.id}>{option.name}</option>
               ))}
-            </select>
+            </Select>
           </div>
 
-          <textarea
+          <Textarea
             value={justification}
             onChange={(event) => setJustification(event.target.value)}
             rows={3}
             placeholder="Why this access is needed"
-            className="rounded-lg border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+            className="rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
           />
 
           <div className="grid grid-cols-2 gap-2">
@@ -135,7 +137,7 @@ export default function AccessGovernancePanel() {
               type="date"
               value={expiresAtDate}
               onChange={(event) => setExpiresAtDate(event.target.value)}
-              className="h-9 rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+              className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
             />
             <input
               type="time"
@@ -143,10 +145,10 @@ export default function AccessGovernancePanel() {
               onChange={(event) => setExpiresAtTime(event.target.value)}
               step={60}
               disabled={!expiresAtDate}
-              className="h-9 rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 disabled:bg-slate-50 disabled:text-slate-400"
+              className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:bg-muted/50 disabled:text-muted-foreground"
             />
           </div>
-          <p className="text-xs text-slate-500">Expiration is optional. Select date first, then time.</p>
+          <p className="text-xs text-muted-foreground">Expiration is optional. Select date first, then time.</p>
 
           <div>
             <button
@@ -158,18 +160,18 @@ export default function AccessGovernancePanel() {
             </button>
           </div>
         </div>
-      </section>
+      </Card>
 
-      <section className={sectionCls}>
+      <Card className="p-5">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <h2 className="text-base font-semibold text-slate-900">Recent Access Requests</h2>
-            <p className="mt-1 text-sm text-slate-600">Track pending and finalized requests for audit-ready visibility.</p>
+            <h2 className="text-base font-semibold text-foreground">Recent Access Requests</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Track pending and finalized requests for audit-ready visibility.</p>
           </div>
-          <select
+          <Select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value as AccessRequestStatusFilter)}
-            className="h-9 rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+            className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
           >
             <option value="all">All statuses</option>
             <option value="pending">Pending</option>
@@ -177,7 +179,7 @@ export default function AccessGovernancePanel() {
             <option value="rejected">Rejected</option>
             <option value="expired">Expired</option>
             <option value="cancelled">Cancelled</option>
-          </select>
+          </Select>
         </div>
 
         <div className="mt-4 space-y-2">
@@ -185,7 +187,7 @@ export default function AccessGovernancePanel() {
             <button
               onClick={() => sweepExpiredRequests(true)}
               disabled={processExpiredAccessRequests.isPending}
-              className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              className="inline-flex h-8 items-center rounded-lg border border-border bg-card px-3 text-xs font-medium text-foreground hover:bg-muted/50 disabled:opacity-50"
             >
               Dry-Run Expiration Sweep
             </button>
@@ -197,33 +199,33 @@ export default function AccessGovernancePanel() {
               Run Expiration Sweep
             </button>
           </div>
-          {sweepMessage ? <p className="text-xs text-slate-600">{sweepMessage}</p> : null}
-          {requests.length === 0 ? <p className="text-sm text-slate-500">No access requests found for this filter.</p> : null}
+          {sweepMessage ? <p className="text-xs text-muted-foreground">{sweepMessage}</p> : null}
+          {requests.length === 0 ? <p className="text-sm text-muted-foreground">No access requests found for this filter.</p> : null}
           {requests.map((request) => {
             const subject = usersById.get(request.subjectUserId)
             return (
-              <div key={request.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+              <div key={request.id} className="rounded-lg border border-border bg-muted/50 p-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-medium text-slate-900">{request.entitlementType}: {request.entitlementValue}</p>
-                  <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700">{request.status}</span>
+                  <p className="font-medium text-foreground">{request.entitlementType}: {request.entitlementValue}</p>
+                  <StatusBadge tone={request.status === 'approved' ? 'success' : request.status === 'rejected' || request.status === 'expired' ? 'danger' : 'warning'}>{request.status}</StatusBadge>
                 </div>
-                <p className="mt-1 text-xs text-slate-600">Subject: {subject ? `${subject.username} (${subject.email})` : request.subjectUserId}</p>
-                <p className="mt-1 text-xs text-slate-600">Justification: {request.justification}</p>
-                <p className="mt-1 text-xs text-slate-500">Created: {new Date(request.createdAt).toLocaleString()}</p>
-                {request.expiresAt ? <p className="mt-1 text-xs text-slate-500">Expires: {new Date(request.expiresAt).toLocaleString()}</p> : null}
+                <p className="mt-1 text-xs text-muted-foreground">Subject: {subject ? `${subject.username} (${subject.email})` : request.subjectUserId}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Justification: {request.justification}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Created: {new Date(request.createdAt).toLocaleString()}</p>
+                {request.expiresAt ? <p className="mt-1 text-xs text-muted-foreground">Expires: {new Date(request.expiresAt).toLocaleString()}</p> : null}
                 {request.status === 'pending' ? (
                   <div className="mt-2 flex gap-2">
                     <button
                       onClick={() => approveRequest(request.id)}
                       disabled={approveAccessRequest.isPending}
-                      className="rounded border border-emerald-200 bg-white px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                      className="rounded border border-emerald-200 bg-card px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
                     >
                       Approve
                     </button>
                     <button
                       onClick={() => rejectRequest(request.id)}
                       disabled={rejectAccessRequest.isPending}
-                      className="rounded border border-rose-200 bg-white px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                      className="rounded border border-rose-200 bg-card px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50"
                     >
                       Reject
                     </button>
@@ -233,32 +235,32 @@ export default function AccessGovernancePanel() {
             )
           })}
         </div>
-      </section>
+      </Card>
 
       {/* Stalled Requests */}
-      <section className={`${sectionCls} xl:col-span-2`}>
+      <Card className="p-5 xl:col-span-2">
         <div className="flex items-center justify-between gap-2 mb-4">
           <div>
-            <h2 className="text-base font-semibold text-slate-900">Stalled Access Requests</h2>
-            <p className="mt-0.5 text-sm text-slate-600">Pending requests that have not been acted on within the threshold — may need escalation.</p>
+            <h2 className="text-base font-semibold text-foreground">Stalled Access Requests</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">Pending requests that have not been acted on within the threshold — may need escalation.</p>
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-xs text-slate-500">Stalled after</label>
-            <select
+            <label className="text-xs text-muted-foreground">Stalled after</label>
+            <Select
               value={stalledAfterMinutes}
               onChange={e => setStalledAfterMinutes(Number(e.target.value))}
-              className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none"
+              className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground outline-none"
             >
               <option value={30}>30 min</option>
               <option value={60}>1 hr</option>
               <option value={240}>4 hrs</option>
               <option value={1440}>24 hrs</option>
               <option value={10080}>7 days</option>
-            </select>
+            </Select>
           </div>
         </div>
         {stalledRequests.length === 0 ? (
-          <p className="text-sm text-slate-400">No stalled requests in this window.</p>
+          <p className="text-sm text-muted-foreground">No stalled requests in this window.</p>
         ) : (
           <div className="space-y-2">
             {stalledRequests.map((request: any) => {
@@ -266,18 +268,19 @@ export default function AccessGovernancePanel() {
               return (
                 <div key={request.id} className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-sm">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-medium text-slate-900">{request.entitlementType}: {request.entitlementValue}</p>
-                    <span className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">stalled</span>
+                    <p className="font-medium text-foreground">{request.entitlementType}: {request.entitlementValue}</p>
+                    <StatusBadge tone="warning">stalled</StatusBadge>
                   </div>
-                  <p className="mt-1 text-xs text-slate-600">Subject: {subject ? `${subject.username} (${subject.email})` : request.subjectUserId}</p>
-                  <p className="mt-1 text-xs text-slate-600">Justification: {request.justification}</p>
-                  <p className="mt-1 text-xs text-slate-500">Created: {new Date(request.createdAt).toLocaleString()}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Subject: {subject ? `${subject.username} (${subject.email})` : request.subjectUserId}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Justification: {request.justification}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Created: {new Date(request.createdAt).toLocaleString()}</p>
                 </div>
               )
             })}
           </div>
         )}
-      </section>
+      </Card>
     </div>
   )
 }
+import StatusBadge from './ui/StatusBadge'

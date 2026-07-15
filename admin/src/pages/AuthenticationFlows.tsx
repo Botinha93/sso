@@ -1,3 +1,5 @@
+import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
+import Select from '../components/ui/Select'
 import { Check, ClipboardList, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
@@ -97,8 +99,7 @@ const blankForm = {
   stages: ['password', 'federation', 'consent'] as StageType[],
 }
 
-const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
+const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
 
 const AuthenticationFlows = () => {
   const [searchInput, setSearchInput] = useState('')
@@ -214,14 +215,14 @@ const AuthenticationFlows = () => {
         <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search authentication flows…" />
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
-          <h4 className="text-sm font-semibold text-slate-700">Configured Authentication Flows</h4>
+      <Table className="overflow-hidden">
+        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
+          <h4 className="text-sm font-semibold text-foreground">Configured Authentication Flows</h4>
           <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </Button>
-        </div>
+        </TableHeaderRow>
 
         {isLoading ? (
           <TableSkeleton rows={4} />
@@ -232,15 +233,15 @@ const AuthenticationFlows = () => {
             description="Create a flow to define how users authenticate."
           />
         ) : (
-          <div className="divide-y divide-slate-100">
+          <TableBody className="divide-y divide-border">
             {flows.map((flow) => (
-              <div key={flow.id} className="px-5 py-4 hover:bg-slate-50/50 transition-colors flex items-start justify-between gap-4">
+              <TableRow key={flow.id} className="px-5 py-4 hover:bg-muted/50 transition-colors flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
-                      <ClipboardList size={14} className="text-slate-500" />
+                    <div className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center">
+                      <ClipboardList size={14} className="text-muted-foreground" />
                     </div>
-                    <h5 className="text-sm font-medium text-slate-900">{flow.name}</h5>
+                    <h5 className="text-sm font-medium text-foreground">{flow.name}</h5>
                     <StatusBadge tone="neutral" className="uppercase tracking-wider">{flow.designation}</StatusBadge>
                     {flow.enabled && (
                       <StatusBadge tone="success">
@@ -248,7 +249,7 @@ const AuthenticationFlows = () => {
                       </StatusBadge>
                     )}
                   </div>
-                  <p className="text-xs text-slate-500 mb-2">{flow.description}</p>
+                  <p className="text-xs text-muted-foreground mb-2">{flow.description}</p>
                   <div className="flex flex-wrap gap-1 mb-2">
                     {flow.grantTypes.map((grantType) => (
                       <StatusBadge key={`${flow.id}-grant-${grantType}`} tone="accent" mono>
@@ -278,7 +279,7 @@ const AuthenticationFlows = () => {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="hover:bg-red-50 hover:text-red-600"
+                    className="hover:bg-rose-50 hover:text-rose-600"
                     onClick={() => onDelete(flow)}
                     disabled={deleteFlow.isPending}
                     title="Delete flow"
@@ -286,11 +287,11 @@ const AuthenticationFlows = () => {
                     <Trash2 size={14} />
                   </Button>
                 </div>
-              </div>
+              </TableRow>
             ))}
-          </div>
+          </TableBody>
         )}
-      </Card>
+      </Table>
 
       <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title="Create Authentication Flow">
         <FlowForm
@@ -376,7 +377,7 @@ function FlowForm({
 
   return (
     <div className="space-y-4">
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-xs text-rose-600">{error}</p>}
       <div>
         <label className={labelCls}>Flow Name</label>
         <Input value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="High assurance login" />
@@ -387,22 +388,22 @@ function FlowForm({
       </div>
       <div>
         <label className={labelCls}>Designation</label>
-        <select className={fieldCls} value={form.designation} onChange={(e) => setForm((prev) => ({ ...prev, designation: e.target.value as FlowDesignation }))}>
+        <Select value={form.designation} onChange={(e) => setForm((prev) => ({ ...prev, designation: e.target.value as FlowDesignation }))}>
           {DESIGNATION_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>{option.label}</option>
           ))}
-        </select>
+        </Select>
       </div>
       <div>
         <label className={labelCls}>Grant Types</label>
-        <div className="space-y-2 rounded-lg border border-slate-200 p-2 flex flex-col gap-5">
+        <div className="space-y-2 rounded-lg border border-border p-2 flex flex-col gap-5">
           {GRANT_OPTIONS.map((option) => (
-            <label key={option.value} className="inline-flex items-center gap-1 text-sm text-slate-700 cursor-pointer">
+            <label key={option.value} className="inline-flex items-center gap-1 text-sm text-foreground cursor-pointer">
               <input
                 type="checkbox"
                 checked={form.grantTypes.includes(option.value)}
                 onChange={() => toggleGrant(option.value)}
-                className="rounded border-slate-300"
+                className="rounded border-border"
               />
               {option.label}
             </label>
@@ -411,30 +412,30 @@ function FlowForm({
       </div>
       <div>
         <label className={labelCls}>Stages</label>
-        <div className="space-y-2 rounded-lg border border-slate-200 p-2">
+        <div className="space-y-2 rounded-lg border border-border p-2">
           {STAGE_OPTIONS.map((option) => {
             const enabled = form.stages.includes(option.value)
             const order = form.stages.indexOf(option.value)
 
             return (
-              <div key={option.value} className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-slate-50">
-                <label className="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+              <div key={option.value} className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-muted/50">
+                <label className="inline-flex items-center gap-2 text-sm text-foreground cursor-pointer">
                   <input
                     type="checkbox"
                     checked={enabled}
                     onChange={() => toggleStage(option.value)}
-                    className="rounded border-slate-300"
+                    className="rounded border-border"
                   />
                   {option.label}
                 </label>
                 {enabled ? (
                   <div className="inline-flex items-center gap-1">
-                    <span className="text-xs text-slate-500 font-mono">#{order + 1}</span>
+                    <span className="text-xs text-muted-foreground font-mono">#{order + 1}</span>
                     <Button variant="outline" size="sm" onClick={() => moveStage(option.value, -1)}>Up</Button>
                     <Button variant="outline" size="sm" onClick={() => moveStage(option.value, 1)}>Down</Button>
                   </div>
                 ) : (
-                  <span className="text-xs text-slate-400">Disabled</span>
+                  <span className="text-xs text-muted-foreground">Disabled</span>
                 )}
               </div>
             )
@@ -442,10 +443,10 @@ function FlowForm({
         </div>
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+      <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
         <input
           type="checkbox"
-          className="rounded border-slate-300"
+          className="rounded border-border"
           checked={form.enabled}
           onChange={(e) => setForm((prev) => ({ ...prev, enabled: e.target.checked }))}
         />

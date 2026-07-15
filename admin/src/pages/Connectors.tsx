@@ -1,3 +1,6 @@
+import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
+import Textarea from '../components/ui/Textarea'
+import Select from '../components/ui/Select'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, RefreshCw, Trash2, Play, Settings2, GitMerge } from 'lucide-react'
@@ -17,8 +20,7 @@ import {
   type ConnectorDto,
 } from '../hooks/useApi'
 
-const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
+const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
 
 type SchedulePreset = 'none' | 'every_15m' | 'hourly' | 'daily_02_00' | 'weekly_mon_02_00' | 'custom_existing'
 
@@ -146,7 +148,7 @@ export default function Connectors() {
 
   const ConnectorForm = ({ onSubmit, isLoading }: { onSubmit: () => void; isLoading: boolean }) => (
     <div className="space-y-4">
-      {formError && <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{formError}</div>}
+      {formError && <div className="rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-700">{formError}</div>}
       <div>
         <label className={labelCls}>Name</label>
         <Input placeholder="My Connector" value={form.name}
@@ -154,17 +156,16 @@ export default function Connectors() {
       </div>
       <div>
         <label className={labelCls}>Type</label>
-        <select className={fieldCls} value={form.type}
+        <Select value={form.type}
           onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as ConnectorDto['type'] }))}>
           {(['ldap', 'scim', 'csv', 'sql', 'custom'] as const).map((t) => (
             <option key={t} value={t}>{t.toUpperCase()}</option>
           ))}
-        </select>
+        </Select>
       </div>
       <div>
         <label className={labelCls}>Sync Schedule (optional)</label>
-        <select
-          className={fieldCls}
+        <Select
           value={form.schedulePreset}
           onChange={(e) => setForm((f) => ({ ...f, schedulePreset: e.target.value as SchedulePreset }))}
         >
@@ -174,8 +175,8 @@ export default function Connectors() {
           <option value="daily_02_00">Daily at 02:00</option>
           <option value="weekly_mon_02_00">Weekly on Monday at 02:00</option>
           {form.schedulePreset === 'custom_existing' ? <option value="custom_existing">Keep existing custom schedule</option> : null}
-        </select>
-        <p className="mt-2 text-xs text-slate-500">
+        </Select>
+        <p className="mt-2 text-xs text-muted-foreground">
           Automatic sync cadence is selected as a policy option; cron syntax is handled internally.
         </p>
         {form.schedulePreset === 'custom_existing' ? (
@@ -186,8 +187,8 @@ export default function Connectors() {
       </div>
       <div>
         <label className={labelCls}>Config (JSON)</label>
-        <textarea
-          className="w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 font-mono text-xs text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+        <Textarea
+          className="w-full rounded-lg border border-border bg-transparent px-3 py-2 font-mono text-xs text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
           rows={5}
           value={form.config}
           onChange={(e) => setForm((f) => ({ ...f, config: e.target.value }))}
@@ -213,7 +214,7 @@ export default function Connectors() {
             <Button variant="secondary" size="icon" onClick={() => refetch()} disabled={isFetching}>
               <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
             </Button>
-            <Link to="/metrics" className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 hover:bg-slate-50">View Auth Metrics</Link>
+            <Link to="/metrics" className="inline-flex h-9 items-center rounded-lg border border-border bg-card px-3 text-sm font-medium text-muted-foreground hover:bg-muted/50">View Auth Metrics</Link>
             <Button variant="primary" onClick={openCreate}>
               <Plus className="h-4 w-4" /> New Connector
             </Button>
@@ -232,25 +233,25 @@ export default function Connectors() {
               action={<Button variant="primary" size="sm" onClick={openCreate}><Plus className="h-3.5 w-3.5" /> New Connector</Button>}
             />
           ) : (
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <Card className="overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="border-b border-slate-100 bg-slate-50">
+                <thead className="border-b border-border bg-muted/50">
                   <tr>
                     {['Name', 'Type', 'Status', 'Schedule', 'Last Sync', 'Actions'].map((h) => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{h}</th>
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-border">
                   {connectors.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 font-medium text-slate-900">{c.name}</td>
+                    <tr key={c.id} className="hover:bg-muted/50">
+                      <td className="px-4 py-3 font-medium text-foreground">{c.name}</td>
                       <td className="px-4 py-3">
-                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600">{c.type.toUpperCase()}</span>
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">{c.type.toUpperCase()}</span>
                       </td>
                       <td className="px-4 py-3"><ConnectorStatusBadge status={c.status} /></td>
-                      <td className="px-4 py-3 font-mono text-xs text-slate-500">{c.schedule ?? '—'}</td>
-                      <td className="px-4 py-3 text-xs text-slate-500">
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{c.schedule ?? '—'}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
                         {c.lastSyncAt ? new Date(c.lastSyncAt).toLocaleString() : '—'}
                       </td>
                       <td className="px-4 py-3">
@@ -267,7 +268,7 @@ export default function Connectors() {
                           </Button>
                           <Link
                             to={`/connectors/${c.id}`}
-                            className="flex items-center gap-1 rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-100"
+                            className="flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
                             title="View connector details"
                           >
                             Details
@@ -283,7 +284,7 @@ export default function Connectors() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="hover:bg-red-50 hover:text-red-500"
+                            className="hover:bg-rose-50 hover:text-rose-500"
                             onClick={() => setDeleteTarget(c)}
                             title="Delete"
                           >
@@ -295,7 +296,7 @@ export default function Connectors() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </Card>
           )}
       </>
 

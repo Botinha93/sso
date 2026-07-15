@@ -21,14 +21,16 @@ export function TableBody({ className, ...props }: React.HTMLAttributes<HTMLDivE
 
 export interface TableRowProps extends React.HTMLAttributes<HTMLDivElement> {
   selected?: boolean
+  layout?: 'flex' | 'block'
 }
 
-export function TableRow({ className, selected = false, ...props }: TableRowProps) {
+export function TableRow({ className, selected = false, layout = 'flex', ...props }: TableRowProps) {
   return (
     <div
       role="row"
       className={cn(
-        'flex items-center justify-between gap-4 px-5 py-3.5 transition-colors hover:bg-muted/50',
+        layout === 'flex' && 'flex items-center justify-between gap-4',
+        'px-5 py-3.5 transition-colors hover:bg-muted/50',
         selected && 'bg-sky-50/40',
         className
       )}

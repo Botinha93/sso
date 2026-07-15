@@ -1,11 +1,12 @@
+import Card from '../components/ui/Card'
+import Select from '../components/ui/Select'
 import { useState } from 'react'
 import { useInitializeSetup } from '../hooks/useApi'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 import React from 'react';
 
-const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
+const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
 
 const Setup = () => {
   const [databaseProvider, setDatabaseProvider] = useState<'sqlite' | 'postgresql' | 'mysql'>('sqlite')
@@ -76,10 +77,10 @@ const Setup = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_28%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] p-4 font-sans">
-      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <Card className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
         <div className="bg-[linear-gradient(180deg,_#020617_0%,_#0f172a_100%)] px-8 py-7">
           <div className="text-xl font-semibold text-slate-50 tracking-tight">First-run Setup</div>
-          <p className="text-slate-400 text-sm mt-1">Create the initial administrator account with your own username and email.</p>
+          <p className="text-muted-foreground text-sm mt-1">Create the initial administrator account with your own username and email.</p>
         </div>
 
         <form onSubmit={onSubmit} className="px-8 py-7 space-y-4">
@@ -87,15 +88,14 @@ const Setup = () => {
 
           <div>
             <label className={labelCls}>Database Provider</label>
-            <select
+            <Select
               value={databaseProvider}
               onChange={e => setDatabaseProvider(e.target.value as 'sqlite' | 'postgresql' | 'mysql')}
-              className={fieldCls}
             >
               <option value="sqlite">SQLite</option>
               <option value="postgresql">PostgreSQL</option>
               <option value="mysql">MySQL</option>
-            </select>
+            </Select>
           </div>
 
           {databaseProvider === 'sqlite' ? (
@@ -180,7 +180,7 @@ const Setup = () => {
             {initializeSetup.isPending ? 'Initializing…' : 'Initialize Installation'}
           </Button>
         </form>
-      </div>
+      </Card>
     </div>
   )
 }

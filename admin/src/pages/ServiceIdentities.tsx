@@ -1,3 +1,5 @@
+import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
+import Select from '../components/ui/Select'
 import { useEffect, useState } from 'react'
 import { Plus, RefreshCw, Trash2, Key, RotateCw, Copy, Eye, EyeOff, Pencil } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
@@ -25,8 +27,7 @@ import {
   type ServiceIdentityCredentialDto
 } from '../hooks/useApi'
 
-const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
+const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
 
 const defaultForm = () => ({
   name: '',
@@ -127,7 +128,7 @@ const CredentialsPanel = ({
         </div>
         <div>
           <label className={labelCls}>Identity ID</label>
-          <div className="h-9 flex items-center rounded-lg border border-slate-200 px-3 text-xs font-mono text-slate-600 truncate">
+          <div className="h-9 flex items-center rounded-lg border border-border px-3 text-xs font-mono text-muted-foreground truncate">
             {si.id}
           </div>
         </div>
@@ -140,7 +141,7 @@ const CredentialsPanel = ({
             <div>
               <p className="text-xs text-amber-700 mb-1">Client ID</p>
               <div className="flex items-center gap-2">
-                <code className="flex-1 rounded bg-white border border-amber-200 px-2 py-1 text-xs font-mono text-slate-800">{newSecret.clientId}</code>
+                <code className="flex-1 rounded bg-card border border-amber-200 px-2 py-1 text-xs font-mono text-foreground">{newSecret.clientId}</code>
                 <Button onClick={() => navigator.clipboard.writeText(newSecret.clientId)} variant="ghost" size="icon" className="h-6 w-6 p-1 text-amber-600 hover:text-amber-800">
                   <Copy className="h-3.5 w-3.5" />
                 </Button>
@@ -149,7 +150,7 @@ const CredentialsPanel = ({
             <div>
               <p className="text-xs text-amber-700 mb-1">Client Secret</p>
               <div className="flex items-center gap-2">
-                <code className="flex-1 rounded bg-white border border-amber-200 px-2 py-1 text-xs font-mono text-slate-800">
+                <code className="flex-1 rounded bg-card border border-amber-200 px-2 py-1 text-xs font-mono text-foreground">
                   {secretVisible ? newSecret.plainClientSecret : '••••••••••••••••••••••••••••••••'}
                 </code>
                 <Button onClick={() => setSecretVisible((prev) => !prev)} variant="ghost" size="icon" className="h-6 w-6 p-1 text-amber-600 hover:text-amber-800">
@@ -168,8 +169,8 @@ const CredentialsPanel = ({
       <div>
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">OAuth Client Credentials</h3>
-            <p className="mt-0.5 text-xs text-slate-500">Use these with /oauth/token and grant_type=client_credentials.</p>
+            <h3 className="text-sm font-semibold text-foreground">OAuth Client Credentials</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">Use these with /oauth/token and grant_type=client_credentials.</p>
           </div>
           <div className="flex items-center gap-2">
             <Input
@@ -179,7 +180,7 @@ const CredentialsPanel = ({
               value={expiresInDays}
               onChange={(e) => setExpiresInDays(e.target.value)}
               placeholder="Expires (days)"
-              className="h-8 w-28 rounded-lg border border-slate-200 px-2 text-xs text-slate-700"
+              className="h-8 w-28 rounded-lg border border-border px-2 text-xs text-foreground"
             />
             <Button
               onClick={handleIssueCredential}
@@ -196,7 +197,7 @@ const CredentialsPanel = ({
 
         <div className="space-y-2">
           {(si.credentials ?? []).length === 0 ? (
-            <div className="p-6 text-center text-slate-400 text-sm rounded-xl border border-slate-200">No credentials yet</div>
+            <div className="p-6 text-center text-muted-foreground text-sm rounded-xl border border-border">No credentials yet</div>
           ) : (
             (si.credentials ?? []).map((cred: ServiceIdentityCredentialDto) => {
               const isRevoked = !!cred.revokedAt
@@ -204,11 +205,11 @@ const CredentialsPanel = ({
               const status = isRevoked ? 'revoked' : isExpired ? 'expired' : 'active'
 
               return (
-                <div key={cred.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 gap-3">
+                <div key={cred.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 gap-3">
                   <div className="min-w-0 flex-1">
-                    <code className="text-xs font-mono text-slate-700 truncate block">{cred.clientId}</code>
-                    <div className="flex flex-wrap items-center gap-3 mt-0.5 text-xs text-slate-500">
-                      <span className={`font-medium ${status === 'active' ? 'text-emerald-600' : 'text-red-500'}`}>{status}</span>
+                    <code className="text-xs font-mono text-foreground truncate block">{cred.clientId}</code>
+                    <div className="flex flex-wrap items-center gap-3 mt-0.5 text-xs text-muted-foreground">
+                      <span className={`font-medium ${status === 'active' ? 'text-emerald-600' : 'text-rose-500'}`}>{status}</span>
                       {cred.expiresAt && <span>Expires {new Date(cred.expiresAt).toLocaleDateString()}</span>}
                       {cred.lastUsedAt && <span>Last used {new Date(cred.lastUsedAt).toLocaleString()}</span>}
                     </div>
@@ -220,7 +221,7 @@ const CredentialsPanel = ({
                         title="Rotate credential"
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-700"
+                        className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
                       >
                         <RotateCw className="h-3.5 w-3.5" />
                       </Button>
@@ -229,7 +230,7 @@ const CredentialsPanel = ({
                         title="Revoke credential"
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -244,21 +245,21 @@ const CredentialsPanel = ({
 
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-slate-900">Credential Usage Telemetry</h3>
-          <Button onClick={() => refetchUsage()} disabled={isUsageRefreshing} variant="ghost" size="sm" className="text-xs text-slate-500 hover:text-slate-700">
+          <h3 className="text-sm font-semibold text-foreground">Credential Usage Telemetry</h3>
+          <Button onClick={() => refetchUsage()} disabled={isUsageRefreshing} variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
             <RefreshCw size={12} className={isUsageRefreshing ? 'animate-spin' : ''} />
             Refresh
           </Button>
         </div>
         {usage.length === 0 ? (
-          <p className="text-sm text-slate-500">No usage telemetry available yet.</p>
+          <p className="text-sm text-muted-foreground">No usage telemetry available yet.</p>
         ) : (
-          <div className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
+          <div className="divide-y divide-border rounded-lg border border-border bg-card">
             {usage.map((entry) => (
               <div key={entry.credentialId} className="flex items-center justify-between px-3 py-2.5">
                 <div>
-                  <p className="text-xs font-mono text-slate-700">{entry.clientId}</p>
-                  <p className="text-xs text-slate-500">{entry.lastUsedAt ? `Last used ${new Date(entry.lastUsedAt).toLocaleString()}` : 'Never used'}</p>
+                  <p className="text-xs font-mono text-foreground">{entry.clientId}</p>
+                  <p className="text-xs text-muted-foreground">{entry.lastUsedAt ? `Last used ${new Date(entry.lastUsedAt).toLocaleString()}` : 'Never used'}</p>
                 </div>
                 <StatusBadge tone={entry.status === 'active' ? 'success' : entry.status === 'expired' ? 'warning' : 'danger'}>{entry.status}</StatusBadge>
               </div>
@@ -396,22 +397,22 @@ const ServiceIdentities = () => {
 
       <div className="mb-4 max-w-sm">
         <label className={labelCls}>Filter by Status</label>
-        <select className={fieldCls} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as 'all' | ServiceIdentityDto['status'])}>
+        <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as 'all' | ServiceIdentityDto['status'])}>
           <option value="all">All Identities</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
           <option value="suspended">Suspended</option>
-        </select>
+        </Select>
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
-          <h4 className="text-sm font-semibold text-slate-700">All Service Identities</h4>
-          <Button onClick={() => refetch()} disabled={isFetching} variant="ghost" size="sm" className="text-xs text-slate-500 hover:text-slate-900">
+      <Table className="overflow-hidden">
+        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
+          <h4 className="text-sm font-semibold text-foreground">All Service Identities</h4>
+          <Button onClick={() => refetch()} disabled={isFetching} variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </Button>
-        </div>
+        </TableHeaderRow>
 
         {isLoading ? (
           <TableSkeleton rows={5} />
@@ -421,15 +422,15 @@ const ServiceIdentities = () => {
             description="Create a machine identity, then issue an OAuth client ID and secret for client-credentials tokens."
           />
         ) : (
-          <div className="divide-y divide-slate-100">
+          <TableBody className="divide-y divide-border">
             {filteredIdentities.map((identity) => (
-              <div key={identity.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50/50 transition-colors gap-4">
+              <TableRow key={identity.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-muted/50 transition-colors gap-4">
                 <div className="space-y-0.5 flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-medium text-slate-900">{identity.name}</p>
+                    <p className="text-sm font-medium text-foreground">{identity.name}</p>
                     {statusBadge(identity.status)}
                   </div>
-                  <p className="text-xs text-slate-500">{identity.description || 'No description'}</p>
+                  <p className="text-xs text-muted-foreground">{identity.description || 'No description'}</p>
                   {identity.allowedScopes.length > 0 && (
                     <div className="flex gap-1 flex-wrap">
                       {identity.allowedScopes.map((scope) => (
@@ -445,12 +446,12 @@ const ServiceIdentities = () => {
                     </div>
                   )}
                   {!!identity.roleIds?.length && (
-                    <p className="text-xs text-slate-500">Direct roles: {identity.roleIds.length}</p>
+                    <p className="text-xs text-muted-foreground">Direct roles: {identity.roleIds.length}</p>
                   )}
                   {!!identity.groupIds?.length && (
-                    <p className="text-xs text-slate-500">Group memberships: {identity.groupIds.length}</p>
+                    <p className="text-xs text-muted-foreground">Group memberships: {identity.groupIds.length}</p>
                   )}
-                  <p className="text-xs text-slate-400 font-mono">Created {new Date(identity.createdAt).toLocaleDateString()}</p>
+                  <p className="text-xs text-muted-foreground font-mono">Created {new Date(identity.createdAt).toLocaleDateString()}</p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <Button
@@ -469,7 +470,7 @@ const ServiceIdentities = () => {
                     disabled={updateIdentity.isPending}
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-700"
+                    className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
                     title="Edit identity"
                   >
                     <Pencil size={14} />
@@ -479,24 +480,23 @@ const ServiceIdentities = () => {
                     disabled={deleteIdentity.isPending}
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                    className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40"
                     title="Delete identity"
                   >
                     <Trash2 size={14} />
                   </Button>
                 </div>
-              </div>
+              </TableRow>
             ))}
-          </div>
+          </TableBody>
         )}
-      </Card>
+      </Table>
 
       <Modal isOpen={createModalOpen} onClose={() => { setCreateModalOpen(false); setFormData(defaultForm()) }} title="Create Service Identity">
         <div className="space-y-4">
           <div>
             <label className={labelCls}>Name</label>
             <Input
-              className={fieldCls}
               value={formData.name}
               onChange={e => setFormData(f => ({ ...f, name: e.target.value }))}
               placeholder="reporting-worker"
@@ -505,7 +505,6 @@ const ServiceIdentities = () => {
           <div>
             <label className={labelCls}>Description</label>
             <Input
-              className={fieldCls}
               value={formData.description}
               onChange={e => setFormData(f => ({ ...f, description: e.target.value }))}
               placeholder="Machine identity for scheduled reporting jobs"
@@ -514,27 +513,26 @@ const ServiceIdentities = () => {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelCls}>Status</label>
-              <select
-                className={fieldCls}
+              <Select
                 value={formData.status}
                 onChange={e => setFormData(f => ({ ...f, status: e.target.value as ServiceIdentityDto['status'] }))}
               >
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
                 <option value="suspended">Suspended</option>
-              </select>
+              </Select>
             </div>
             <div>
               <label className={labelCls}>Token Scopes</label>
-              <div className="rounded-lg border border-slate-200 p-2 max-h-[140px] overflow-auto bg-slate-50/40 space-y-1.5">
-                {(scopes as any[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No scopes defined.</p>}
+              <div className="rounded-lg border border-border p-2 max-h-[140px] overflow-auto bg-muted/40 space-y-1.5">
+                {(scopes as any[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No scopes defined.</p>}
                 {(scopes as any[]).map((scope: any) => (
-                  <label key={scope.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                  <label key={scope.id} className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
                     <input
                       type="checkbox"
                       checked={formData.allowedScopes.includes(scope.name)}
                       onChange={() => setFormData((f) => ({ ...f, allowedScopes: toggleScopeSelection(f.allowedScopes, scope.name) }))}
-                      className="rounded border-slate-300"
+                      className="rounded border-border"
                     />
                     <span className="font-mono">{scope.name}</span>
                   </label>
@@ -545,7 +543,6 @@ const ServiceIdentities = () => {
           <div>
             <label className={labelCls}>Token Audiences</label>
             <Input
-              className={fieldCls}
               value={formData.allowedAudiences}
               onChange={e => setFormData(f => ({ ...f, allowedAudiences: e.target.value }))}
               placeholder="api.example.com, jobs.internal"
@@ -554,15 +551,15 @@ const ServiceIdentities = () => {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelCls}>Direct Roles</label>
-              <div className="rounded-lg border border-slate-200 p-2 max-h-[140px] overflow-auto bg-slate-50/40 space-y-1.5">
-                {(roles as any[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No roles defined.</p>}
+              <div className="rounded-lg border border-border p-2 max-h-[140px] overflow-auto bg-muted/40 space-y-1.5">
+                {(roles as any[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No roles defined.</p>}
                 {(roles as any[]).map((role: any) => (
-                  <label key={role.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                  <label key={role.id} className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
                     <input
                       type="checkbox"
                       checked={formData.roleIds.includes(role.id)}
                       onChange={() => setFormData((f) => ({ ...f, roleIds: toggleSelection(f.roleIds, role.id) }))}
-                      className="rounded border-slate-300"
+                      className="rounded border-border"
                     />
                     <span>{role.name}</span>
                   </label>
@@ -571,15 +568,15 @@ const ServiceIdentities = () => {
             </div>
             <div>
               <label className={labelCls}>Groups</label>
-              <div className="rounded-lg border border-slate-200 p-2 max-h-[140px] overflow-auto bg-slate-50/40 space-y-1.5">
-                {(groups as any[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No groups defined.</p>}
+              <div className="rounded-lg border border-border p-2 max-h-[140px] overflow-auto bg-muted/40 space-y-1.5">
+                {(groups as any[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No groups defined.</p>}
                 {(groups as any[]).map((group: any) => (
-                  <label key={group.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                  <label key={group.id} className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
                     <input
                       type="checkbox"
                       checked={formData.groupIds.includes(group.id)}
                       onChange={() => setFormData((f) => ({ ...f, groupIds: toggleSelection(f.groupIds, group.id) }))}
-                      className="rounded border-slate-300"
+                      className="rounded border-border"
                     />
                     <span>{group.name}</span>
                   </label>
@@ -600,7 +597,7 @@ const ServiceIdentities = () => {
               {createIdentity.isPending ? 'Creating…' : 'Create Identity'}
             </Button>
           </div>
-          {createFormError && <p className="text-xs text-red-600">{createFormError}</p>}
+          {createFormError && <p className="text-xs text-rose-600">{createFormError}</p>}
         </div>
       </Modal>
 
@@ -609,7 +606,6 @@ const ServiceIdentities = () => {
           <div>
             <label className={labelCls}>Name</label>
             <Input
-              className={fieldCls}
               value={editFormData.name}
               onChange={e => setEditFormData(f => ({ ...f, name: e.target.value }))}
               placeholder="reporting-worker"
@@ -618,7 +614,6 @@ const ServiceIdentities = () => {
           <div>
             <label className={labelCls}>Description</label>
             <Input
-              className={fieldCls}
               value={editFormData.description}
               onChange={e => setEditFormData(f => ({ ...f, description: e.target.value }))}
               placeholder="Machine identity for scheduled reporting jobs"
@@ -627,27 +622,26 @@ const ServiceIdentities = () => {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelCls}>Status</label>
-              <select
-                className={fieldCls}
+              <Select
                 value={editFormData.status}
                 onChange={e => setEditFormData(f => ({ ...f, status: e.target.value as ServiceIdentityDto['status'] }))}
               >
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
                 <option value="suspended">Suspended</option>
-              </select>
+              </Select>
             </div>
             <div>
               <label className={labelCls}>Token Scopes</label>
-              <div className="rounded-lg border border-slate-200 p-2 max-h-[140px] overflow-auto bg-slate-50/40 space-y-1.5">
-                {(scopes as any[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No scopes defined.</p>}
+              <div className="rounded-lg border border-border p-2 max-h-[140px] overflow-auto bg-muted/40 space-y-1.5">
+                {(scopes as any[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No scopes defined.</p>}
                 {(scopes as any[]).map((scope: any) => (
-                  <label key={scope.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                  <label key={scope.id} className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
                     <input
                       type="checkbox"
                       checked={editFormData.allowedScopes.includes(scope.name)}
                       onChange={() => setEditFormData((f) => ({ ...f, allowedScopes: toggleScopeSelection(f.allowedScopes, scope.name) }))}
-                      className="rounded border-slate-300"
+                      className="rounded border-border"
                     />
                     <span className="font-mono">{scope.name}</span>
                   </label>
@@ -658,7 +652,6 @@ const ServiceIdentities = () => {
           <div>
             <label className={labelCls}>Token Audiences</label>
             <Input
-              className={fieldCls}
               value={editFormData.allowedAudiences}
               onChange={e => setEditFormData(f => ({ ...f, allowedAudiences: e.target.value }))}
               placeholder="api.example.com, jobs.internal"
@@ -667,15 +660,15 @@ const ServiceIdentities = () => {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelCls}>Direct Roles</label>
-              <div className="rounded-lg border border-slate-200 p-2 max-h-[140px] overflow-auto bg-slate-50/40 space-y-1.5">
-                {(roles as any[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No roles defined.</p>}
+              <div className="rounded-lg border border-border p-2 max-h-[140px] overflow-auto bg-muted/40 space-y-1.5">
+                {(roles as any[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No roles defined.</p>}
                 {(roles as any[]).map((role: any) => (
-                  <label key={role.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                  <label key={role.id} className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
                     <input
                       type="checkbox"
                       checked={editFormData.roleIds.includes(role.id)}
                       onChange={() => setEditFormData((f) => ({ ...f, roleIds: toggleSelection(f.roleIds, role.id) }))}
-                      className="rounded border-slate-300"
+                      className="rounded border-border"
                     />
                     <span>{role.name}</span>
                   </label>
@@ -684,15 +677,15 @@ const ServiceIdentities = () => {
             </div>
             <div>
               <label className={labelCls}>Groups</label>
-              <div className="rounded-lg border border-slate-200 p-2 max-h-[140px] overflow-auto bg-slate-50/40 space-y-1.5">
-                {(groups as any[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No groups defined.</p>}
+              <div className="rounded-lg border border-border p-2 max-h-[140px] overflow-auto bg-muted/40 space-y-1.5">
+                {(groups as any[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No groups defined.</p>}
                 {(groups as any[]).map((group: any) => (
-                  <label key={group.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+                  <label key={group.id} className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
                     <input
                       type="checkbox"
                       checked={editFormData.groupIds.includes(group.id)}
                       onChange={() => setEditFormData((f) => ({ ...f, groupIds: toggleSelection(f.groupIds, group.id) }))}
-                      className="rounded border-slate-300"
+                      className="rounded border-border"
                     />
                     <span>{group.name}</span>
                   </label>
@@ -713,7 +706,7 @@ const ServiceIdentities = () => {
               {updateIdentity.isPending ? 'Saving…' : 'Save Changes'}
             </Button>
           </div>
-          {editFormError && <p className="text-xs text-red-600">{editFormError}</p>}
+          {editFormError && <p className="text-xs text-rose-600">{editFormError}</p>}
         </div>
       </Modal>
 

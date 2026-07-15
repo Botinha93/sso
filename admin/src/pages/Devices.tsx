@@ -1,3 +1,5 @@
+import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
+import Card from '../components/ui/Card'
 import { MonitorSmartphone, RefreshCw, ShieldOff } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
 import { useState } from 'react'
@@ -82,53 +84,53 @@ export default function Devices() {
       />
 
       <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-slate-500">Pending Requests</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
+        <Card className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <p className="text-sm text-muted-foreground">Pending Requests</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
             {requests.filter((item) => item.status === 'pending').length}
           </p>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-slate-500">Active Device Sessions</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
+        </Card>
+        <Card className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <p className="text-sm text-muted-foreground">Active Device Sessions</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
             {sessions.filter((item) => item.status === 'active').length}
           </p>
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm text-slate-500">Managed Clients</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
+        </Card>
+        <Card className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <p className="text-sm text-muted-foreground">Managed Clients</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
             {new Set([...requests.map((item) => item.clientId), ...sessions.map((item) => item.clientId)]).size}
           </p>
-        </div>
+        </Card>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/70 px-5 py-3.5">
+      <Table className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+        <TableHeaderRow className="flex items-center justify-between border-b border-border bg-muted/50 px-5 py-3.5">
           <div>
-            <h2 className="text-sm font-semibold text-slate-700">Pending Device Requests</h2>
-            <p className="mt-0.5 text-xs text-slate-500">Requests waiting for approval, already approved, or denied before token exchange.</p>
+            <h2 className="text-sm font-semibold text-foreground">Pending Device Requests</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">Requests waiting for approval, already approved, or denied before token exchange.</p>
           </div>
-        </div>
+        </TableHeaderRow>
 
         {isLoading ? (
-          <div className="p-10 text-center text-sm text-slate-400">Loading device requests…</div>
+          <div className="p-10 text-center text-sm text-muted-foreground">Loading device requests…</div>
         ) : !requests.length ? (
-          <div className="p-10 text-center text-sm text-slate-400">No device requests found</div>
+          <div className="p-10 text-center text-sm text-muted-foreground">No device requests found</div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <TableBody className="divide-y divide-border">
             {requests.map((request) => (
-              <div key={request.deviceCode} className="flex items-start justify-between gap-4 px-5 py-4 hover:bg-slate-50/50 transition-colors">
+              <TableRow key={request.deviceCode} className="flex items-start justify-between gap-4 px-5 py-4 hover:bg-muted/50 transition-colors">
                 <div className="min-w-0 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-medium text-slate-900">{request.clientName}</p>
+                    <p className="text-sm font-medium text-foreground">{request.clientName}</p>
                     <StatusBadge tone={statusTone[request.status]}>{request.status}</StatusBadge>
                   </div>
-                  <p className="text-xs text-slate-500 font-mono">User code {request.userCode} · Device {request.deviceCode.slice(0, 16)}…</p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-muted-foreground font-mono">User code {request.userCode} · Device {request.deviceCode.slice(0, 16)}…</p>
+                  <p className="text-xs text-muted-foreground">
                     Client <span className="font-mono">{request.clientId}</span>
                     {request.userId ? <> {' · '}User <span className="font-mono">{request.userId.slice(0, 12)}…</span></> : null}
                   </p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-muted-foreground">
                     Created {formatDate(request.createdAt)} {' · '}Expires {formatDate(request.expiresAt)} {' · '}Last poll {formatDate(request.lastPolledAt)}
                   </p>
                   <div className="flex flex-wrap gap-1 pt-1">
@@ -149,40 +151,40 @@ export default function Devices() {
                     <ShieldOff size={14} />
                   </Button>
                 </div>
-              </div>
+              </TableRow>
             ))}
-          </div>
+          </TableBody>
         )}
-      </div>
+      </Table>
 
-      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/70 px-5 py-3.5">
+      <Table className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+        <TableHeaderRow className="flex items-center justify-between border-b border-border bg-muted/50 px-5 py-3.5">
           <div>
-            <h2 className="text-sm font-semibold text-slate-700">Device Sessions</h2>
-            <p className="mt-0.5 text-xs text-slate-500">Sessions issued through clients that support the device_code grant.</p>
+            <h2 className="text-sm font-semibold text-foreground">Device Sessions</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">Sessions issued through clients that support the device_code grant.</p>
           </div>
-        </div>
+        </TableHeaderRow>
 
         {isLoading ? (
-          <div className="p-10 text-center text-sm text-slate-400">Loading device sessions…</div>
+          <div className="p-10 text-center text-sm text-muted-foreground">Loading device sessions…</div>
         ) : !sessions.length ? (
-          <div className="p-10 text-center text-sm text-slate-400">No device sessions found</div>
+          <div className="p-10 text-center text-sm text-muted-foreground">No device sessions found</div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <TableBody className="divide-y divide-border">
             {sessions.map((session) => (
-              <div key={session.id} className="flex items-start justify-between gap-4 px-5 py-4 hover:bg-slate-50/50 transition-colors">
+              <TableRow key={session.id} className="flex items-start justify-between gap-4 px-5 py-4 hover:bg-muted/50 transition-colors">
                 <div className="min-w-0 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <MonitorSmartphone size={16} className="text-slate-400" />
-                    <p className="text-sm font-medium text-slate-900">{session.clientName}</p>
+                    <MonitorSmartphone size={16} className="text-muted-foreground" />
+                    <p className="text-sm font-medium text-foreground">{session.clientName}</p>
                     <StatusBadge tone={statusTone[session.status]}>{session.status}</StatusBadge>
                   </div>
-                  <p className="text-xs text-slate-500 font-mono">Session {session.id.slice(0, 16)}…</p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-muted-foreground font-mono">Session {session.id.slice(0, 16)}…</p>
+                  <p className="text-xs text-muted-foreground">
                     User <span className="font-mono">{session.userId.slice(0, 12)}…</span>
                     {' · '}Client <span className="font-mono">{session.clientId}</span>
                   </p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-muted-foreground">
                     Created {formatDate(session.createdAt)} {' · '}Expires {formatDate(session.expiresAt)}
                     {session.revokedAt ? <> {' · '}Revoked {formatDate(session.revokedAt)}</> : null}
                   </p>
@@ -201,11 +203,11 @@ export default function Devices() {
                     </Button>
                   ) : null}
                 </div>
-              </div>
+              </TableRow>
             ))}
-          </div>
+          </TableBody>
         )}
-      </div>
+      </Table>
 
       <ConfirmDialog
         isOpen={!!requestToRevoke}

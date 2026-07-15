@@ -1,3 +1,6 @@
+import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
+import Textarea from '../components/ui/Textarea'
+import Select from '../components/ui/Select'
 import { useMemo, useState } from 'react'
 import ListSearch from '../components/ListSearch'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
@@ -53,7 +56,7 @@ function PolicyCodeEditor({
   height?: number
 }) {
   return (
-    <div className="overflow-hidden rounded border border-slate-200">
+    <div className="overflow-hidden rounded border border-border">
       <Editor
         language="javascript"
         value={value}
@@ -69,7 +72,7 @@ function PolicyCodeEditor({
           wordWrap: 'on',
         }}
         loading={
-          <textarea
+          <Textarea
             className="min-h-[180px] w-full border-0 px-3 py-2 font-mono text-xs outline-none"
             value={value}
             placeholder={placeholder}
@@ -165,12 +168,12 @@ function AssignmentConfigEditor({
   return (
     <div className="space-y-4">
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Where It Applies</p>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Where It Applies</p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Scope Type</label>
-            <select
-              className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Scope Type</label>
+            <Select
+              className="w-full rounded border border-border px-3 py-2 text-sm"
               value={draft.scopeType}
               onChange={(e) => onDraftChange({
                 ...draft,
@@ -182,10 +185,10 @@ function AssignmentConfigEditor({
               <option value="tenant">tenant</option>
               <option value="group">group</option>
               <option value="user">user</option>
-            </select>
+            </Select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Scope ID</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Scope ID</label>
             <Input
               placeholder={draft.scopeType === 'global' ? 'Not required for global scope' : `Enter ${draft.scopeType} id`}
               value={draft.scopeId}
@@ -199,8 +202,8 @@ function AssignmentConfigEditor({
       <div>
         <div className="mb-2 flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Configuration</p>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Configuration</p>
+            <p className="mt-1 text-xs text-muted-foreground">
               Fields are generated from the default config shape for <span className="font-mono">{policyKey}</span>.
             </p>
           </div>
@@ -215,8 +218,8 @@ function AssignmentConfigEditor({
 
         {draft.rawMode ? (
           <div className="space-y-2">
-            <textarea
-              className="min-h-[180px] w-full rounded border border-slate-200 px-3 py-2 font-mono text-xs outline-none"
+            <Textarea
+              className="min-h-[180px] w-full rounded border border-border px-3 py-2 font-mono text-xs outline-none"
               value={draft.rawConfig}
               onChange={(e) => setRawConfig(e.target.value)}
               placeholder="{}"
@@ -228,7 +231,7 @@ function AssignmentConfigEditor({
             </div>
           </div>
         ) : fieldEntries.length === 0 ? (
-          <div className="rounded border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+          <div className="rounded border border-dashed border-border bg-muted/50 px-3 py-4 text-sm text-muted-foreground">
             This policy has no default config fields yet. Use raw JSON mode if you want to store custom configuration.
           </div>
         ) : (
@@ -239,15 +242,15 @@ function AssignmentConfigEditor({
               if (fieldKind === 'boolean') {
                 return (
                   <div key={key}>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">{humanizeFieldName(key)}</label>
-                    <select
-                      className="w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">{humanizeFieldName(key)}</label>
+                    <Select
+                      className="w-full rounded border border-border px-3 py-2 text-sm"
                       value={String(Boolean(value))}
                       onChange={(e) => updateConfigValue(key, e.target.value === 'true')}
                     >
                       <option value="true">true</option>
                       <option value="false">false</option>
-                    </select>
+                    </Select>
                   </div>
                 )
               }
@@ -255,7 +258,7 @@ function AssignmentConfigEditor({
               if (fieldKind === 'number') {
                 return (
                   <div key={key}>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">{humanizeFieldName(key)}</label>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">{humanizeFieldName(key)}</label>
                     <Input
                       type="number"
                       value={String(value)}
@@ -268,7 +271,7 @@ function AssignmentConfigEditor({
               if (fieldKind === 'string') {
                 return (
                   <div key={key}>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">{humanizeFieldName(key)}</label>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">{humanizeFieldName(key)}</label>
                     <Input
                       type="text"
                       value={String(value)}
@@ -282,7 +285,7 @@ function AssignmentConfigEditor({
                 const current = Array.isArray(value) ? value.join(', ') : ''
                 return (
                   <div key={key} className="md:col-span-2">
-                    <label className="mb-1 block text-xs font-medium text-slate-600">{humanizeFieldName(key)}</label>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">{humanizeFieldName(key)}</label>
                     <Input
                       type="text"
                       value={current}
@@ -297,16 +300,16 @@ function AssignmentConfigEditor({
                         )
                       }}
                     />
-                    <p className="mt-1 text-xs text-slate-500">Use comma-separated values.</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Use comma-separated values.</p>
                   </div>
                 )
               }
 
               return (
                 <div key={key} className="md:col-span-2">
-                  <label className="mb-1 block text-xs font-medium text-slate-600">{humanizeFieldName(key)}</label>
-                  <textarea
-                    className="min-h-[110px] w-full rounded border border-slate-200 px-3 py-2 font-mono text-xs outline-none"
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">{humanizeFieldName(key)}</label>
+                  <Textarea
+                    className="min-h-[110px] w-full rounded border border-border px-3 py-2 font-mono text-xs outline-none"
                     value={JSON.stringify(value ?? {}, null, 2)}
                     onChange={(e) => {
                       try {
@@ -375,7 +378,7 @@ export default function Policies() {
 
       <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search policies by key or name…" />
 
-      <div className="flex gap-2 border-b border-slate-200">
+      <div className="flex gap-2 border-b border-border">
         {[
           { key: 'definitions', label: 'Definitions' },
           { key: 'configuration', label: 'Configuration' },
@@ -386,8 +389,8 @@ export default function Policies() {
             onClick={() => setActiveTab(tab.key as PolicyTab)}
             className={`px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === tab.key
-                ? 'border-b-2 border-slate-900 text-slate-900'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'border-b-2 border-primary text-foreground'
+                : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             {tab.label}
@@ -398,7 +401,7 @@ export default function Policies() {
       {activeTab === 'definitions' ? (
         <div className="space-y-6">
           <Card className="p-4 space-y-4">
-            <h2 className="text-sm font-semibold text-slate-900">Create Policy Definition</h2>
+            <h2 className="text-sm font-semibold text-foreground">Create Policy Definition</h2>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <Input placeholder="key" value={newPolicy.key} onChange={(e) => setNewPolicy((v) => ({ ...v, key: e.target.value }))} />
               <Input placeholder="name" value={newPolicy.name} onChange={(e) => setNewPolicy((v) => ({ ...v, name: e.target.value }))} />
@@ -406,7 +409,7 @@ export default function Policies() {
             </div>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <select
+              <Select
                 className="rounded border px-3 py-2"
                 value={newPolicy.category}
                 onChange={(e) => setNewPolicy((v) => ({
@@ -417,12 +420,12 @@ export default function Policies() {
               >
                 <option value="authentication">authentication</option>
                 <option value="authorization">authorization</option>
-              </select>
+              </Select>
             </div>
 
             {newPolicy.category === 'authentication' ? (
               <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Stage Bindings</p>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Stage Bindings</p>
                 <div className="flex flex-wrap gap-2">
                   {AUTH_STAGES.map((stage) => {
                     const active = newPolicy.stageBindings.includes(stage)
@@ -434,7 +437,7 @@ export default function Policies() {
                           ...v,
                           stageBindings: active ? v.stageBindings.filter((s) => s !== stage) : [...v.stageBindings, stage]
                         }))}
-                        className={`rounded px-2 py-1 text-xs font-mono transition-colors ${active ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                        className={`rounded px-2 py-1 text-xs font-mono transition-colors ${active ? 'bg-sky-600 text-white' : 'bg-muted text-foreground hover:bg-muted'}`}
                       >
                         {stage}
                       </button>
@@ -443,11 +446,11 @@ export default function Policies() {
                 </div>
               </div>
             ) : (
-              <p className="text-xs text-slate-500">Authorization policies do not use stage bindings.</p>
+              <p className="text-xs text-muted-foreground">Authorization policies do not use stage bindings.</p>
             )}
 
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">JavaScript Validator (optional)</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">JavaScript Validator (optional)</p>
               <PolicyCodeEditor
                 value={newPolicy.javascriptCode}
                 placeholder={defaultJsTemplate}
@@ -473,8 +476,8 @@ export default function Policies() {
           </Card>
 
           <Card className="p-4">
-            <h2 className="text-sm font-semibold text-slate-900">JavaScript Policy Interface</h2>
-            <p className="mt-1 text-sm text-slate-600">Available objects/functions in server-side policy scripts:</p>
+            <h2 className="text-sm font-semibold text-foreground">JavaScript Policy Interface</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Available objects/functions in server-side policy scripts:</p>
             <CodeBlock
               className="mt-3 text-xs"
               language="javascript"
@@ -520,9 +523,9 @@ now() // returns current ISO timestamp
               return (
                 <Card key={policy.id} className="p-4">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-base font-semibold text-slate-900">{policy.name}</h3>
-                    <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-700">{policy.key}</span>
-                    <span className="rounded bg-indigo-100 px-2 py-0.5 font-mono text-xs text-indigo-700">{policy.category ?? 'authentication'}</span>
+                    <h3 className="text-base font-semibold text-foreground">{policy.name}</h3>
+                    <span className="rounded bg-muted px-2 py-0.5 font-mono text-xs text-foreground">{policy.key}</span>
+                    <span className="rounded bg-sky-100 px-2 py-0.5 font-mono text-xs text-sky-700">{policy.category ?? 'authentication'}</span>
                     <Button
                       variant={policy.enabled ? 'secondary' : 'ghost'}
                       size="sm"
@@ -539,11 +542,11 @@ now() // returns current ISO timestamp
                       Delete
                     </Button>
                   </div>
-                  <p className="mt-2 text-sm text-slate-600">{policy.description}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">{policy.description}</p>
 
                   <div className="mt-3">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Category</p>
-                    <select
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Category</p>
+                    <Select
                       className="rounded border px-3 py-2 text-sm"
                       value={editState.category}
                       onChange={(e) => setPolicyEditState((prev) => ({
@@ -557,11 +560,11 @@ now() // returns current ISO timestamp
                     >
                       <option value="authentication">authentication</option>
                       <option value="authorization">authorization</option>
-                    </select>
+                    </Select>
                   </div>
 
                   <div className="mt-3">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Stage Bindings</p>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Stage Bindings</p>
                     {editState.category === 'authentication' ? (
                       <div className="flex flex-wrap gap-2">
                         {AUTH_STAGES.map((stage) => {
@@ -579,7 +582,7 @@ now() // returns current ISO timestamp
                                     : [...editState.stageBindings, stage]
                                 }
                               }))}
-                              className={`rounded px-2 py-1 text-xs font-mono transition-colors ${active ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                              className={`rounded px-2 py-1 text-xs font-mono transition-colors ${active ? 'bg-sky-600 text-white' : 'bg-muted text-foreground hover:bg-muted'}`}
                             >
                               {stage}
                             </button>
@@ -587,12 +590,12 @@ now() // returns current ISO timestamp
                         })}
                       </div>
                     ) : (
-                      <p className="text-xs text-slate-500">Authorization policies do not use stage bindings.</p>
+                      <p className="text-xs text-muted-foreground">Authorization policies do not use stage bindings.</p>
                     )}
                   </div>
 
                   <div className="mt-4">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">JavaScript Validator</p>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">JavaScript Validator</p>
                     <PolicyCodeEditor
                       value={editState.javascriptCode}
                       placeholder={defaultJsTemplate}
@@ -627,8 +630,8 @@ now() // returns current ISO timestamp
       ) : activeTab === 'configuration' ? (
         <div className="space-y-4">
           <Card className="p-4">
-            <h2 className="text-base font-semibold text-slate-900">Policy Configuration</h2>
-            <p className="mt-1 text-sm text-slate-600">
+            <h2 className="text-base font-semibold text-foreground">Policy Configuration</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
               Choose where a policy applies first, then fill in the generated configuration fields derived from its default JSON structure.
             </p>
           </Card>
@@ -639,16 +642,16 @@ now() // returns current ISO timestamp
             return (
               <Card key={policy.id} className="p-4">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-base font-semibold text-slate-900">{policy.name}</h3>
-                  <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-700">{policy.key}</span>
-                  <span className="rounded bg-indigo-100 px-2 py-0.5 font-mono text-xs text-indigo-700">{policy.category ?? 'authentication'}</span>
-                  <span className={`rounded px-2 py-1 text-xs ${policy.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}`}>
+                  <h3 className="text-base font-semibold text-foreground">{policy.name}</h3>
+                  <span className="rounded bg-muted px-2 py-0.5 font-mono text-xs text-foreground">{policy.key}</span>
+                  <span className="rounded bg-sky-100 px-2 py-0.5 font-mono text-xs text-sky-700">{policy.category ?? 'authentication'}</span>
+                  <span className={`rounded px-2 py-1 text-xs ${policy.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-muted text-foreground'}`}>
                     {policy.enabled ? 'Enabled' : 'Disabled'}
                   </span>
                 </div>
-                <p className="mt-2 text-sm text-slate-600">{policy.description}</p>
+                <p className="mt-2 text-sm text-muted-foreground">{policy.description}</p>
 
-                <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+                <div className="mt-4 rounded-lg border border-border bg-muted/50 p-4">
                   <AssignmentConfigEditor
                     draft={draft}
                     policyKey={policy.key}
@@ -673,17 +676,17 @@ now() // returns current ISO timestamp
                 </div>
 
                 <div className="mt-4 space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Existing Assignments</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Existing Assignments</p>
                   {(policy.assignments ?? []).length === 0 ? (
-                    <div className="rounded border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+                    <div className="rounded border border-dashed border-border bg-muted/50 px-3 py-4 text-sm text-muted-foreground">
                       No assignments configured yet.
                     </div>
                   ) : (
                     (policy.assignments ?? []).map((assignment: any) => (
-                      <div key={assignment.id} className="flex flex-wrap items-center gap-2 rounded border border-slate-200 px-3 py-2 text-xs text-slate-700">
-                        <span className="rounded bg-slate-100 px-2 py-0.5 font-mono">{assignment.scopeType}</span>
-                        <span className="font-mono text-slate-500">{assignment.scopeId || 'global'}</span>
-                        <span className="min-w-0 flex-1 truncate text-slate-600">{summarizeConfig(assignment.config ?? {})}</span>
+                      <div key={assignment.id} className="flex flex-wrap items-center gap-2 rounded border border-border px-3 py-2 text-xs text-foreground">
+                        <span className="rounded bg-muted px-2 py-0.5 font-mono">{assignment.scopeType}</span>
+                        <span className="font-mono text-muted-foreground">{assignment.scopeId || 'global'}</span>
+                        <span className="min-w-0 flex-1 truncate text-muted-foreground">{summarizeConfig(assignment.config ?? {})}</span>
                       <Button
                           variant="danger"
                           size="sm"
@@ -707,50 +710,50 @@ now() // returns current ISO timestamp
       ) : (
         <div className="space-y-4">
           <Card className="p-4">
-            <h2 className="text-base font-semibold text-slate-900">Authorization Decision History</h2>
-            <p className="mt-1 text-sm text-slate-600">View recent policy evaluation decisions for audit and debugging purposes.</p>
+            <h2 className="text-base font-semibold text-foreground">Authorization Decision History</h2>
+            <p className="mt-1 text-sm text-muted-foreground">View recent policy evaluation decisions for audit and debugging purposes.</p>
           </Card>
 
           {decisionsLoading ? (
             <TableSkeleton rows={4} />
           ) : decisions.length === 0 ? (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-slate-600">
+            <div className="rounded-xl border border-border bg-muted/50 p-6 text-center text-muted-foreground">
               <p>No authorization decisions recorded yet.</p>
               <p className="mt-1 text-sm">Run policy evaluations or access protected resources to generate decision logs.</p>
             </div>
           ) : (
-            <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto">
+            <Card className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="border-b border-slate-200 bg-slate-50">
+                <thead className="border-b border-border bg-muted/50">
                   <tr>
-                    <th className="px-4 py-3 text-left font-medium text-slate-700">Timestamp</th>
-                    <th className="px-4 py-3 text-left font-medium text-slate-700">Subject</th>
-                    <th className="px-4 py-3 text-left font-medium text-slate-700">Resource</th>
-                    <th className="px-4 py-3 text-left font-medium text-slate-700">Action</th>
-                    <th className="px-4 py-3 text-left font-medium text-slate-700">Decision</th>
-                    <th className="px-4 py-3 text-left font-medium text-slate-700">Policy Applied</th>
+                    <th className="px-4 py-3 text-left font-medium text-foreground">Timestamp</th>
+                    <th className="px-4 py-3 text-left font-medium text-foreground">Subject</th>
+                    <th className="px-4 py-3 text-left font-medium text-foreground">Resource</th>
+                    <th className="px-4 py-3 text-left font-medium text-foreground">Action</th>
+                    <th className="px-4 py-3 text-left font-medium text-foreground">Decision</th>
+                    <th className="px-4 py-3 text-left font-medium text-foreground">Policy Applied</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200">
+                <tbody className="divide-y divide-border">
                   {decisions.map((decision: any, idx: number) => (
-                    <tr key={idx} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 text-xs text-slate-500 font-mono">
+                    <tr key={idx} className="hover:bg-muted/50">
+                      <td className="px-4 py-3 text-xs text-muted-foreground font-mono">
                         {new Date(decision.evaluatedAt ?? decision.createdAt).toLocaleString()}
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs text-slate-600">{decision.userId?.slice(0, 12)}…</td>
-                      <td className="px-4 py-3 truncate text-slate-700">{decision.resource || '—'}</td>
-                      <td className="px-4 py-3"><code className="bg-slate-100 px-2 py-1 rounded text-xs">{decision.action}</code></td>
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{decision.userId?.slice(0, 12)}…</td>
+                      <td className="px-4 py-3 truncate text-foreground">{decision.resource || '—'}</td>
+                      <td className="px-4 py-3"><code className="bg-muted px-2 py-1 rounded text-xs">{decision.action}</code></td>
                       <td className="px-4 py-3">
                             <StatusBadge tone={decision.decision === 'allow' || decision.allowed ? 'success' : 'danger'}>
                               {decision.decision === 'allow' || decision.allowed ? 'ALLOW' : 'DENY'}
                             </StatusBadge>
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-600">{decision.policyId || decision.policyKey || '—'}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">{decision.policyId || decision.policyKey || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
+            </Card>
           )}
         </div>
       )}

@@ -1,3 +1,5 @@
+import Textarea from '../components/ui/Textarea'
+import Select from '../components/ui/Select'
 import { KeyRound, Link2, Pencil, Plus, RefreshCw, Shield, Trash2, UserCheck, UserX, Users as UsersIcon, X } from 'lucide-react'
 import { EmptyState, PageHeader, TableSkeleton } from '../components/PageHeader'
 import { useEffect, useMemo, useState } from 'react'
@@ -8,7 +10,7 @@ import { imageFieldForCreate, imageFieldForUpdate, resolveMediaSrc } from '../li
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
 import Button from '../components/ui/Button'
-import Input, { inputBaseClassName } from '../components/ui/Input'
+import Input from '../components/ui/Input'
 import Card from '../components/ui/Card'
 import StatusBadge from '../components/ui/StatusBadge'
 import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
@@ -121,8 +123,7 @@ const defaultResetForm = () => ({
   confirmPassword: ''
 })
 
-const fieldCls = inputBaseClassName
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
+const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
 
 const defaultValueForAttribute = (type?: AttributeType) => {
   if (type === 'boolean') return 'false'
@@ -140,10 +141,10 @@ const AttributeValueField = ({
 }) => {
   if (attribute?.type === 'boolean') {
     return (
-      <select value={value} onChange={(e) => onChange(e.target.value)} className={fieldCls}>
+      <Select value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="false">false</option>
         <option value="true">true</option>
-      </select>
+      </Select>
     )
   }
 
@@ -153,10 +154,10 @@ const AttributeValueField = ({
 
   if (attribute?.type === 'json') {
     return (
-      <textarea
+      <Textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 min-h-[88px] font-mono"
+        className="w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20 min-h-[88px] font-mono"
         placeholder='{"key":"value"}'
       />
     )
@@ -681,13 +682,13 @@ const Users = () => {
         <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search users by name, email, username…" />
         <div className="max-w-sm w-full">
           <label className={labelCls}>Filter by App</label>
-          <select className={fieldCls} value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
+          <Select value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
             <option value="all">All Apps</option>
             <option value="none">Unassigned</option>
             {(apps as AppItem[]).map((app) => (
               <option key={app.id} value={app.id}>{app.name}</option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
 
@@ -797,7 +798,7 @@ const Users = () => {
                       aria-label={`Select user ${user.email}`}
                     />
                   </div>
-                  <div className="h-8 w-8 shrink-0 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center text-xs font-semibold text-slate-600 mt-0.5">
+                  <div className="h-8 w-8 shrink-0 rounded-full bg-gradient-to-br from-muted to-border flex items-center justify-center text-xs font-semibold text-muted-foreground mt-0.5">
                     {(user.givenName?.[0] ?? '').toUpperCase()}{(user.familyName?.[0] ?? '').toUpperCase()}
                   </div>
                   <div className="space-y-0.5 flex-1 min-w-0">
@@ -873,8 +874,8 @@ const Users = () => {
                     ))}
                   </div>
                   <div className="mt-2 flex items-center gap-2 max-w-sm">
-                    <select
-                      className={`${fieldCls} h-8`}
+                    <Select
+                      className="h-8"
                       value={groupPickerByUser[user.id] ?? ''}
                       onChange={(e) => setGroupPickerByUser((prev) => ({ ...prev, [user.id]: e.target.value }))}
                     >
@@ -884,7 +885,7 @@ const Users = () => {
                         .map((group) => (
                           <option key={group.id} value={group.id}>{group.name}</option>
                         ))}
-                    </select>
+                    </Select>
                     <Button
                       variant="secondary"
                       size="sm"
@@ -948,15 +949,15 @@ const Users = () => {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelCls}>Apps</label>
-              <div className="border border-slate-200 rounded-lg p-2 max-h-40 overflow-auto space-y-1">
-                {(apps as AppItem[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No apps available</p>}
+              <div className="border border-border rounded-lg p-2 max-h-40 overflow-auto space-y-1">
+                {(apps as AppItem[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No apps available</p>}
                 {(apps as AppItem[]).map((app) => (
-                  <label key={app.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 text-sm text-slate-700 cursor-pointer">
+                  <label key={app.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 text-sm text-foreground cursor-pointer">
                     <input
                       type="checkbox"
                       checked={formData.appIds.includes(app.id)}
                       onChange={() => toggleAppId(app.id, 'create')}
-                      className="rounded border-slate-300"
+                      className="rounded border-border"
                     />
                     {app.name}
                   </label>
@@ -997,22 +998,22 @@ const Users = () => {
             <label className={labelCls}>Custom Attributes</label>
             <div className="space-y-2">
               {Object.entries(formData.customAttributes).length === 0 ? (
-                <p className="text-xs text-slate-400">No attributes selected</p>
+                <p className="text-xs text-muted-foreground">No attributes selected</p>
               ) : (
                 Object.entries(formData.customAttributes).map(([key, value]) => {
                   const attribute = attributeByKey.get(key)
                   return (
-                    <div key={key} className="rounded-lg border border-slate-200 p-3">
+                    <div key={key} className="rounded-lg border border-border p-3">
                       <div className="mb-2 flex items-center justify-between gap-2">
                         <div>
-                          <p className="text-sm font-medium text-slate-900">{attribute?.name ?? key}</p>
-                          <p className="text-xs text-slate-500 font-mono">{key}</p>
+                          <p className="text-sm font-medium text-foreground">{attribute?.name ?? key}</p>
+                          <p className="text-xs text-muted-foreground font-mono">{key}</p>
                         </div>
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="hover:bg-red-50 hover:text-red-600"
+                          className="hover:bg-rose-50 hover:text-rose-600"
                           onClick={() => removeAttribute('create', key)}
                           title="Remove attribute"
                         >
@@ -1029,10 +1030,9 @@ const Users = () => {
                 })
               )}
               <div className="flex items-center gap-2">
-                <select
+                <Select
                   value={attributePicker.create}
                   onChange={(e) => setAttributePicker((prev) => ({ ...prev, create: e.target.value }))}
-                  className={fieldCls}
                 >
                   <option value="">Add attribute...</option>
                   {enabledAttributeDefinitions
@@ -1040,7 +1040,7 @@ const Users = () => {
                     .map((attribute) => (
                       <option key={attribute.id} value={attribute.key}>{attribute.name}</option>
                     ))}
-                </select>
+                </Select>
                 <Button
                   type="button"
                   onClick={() => addAttribute('create')}
@@ -1052,19 +1052,19 @@ const Users = () => {
                 </Button>
               </div>
             </div>
-            {createFormError && <p className="mt-1 text-xs text-red-600">{createFormError}</p>}
+            {createFormError && <p className="mt-1 text-xs text-rose-600">{createFormError}</p>}
           </div>
           <div>
             <label className={labelCls}>Groups</label>
-            <div className="border border-slate-200 rounded-lg p-2 max-h-40 overflow-auto space-y-1">
-              {(groups as GroupItem[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No groups available</p>}
+            <div className="border border-border rounded-lg p-2 max-h-40 overflow-auto space-y-1">
+              {(groups as GroupItem[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No groups available</p>}
               {(groups as GroupItem[]).map((group) => (
-                <label key={group.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 text-sm text-slate-700 cursor-pointer">
+                <label key={group.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 text-sm text-foreground cursor-pointer">
                   <input
                     type="checkbox"
                     checked={formData.groupIds.includes(group.id)}
                     onChange={() => toggleCreateGroup(group.id)}
-                    className="rounded border-slate-300"
+                    className="rounded border-border"
                   />
                   {group.name}
                 </label>
@@ -1073,15 +1073,15 @@ const Users = () => {
           </div>
           <div>
             <label className={labelCls}>Roles</label>
-            <div className="border border-slate-200 rounded-lg p-2 max-h-40 overflow-auto space-y-1">
-              {(roles as RoleItem[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No roles available</p>}
+            <div className="border border-border rounded-lg p-2 max-h-40 overflow-auto space-y-1">
+              {(roles as RoleItem[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No roles available</p>}
               {(roles as RoleItem[]).map((role) => (
-                <label key={role.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 text-sm text-slate-700 cursor-pointer">
+                <label key={role.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 text-sm text-foreground cursor-pointer">
                   <input
                     type="checkbox"
                     checked={formData.roleIds.includes(role.id)}
                     onChange={() => toggleCreateRole(role.id)}
-                    className="rounded border-slate-300"
+                    className="rounded border-border"
                   />
                   {role.name}
                 </label>
@@ -1108,23 +1108,23 @@ const Users = () => {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className={labelCls}>Direct Apps</label>
-              <div className="border border-slate-200 rounded-lg p-2 max-h-40 overflow-auto space-y-1">
-                {(apps as AppItem[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No apps available</p>}
+              <div className="border border-border rounded-lg p-2 max-h-40 overflow-auto space-y-1">
+                {(apps as AppItem[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No apps available</p>}
                 {(apps as AppItem[]).map((app) => (
-                  <label key={app.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 text-sm text-slate-700 cursor-pointer">
+                  <label key={app.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 text-sm text-foreground cursor-pointer">
                     <input
                       type="checkbox"
                       checked={editFormData.appIds.includes(app.id)}
                       onChange={() => toggleAppId(app.id, 'edit')}
-                      className="rounded border-slate-300"
+                      className="rounded border-border"
                     />
                     {app.name}
                   </label>
                 ))}
               </div>
               {userToEdit && (userToEdit.inheritedAppIds ?? []).length > 0 && (
-                <div className="mt-2 rounded-lg border border-dashed border-slate-200 p-3">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Inherited Apps</p>
+                <div className="mt-2 rounded-lg border border-dashed border-border p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Inherited Apps</p>
                   <div className="space-y-1.5">
                     {(userToEdit.inheritedAppIds ?? []).map((appId) => {
                       const sourceGroupNames = Array.from(
@@ -1135,9 +1135,9 @@ const Users = () => {
                         )
                       )
                       return (
-                        <div key={appId} className="flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
-                          <span className="font-medium text-slate-900">{appNameById.get(appId) ?? appId}</span>
-                          <span className="text-slate-400">from</span>
+                        <div key={appId} className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground">{appNameById.get(appId) ?? appId}</span>
+                          <span className="text-muted-foreground">from</span>
                           {sourceGroupNames.length === 0 ? (
                             <StatusBadge tone="info">group</StatusBadge>
                           ) : (
@@ -1149,7 +1149,7 @@ const Users = () => {
                       )
                     })}
                   </div>
-                  <p className="mt-2 text-[11px] text-slate-400">Inherited apps cannot be removed here. Remove the user from the source group or unassign the app from that group instead.</p>
+                  <p className="mt-2 text-[11px] text-muted-foreground">Inherited apps cannot be removed here. Remove the user from the source group or unassign the app from that group instead.</p>
                 </div>
               )}
             </div>
@@ -1195,22 +1195,22 @@ const Users = () => {
             <label className={labelCls}>Direct Custom Attributes</label>
             <div className="space-y-2">
               {Object.entries(editFormData.customAttributes).length === 0 ? (
-                <p className="text-xs text-slate-400">No direct attributes selected</p>
+                <p className="text-xs text-muted-foreground">No direct attributes selected</p>
               ) : (
                 Object.entries(editFormData.customAttributes).map(([key, value]) => {
                   const attribute = attributeByKey.get(key)
                   return (
-                    <div key={key} className="rounded-lg border border-slate-200 p-3">
+                    <div key={key} className="rounded-lg border border-border p-3">
                       <div className="mb-2 flex items-center justify-between gap-2">
                         <div>
-                          <p className="text-sm font-medium text-slate-900">{attribute?.name ?? key}</p>
-                          <p className="text-xs text-slate-500 font-mono">{key}</p>
+                          <p className="text-sm font-medium text-foreground">{attribute?.name ?? key}</p>
+                          <p className="text-xs text-muted-foreground font-mono">{key}</p>
                         </div>
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="hover:bg-red-50 hover:text-red-600"
+                          className="hover:bg-rose-50 hover:text-rose-600"
                           onClick={() => removeAttribute('edit', key)}
                           title="Remove attribute"
                         >
@@ -1227,10 +1227,9 @@ const Users = () => {
                 })
               )}
               <div className="flex items-center gap-2">
-                <select
+                <Select
                   value={attributePicker.edit}
                   onChange={(e) => setAttributePicker((prev) => ({ ...prev, edit: e.target.value }))}
-                  className={fieldCls}
                 >
                   <option value="">Add attribute...</option>
                   {enabledAttributeDefinitions
@@ -1238,7 +1237,7 @@ const Users = () => {
                     .map((attribute) => (
                       <option key={attribute.id} value={attribute.key}>{attribute.name}</option>
                     ))}
-                </select>
+                </Select>
                 <Button
                   type="button"
                   onClick={() => addAttribute('edit')}
@@ -1249,19 +1248,19 @@ const Users = () => {
                 </Button>
               </div>
               {userToEdit && userToEdit.inheritedCustomAttributes && Object.keys(userToEdit.inheritedCustomAttributes).length > 0 && (
-                <div className="rounded-lg border border-dashed border-slate-200 p-3">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Inherited From Groups</p>
+                <div className="rounded-lg border border-dashed border-border p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Inherited From Groups</p>
                   <div className="space-y-1">
                     {Object.entries(userToEdit.inheritedCustomAttributes).map(([key, value]) => (
-                      <div key={key} className="text-xs text-slate-600">
-                        <span className="font-medium text-slate-900">{attributeByKey.get(key)?.name ?? key}</span>: {value}
+                      <div key={key} className="text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">{attributeByKey.get(key)?.name ?? key}</span>: {value}
                       </div>
                     ))}
                   </div>
                 </div>
               )}
             </div>
-            {editFormError && <p className="mt-1 text-xs text-red-600">{editFormError}</p>}
+            {editFormError && <p className="mt-1 text-xs text-rose-600">{editFormError}</p>}
           </div>
           <div className="space-y-3">
             <label className={labelCls}>Groups</label>
@@ -1277,8 +1276,7 @@ const Users = () => {
               </div>
               <div>
                 <label className={labelCls}>Filter by App</label>
-                <select
-                  className={fieldCls}
+                <Select
                   value={editGroupAppFilter}
                   onChange={(e) => setEditGroupAppFilter(e.target.value)}
                 >
@@ -1287,21 +1285,21 @@ const Users = () => {
                   {(apps as AppItem[]).map((app) => (
                     <option key={app.id} value={app.id}>{app.name}</option>
                   ))}
-                </select>
+                </Select>
               </div>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               {groupOptions.length === 0
                 ? 'No groups available'
                 : filteredEditGroups.length === 0
                   ? 'No matching groups'
                   : `Showing ${filteredEditGroups.length} of ${groupOptions.length} groups · ${editFormData.groupIds.length} selected`}
             </p>
-            <div className="border border-slate-200 rounded-lg p-2 max-h-40 overflow-auto space-y-1">
+            <div className="border border-border rounded-lg p-2 max-h-40 overflow-auto space-y-1">
               {groupOptions.length === 0 ? (
-                <p className="text-xs text-slate-400 px-1 py-1">No groups available</p>
+                <p className="text-xs text-muted-foreground px-1 py-1">No groups available</p>
               ) : filteredEditGroups.length === 0 ? (
-                <p className="text-xs text-slate-400 px-1 py-1">No groups match the current filters</p>
+                <p className="text-xs text-muted-foreground px-1 py-1">No groups match the current filters</p>
               ) : (
                 filteredEditGroups.map((group) => {
                   const groupAppIds = resolveGroupAppIds(group)
@@ -1309,12 +1307,12 @@ const Users = () => {
                     ? 'No App'
                     : groupAppIds.map((id) => appNameById.get(id) ?? id).join(', ')
                   return (
-                    <label key={group.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 text-sm text-slate-700 cursor-pointer">
+                    <label key={group.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 text-sm text-foreground cursor-pointer">
                       <input
                         type="checkbox"
                         checked={editFormData.groupIds.includes(group.id)}
                         onChange={() => toggleEditGroup(group.id)}
-                        className="rounded border-slate-300"
+                        className="rounded border-border"
                       />
                       <span className="flex-1 min-w-0 truncate">{group.name}</span>
                       <StatusBadge tone={groupAppIds.length > 0 ? 'accent' : 'neutral'}>
@@ -1340,8 +1338,7 @@ const Users = () => {
               </div>
               <div>
                 <label className={labelCls}>Filter by App</label>
-                <select
-                  className={fieldCls}
+                <Select
                   value={editRoleAppFilter}
                   onChange={(e) => setEditRoleAppFilter(e.target.value)}
                 >
@@ -1350,31 +1347,31 @@ const Users = () => {
                   {(apps as AppItem[]).map((app) => (
                     <option key={app.id} value={app.id}>{app.name}</option>
                   ))}
-                </select>
+                </Select>
               </div>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               {roleOptions.length === 0
                 ? 'No roles available'
                 : filteredEditRoles.length === 0
                   ? 'No matching roles'
                   : `Showing ${filteredEditRoles.length} of ${roleOptions.length} roles · ${editFormData.roleIds.length} selected`}
             </p>
-            <div className="border border-slate-200 rounded-lg p-2 max-h-40 overflow-auto space-y-1">
+            <div className="border border-border rounded-lg p-2 max-h-40 overflow-auto space-y-1">
               {roleOptions.length === 0 ? (
-                <p className="text-xs text-slate-400 px-1 py-1">No roles available</p>
+                <p className="text-xs text-muted-foreground px-1 py-1">No roles available</p>
               ) : filteredEditRoles.length === 0 ? (
-                <p className="text-xs text-slate-400 px-1 py-1">No roles match the current filters</p>
+                <p className="text-xs text-muted-foreground px-1 py-1">No roles match the current filters</p>
               ) : (
                 filteredEditRoles.map((role) => {
                   const appName = role.appId ? appNameById.get(role.appId) : null
                   return (
-                    <label key={role.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 text-sm text-slate-700 cursor-pointer">
+                    <label key={role.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 text-sm text-foreground cursor-pointer">
                       <input
                         type="checkbox"
                         checked={editFormData.roleIds.includes(role.id)}
                         onChange={() => toggleEditRole(role.id)}
-                        className="rounded border-slate-300"
+                        className="rounded border-border"
                       />
                       <span className="flex-1 min-w-0 truncate">{role.name}</span>
                       <StatusBadge tone={appName ? 'accent' : 'neutral'}>
@@ -1403,7 +1400,7 @@ const Users = () => {
 
       <Modal isOpen={resetModalOpen} onClose={() => setResetModalOpen(false)} title={`Reset Password${userToReset ? `: ${userToReset.email}` : ''}`}>
         <div className="space-y-4">
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-muted-foreground">
             Set a new password for this user. Existing sessions for this user will be revoked immediately.
           </p>
           <div>
@@ -1424,7 +1421,7 @@ const Users = () => {
               placeholder="Repeat new password"
             />
           </div>
-          {resetFormError && <p className="text-xs text-red-600">{resetFormError}</p>}
+          {resetFormError && <p className="text-xs text-rose-600">{resetFormError}</p>}
           <div className="flex gap-2 justify-end pt-2">
             <Button onClick={() => setResetModalOpen(false)} variant="secondary">
               Cancel
@@ -1452,10 +1449,10 @@ const Users = () => {
 
       <Modal isOpen={bulkDeleteOpen} onClose={closeBulkModals} title="Delete Selected Users" size="md">
         <div className="space-y-4">
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-foreground">
             Permanently delete <span className="font-semibold">{selectedUserIds.length}</span> user{selectedUserIds.length === 1 ? '' : 's'}? This action cannot be undone.
           </p>
-          {bulkError && <p className="text-xs text-red-600">{bulkError}</p>}
+          {bulkError && <p className="text-xs text-rose-600">{bulkError}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={closeBulkModals} disabled={bulkPending}>
               Cancel
@@ -1474,11 +1471,11 @@ const Users = () => {
         size="md"
       >
         <div className="space-y-4">
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-foreground">
             {bulkActiveAction === 'activate' ? 'Activate' : 'Deactivate'} the {selectedUserIds.length} selected user{selectedUserIds.length === 1 ? '' : 's'}?
             {bulkActiveAction === 'deactivate' && ' Existing sessions for these users will continue until expiry but new sign-ins will be blocked.'}
           </p>
-          {bulkError && <p className="text-xs text-red-600">{bulkError}</p>}
+          {bulkError && <p className="text-xs text-rose-600">{bulkError}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={closeBulkModals} disabled={bulkPending}>
               Cancel
@@ -1501,13 +1498,12 @@ const Users = () => {
         size="md"
       >
         <div className="space-y-4">
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-muted-foreground">
             {bulkGroupAction === 'add' ? 'Assign' : 'Remove'} the {selectedUserIds.length} selected user{selectedUserIds.length === 1 ? '' : 's'} {bulkGroupAction === 'add' ? 'to' : 'from'} a group.
           </p>
           <div>
             <label className={labelCls}>Group</label>
-            <select
-              className={fieldCls}
+            <Select
               value={bulkGroupId}
               onChange={(e) => setBulkGroupId(e.target.value)}
             >
@@ -1515,9 +1511,9 @@ const Users = () => {
               {(groups as GroupItem[]).map((group) => (
                 <option key={group.id} value={group.id}>{group.name}</option>
               ))}
-            </select>
+            </Select>
           </div>
-          {bulkError && <p className="text-xs text-red-600">{bulkError}</p>}
+          {bulkError && <p className="text-xs text-rose-600">{bulkError}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={closeBulkModals} disabled={bulkPending}>
               Cancel
@@ -1540,13 +1536,12 @@ const Users = () => {
         size="md"
       >
         <div className="space-y-4">
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-muted-foreground">
             {bulkRoleAction === 'add' ? 'Assign' : 'Remove'} a role {bulkRoleAction === 'add' ? 'to' : 'from'} the {selectedUserIds.length} selected user{selectedUserIds.length === 1 ? '' : 's'}. Only direct role assignments are affected; roles inherited via groups are not changed.
           </p>
           <div>
             <label className={labelCls}>Role</label>
-            <select
-              className={fieldCls}
+            <Select
               value={bulkRoleId}
               onChange={(e) => setBulkRoleId(e.target.value)}
             >
@@ -1554,9 +1549,9 @@ const Users = () => {
               {(roles as RoleItem[]).map((role) => (
                 <option key={role.id} value={role.id}>{role.name}</option>
               ))}
-            </select>
+            </Select>
           </div>
-          {bulkError && <p className="text-xs text-red-600">{bulkError}</p>}
+          {bulkError && <p className="text-xs text-rose-600">{bulkError}</p>}
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={closeBulkModals} disabled={bulkPending}>
               Cancel

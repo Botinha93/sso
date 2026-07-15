@@ -1,3 +1,6 @@
+import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
+import Textarea from '../components/ui/Textarea'
+import Select from '../components/ui/Select'
 import { AppWindow, ChevronDown, ChevronUp, Pencil, Plus, RefreshCw, Shield, Trash2, Upload } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import type { Dispatch, SetStateAction } from 'react'
@@ -41,8 +44,7 @@ interface FederationProvider {
   secretPreview?: string
 }
 
-const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
+const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
 
 // ─── Provider templates ────────────────────────────────────────────────────────
 
@@ -185,12 +187,12 @@ const PROVIDER_TEMPLATES: ProviderTemplate[] = [
 function TemplatePicker({ onSelect }: { onSelect: (t: ProviderTemplate) => void }) {
   const [open, setOpen] = useState(true)
   return (
-    <div className="rounded-xl border border-slate-200 overflow-hidden mb-5">
+    <div className="rounded-xl border border-border overflow-hidden mb-5">
       <Button
         type="button"
         onClick={() => setOpen(p => !p)}
         variant="ghost"
-        className="h-auto w-full justify-between rounded-none bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+        className="h-auto w-full justify-between rounded-none bg-muted/50 px-4 py-2.5 text-sm font-semibold text-foreground hover:bg-muted"
       >
         <span>Start from a template</span>
         {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -203,7 +205,7 @@ function TemplatePicker({ onSelect }: { onSelect: (t: ProviderTemplate) => void 
               type="button"
               onClick={() => onSelect(t)}
               variant="ghost"
-              className="h-auto flex-col gap-1.5 rounded-lg border border-slate-200 p-2.5 hover:border-slate-400 hover:bg-slate-50 group"
+              className="h-auto flex-col gap-1.5 rounded-lg border border-border p-2.5 hover:border-ring hover:bg-muted/50 group"
               title={`Use ${t.label} template`}
             >
               <img
@@ -212,18 +214,18 @@ function TemplatePicker({ onSelect }: { onSelect: (t: ProviderTemplate) => void 
                 className="w-6 h-6 rounded object-contain"
                 onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
               />
-              <span className="text-xs text-slate-600 group-hover:text-slate-900 font-medium text-center leading-tight">{t.label}</span>
+              <span className="text-xs text-muted-foreground group-hover:text-foreground font-medium text-center leading-tight">{t.label}</span>
             </Button>
           ))}
           <Button
             type="button"
             onClick={() => setOpen(false)}
             variant="ghost"
-            className="h-auto flex-col gap-1.5 rounded-lg border border-dashed border-slate-200 p-2.5 hover:border-slate-400 hover:bg-slate-50 group"
+            className="h-auto flex-col gap-1.5 rounded-lg border border-dashed border-border p-2.5 hover:border-ring hover:bg-muted/50 group"
             title="Start blank"
           >
-            <Plus size={18} className="text-slate-400 group-hover:text-slate-700" />
-            <span className="text-xs text-slate-500 group-hover:text-slate-800 font-medium text-center leading-tight">Custom</span>
+            <Plus size={18} className="text-muted-foreground group-hover:text-foreground" />
+            <span className="text-xs text-muted-foreground group-hover:text-foreground font-medium text-center leading-tight">Custom</span>
           </Button>
         </div>
       )}
@@ -500,14 +502,14 @@ const FederationProviders = () => {
         <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search federation providers…" />
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
-          <h4 className="text-sm font-semibold text-slate-700">Configured Providers</h4>
-          <Button onClick={() => refetch()} disabled={isProvidersRefreshing} variant="ghost" size="sm" className="text-xs text-slate-500 hover:text-slate-900">
+      <Table className="overflow-hidden">
+        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
+          <h4 className="text-sm font-semibold text-foreground">Configured Providers</h4>
+          <Button onClick={() => refetch()} disabled={isProvidersRefreshing} variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
             <RefreshCw size={12} className={isProvidersRefreshing ? 'animate-spin' : ''} />
             Refresh
           </Button>
-        </div>
+        </TableHeaderRow>
 
         {isLoading ? (
           <TableSkeleton rows={4} />
@@ -517,15 +519,15 @@ const FederationProviders = () => {
             description="Configure LDAP or SAML to sync users from external directories."
           />
         ) : (
-          <div className="divide-y divide-slate-100">
+          <TableBody className="divide-y divide-border">
             {providers.map((provider) => (
-              <div key={provider.id} className="px-5 py-3.5 hover:bg-slate-50/50 transition-colors flex items-start justify-between gap-4">
+              <TableRow key={provider.id} className="px-5 py-3.5 hover:bg-muted/50 transition-colors flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
-                      <AppWindow size={14} className="text-slate-500" />
+                    <div className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center">
+                      <AppWindow size={14} className="text-muted-foreground" />
                     </div>
-                    <h5 className="text-sm font-medium text-slate-900">{provider.label}</h5>
+                    <h5 className="text-sm font-medium text-foreground">{provider.label}</h5>
                     <StatusBadge tone={provider.enabled ? 'success' : 'neutral'}>
                       {provider.enabled ? 'Enabled' : 'Disabled'}
                     </StatusBadge>
@@ -533,10 +535,10 @@ const FederationProviders = () => {
                       {provider.source.toUpperCase()}
                     </StatusBadge>
                   </div>
-                  <p className="text-xs text-slate-500 font-mono">{provider.id}</p>
-                  <p className="text-xs text-slate-500 truncate">auth: {provider.authorizationEndpoint}</p>
-                  <p className="text-xs text-slate-500 truncate">token: {provider.tokenEndpoint}</p>
-                  <p className="text-xs text-slate-500 truncate">userinfo: {provider.userInfoEndpoint}</p>
+                  <p className="text-xs text-muted-foreground font-mono">{provider.id}</p>
+                  <p className="text-xs text-muted-foreground truncate">auth: {provider.authorizationEndpoint}</p>
+                  <p className="text-xs text-muted-foreground truncate">token: {provider.tokenEndpoint}</p>
+                  <p className="text-xs text-muted-foreground truncate">userinfo: {provider.userInfoEndpoint}</p>
                   <div className="flex gap-1 flex-wrap mt-1">
                     {provider.scopes.map((scope) => (
                       <StatusBadge key={scope} tone="neutral" mono>{scope}</StatusBadge>
@@ -549,7 +551,7 @@ const FederationProviders = () => {
                     disabled={provider.source === 'env'}
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-700"
+                    className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
                     title={provider.source === 'env' ? 'Environment providers are read-only' : 'Edit provider'}
                   >
                     <Pencil size={14} />
@@ -559,26 +561,26 @@ const FederationProviders = () => {
                     disabled={provider.source === 'env' || deleteProvider.isPending}
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"
+                    className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
                     title={provider.source === 'env' ? 'Environment providers are read-only' : 'Delete provider'}
                   >
                     <Trash2 size={14} />
                   </Button>
                 </div>
-              </div>
+              </TableRow>
             ))}
-          </div>
+          </TableBody>
         )}
-      </Card>
+      </Table>
 
-      <Card className="mt-8 overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
+      <Table className="mt-8 overflow-hidden">
+        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
           <div>
-            <h4 className="text-sm font-semibold text-slate-700">SAML Service Providers</h4>
-            <p className="text-xs text-slate-500 mt-0.5">Manage SAML 2.0 service provider registrations, metadata, and certificates.</p>
+            <h4 className="text-sm font-semibold text-foreground">SAML Service Providers</h4>
+            <p className="text-xs text-muted-foreground mt-0.5">Manage SAML 2.0 service provider registrations, metadata, and certificates.</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button onClick={() => refetchSamlProviders()} disabled={isSamlProvidersRefreshing} variant="ghost" size="sm" className="text-xs text-slate-500 hover:text-slate-900">
+            <Button onClick={() => refetchSamlProviders()} disabled={isSamlProvidersRefreshing} variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
               <RefreshCw size={12} className={isSamlProvidersRefreshing ? 'animate-spin' : ''} />
               Refresh
             </Button>
@@ -587,7 +589,7 @@ const FederationProviders = () => {
               Add SP
             </Button>
           </div>
-        </div>
+        </TableHeaderRow>
 
         {samlActionMessage ? (
           <div className="mx-5 mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{samlActionMessage}</div>
@@ -603,35 +605,35 @@ const FederationProviders = () => {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-sm">
-              <thead className="border-b border-slate-100 bg-slate-50">
+              <thead className="border-b border-border bg-muted/50">
                 <tr>
                   {['Entity ID', 'ACS URL', 'Status', 'Updated', 'Actions'].map((header) => (
-                    <th key={header} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{header}</th>
+                    <th key={header} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{header}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-border">
                 {samlProviders.map((provider) => (
-                  <tr key={provider.id} className="hover:bg-slate-50/40">
+                  <tr key={provider.id} className="hover:bg-muted/40">
                     <td className="px-4 py-3">
-                      <p className="font-mono text-xs text-slate-700 break-all">{provider.entityId}</p>
+                      <p className="font-mono text-xs text-foreground break-all">{provider.entityId}</p>
                     </td>
                     <td className="px-4 py-3">
-                      <p className="font-mono text-xs text-slate-600 break-all">{provider.acsUrl}</p>
+                      <p className="font-mono text-xs text-muted-foreground break-all">{provider.acsUrl}</p>
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge tone={provider.enabled ? 'success' : 'neutral'}>
                         {provider.enabled ? 'enabled' : 'disabled'}
                       </StatusBadge>
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-500">{new Date(provider.updatedAt).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{new Date(provider.updatedAt).toLocaleString()}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1.5">
                         <Button
                           onClick={() => openMetadataUpload(provider)}
                           variant="secondary"
                           size="sm"
-                          className="h-7 rounded-md px-2 text-xs text-slate-600"
+                          className="h-7 rounded-md px-2 text-xs text-muted-foreground"
                         >
                           <Upload size={12} /> Metadata
                         </Button>
@@ -639,7 +641,7 @@ const FederationProviders = () => {
                           onClick={() => openCertificateRotate(provider, 'signing')}
                           variant="secondary"
                           size="sm"
-                          className="h-7 rounded-md px-2 text-xs text-slate-600"
+                          className="h-7 rounded-md px-2 text-xs text-muted-foreground"
                         >
                           <Shield size={12} /> Rotate Signing
                         </Button>
@@ -647,7 +649,7 @@ const FederationProviders = () => {
                           onClick={() => openCertificateRotate(provider, 'encryption')}
                           variant="secondary"
                           size="sm"
-                          className="h-7 rounded-md px-2 text-xs text-slate-600"
+                          className="h-7 rounded-md px-2 text-xs text-muted-foreground"
                         >
                           <Shield size={12} /> Rotate Encryption
                         </Button>
@@ -655,7 +657,7 @@ const FederationProviders = () => {
                           onClick={() => openSamlSpEdit(provider)}
                           variant="secondary"
                           size="sm"
-                          className="h-7 rounded-md px-2 text-xs text-slate-600"
+                          className="h-7 rounded-md px-2 text-xs text-muted-foreground"
                         >
                           <Pencil size={12} /> Edit
                         </Button>
@@ -663,7 +665,7 @@ const FederationProviders = () => {
                           onClick={() => setSamlSpDeleteTarget(provider)}
                           variant="danger"
                           size="sm"
-                          className="h-7 rounded-md border border-rose-200 bg-white px-2 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                          className="h-7 rounded-md border border-rose-200 bg-card px-2 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                         >
                           <Trash2 size={12} /> Delete
                         </Button>
@@ -675,60 +677,60 @@ const FederationProviders = () => {
             </table>
           </div>
         )}
-      </Card>
+      </Table>
 
       {/* SAML Assertions Audit Log */}
-      <Card className="mt-8 overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
+      <Table className="mt-8 overflow-hidden">
+        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
           <div>
-            <h4 className="text-sm font-semibold text-slate-700">SAML Assertion Audit Log</h4>
-            <p className="text-xs text-slate-500 mt-0.5">Recent assertion activity across all service providers.</p>
+            <h4 className="text-sm font-semibold text-foreground">SAML Assertion Audit Log</h4>
+            <p className="text-xs text-muted-foreground mt-0.5">Recent assertion activity across all service providers.</p>
           </div>
           <div className="flex items-center gap-2">
-            <select
+            <Select
               value={assertionsSpFilter}
               onChange={e => setAssertionsSpFilter(e.target.value)}
-              className="h-7 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none"
+              className="h-7 rounded-md border border-border bg-card px-2 text-xs text-foreground outline-none"
             >
               <option value="">All SPs</option>
               {samlProviders.map(sp => (
                 <option key={sp.id} value={sp.id}>{sp.entityId}</option>
               ))}
-            </select>
-            <Button onClick={() => refetchAssertions()} disabled={isAssertionsRefreshing} variant="ghost" size="sm" className="text-xs text-slate-500 hover:text-slate-900">
+            </Select>
+            <Button onClick={() => refetchAssertions()} disabled={isAssertionsRefreshing} variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
               <RefreshCw size={12} className={isAssertionsRefreshing ? 'animate-spin' : ''} /> Refresh
             </Button>
           </div>
-        </div>
+        </TableHeaderRow>
         {assertionsLoading ? (
-          <div className="p-8 text-center text-slate-400 text-sm">Loading assertions…</div>
+          <div className="p-8 text-center text-muted-foreground text-sm">Loading assertions…</div>
         ) : assertions.length === 0 ? (
-          <div className="p-8 text-center text-slate-400 text-sm">No assertion records found</div>
+          <div className="p-8 text-center text-muted-foreground text-sm">No assertion records found</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-sm">
-              <thead className="border-b border-slate-100 bg-slate-50">
+              <thead className="border-b border-border bg-muted/50">
                 <tr>
                   {['SP', 'Subject', 'Assertion ID', 'Session Index', 'Time'].map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">{h}</th>
+                    <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-border">
                 {assertions.map(a => (
-                  <tr key={a.id} className="hover:bg-slate-50/40">
-                    <td className="px-4 py-2.5 font-mono text-xs text-slate-600 break-all max-w-[160px] truncate">{samlProviders.find(sp => sp.id === a.spId)?.entityId ?? a.spId}</td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-slate-700 break-all max-w-[160px] truncate">{a.subject ?? '—'}</td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-slate-500 break-all max-w-[160px] truncate">{a.assertionId}</td>
-                    <td className="px-4 py-2.5 text-xs text-slate-500">{a.sessionIndex ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-xs text-slate-400 whitespace-nowrap">{new Date(a.createdAt).toLocaleString()}</td>
+                  <tr key={a.id} className="hover:bg-muted/40">
+                    <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground break-all max-w-[160px] truncate">{samlProviders.find(sp => sp.id === a.spId)?.entityId ?? a.spId}</td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-foreground break-all max-w-[160px] truncate">{a.subject ?? '—'}</td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground break-all max-w-[160px] truncate">{a.assertionId}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground">{a.sessionIndex ?? '—'}</td>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{new Date(a.createdAt).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-      </Card>
+      </Table>
 
       <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title="Create Federation Provider">
         <TemplatePicker onSelect={applyTemplate} />
@@ -761,21 +763,21 @@ const FederationProviders = () => {
 
       <Modal isOpen={!!metadataTarget} onClose={() => setMetadataTarget(null)} title="Upload SAML Metadata">
         <div className="space-y-3">
-          {metadataTarget ? <p className="text-xs text-slate-500">Target: <span className="font-mono">{metadataTarget.entityId}</span></p> : null}
+          {metadataTarget ? <p className="text-xs text-muted-foreground">Target: <span className="font-mono">{metadataTarget.entityId}</span></p> : null}
           <div>
             <label className={labelCls}>Metadata XML</label>
-            <textarea
-              className="w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 font-mono text-xs text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+            <Textarea
+              className="w-full rounded-lg border border-border bg-transparent px-3 py-2 font-mono text-xs text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
               rows={10}
               placeholder="<EntityDescriptor ...>...</EntityDescriptor>"
               value={metadataXml}
               onChange={(e) => setMetadataXml(e.target.value)}
             />
           </div>
-          <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+          <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
             <input
               type="checkbox"
-              className="rounded border-slate-300"
+              className="rounded border-border"
               checked={overwriteManualFields}
               onChange={(e) => setOverwriteManualFields(e.target.checked)}
             />
@@ -796,22 +798,21 @@ const FederationProviders = () => {
 
       <Modal isOpen={!!rotateTarget} onClose={() => setRotateTarget(null)} title="Rotate SAML Certificate">
         <div className="space-y-3">
-          {rotateTarget ? <p className="text-xs text-slate-500">Target: <span className="font-mono">{rotateTarget.entityId}</span></p> : null}
+          {rotateTarget ? <p className="text-xs text-muted-foreground">Target: <span className="font-mono">{rotateTarget.entityId}</span></p> : null}
           <div>
             <label className={labelCls}>Certificate Type</label>
-            <select
-              className={fieldCls}
+            <Select
               value={certificateType}
               onChange={(e) => setCertificateType(e.target.value as 'signing' | 'encryption')}
             >
               <option value="signing">Signing</option>
               <option value="encryption">Encryption</option>
-            </select>
+            </Select>
           </div>
           <div>
             <label className={labelCls}>Certificate (PEM)</label>
-            <textarea
-              className="w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2 font-mono text-xs text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+            <Textarea
+              className="w-full rounded-lg border border-border bg-transparent px-3 py-2 font-mono text-xs text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
               rows={10}
               placeholder="-----BEGIN CERTIFICATE-----"
               value={certificatePem}
@@ -864,41 +865,41 @@ function ProviderForm({
       {showId && (
         <div>
           <label className={labelCls}>Provider ID</label>
-          <Input className={`${fieldCls} font-mono`} value={form.id} onChange={(e) => setForm((p) => ({ ...p, id: e.target.value }))} placeholder="google" />
+          <Input className="font-mono" value={form.id} onChange={(e) => setForm((p) => ({ ...p, id: e.target.value }))} placeholder="google" />
         </div>
       )}
       <div>
         <label className={labelCls}>Label</label>
-        <Input className={fieldCls} value={form.label} onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))} placeholder="Google Workspace" />
+        <Input value={form.label} onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))} placeholder="Google Workspace" />
       </div>
       <div>
         <label className={labelCls}>Authorization Endpoint</label>
-        <Input className={`${fieldCls} font-mono`} value={form.authorizationEndpoint} onChange={(e) => setForm((p) => ({ ...p, authorizationEndpoint: e.target.value }))} placeholder="https://accounts.google.com/o/oauth2/v2/auth" />
+        <Input className="font-mono" value={form.authorizationEndpoint} onChange={(e) => setForm((p) => ({ ...p, authorizationEndpoint: e.target.value }))} placeholder="https://accounts.google.com/o/oauth2/v2/auth" />
       </div>
       <div>
         <label className={labelCls}>Token Endpoint</label>
-        <Input className={`${fieldCls} font-mono`} value={form.tokenEndpoint} onChange={(e) => setForm((p) => ({ ...p, tokenEndpoint: e.target.value }))} placeholder="https://oauth2.googleapis.com/token" />
+        <Input className="font-mono" value={form.tokenEndpoint} onChange={(e) => setForm((p) => ({ ...p, tokenEndpoint: e.target.value }))} placeholder="https://oauth2.googleapis.com/token" />
       </div>
       <div>
         <label className={labelCls}>UserInfo Endpoint</label>
-        <Input className={`${fieldCls} font-mono`} value={form.userInfoEndpoint} onChange={(e) => setForm((p) => ({ ...p, userInfoEndpoint: e.target.value }))} placeholder="https://openidconnect.googleapis.com/v1/userinfo" />
+        <Input className="font-mono" value={form.userInfoEndpoint} onChange={(e) => setForm((p) => ({ ...p, userInfoEndpoint: e.target.value }))} placeholder="https://openidconnect.googleapis.com/v1/userinfo" />
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label className={labelCls}>Client ID</label>
-          <Input className={`${fieldCls} font-mono`} value={form.clientId} onChange={(e) => setForm((p) => ({ ...p, clientId: e.target.value }))} />
+          <Input className="font-mono" value={form.clientId} onChange={(e) => setForm((p) => ({ ...p, clientId: e.target.value }))} />
         </div>
         <div>
           <label className={labelCls}>Client Secret</label>
-          <Input className={`${fieldCls} font-mono`} value={form.clientSecret} onChange={(e) => setForm((p) => ({ ...p, clientSecret: e.target.value }))} placeholder="Leave empty to keep existing" />
+          <Input className="font-mono" value={form.clientSecret} onChange={(e) => setForm((p) => ({ ...p, clientSecret: e.target.value }))} placeholder="Leave empty to keep existing" />
         </div>
       </div>
       <div>
         <label className={labelCls}>Scopes</label>
-        <Input className={`${fieldCls} font-mono`} value={form.scopes} onChange={(e) => setForm((p) => ({ ...p, scopes: e.target.value }))} placeholder="openid profile email" />
+        <Input className="font-mono" value={form.scopes} onChange={(e) => setForm((p) => ({ ...p, scopes: e.target.value }))} placeholder="openid profile email" />
       </div>
-      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-        <input type="checkbox" className="rounded border-slate-300" checked={form.enabled} onChange={(e) => setForm((p) => ({ ...p, enabled: e.target.checked }))} />
+      <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+        <input type="checkbox" className="rounded border-border" checked={form.enabled} onChange={(e) => setForm((p) => ({ ...p, enabled: e.target.checked }))} />
         Provider is enabled
       </label>
       <div className="flex justify-end">
@@ -930,26 +931,26 @@ function SamlSpForm({
       {error ? <p className="rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-xs text-rose-700">{error}</p> : null}
       <div>
         <label className={labelCls}>Entity ID</label>
-        <Input className={`${fieldCls} font-mono`} value={form.entityId} onChange={e => setForm(p => ({ ...p, entityId: e.target.value }))} placeholder="https://sp.example.com/saml/metadata" required />
+        <Input className="font-mono" value={form.entityId} onChange={e => setForm(p => ({ ...p, entityId: e.target.value }))} placeholder="https://sp.example.com/saml/metadata" required />
       </div>
       <div>
         <label className={labelCls}>ACS URL</label>
-        <Input className={`${fieldCls} font-mono`} value={form.acsUrl} onChange={e => setForm(p => ({ ...p, acsUrl: e.target.value }))} placeholder="https://sp.example.com/saml/acs" required />
+        <Input className="font-mono" value={form.acsUrl} onChange={e => setForm(p => ({ ...p, acsUrl: e.target.value }))} placeholder="https://sp.example.com/saml/acs" required />
       </div>
       <div>
         <label className={labelCls}>SLO URL (optional)</label>
-        <Input className={`${fieldCls} font-mono`} value={form.sloUrl} onChange={e => setForm(p => ({ ...p, sloUrl: e.target.value }))} placeholder="https://sp.example.com/saml/slo" />
+        <Input className="font-mono" value={form.sloUrl} onChange={e => setForm(p => ({ ...p, sloUrl: e.target.value }))} placeholder="https://sp.example.com/saml/slo" />
       </div>
       <div>
         <label className={labelCls}>Name ID Format</label>
-        <select className={fieldCls} value={form.nameIdFormat} onChange={e => setForm(p => ({ ...p, nameIdFormat: e.target.value as typeof form.nameIdFormat }))}>
+        <Select value={form.nameIdFormat} onChange={e => setForm(p => ({ ...p, nameIdFormat: e.target.value as typeof form.nameIdFormat }))}>
           <option value="persistent">Persistent</option>
           <option value="transient">Transient</option>
           <option value="emailAddress">Email Address</option>
-        </select>
+        </Select>
       </div>
-      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-        <input type="checkbox" className="rounded border-slate-300" checked={form.enabled} onChange={e => setForm(p => ({ ...p, enabled: e.target.checked }))} />
+      <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+        <input type="checkbox" className="rounded border-border" checked={form.enabled} onChange={e => setForm(p => ({ ...p, enabled: e.target.checked }))} />
         Service provider is enabled
       </label>
       <div className="flex justify-end">

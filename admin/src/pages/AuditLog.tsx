@@ -1,3 +1,4 @@
+import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
 import { RefreshCw, ClipboardList } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import Button from '../components/ui/Button'
@@ -19,19 +20,19 @@ interface AuditEvent {
 }
 
 const eventBadge: Record<string, string> = {
-  login: 'bg-green-50 text-green-700 border-green-100',
-  login_failed: 'bg-red-50 text-red-600 border-red-100',
+  login: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+  login_failed: 'bg-rose-50 text-rose-600 border-rose-100',
   logout: 'bg-sky-50 text-sky-700 border-sky-100',
-  token_issued: 'bg-violet-50 text-violet-700 border-violet-100',
-  token_refreshed: 'bg-violet-50 text-violet-700 border-violet-100',
+  token_issued: 'bg-sky-50 text-sky-700 border-sky-100',
+  token_refreshed: 'bg-sky-50 text-sky-700 border-sky-100',
   token_revoked: 'bg-orange-50 text-orange-700 border-orange-100',
   consent_granted: 'bg-teal-50 text-teal-700 border-teal-100',
   consent_revoked: 'bg-orange-50 text-orange-700 border-orange-100',
-  session_revoked: 'bg-red-50 text-red-600 border-red-100',
-  client_created: 'bg-green-50 text-green-700 border-green-100',
+  session_revoked: 'bg-rose-50 text-rose-600 border-rose-100',
+  client_created: 'bg-emerald-50 text-emerald-700 border-emerald-100',
   client_updated: 'bg-sky-50 text-sky-700 border-sky-100',
-  client_deleted: 'bg-red-50 text-red-600 border-red-100',
-  user_created: 'bg-green-50 text-green-700 border-green-100',
+  client_deleted: 'bg-rose-50 text-rose-600 border-rose-100',
+  user_created: 'bg-emerald-50 text-emerald-700 border-emerald-100',
 }
 
 const AuditLog = () => {
@@ -47,9 +48,9 @@ const AuditLog = () => {
         <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search events by type, actor, client…" />
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
-          <h4 className="text-sm font-semibold text-slate-700">Events</h4>
+      <Table className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
+          <h4 className="text-sm font-semibold text-foreground">Events</h4>
           <Button
             variant="ghost"
             size="sm"
@@ -59,7 +60,7 @@ const AuditLog = () => {
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </Button>
-        </div>
+        </TableHeaderRow>
 
         {isLoading ? (
           <TableSkeleton rows={6} />
@@ -69,32 +70,32 @@ const AuditLog = () => {
             description="Authentication and administrative events will appear here."
           />
         ) : (
-          <div className="divide-y divide-slate-100">
+          <TableBody className="divide-y divide-border">
             {events.map((event: AuditEvent) => (
-              <div key={event.id} className="flex items-start gap-3 px-5 py-3.5 hover:bg-slate-50/50 transition-colors">
-                <span className={`text-[11px] px-2 py-0.5 rounded-md font-mono border mt-0.5 whitespace-nowrap ${eventBadge[event.type] ?? 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+              <TableRow key={event.id} className="flex items-start gap-3 px-5 py-3.5 hover:bg-muted/50 transition-colors">
+                <span className={`text-[11px] px-2 py-0.5 rounded-md font-mono border mt-0.5 whitespace-nowrap ${eventBadge[event.type] ?? 'bg-muted text-muted-foreground border-border'}`}>
                   {event.type}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-muted-foreground">
                     {event.actorType}{event.actorId ? ` · ${event.actorId.slice(0, 12)}…` : ''}
                     {event.clientId ? ` · client: ${event.clientId}` : ''}
                     {event.ip ? ` · ip: ${event.ip}` : ''}
                   </p>
                   {event.metadata && (
-                    <p className="text-[11px] text-slate-400 font-mono truncate mt-0.5">
+                    <p className="text-[11px] text-muted-foreground font-mono truncate mt-0.5">
                       {JSON.stringify(event.metadata)}
                     </p>
                   )}
                 </div>
-                <p className="text-xs text-slate-400 whitespace-nowrap">
+                <p className="text-xs text-muted-foreground whitespace-nowrap">
                   {new Date(event.createdAt).toLocaleString()}
                 </p>
-              </div>
+              </TableRow>
             ))}
-          </div>
+          </TableBody>
         )}
-      </div>
+      </Table>
     </div>
   )
 }

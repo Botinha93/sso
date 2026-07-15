@@ -1,3 +1,5 @@
+import Card from '../components/ui/Card'
+import Textarea from '../components/ui/Textarea'
 import { useMemo, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { CheckCircle2, FileArchive, ShieldAlert, Trash2, UploadCloud } from 'lucide-react'
@@ -13,8 +15,7 @@ import {
   useValidatePlugin,
 } from '../hooks/useApi'
 
-const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
+const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
 
 const emptyManifest: PluginManifestDto = {
   id: '',
@@ -165,10 +166,10 @@ export default function Plugins() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+        <Card className="rounded-2xl border border-border bg-card p-5 shadow-sm space-y-4">
           <div className="flex items-center gap-2">
-            <UploadCloud size={16} className="text-slate-500" />
-            <h3 className="text-base font-semibold text-slate-900">Upload Plugin Bundle</h3>
+            <UploadCloud size={16} className="text-muted-foreground" />
+            <h3 className="text-base font-semibold text-foreground">Upload Plugin Bundle</h3>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -192,10 +193,10 @@ export default function Plugins() {
 
           <div>
             <label className={labelCls}>Description</label>
-            <textarea
+            <Textarea
               value={manifest.description ?? ''}
               onChange={(e) => setManifest((prev) => ({ ...prev, description: e.target.value }))}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20"
+              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
               rows={3}
             />
           </div>
@@ -216,14 +217,14 @@ export default function Plugins() {
             <Input value={manifest.homepage ?? ''} onChange={(e) => setManifest((prev) => ({ ...prev, homepage: e.target.value }))} placeholder="https://plugins.example.com/acme-audit-enricher" />
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-xl border border-border bg-muted/50 p-3">
             <label className={labelCls}>Bundle ZIP (max 5MB)</label>
-            <input type="file" accept=".zip,application/zip" onChange={onSelectBundle} className="block w-full text-sm text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-sky-600 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-sky-500" />
-            <p className="mt-2 text-xs text-slate-500">{bundleName ? `Selected: ${bundleName}` : 'No file selected'}</p>
+            <input type="file" accept=".zip,application/zip" onChange={onSelectBundle} className="block w-full text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-sky-600 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-sky-500" />
+            <p className="mt-2 text-xs text-muted-foreground">{bundleName ? `Selected: ${bundleName}` : 'No file selected'}</p>
           </div>
 
-          <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-            <input type="checkbox" checked={activateAfterUpload} onChange={(e) => setActivateAfterUpload(e.target.checked)} className="rounded border-slate-300" />
+          <label className="inline-flex items-center gap-2 text-sm text-foreground">
+            <input type="checkbox" checked={activateAfterUpload} onChange={(e) => setActivateAfterUpload(e.target.checked)} className="rounded border-border" />
             Mark plugin as active after upload
           </label>
 
@@ -246,21 +247,21 @@ export default function Plugins() {
               {uploadPlugin.isPending ? 'Uploading...' : 'Upload Plugin'}
             </Button>
           </div>
-        </section>
+        </Card>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+        <Card className="rounded-2xl border border-border bg-card p-5 shadow-sm space-y-3">
           <div className="flex items-center gap-2">
-            <CheckCircle2 size={16} className="text-slate-500" />
-            <h3 className="text-base font-semibold text-slate-900">Validation Results</h3>
+            <CheckCircle2 size={16} className="text-muted-foreground" />
+            <h3 className="text-base font-semibold text-foreground">Validation Results</h3>
           </div>
 
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Manifest Preview</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Manifest Preview</p>
             <CodeBlock code={manifestPreview} language="json" className="mt-2" />
           </div>
 
           {!validationResult ? (
-            <p className="text-sm text-slate-500">Run validation to review manifest and bundle checks.</p>
+            <p className="text-sm text-muted-foreground">Run validation to review manifest and bundle checks.</p>
           ) : (
             <div className="space-y-3">
               <p className={`rounded-lg px-3 py-2 text-sm ${validationResult.valid ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : 'border border-rose-200 bg-rose-50 text-rose-700'}`}>
@@ -295,13 +296,13 @@ export default function Plugins() {
               </p>
             </div>
           </div>
-        </section>
+        </Card>
       </div>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <Card className="rounded-2xl border border-border bg-card p-5 shadow-sm">
         <div className="mb-4 flex items-center gap-2">
-          <FileArchive size={16} className="text-slate-500" />
-          <h3 className="text-base font-semibold text-slate-900">Uploaded Plugins</h3>
+          <FileArchive size={16} className="text-muted-foreground" />
+          <h3 className="text-base font-semibold text-foreground">Uploaded Plugins</h3>
         </div>
 
         {isLoading ? (
@@ -314,13 +315,13 @@ export default function Plugins() {
         ) : (
           <div className="space-y-3">
             {plugins.map((plugin) => (
-              <div key={plugin.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div key={plugin.id} className="rounded-xl border border-border bg-muted/50 p-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-900">{plugin.name} <span className="font-mono text-xs text-slate-500">{plugin.id}</span></p>
-                    <p className="mt-0.5 text-xs text-slate-600">Version {plugin.version} • {plugin.status} • {Math.ceil(plugin.bundleBytes / 1024)} KB</p>
-                    <p className="mt-1 text-xs text-slate-500 break-all">SHA-256: {plugin.bundleChecksum}</p>
-                    <p className="mt-1 text-xs text-slate-500">Hooks: {plugin.hooks.join(', ') || 'none'} | Permissions: {plugin.permissions.join(', ') || 'none'}</p>
+                    <p className="text-sm font-semibold text-foreground">{plugin.name} <span className="font-mono text-xs text-muted-foreground">{plugin.id}</span></p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Version {plugin.version} • {plugin.status} • {Math.ceil(plugin.bundleBytes / 1024)} KB</p>
+                    <p className="mt-1 text-xs text-muted-foreground break-all">SHA-256: {plugin.bundleChecksum}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Hooks: {plugin.hooks.join(', ') || 'none'} | Permissions: {plugin.permissions.join(', ') || 'none'}</p>
                   </div>
                   <Button
                     variant="danger"
@@ -335,7 +336,7 @@ export default function Plugins() {
             ))}
           </div>
         )}
-      </section>
+      </Card>
     </div>
   )
 }

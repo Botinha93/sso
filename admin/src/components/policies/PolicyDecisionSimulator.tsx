@@ -1,3 +1,7 @@
+import Textarea from '../ui/Textarea'
+import Select from '../ui/Select'
+import Card from '../ui/Card'
+import StatusBadge from '../ui/StatusBadge'
 import { useState } from 'react'
 import {
   useAuthorizationCheck,
@@ -30,23 +34,23 @@ export function PolicyDecisionSimulator() {
   const isRunning = evaluatePolicyDecision.isPending || authorizationCheck.isPending
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
-      <h2 className="text-sm font-semibold text-slate-900">Decision Simulator</h2>
-      <p className="text-sm text-slate-600">
+    <Card className="space-y-4 p-4">
+      <h2 className="text-sm font-semibold text-foreground">Decision Simulator</h2>
+      <p className="text-sm text-muted-foreground">
         Simulate authorization policy outcomes using unbound policies (those with no stage bindings).
       </p>
 
       <div className="flex gap-2">
         <button
           type="button"
-          className={`rounded px-3 py-1.5 text-xs font-medium ${runMode === 'evaluate' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-700'}`}
+          className={`rounded px-3 py-1.5 text-xs font-medium ${runMode === 'evaluate' ? 'bg-sky-600 text-white' : 'bg-muted text-foreground'}`}
           onClick={() => setRunMode('evaluate')}
         >
           Policies Evaluate
         </button>
         <button
           type="button"
-          className={`rounded px-3 py-1.5 text-xs font-medium ${runMode === 'check' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-700'}`}
+          className={`rounded px-3 py-1.5 text-xs font-medium ${runMode === 'check' ? 'bg-sky-600 text-white' : 'bg-muted text-foreground'}`}
           onClick={() => setRunMode('check')}
         >
           Authorization Check
@@ -54,7 +58,7 @@ export function PolicyDecisionSimulator() {
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <select
+        <Select
           className="rounded border px-3 py-2"
           value={simulationInput.userId}
           onChange={(e) => setSimulationInput((prev) => ({ ...prev, userId: e.target.value }))}
@@ -65,7 +69,7 @@ export function PolicyDecisionSimulator() {
               {user.email} ({user.id})
             </option>
           ))}
-        </select>
+        </Select>
         <input
           className="rounded border px-3 py-2"
           placeholder="resource"
@@ -78,7 +82,7 @@ export function PolicyDecisionSimulator() {
           value={simulationInput.action}
           onChange={(e) => setSimulationInput((prev) => ({ ...prev, action: e.target.value }))}
         />
-        <select
+        <Select
           className="rounded border px-3 py-2"
           value={simulationInput.decisionStrategy}
           onChange={(e) => setSimulationInput((prev) => ({
@@ -89,7 +93,7 @@ export function PolicyDecisionSimulator() {
           {DECISION_STRATEGIES.map((strategy) => (
             <option key={strategy} value={strategy}>{strategy}</option>
           ))}
-        </select>
+        </Select>
         <input
           className="rounded border px-3 py-2"
           placeholder="tenantId (optional)"
@@ -110,13 +114,13 @@ export function PolicyDecisionSimulator() {
         />
       </div>
 
-      <textarea
+      <Textarea
         className="min-h-[110px] w-full rounded border px-3 py-2 font-mono text-xs"
         placeholder='context json e.g. {"department":"finance"}'
         value={simulationInput.context}
         onChange={(e) => setSimulationInput((prev) => ({ ...prev, context: e.target.value }))}
       />
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-muted-foreground">
         Tip: assignment config supports <span className="font-mono">effect</span>, <span className="font-mono">priority</span>, <span className="font-mono">resourcePattern</span>, and <span className="font-mono">actionPattern</span>.
       </p>
 
@@ -172,23 +176,23 @@ export function PolicyDecisionSimulator() {
           <div className={`rounded px-3 py-2 text-sm font-medium ${simulationResult.allow ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
             Decision: {simulationResult.allow ? 'ALLOW' : 'DENY'}
           </div>
-          <div className="rounded bg-slate-100 px-3 py-2 text-xs text-slate-700">
+          <div className="rounded bg-muted px-3 py-2 text-xs text-foreground">
             Strategy: {String(simulationResult.decisionStrategy ?? simulationInput.decisionStrategy)}
           </div>
           <div className="space-y-2">
             {(simulationResult.decisions ?? []).map((decision: any) => (
-              <div key={decision.policyId} className="rounded border border-slate-200 px-3 py-2 text-xs">
+              <div key={decision.policyId} className="rounded border border-border px-3 py-2 text-xs">
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-slate-700">{decision.key}</span>
-                  <span className="rounded bg-slate-100 px-2 py-0.5 text-slate-700">
+                  <span className="font-mono text-foreground">{decision.key}</span>
+                  <span className="rounded bg-muted px-2 py-0.5 text-foreground">
                     {String(decision.effect ?? 'deny')}
                   </span>
-                  <span className="rounded bg-slate-100 px-2 py-0.5 text-slate-700">
+                  <span className="rounded bg-muted px-2 py-0.5 text-foreground">
                     p={String(decision.priority ?? 0)}
                   </span>
-                  <span className={`rounded px-2 py-0.5 ${decision.applied ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-600'}`}>
+                  <StatusBadge tone={decision.applied ? 'info' : 'neutral'}>
                     {decision.applied ? 'applied' : 'not_applied'}
-                  </span>
+                  </StatusBadge>
                   <span className={`rounded px-2 py-0.5 ${decision.allow ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
                     {decision.allow ? 'allow' : 'deny'}
                   </span>
@@ -200,16 +204,16 @@ export function PolicyDecisionSimulator() {
         </div>
       ) : null}
 
-      <div className="space-y-2 border-t border-slate-200 pt-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Recent Decisions</h3>
+      <div className="space-y-2 border-t border-border pt-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Recent Decisions</h3>
         {(history as any[]).slice(0, 10).map((item: any) => (
-          <div key={item.id} className="rounded border border-slate-200 px-3 py-2 text-xs text-slate-700">
+          <div key={item.id} className="rounded border border-border px-3 py-2 text-xs text-foreground">
             <div className="flex items-center gap-2">
               <span className={`rounded px-2 py-0.5 ${item.allow ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
                 {item.allow ? 'allow' : 'deny'}
               </span>
               <span className="font-mono">{String(item.action ?? '')}</span>
-              <span className="font-mono text-slate-500">{String(item.resource ?? '')}</span>
+              <span className="font-mono text-muted-foreground">{String(item.resource ?? '')}</span>
             </div>
             {Array.isArray(item.deniedBy) && item.deniedBy.length > 0 ? (
               <p className="mt-1 text-rose-700">Denied by: {item.deniedBy.join(', ')}</p>
@@ -217,6 +221,6 @@ export function PolicyDecisionSimulator() {
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   )
 }

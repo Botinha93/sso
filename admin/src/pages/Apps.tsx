@@ -1,3 +1,4 @@
+import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
 import { Boxes, ExternalLink, Globe, Pencil, Plus, RefreshCw, Trash2, Users, Shield, Key, Server } from 'lucide-react'
 import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import { useState } from 'react'
@@ -20,8 +21,7 @@ import {
   useClients, useUpdateClient,
 } from '../hooks/useApi'
 
-const fieldCls = 'h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
+const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
 
 const EMOJI_SUGGESTIONS = ['🚀', '🔐', '📦', '🛡️', '⚙️', '🌐', '📊', '💼', '🔧', '🎯', '📱', '🖥️', '🤖', '🔑', '💡']
 
@@ -88,14 +88,14 @@ const ComponentsManager = ({ appId }: ComponentsManagerProps) => {
 
   return (
     <div>
-      <div className="flex gap-1 mb-4 border-b border-slate-100 pb-3">
+      <div className="flex gap-1 mb-4 border-b border-border pb-3">
         {tabs.map(t => (
           <Button
             key={t.key}
             onClick={() => setTab(t.key)}
             variant={tab === t.key ? 'primary' : 'ghost'}
             size="sm"
-            className={`h-7 px-3 text-xs ${tab === t.key ? '' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
+            className={`h-7 px-3 text-xs ${tab === t.key ? '' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
           >
             {t.icon}{t.label}
           </Button>
@@ -103,23 +103,23 @@ const ComponentsManager = ({ appId }: ComponentsManagerProps) => {
       </div>
       <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
         {items.length === 0 ? (
-          <p className="text-xs text-slate-400 text-center py-4">No {tab} found</p>
+          <p className="text-xs text-muted-foreground text-center py-4">No {tab} found</p>
         ) : items.map((item) => {
           const assigned = assignedIds.has(item.id)
           const label = (item as any).username || item.email || item.name || item.id
           return (
             <label
               key={item.id}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${assigned ? 'bg-slate-900/5 hover:bg-slate-900/10' : 'hover:bg-slate-50'}`}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${assigned ? 'bg-muted/50 hover:bg-muted' : 'hover:bg-muted/50'}`}
             >
               <input
                 type="checkbox"
                 checked={assigned}
                 onChange={() => toggleAssign(item)}
-                className="h-4 w-4 rounded border-slate-300 text-slate-900 accent-sky-600"
+                className="h-4 w-4 rounded border-border text-foreground accent-sky-600"
               />
-              <span className="text-sm text-slate-800 flex-1">{label}</span>
-              {assigned && <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">assigned</span>}
+              <span className="text-sm text-foreground flex-1">{label}</span>
+              {assigned && <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">assigned</span>}
             </label>
           )
         })}
@@ -222,10 +222,10 @@ const Apps = () => {
         <div>
           <label className={labelCls}>Preview</label>
           <div
-            className="h-12 w-full rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center text-2xl cursor-text hover:border-slate-400 transition-colors"
+            className="h-12 w-full rounded-xl border-2 border-dashed border-border flex items-center justify-center text-2xl cursor-text hover:border-ring transition-colors"
             title="Click emoji suggestions to pick"
           >
-            {resolveMediaSrc(formData.imageUrl) ? <img src={resolveMediaSrc(formData.imageUrl)} alt="app" className="h-full w-full object-cover rounded-xl" /> : (formData.icon || <Boxes size={20} className="text-slate-300" />)}
+            {resolveMediaSrc(formData.imageUrl) ? <img src={resolveMediaSrc(formData.imageUrl)} alt="app" className="h-full w-full object-cover rounded-xl" /> : (formData.icon || <Boxes size={20} className="text-muted-foreground" />)}
           </div>
         </div>
         <div>
@@ -234,7 +234,6 @@ const Apps = () => {
             type="text"
             value={formData.name}
             onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
-            className={fieldCls}
             placeholder="Internal Portal"
           />
         </div>
@@ -244,7 +243,7 @@ const Apps = () => {
         label="App Image"
         value={formData.imageUrl}
         onChange={(imageUrl) => setFormData((prev) => ({ ...prev, imageUrl }))}
-        previewFallback={formData.icon || <Boxes size={20} className="text-slate-300" />}
+        previewFallback={formData.icon || <Boxes size={20} className="text-muted-foreground" />}
         defaultImages={(defaultAppImages as any)?.items ?? []}
         uploadPending={uploadAppImage.isPending}
         onUpload={appToEdit
@@ -275,7 +274,7 @@ const Apps = () => {
               onClick={() => setFormData(p => ({ ...p, icon: p.icon === emoji ? '' : emoji }))}
               variant={formData.icon === emoji ? 'primary' : 'ghost'}
               size="icon"
-              className={`w-8 h-8 rounded-lg text-base ${formData.icon === emoji ? '' : 'bg-slate-50 hover:bg-slate-100'}`}
+              className={`w-8 h-8 rounded-lg text-base ${formData.icon === emoji ? '' : 'bg-muted/50 hover:bg-muted'}`}
             >
               {emoji}
             </Button>
@@ -285,7 +284,7 @@ const Apps = () => {
               type="text"
               value={formData.icon}
               onChange={e => setFormData(p => ({ ...p, icon: e.target.value.slice(0, 4) }))}
-              className="w-20 h-8 rounded-lg border border-slate-200 px-2 text-sm text-center"
+              className="w-20 h-8 rounded-lg border border-border px-2 text-sm text-center"
               placeholder="custom"
             />
           )}
@@ -294,7 +293,7 @@ const Apps = () => {
             onClick={() => setFormData(p => ({ ...p, icon: '' }))}
             variant="ghost"
             size="sm"
-            className="h-8 px-2 text-xs text-slate-400 hover:text-slate-700"
+            className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
           >
             clear
           </Button>
@@ -307,7 +306,6 @@ const Apps = () => {
           type="text"
           value={formData.description}
           onChange={e => setFormData(p => ({ ...p, description: e.target.value }))}
-          className={fieldCls}
           placeholder="Identity assets for internal portal"
         />
       </div>
@@ -315,19 +313,19 @@ const Apps = () => {
       <div>
         <label className={labelCls}>App URL</label>
         <div className="relative">
-          <Globe size={14} className="absolute left-3 top-2.5 text-slate-400 pointer-events-none" />
+          <Globe size={14} className="absolute left-3 top-2.5 text-muted-foreground pointer-events-none" />
           <Input
             type="url"
             value={formData.url}
             onChange={e => setFormData(p => ({ ...p, url: e.target.value }))}
-            className={`${fieldCls} pl-8`}
+            className="pl-8"
             placeholder="https://portal.example.com"
           />
         </div>
       </div>
 
       <div>
-        <label className={labelCls}>Resources <span className="text-slate-400 normal-case font-normal">(used for role permission scoping)</span></label>
+        <label className={labelCls}>Resources <span className="text-muted-foreground normal-case font-normal">(used for role permission scoping)</span></label>
         <div className="space-y-1.5">
           {formData.resources.map((r, i) => (
             <div key={i} className="flex gap-2">
@@ -339,7 +337,6 @@ const Apps = () => {
                   next[i] = e.target.value
                   setFormData(p => ({ ...p, resources: next }))
                 }}
-                className={fieldCls}
                 placeholder="resource_name"
               />
               <Button
@@ -347,7 +344,7 @@ const Apps = () => {
                 onClick={() => setFormData(p => ({ ...p, resources: p.resources.filter((_, j) => j !== i) }))}
                 variant="ghost"
                 size="sm"
-                className="h-9 px-2 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                className="h-9 px-2 text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
               >
                 ✕
               </Button>
@@ -358,7 +355,7 @@ const Apps = () => {
             onClick={() => setFormData(p => ({ ...p, resources: [...p.resources, ''] }))}
             variant="outline"
             size="sm"
-            className="h-8 border-dashed text-xs text-slate-500 hover:border-slate-500 hover:text-slate-700"
+            className="h-8 border-dashed text-xs text-muted-foreground hover:border-ring hover:text-foreground"
           >
             + Add Resource
           </Button>
@@ -388,14 +385,14 @@ const Apps = () => {
         <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search apps by name, description, URL…" />
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50/70">
-          <h4 className="text-sm font-semibold text-slate-700">All Apps</h4>
-          <Button onClick={() => refetch()} disabled={isFetching} variant="ghost" size="sm" className="text-xs text-slate-500 hover:text-slate-900">
+      <Table className="overflow-hidden">
+        <TableHeaderRow className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/50">
+          <h4 className="text-sm font-semibold text-foreground">All Apps</h4>
+          <Button onClick={() => refetch()} disabled={isFetching} variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
             <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </Button>
-        </div>
+        </TableHeaderRow>
 
         {isLoading ? (
           <TableSkeleton rows={5} />
@@ -407,30 +404,30 @@ const Apps = () => {
             action={<Button onClick={openCreate} variant="primary" size="sm" className="h-8 rounded-lg">New App</Button>}
           />
         ) : (
-          <div className="divide-y divide-slate-100">
+          <TableBody className="divide-y divide-border">
             {(apps as AppItem[]).map((app) => (
-              <div key={app.id} className="px-5 py-3.5 hover:bg-slate-50/50 transition-colors flex items-start justify-between gap-4">
+              <TableRow key={app.id} className="px-5 py-3.5 hover:bg-muted/50 transition-colors flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-0.5">
-                    <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-lg shrink-0">
-                      {resolveMediaSrc(app.imageUrl) ? <img src={resolveMediaSrc(app.imageUrl)} alt={app.name} className="h-full w-full rounded-xl object-cover" /> : (app.icon ? app.icon : <Boxes size={16} className="text-slate-400" />)}
+                    <div className="w-8 h-8 rounded-xl bg-muted flex items-center justify-center text-lg shrink-0">
+                      {resolveMediaSrc(app.imageUrl) ? <img src={resolveMediaSrc(app.imageUrl)} alt={app.name} className="h-full w-full rounded-xl object-cover" /> : (app.icon ? app.icon : <Boxes size={16} className="text-muted-foreground" />)}
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <h5 className="text-sm font-medium text-slate-900">{app.name}</h5>
+                        <h5 className="text-sm font-medium text-foreground">{app.name}</h5>
                         {app.url && (
-                          <a href={app.url} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-slate-700 transition-colors" title={app.url}>
+                          <a href={app.url} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground transition-colors" title={app.url}>
                             <ExternalLink size={12} />
                           </a>
                         )}
                       </div>
-                      {app.description && <p className="text-xs text-slate-500 truncate">{app.description}</p>}
+                      {app.description && <p className="text-xs text-muted-foreground truncate">{app.description}</p>}
                     </div>
                   </div>
                   {(app.resources?.length ?? 0) > 0 && (
-                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-violet-50 text-violet-600 border border-violet-100 ml-10">
+                    <StatusBadge tone="info" className="ml-10">
                       {app.resources.length} resource{app.resources.length !== 1 ? 's' : ''}
-                    </span>
+                    </StatusBadge>
                   )}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
@@ -438,7 +435,7 @@ const Apps = () => {
                     onClick={() => openEdit(app)}
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-700"
+                    className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
                     title="Edit app"
                   >
                     <Pencil size={14} />
@@ -447,23 +444,23 @@ const Apps = () => {
                     onClick={() => setAppToDelete(app)}
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"
+                    className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
                     title="Delete app"
                   >
                     <Trash2 size={14} />
                   </Button>
                 </div>
-              </div>
+              </TableRow>
             ))}
-          </div>
+          </TableBody>
         )}
-      </Card>
+      </Table>
 
       {/* Create Modal */}
       <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title="Create App">
         <div className="space-y-4">
           {renderAppForm()}
-          {createFormError && <p className="text-xs text-red-600">{createFormError}</p>}
+          {createFormError && <p className="text-xs text-rose-600">{createFormError}</p>}
           <div className="flex gap-2 justify-end pt-2">
             <Button onClick={() => { setCreateOpen(false); setSelectedImageFile(null) }} variant="secondary" className="h-9 rounded-lg">Cancel</Button>
             <Button
@@ -482,12 +479,12 @@ const Apps = () => {
       <Modal isOpen={editOpen} onClose={() => { setEditOpen(false); setAppToEdit(null) }} title={`Edit App${appToEdit ? `: ${appToEdit.name}` : ''}`}>
         <div>
           {/* Tabs */}
-          <div className="flex gap-1 mb-5 border-b border-slate-100 pb-3">
+          <div className="flex gap-1 mb-5 border-b border-border pb-3">
             <Button
               onClick={() => setEditTab('details')}
               variant={editTab === 'details' ? 'primary' : 'ghost'}
               size="sm"
-              className={`h-7 px-3 text-xs ${editTab === 'details' ? '' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
+              className={`h-7 px-3 text-xs ${editTab === 'details' ? '' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
             >
               Details
             </Button>
@@ -495,7 +492,7 @@ const Apps = () => {
               onClick={() => setEditTab('components')}
               variant={editTab === 'components' ? 'primary' : 'ghost'}
               size="sm"
-              className={`h-7 px-3 text-xs ${editTab === 'components' ? '' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
+              className={`h-7 px-3 text-xs ${editTab === 'components' ? '' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
             >
               Components
             </Button>
@@ -504,7 +501,7 @@ const Apps = () => {
           {editTab === 'details' ? (
             <div className="space-y-4">
               {renderAppForm()}
-              {editFormError && <p className="text-xs text-red-600">{editFormError}</p>}
+              {editFormError && <p className="text-xs text-rose-600">{editFormError}</p>}
               <div className="flex gap-2 justify-end pt-2">
                 <Button onClick={() => { setEditOpen(false); setAppToEdit(null) }} variant="secondary" className="h-9 rounded-lg">Cancel</Button>
                 <Button
@@ -520,7 +517,7 @@ const Apps = () => {
           ) : (
             <div>
               {appToEdit && <ComponentsManager appId={appToEdit.id} />}
-              <div className="flex justify-end pt-4 border-t border-slate-100 mt-4">
+              <div className="flex justify-end pt-4 border-t border-border mt-4">
                 <Button onClick={() => { setEditOpen(false); setAppToEdit(null) }} variant="secondary" className="h-9 rounded-lg">Close</Button>
               </div>
             </div>
@@ -542,3 +539,4 @@ const Apps = () => {
 }
 
 export default Apps
+import StatusBadge from '../components/ui/StatusBadge'
