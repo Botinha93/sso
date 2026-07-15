@@ -109,7 +109,7 @@ function AppContent() {
           path="*"
           element={
             isAuthed ? (
-              <div className="flex min-h-screen w-full overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_28%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] text-slate-700 font-sans">
+              <div className="flex min-h-screen w-full overflow-hidden bg-[image:var(--semantic-bg-page)] text-slate-700 font-sans">
                 <div className="hidden md:flex">
                   <Sidebar permissions={permissions} />
                 </div>

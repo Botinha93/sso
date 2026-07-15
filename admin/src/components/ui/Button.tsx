@@ -1,16 +1,15 @@
 import React from 'react'
-
-const cx = (...values: Array<string | false | null | undefined>) => values.filter(Boolean).join(' ')
+import { cn } from '../../lib/utils'
 
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost'
 type ButtonSize = 'sm' | 'md' | 'icon'
 
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: 'bg-slate-900 text-white hover:bg-slate-800',
-  secondary: 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-  outline: 'border border-slate-300 bg-transparent text-slate-800 hover:bg-slate-50',
-  danger: 'bg-rose-600 text-white hover:bg-rose-700',
-  ghost: 'bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+  primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
+  secondary: 'border border-border bg-card text-foreground hover:bg-muted',
+  outline: 'border border-border bg-transparent text-foreground hover:bg-muted',
+  danger: 'bg-destructive text-white hover:bg-destructive/90',
+  ghost: 'bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground'
 }
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -30,7 +29,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         type={type}
-        className={cx(
+        className={cn(
           'inline-flex items-center justify-center gap-2 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-sky-500/40',
           variantClasses[variant],
           sizeClasses[size],
