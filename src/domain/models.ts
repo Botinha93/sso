@@ -295,6 +295,8 @@ export interface UserAttributeDefinition {
   description: string;
   type: UserAttributeType;
   enabled: boolean;
+  showOnPortal: boolean;
+  userEditable: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

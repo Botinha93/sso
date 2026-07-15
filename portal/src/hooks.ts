@@ -57,6 +57,15 @@ export interface PortalAppInheritanceSource {
   groupName: string
 }
 
+export interface PortalCustomAttributeField {
+  key: string
+  name: string
+  description: string
+  type: string
+  userEditable: boolean
+  value: string
+}
+
 export interface PortalUser {
   id: string
   email: string
@@ -72,6 +81,7 @@ export interface PortalUser {
   roles?: string[]
   permissions?: string[]
   customAttributes: Record<string, string>
+  customAttributeFields: PortalCustomAttributeField[]
   apps: PortalApp[]
 }
 

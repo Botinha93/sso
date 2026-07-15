@@ -61,6 +61,8 @@ interface User {
 interface GroupItem {
   id: string
   name: string
+  appId?: string
+  appIds?: string[]
 }
 
 interface AppItem {
@@ -71,7 +73,10 @@ interface AppItem {
 interface RoleItem {
   id: string
   name: string
+  appId?: string
 }
+
+const resolveGroupAppIds = (group: GroupItem) => group.appIds ?? (group.appId ? [group.appId] : [])
 
 type AttributeType = 'text' | 'number' | 'boolean' | 'date' | 'json'
 
@@ -196,6 +201,10 @@ const Users = () => {
   const [editFormError, setEditFormError] = useState<string>('')
   const [resetFormError, setResetFormError] = useState<string>('')
   const [appFilterId, setAppFilterId] = useState<string>('all')
+  const [editGroupSearch, setEditGroupSearch] = useState('')
+  const [editGroupAppFilter, setEditGroupAppFilter] = useState('all')
+  const [editRoleSearch, setEditRoleSearch] = useState('')
+  const [editRoleAppFilter, setEditRoleAppFilter] = useState('all')
   const createInitials = `${formData.givenName?.[0] ?? ''}${formData.familyName?.[0] ?? ''}`.toUpperCase()
     || formData.username?.slice(0, 2).toUpperCase()
     || 'AB'
@@ -205,14 +214,43 @@ const Users = () => {
   const { data: createDefaultAvatars } = useDefaultUserAvatars(createInitials)
   const { data: editDefaultAvatars } = useDefaultUserAvatars(editInitials)
 
-  const appNameById = new Map((apps as AppItem[]).map((a) => [a.id, a.name]))
+  const appNameById = useMemo(
+    () => new Map((apps as AppItem[]).map((a) => [a.id, a.name])),
+    [apps]
+  )
   const enabledAttributeDefinitions = (attributeDefinitions as UserAttributeDefinition[]).filter((attribute) => attribute.enabled)
   const attributeByKey = new Map(enabledAttributeDefinitions.map((attribute) => [attribute.key, attribute]))
   const filteredUsers = (users as User[] | undefined)?.filter((user) => {
     const userAppIds = user.appIds ?? (user.appId ? [user.appId] : [])
     const appMatches = appFilterId === 'all' ? true : appFilterId === 'none' ? userAppIds.length === 0 : userAppIds.includes(appFilterId)
-    return appMatches && !user.isServiceUser
+    return appMatches
   })
+
+  const groupOptions = groups as GroupItem[]
+  const roleOptions = roles as RoleItem[]
+
+  const filteredEditGroups = useMemo(() => {
+    const term = editGroupSearch.trim().toLowerCase()
+    return groupOptions.filter((group) => {
+      const groupAppIds = resolveGroupAppIds(group)
+      if (editGroupAppFilter === 'none' && groupAppIds.length > 0) return false
+      if (editGroupAppFilter !== 'all' && editGroupAppFilter !== 'none' && !groupAppIds.includes(editGroupAppFilter)) return false
+      if (!term) return true
+      const appNames = groupAppIds.map((id) => (appNameById.get(id) ?? '').toLowerCase()).join(' ')
+      return group.name.toLowerCase().includes(term) || appNames.includes(term)
+    })
+  }, [groupOptions, editGroupSearch, editGroupAppFilter, appNameById])
+
+  const filteredEditRoles = useMemo(() => {
+    const term = editRoleSearch.trim().toLowerCase()
+    return roleOptions.filter((role) => {
+      if (editRoleAppFilter === 'none' && role.appId) return false
+      if (editRoleAppFilter !== 'all' && editRoleAppFilter !== 'none' && role.appId !== editRoleAppFilter) return false
+      if (!term) return true
+      const appName = role.appId ? (appNameById.get(role.appId) ?? '').toLowerCase() : ''
+      return role.name.toLowerCase().includes(term) || appName.includes(term)
+    })
+  }, [roleOptions, editRoleSearch, editRoleAppFilter, appNameById])
 
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([])
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
@@ -499,6 +537,10 @@ const Users = () => {
       roleIds: user.directRoleIds ?? []
     })
     setAttributePicker((prev) => ({ ...prev, edit: '' }))
+    setEditGroupSearch('')
+    setEditGroupAppFilter('all')
+    setEditRoleSearch('')
+    setEditRoleAppFilter('all')
     setEditModalOpen(true)
   }
 
@@ -622,6 +664,7 @@ const Users = () => {
       <PageHeader
         eyebrow="Identity Directory"
         title="User Management"
+        description="Human user accounts only. Machine-to-machine identities are managed under Service Identities and are excluded from this list and from GET /api/admin/users unless includeServiceUsers=true."
         action={
           <Button
             onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }}
@@ -1219,38 +1262,127 @@ const Users = () => {
             </div>
             {editFormError && <p className="mt-1 text-xs text-red-600">{editFormError}</p>}
           </div>
-          <div>
+          <div className="space-y-3">
             <label className={labelCls}>Groups</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Search Groups</label>
+                <Input
+                  type="text"
+                  value={editGroupSearch}
+                  onChange={(e) => setEditGroupSearch(e.target.value)}
+                  placeholder="Search by group or app name…"
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Filter by App</label>
+                <select
+                  className={fieldCls}
+                  value={editGroupAppFilter}
+                  onChange={(e) => setEditGroupAppFilter(e.target.value)}
+                >
+                  <option value="all">All Apps</option>
+                  <option value="none">No App</option>
+                  {(apps as AppItem[]).map((app) => (
+                    <option key={app.id} value={app.id}>{app.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500">
+              {groupOptions.length === 0
+                ? 'No groups available'
+                : filteredEditGroups.length === 0
+                  ? 'No matching groups'
+                  : `Showing ${filteredEditGroups.length} of ${groupOptions.length} groups · ${editFormData.groupIds.length} selected`}
+            </p>
             <div className="border border-slate-200 rounded-lg p-2 max-h-40 overflow-auto space-y-1">
-              {(groups as GroupItem[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No groups available</p>}
-              {(groups as GroupItem[]).map((group) => (
-                <label key={group.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 text-sm text-slate-700 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editFormData.groupIds.includes(group.id)}
-                    onChange={() => toggleEditGroup(group.id)}
-                    className="rounded border-slate-300"
-                  />
-                  {group.name}
-                </label>
-              ))}
+              {groupOptions.length === 0 ? (
+                <p className="text-xs text-slate-400 px-1 py-1">No groups available</p>
+              ) : filteredEditGroups.length === 0 ? (
+                <p className="text-xs text-slate-400 px-1 py-1">No groups match the current filters</p>
+              ) : (
+                filteredEditGroups.map((group) => {
+                  const groupAppIds = resolveGroupAppIds(group)
+                  const appLabel = groupAppIds.length === 0
+                    ? 'No App'
+                    : groupAppIds.map((id) => appNameById.get(id) ?? id).join(', ')
+                  return (
+                    <label key={group.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 text-sm text-slate-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editFormData.groupIds.includes(group.id)}
+                        onChange={() => toggleEditGroup(group.id)}
+                        className="rounded border-slate-300"
+                      />
+                      <span className="flex-1 min-w-0 truncate">{group.name}</span>
+                      <StatusBadge tone={groupAppIds.length > 0 ? 'accent' : 'neutral'}>
+                        {appLabel}
+                      </StatusBadge>
+                    </label>
+                  )
+                })
+              )}
             </div>
           </div>
-          <div>
+          <div className="space-y-3">
             <label className={labelCls}>Roles</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Search Roles</label>
+                <Input
+                  type="text"
+                  value={editRoleSearch}
+                  onChange={(e) => setEditRoleSearch(e.target.value)}
+                  placeholder="Search by role or app name…"
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Filter by App</label>
+                <select
+                  className={fieldCls}
+                  value={editRoleAppFilter}
+                  onChange={(e) => setEditRoleAppFilter(e.target.value)}
+                >
+                  <option value="all">All Apps</option>
+                  <option value="none">No App</option>
+                  {(apps as AppItem[]).map((app) => (
+                    <option key={app.id} value={app.id}>{app.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500">
+              {roleOptions.length === 0
+                ? 'No roles available'
+                : filteredEditRoles.length === 0
+                  ? 'No matching roles'
+                  : `Showing ${filteredEditRoles.length} of ${roleOptions.length} roles · ${editFormData.roleIds.length} selected`}
+            </p>
             <div className="border border-slate-200 rounded-lg p-2 max-h-40 overflow-auto space-y-1">
-              {(roles as RoleItem[]).length === 0 && <p className="text-xs text-slate-400 px-1 py-1">No roles available</p>}
-              {(roles as RoleItem[]).map((role) => (
-                <label key={role.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 text-sm text-slate-700 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editFormData.roleIds.includes(role.id)}
-                    onChange={() => toggleEditRole(role.id)}
-                    className="rounded border-slate-300"
-                  />
-                  {role.name}
-                </label>
-              ))}
+              {roleOptions.length === 0 ? (
+                <p className="text-xs text-slate-400 px-1 py-1">No roles available</p>
+              ) : filteredEditRoles.length === 0 ? (
+                <p className="text-xs text-slate-400 px-1 py-1">No roles match the current filters</p>
+              ) : (
+                filteredEditRoles.map((role) => {
+                  const appName = role.appId ? appNameById.get(role.appId) : null
+                  return (
+                    <label key={role.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 text-sm text-slate-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editFormData.roleIds.includes(role.id)}
+                        onChange={() => toggleEditRole(role.id)}
+                        className="rounded border-slate-300"
+                      />
+                      <span className="flex-1 min-w-0 truncate">{role.name}</span>
+                      <StatusBadge tone={appName ? 'accent' : 'neutral'}>
+                        {appName ?? 'No App'}
+                      </StatusBadge>
+                    </label>
+                  )
+                })
+              )}
             </div>
           </div>
           <div className="flex gap-2 justify-end pt-2">

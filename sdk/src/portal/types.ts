@@ -21,6 +21,15 @@ export interface SDKPortalAppInheritanceSource {
   groupName: string;
 }
 
+export interface SDKPortalCustomAttributeField {
+  key: string;
+  name: string;
+  description: string;
+  type: string;
+  userEditable: boolean;
+  value: string;
+}
+
 export interface SDKPortalMe {
   id: string;
   email: string;
@@ -29,6 +38,7 @@ export interface SDKPortalMe {
   familyName: string;
   avatarUrl?: string;
   customAttributes: Record<string, string>;
+  customAttributeFields: SDKPortalCustomAttributeField[];
   appId?: string;
   appIds?: string[];
   directAppIds?: string[];

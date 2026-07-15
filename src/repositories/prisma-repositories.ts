@@ -469,8 +469,10 @@ const mapUserAttributeDefinition = (row: PrismaRow): UserAttributeDefinition => 
   description: String(row.description),
   type: String(row.type) as UserAttributeDefinition["type"],
   enabled: asBoolean(row.enabled),
-  createdAt: asDate(row.createdAt),
-  updatedAt: asDate(row.updatedAt)
+  showOnPortal: asBoolean(readField(row, "showOnPortal", "show_on_portal")),
+  userEditable: asBoolean(readField(row, "userEditable", "user_editable")),
+  createdAt: asDate(readField(row, "createdAt", "created_at")),
+  updatedAt: asDate(readField(row, "updatedAt", "updated_at"))
 });
 
 const mapGroupUserAttributeAssignment = (row: PrismaRow): GroupUserAttributeAssignment => ({
@@ -1865,7 +1867,20 @@ class PrismaUserAttributeRepository {
   async create(input: Omit<UserAttributeDefinition, "createdAt" | "updatedAt">): Promise<UserAttributeDefinition> {
     const now = new Date();
     const attribute: UserAttributeDefinition = { ...input, createdAt: now, updatedAt: now };
-    await this.prisma.userAttributeDefinition.create({ data: { id: attribute.id, key: attribute.key, name: attribute.name, description: attribute.description, type: attribute.type, enabled: asBooleanInt(attribute.enabled), createdAt: attribute.createdAt.toISOString(), updatedAt: attribute.updatedAt.toISOString() } });
+    await this.prisma.userAttributeDefinition.create({
+      data: {
+        id: attribute.id,
+        key: attribute.key,
+        name: attribute.name,
+        description: attribute.description,
+        type: attribute.type,
+        enabled: asBooleanInt(attribute.enabled),
+        showOnPortal: asBooleanInt(attribute.showOnPortal),
+        userEditable: asBooleanInt(attribute.userEditable),
+        createdAt: attribute.createdAt.toISOString(),
+        updatedAt: attribute.updatedAt.toISOString()
+      }
+    });
     return attribute;
   }
 
@@ -1875,7 +1890,19 @@ class PrismaUserAttributeRepository {
       return undefined;
     }
     const updated: UserAttributeDefinition = { ...existing, ...input, updatedAt: new Date() };
-    await this.prisma.userAttributeDefinition.update({ where: { id }, data: { key: updated.key, name: updated.name, description: updated.description, type: updated.type, enabled: asBooleanInt(updated.enabled), updatedAt: updated.updatedAt.toISOString() } });
+    await this.prisma.userAttributeDefinition.update({
+      where: { id },
+      data: {
+        key: updated.key,
+        name: updated.name,
+        description: updated.description,
+        type: updated.type,
+        enabled: asBooleanInt(updated.enabled),
+        showOnPortal: asBooleanInt(updated.showOnPortal),
+        userEditable: asBooleanInt(updated.userEditable),
+        updatedAt: updated.updatedAt.toISOString()
+      }
+    });
     return updated;
   }
 

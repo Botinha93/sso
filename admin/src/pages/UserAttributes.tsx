@@ -26,6 +26,8 @@ interface UserAttribute {
   description: string
   type: AttributeType
   enabled: boolean
+  showOnPortal: boolean
+  userEditable: boolean
 }
 
 const TYPE_OPTIONS: AttributeType[] = ['text', 'number', 'boolean', 'date', 'json']
@@ -39,6 +41,8 @@ const defaultForm = {
   description: '',
   type: 'text' as AttributeType,
   enabled: true,
+  showOnPortal: false,
+  userEditable: false,
 }
 
 const UserAttributes = () => {
@@ -71,6 +75,8 @@ const UserAttributes = () => {
       description: attribute.description,
       type: attribute.type,
       enabled: attribute.enabled,
+      showOnPortal: attribute.showOnPortal,
+      userEditable: attribute.userEditable,
     })
     setEditOpen(true)
   }
@@ -84,6 +90,8 @@ const UserAttributes = () => {
       description: form.description,
       type: form.type,
       enabled: form.enabled,
+      showOnPortal: form.showOnPortal,
+      userEditable: form.userEditable,
     })
 
     setCreateOpen(false)
@@ -100,6 +108,8 @@ const UserAttributes = () => {
       description: form.description,
       type: form.type,
       enabled: form.enabled,
+      showOnPortal: form.showOnPortal,
+      userEditable: form.userEditable,
     })
 
     setEditOpen(false)
@@ -160,7 +170,7 @@ const UserAttributes = () => {
                 <div key={attribute.id} className="px-5 py-4 hover:bg-slate-50/50 transition-colors">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
                         <h5 className="text-sm font-medium text-slate-900">{attribute.name}</h5>
                         <StatusBadge tone="neutral" mono>{attribute.key}</StatusBadge>
                         <StatusBadge tone="accent" mono>{attribute.type}</StatusBadge>
@@ -172,6 +182,24 @@ const UserAttributes = () => {
                         >
                           {attribute.enabled ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
                           {attribute.enabled ? 'Global On' : 'Global Off'}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => updateAttribute.mutate({ id: attribute.id, showOnPortal: !attribute.showOnPortal })}
+                          title="Toggle visibility on the user portal"
+                        >
+                          {attribute.showOnPortal ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
+                          {attribute.showOnPortal ? 'Portal Visible' : 'Portal Hidden'}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => updateAttribute.mutate({ id: attribute.id, userEditable: !attribute.userEditable })}
+                          title="Toggle whether portal users can edit this value"
+                        >
+                          {attribute.userEditable ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
+                          {attribute.userEditable ? 'User Editable' : 'Read Only'}
                         </Button>
                       </div>
                       <p className="text-xs text-slate-500">{attribute.description}</p>
@@ -280,6 +308,14 @@ function AttributeForm({
       <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
         <input type="checkbox" className="rounded border-slate-300" checked={form.enabled} onChange={(e) => setForm((prev) => ({ ...prev, enabled: e.target.checked }))} />
         Enabled for all users
+      </label>
+      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+        <input type="checkbox" className="rounded border-slate-300" checked={form.showOnPortal} onChange={(e) => setForm((prev) => ({ ...prev, showOnPortal: e.target.checked }))} />
+        Show on portal
+      </label>
+      <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+        <input type="checkbox" className="rounded border-slate-300" checked={form.userEditable} onChange={(e) => setForm((prev) => ({ ...prev, userEditable: e.target.checked }))} />
+        Editable by users
       </label>
       <div className="flex justify-end">
         <Button variant="primary" onClick={onSubmit} disabled={pending || !form.key || !form.name || !form.description}>

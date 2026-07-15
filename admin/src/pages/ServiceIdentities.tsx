@@ -381,6 +381,7 @@ const ServiceIdentities = () => {
       <PageHeader
         eyebrow="Machine Directory"
         title="Service Identities"
+        description="M2M / workload accounts. These are not shown in the Users directory by default; list them here via GET /api/admin/service-identities, or pass includeServiceUsers=true on GET /api/admin/users when a combined listing is required."
         action={
           <Button
             onClick={() => { setCreateFormError(''); setFormData(defaultForm()); setCreateModalOpen(true) }}

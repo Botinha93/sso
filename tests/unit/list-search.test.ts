@@ -33,6 +33,7 @@ test("parseAdminListQuery parses group, active, and pagination", () => {
     {
       group: "gestor",
       active: true,
+      includeServiceUsers: undefined,
       page: 2,
       pageSize: 25,
       search: "ana",
@@ -46,6 +47,12 @@ test("parseAdminListQuery accepts Python-style True/False active values", () => 
   assert.deepEqual(parseAdminListQuery({ active: "False" }).active, false);
 });
 
+test("parseAdminListQuery parses includeServiceUsers", () => {
+  assert.equal(parseAdminListQuery({ includeServiceUsers: "true" }).includeServiceUsers, true);
+  assert.equal(parseAdminListQuery({ includeServiceUsers: "false" }).includeServiceUsers, false);
+  assert.equal(parseAdminListQuery({}).includeServiceUsers, undefined);
+});
+
 test("applyAdminUserFilters matches active and custom attributes", () => {
   const users = [
     { id: "1", active: true, customAttributes: { connect_jc_area_principal: "RH" } },
@@ -57,6 +64,18 @@ test("applyAdminUserFilters matches active and custom attributes", () => {
     "customAttribute.connect_jc_area_principal": "RH"
   });
   assert.deepEqual(applyAdminUserFilters(users, parsed), [users[0]]);
+});
+
+test("applyAdminUserFilters excludes service users by default", () => {
+  const users = [
+    { id: "1", active: true, isServiceUser: false, customAttributes: {} },
+    { id: "2", active: true, isServiceUser: true, customAttributes: {} }
+  ];
+  assert.deepEqual(applyAdminUserFilters(users, parseAdminListQuery({})), [users[0]]);
+  assert.deepEqual(
+    applyAdminUserFilters(users, parseAdminListQuery({ includeServiceUsers: "true" })),
+    users
+  );
 });
 
 test("filterAdminUsers applies search and pagination", () => {

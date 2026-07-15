@@ -406,14 +406,16 @@ model AuthMetricRollup {
 }
 
 model UserAttributeDefinition {
-  id          String @id
-  key         String @unique
-  name        String
-  description String
-  type        String
-  enabled     Int
-  createdAt   String @map("created_at")
-  updatedAt   String @map("updated_at")
+  id            String @id
+  key           String @unique
+  name          String
+  description   String
+  type          String
+  enabled       Int
+  showOnPortal  Int    @default(0) @map("show_on_portal")
+  userEditable  Int    @default(0) @map("user_editable")
+  createdAt     String @map("created_at")
+  updatedAt     String @map("updated_at")
 
   @@map("user_attribute_definitions")
 }

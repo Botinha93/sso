@@ -465,6 +465,8 @@ model user_attribute_definitions {
   description                      String
   type                             String
   enabled                          Int
+  show_on_portal                   Int                                @default(0)
+  user_editable                    Int                                @default(0)
   created_at                       String
   updated_at                       String
   group_user_attribute_assignments group_user_attribute_assignments[]

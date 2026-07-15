@@ -431,6 +431,8 @@ export interface GroupUsersResult {
 
 export interface GroupUsersQuery extends ListPageQuery {
   active?: boolean;
+  /** When true, include M2M/service identities. Default excludes them. */
+  includeServiceUsers?: boolean;
   search?: string;
   customAttributes?: Record<string, string>;
 }
@@ -720,7 +722,7 @@ export interface UploadUserAvatarResult {
 }
 
 export interface UsersAPI {
-  /** Lists users with optional app/active/search/group/customAttribute filters and pagination. */
+  /** Lists users with optional app/active/search/group/customAttribute filters and pagination. Excludes M2M/service identities unless includeServiceUsers is true. */
   list(query?: UserListQuery): Promise<SDKUser[]>;
   /** Gets a user by id with resolved customAttributes and groups. */
   get(id: string): Promise<SDKUser>;
@@ -745,6 +747,8 @@ export interface UsersAPI {
 export interface UserListQuery extends ListPageQuery {
   appId?: string;
   active?: boolean;
+  /** When true, include M2M/service identities. Default excludes them. */
+  includeServiceUsers?: boolean;
   search?: string;
   group?: string;
   customAttributes?: Record<string, string>;
@@ -925,6 +929,9 @@ export interface SDKUserAttributeDefinition {
   name: string;
   description?: string;
   type?: string;
+  enabled?: boolean;
+  showOnPortal?: boolean;
+  userEditable?: boolean;
   required?: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -935,6 +942,9 @@ export interface CreateUserAttributeInput {
   name: string;
   description?: string;
   type?: string;
+  enabled?: boolean;
+  showOnPortal?: boolean;
+  userEditable?: boolean;
   required?: boolean;
 }
 
@@ -942,6 +952,9 @@ export interface UpdateUserAttributeInput {
   name?: string;
   description?: string;
   type?: string;
+  enabled?: boolean;
+  showOnPortal?: boolean;
+  userEditable?: boolean;
   required?: boolean;
 }
 

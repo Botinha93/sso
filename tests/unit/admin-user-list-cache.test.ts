@@ -29,7 +29,7 @@ test("admin user list cache serializes roles, groups, and merged custom attribut
       { id: "gaa1", groupId: "g1", attributeId: "attr1", enabled: true, value: "RH", createdAt: new Date(), updatedAt: new Date() }
     ],
     attributeDefinitions: [
-      { id: "attr1", key: "area", name: "Area", description: "", type: "text", enabled: true, createdAt: new Date(), updatedAt: new Date() }
+      { id: "attr1", key: "area", name: "Area", description: "", type: "text", enabled: true, showOnPortal: false, userEditable: false, createdAt: new Date(), updatedAt: new Date() }
     ]
   });
 

@@ -266,6 +266,7 @@ export class UserService {
     group?: string;
     customAttributes?: Record<string, string>;
     active?: boolean;
+    includeServiceUsers?: boolean;
     search?: string;
     page?: number;
     pageSize?: number;
@@ -278,6 +279,10 @@ export class UserService {
 
     const allowedUserIds = filters?.userIds ? new Set(filters.userIds) : undefined;
     let candidates = users.filter((user) => !allowedUserIds || allowedUserIds.has(user.id));
+
+    if (filters?.includeServiceUsers !== true) {
+      candidates = candidates.filter((user) => !user.isServiceUser);
+    }
 
     if (filters?.active !== undefined) {
       candidates = candidates.filter((user) => user.active === filters.active);
@@ -433,6 +438,57 @@ export class UserService {
     await this.validateCustomAttributes(normalizedCustomAttributes);
     await this.userRepository.setCustomAttributes(id, normalizedCustomAttributes);
     this.invalidateAdminUserListCache();
+  }
+
+  async setPortalCustomAttributes(id: string, customAttributes: Record<string, string>, options?: { pictureKey?: string }) {
+    const pictureKey = options?.pictureKey ?? "picture";
+    const user = await this.userRepository.findById(id);
+    if (!user) {
+      throw new ValidationError("User not found");
+    }
+
+    const definitions = await this.userAttributeRepository.list();
+    const editableByKey = new Map(
+      definitions
+        .filter((definition) => definition.enabled && definition.userEditable && definition.key !== pictureKey)
+        .map((definition) => [definition.key, definition])
+    );
+
+    const nextAttributes = { ...(user.customAttributes ?? {}) };
+    const normalizedIncoming = normalizeCustomAttributeMap(customAttributes, { omitEmptyValues: false });
+
+    for (const [key, value] of Object.entries(normalizedIncoming)) {
+      const definition = editableByKey.get(key);
+      if (!definition) {
+        throw new ValidationError(`Custom attribute is not editable on the portal: ${key}`);
+      }
+
+      if (!value.trim()) {
+        delete nextAttributes[key];
+        continue;
+      }
+
+      nextAttributes[key] = value.trim();
+    }
+
+    await this.setCustomAttributes(id, nextAttributes);
+  }
+
+  async listPortalCustomAttributeFields(userId: string, options?: { pictureKey?: string }) {
+    const pictureKey = options?.pictureKey ?? "picture";
+    const definitions = await this.userAttributeRepository.list();
+    const resolved = await this.resolveCustomAttributesForUser(userId);
+
+    return definitions
+      .filter((definition) => definition.enabled && definition.showOnPortal && definition.key !== pictureKey)
+      .map((definition) => ({
+        key: definition.key,
+        name: definition.name,
+        description: definition.description,
+        type: definition.type,
+        userEditable: definition.userEditable,
+        value: resolved.customAttributes[definition.key] ?? ""
+      }));
   }
 
   async deleteUser(id: string) {

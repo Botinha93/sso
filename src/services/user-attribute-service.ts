@@ -42,6 +42,8 @@ export class UserAttributeService {
     description: string;
     type: UserAttributeType;
     enabled: boolean;
+    showOnPortal?: boolean;
+    userEditable?: boolean;
   }) {
     const key = normalizeUserAttributeKey(input.key);
 
@@ -55,7 +57,9 @@ export class UserAttributeService {
       name: input.name.trim(),
       description: input.description.trim(),
       type: input.type,
-      enabled: input.enabled
+      enabled: input.enabled,
+      showOnPortal: input.showOnPortal ?? false,
+      userEditable: input.userEditable ?? false
     });
   }
 
@@ -67,6 +71,8 @@ export class UserAttributeService {
       description?: string;
       type?: UserAttributeType;
       enabled?: boolean;
+      showOnPortal?: boolean;
+      userEditable?: boolean;
     }
   ) {
     const existing = await this.userAttributeRepository.findById(id);
@@ -87,7 +93,9 @@ export class UserAttributeService {
       name: input.name?.trim(),
       description: input.description?.trim(),
       type: input.type,
-      enabled: input.enabled
+      enabled: input.enabled,
+      showOnPortal: input.showOnPortal,
+      userEditable: input.userEditable
     });
 
     if (!updated) {

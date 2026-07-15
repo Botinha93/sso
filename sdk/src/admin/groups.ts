@@ -45,6 +45,7 @@ export const createGroupsAPI = (client: ClientInstance): GroupsAPI => ({
   listUsers: (id: string, query?: GroupUsersQuery) => {
     const queryParams: Record<string, string | number | boolean> = {};
     if (query?.active !== undefined) queryParams.active = query.active;
+    if (query?.includeServiceUsers !== undefined) queryParams.includeServiceUsers = query.includeServiceUsers;
     if (query?.search) queryParams.search = query.search;
     if (query?.page) queryParams.page = query.page;
     if (query?.pageSize) queryParams.pageSize = query.pageSize;

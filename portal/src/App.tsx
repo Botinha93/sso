@@ -30,7 +30,6 @@ export default function App() {
 
     void updateProfile({
       customAttributes: {
-        ...user.customAttributes,
         preferredLanguage: language
       }
     }).then(() => {

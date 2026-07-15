@@ -22,6 +22,7 @@ export const createUsersAPI = (client: ClientInstance): UsersAPI => ({
     const queryParams: Record<string, string | number | boolean> = {};
     if (query?.appId) queryParams.appId = query.appId;
     if (query?.active !== undefined) queryParams.active = query.active;
+    if (query?.includeServiceUsers !== undefined) queryParams.includeServiceUsers = query.includeServiceUsers;
     if (query?.search) queryParams.search = query.search;
     if (query?.group) queryParams.group = query.group;
     if (query?.page) queryParams.page = query.page;

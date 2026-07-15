@@ -456,7 +456,7 @@ export function useGroups(search?: string) {
 export function useGroupUsers(groupId?: string) {
   return useQuery({
     queryKey: ['group-users', groupId ?? 'none'],
-    queryFn: () => jsonFetch(`${API_BASE}/groups/${groupId}/users`) as Promise<{
+    queryFn: () => jsonFetch(`${API_BASE}/groups/${groupId}/users?includeServiceUsers=true`) as Promise<{
       userIds: string[]
       users: Array<{
         id: string

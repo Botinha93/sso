@@ -513,7 +513,9 @@ export const createUserAttributeSchema = z.object({
   name: z.string().min(2),
   description: z.string().min(2),
   type: userAttributeTypeSchema,
-  enabled: z.boolean().default(true)
+  enabled: z.boolean().default(true),
+  showOnPortal: z.boolean().default(false),
+  userEditable: z.boolean().default(false)
 });
 
 export const updateUserAttributeSchema = z.object({
@@ -521,7 +523,9 @@ export const updateUserAttributeSchema = z.object({
   name: z.string().min(2).optional(),
   description: z.string().min(2).optional(),
   type: userAttributeTypeSchema.optional(),
-  enabled: z.boolean().optional()
+  enabled: z.boolean().optional(),
+  showOnPortal: z.boolean().optional(),
+  userEditable: z.boolean().optional()
 });
 
 export const setUserAttributeGroupAssignmentSchema = z.object({

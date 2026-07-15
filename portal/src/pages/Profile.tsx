@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowLeft, Check, Eye, EyeOff, KeyRound, Loader2, Plus, Save, ShieldCheck, Trash2, User, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Check, Eye, EyeOff, KeyRound, Loader2, Save, ShieldCheck, Trash2, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { PortalUser } from '../hooks'
@@ -97,12 +97,12 @@ export default function Profile({ user }: Props) {
               <Button
                 key={item.key}
                 onClick={() => setSection(item.key)}
-                variant={section === item.key ? 'primary' : item.key === 'danger' ? 'danger' : 'ghost'}
+                variant={section === item.key ? 'primary' : 'ghost'}
                 className={`flex h-auto shrink-0 items-center gap-2.5 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-medium transition-colors lg:w-full ${
                   section === item.key
                     ? 'shadow-sm'
                     : item.key === 'danger'
-                    ? 'bg-transparent text-red-500 hover:text-red-700 hover:bg-red-50'
+                    ? 'bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
@@ -139,8 +139,8 @@ function ProfileSection({ user }: { user: PortalUser }) {
     email: user.email,
     username: user.username,
   })
-  const [customAttrs, setCustomAttrs] = useState<[string, string][]>(
-    Object.entries(user.customAttributes)
+  const [customFields, setCustomFields] = useState(
+    () => (user.customAttributeFields ?? []).map((field) => ({ ...field }))
   )
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
@@ -148,7 +148,7 @@ function ProfileSection({ user }: { user: PortalUser }) {
   // Sync if user data changes
   useEffect(() => {
     setForm({ givenName: user.givenName, familyName: user.familyName, avatarUrl: user.avatarUrl ?? '', email: user.email, username: user.username })
-    setCustomAttrs(Object.entries(user.customAttributes))
+    setCustomFields((user.customAttributeFields ?? []).map((field) => ({ ...field })))
   }, [user])
 
   const initials = `${form.givenName?.[0] ?? ''}${form.familyName?.[0] ?? ''}`.toUpperCase() || (form.username?.slice(0, 2).toUpperCase() ?? 'AB')
@@ -158,10 +158,17 @@ function ProfileSection({ user }: { user: PortalUser }) {
     setError('')
     setSaved(false)
     try {
+      const editableFields = customFields.filter((field) => field.userEditable)
       await update.mutateAsync({
         ...form,
         avatarUrl: form.avatarUrl.trim() ? form.avatarUrl.trim() : null,
-        customAttributes: Object.fromEntries(customAttrs.filter(([k]) => k.trim()))
+        ...(editableFields.length > 0
+          ? {
+              customAttributes: Object.fromEntries(
+                editableFields.map((field) => [field.key, field.value])
+              )
+            }
+          : {})
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 2500)
@@ -170,10 +177,9 @@ function ProfileSection({ user }: { user: PortalUser }) {
     }
   }
 
-  const addAttr = () => setCustomAttrs(p => [...p, ['', '']])
-  const removeAttr = (i: number) => setCustomAttrs(p => p.filter((_, idx) => idx !== i))
-  const setAttrKey = (i: number, v: string) => setCustomAttrs(p => p.map((pair, idx) => idx === i ? [v, pair[1]] : pair))
-  const setAttrVal = (i: number, v: string) => setCustomAttrs(p => p.map((pair, idx) => idx === i ? [pair[0], v] : pair))
+  const setFieldValue = (key: string, value: string) => {
+    setCustomFields((prev) => prev.map((field) => (field.key === key ? { ...field, value } : field)))
+  }
 
   return (
     <Card className="rounded-2xl p-6 space-y-5">
@@ -251,38 +257,26 @@ function ProfileSection({ user }: { user: PortalUser }) {
 
       {/* Custom Attributes */}
       <div>
-        <div className="flex items-center justify-between mb-2">
-          <label className={labelCls}>{t('profile.profileSection.customAttributes')}</label>
-          <Button
-            onClick={addAttr}
-            variant="ghost"
-            size="sm"
-            className="text-xs text-slate-500 hover:text-slate-900"
-          >
-            <Plus size={12} /> {t('profile.profileSection.add')}
-          </Button>
-        </div>
-        {customAttrs.length === 0 ? (
+        <label className={labelCls}>{t('profile.profileSection.customAttributes')}</label>
+        {customFields.length === 0 ? (
           <p className="text-xs text-slate-400 italic">{t('profile.profileSection.noCustomAttributes')}</p>
         ) : (
-          <div className="space-y-2">
-            {customAttrs.map(([key, val], i) => (
-              <div key={i} className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+          <div className="space-y-3">
+            {customFields.map((field) => (
+              <div key={field.key}>
+                <label className={labelCls} htmlFor={`custom-attr-${field.key}`}>
+                  {field.name}
+                </label>
                 <Input
-                  className={`${fieldCls} font-mono`}
-                  value={key}
-                  onChange={e => setAttrKey(i, e.target.value)}
-                  placeholder={t('profile.profileSection.keyPlaceholder')}
-                />
-                <Input
+                  id={`custom-attr-${field.key}`}
                   className={fieldCls}
-                  value={val}
-                  onChange={e => setAttrVal(i, e.target.value)}
+                  value={field.value}
+                  onChange={(e) => setFieldValue(field.key, e.target.value)}
+                  disabled={!field.userEditable}
+                  readOnly={!field.userEditable}
                   placeholder={t('profile.profileSection.valuePlaceholder')}
+                  title={field.description || field.name}
                 />
-                <Button onClick={() => removeAttr(i)} variant="ghost" size="icon" className="self-end text-slate-400 hover:text-red-500 shrink-0 sm:self-center">
-                  <X size={14} />
-                </Button>
               </div>
             ))}
           </div>
@@ -749,7 +743,7 @@ function DangerSection({ user, onDeleted }: { user: PortalUser; onDeleted: () =>
           <Button
             onClick={() => setConfirmOpen(true)}
             variant="danger"
-            className="h-9 rounded-xl border border-red-200 bg-transparent text-red-600 hover:bg-red-50"
+            className="h-9 rounded-xl"
           >
             <Trash2 size={14} />
             {t('profile.danger.deleteMyAccount')}

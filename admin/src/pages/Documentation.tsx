@@ -202,7 +202,7 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'POST', path: '/api/admin/elevations/check', auth: 'session+csrf', description: 'Checks whether the current user currently has an active elevation session for a resource/action pair.' },
   { method: 'POST', path: '/api/admin/elevations/break-glass', auth: 'session+csrf', description: 'Activates emergency break-glass elevation for immediate privileged access (bypasses normal approval). Requires detailed emergency justification.' },
 
-  { method: 'GET', path: '/api/admin/users', auth: 'session', description: 'Lists users with optional group, active, search, pagination, and customAttribute filters.' },
+  { method: 'GET', path: '/api/admin/users', auth: 'session', description: 'Lists users with optional group, active, search, pagination, and customAttribute filters. Excludes M2M/service identities unless includeServiceUsers=true.' },
   { method: 'GET', path: '/api/admin/users/:id', auth: 'session', description: 'Returns a single user with resolved custom attributes and group context.' },
   { method: 'POST', path: '/api/admin/users', auth: 'session+csrf', description: 'Creates user and emits user.created event.' },
   { method: 'PATCH', path: '/api/admin/users/:id', auth: 'session+csrf', description: 'Updates user profile, groups, attributes, and emits user.updated event.' },
@@ -216,7 +216,7 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'GET', path: '/api/admin/groups', auth: 'session', description: 'Lists groups.' },
   { method: 'POST', path: '/api/admin/groups', auth: 'session+csrf', description: 'Creates group.' },
   { method: 'PUT', path: '/api/admin/groups/:id', auth: 'session+csrf', description: 'Updates group.' },
-  { method: 'GET', path: '/api/admin/groups/:id/users', auth: 'session', description: 'Lists users assigned to a group with optional active, search, pagination, and customAttribute filters.' },
+  { method: 'GET', path: '/api/admin/groups/:id/users', auth: 'session', description: 'Lists users assigned to a group with optional active, search, pagination, and customAttribute filters. Excludes M2M/service identities unless includeServiceUsers=true.' },
   { method: 'DELETE', path: '/api/admin/groups/:id', auth: 'session+csrf', description: 'Deletes group.' },
   { method: 'POST', path: '/api/admin/user-groups', auth: 'session+csrf', description: 'Assigns user to group.' },
   { method: 'DELETE', path: '/api/admin/user-groups', auth: 'session+csrf', description: 'Removes user from group.' },
@@ -427,6 +427,8 @@ const ADMIN_CONCEPT_GUIDES: ConceptGuide[] = [
       'Group membership, role assignments, and attribute values are all referenced from the user record during policy evaluation.',
       'MFA credentials (TOTP, WebAuthn passkeys) are stored on the user record and govern strong authentication paths.',
       'Use the Users view to inspect current state, resolve login issues, manage credentials, and review what sessions or consents are active.',
+      'GET /api/admin/users returns human users only by default. Machine-to-machine (service) identities are omitted unless you pass includeServiceUsers=true.',
+      'Manage M2M accounts in the Service Identities view (GET /api/admin/service-identities), not the Users directory list.',
       'Deactivation is safer than deletion when you need to preserve audit history while removing login access.'
     ]
   },
@@ -890,6 +892,9 @@ const ADMIN_CONCEPT_GUIDES: ConceptGuide[] = [
     whereInAdmin: ['Service Identities view', 'Audit Log (credential issuance and rotation events)', 'Documentation view'],
     details: [
       'Each service identity should represent one logical workload — separate identities per environment (staging, production) is safer than one shared identity.',
+      'Service identities are stored as users with isServiceUser=true, but GET /api/admin/users excludes them by default so the human directory stays clean.',
+      'To include M2M rows in a users list, call GET /api/admin/users?includeServiceUsers=true (or the SDK equivalent). Prefer GET /api/admin/service-identities for day-to-day M2M management.',
+      'The same includeServiceUsers=true opt-in applies to GET /api/admin/groups/:id/users when you need service identities among group members.',
       'Allowed scopes and audiences should be exactly what the workload needs — never grant broader access to make configuration easier.',
       'Credentials should have defined expiry and a rotation schedule — treat indefinite credentials as a security finding.',
       'Last-used timestamps help identify stale credentials: a service identity not used in 90+ days is a candidate for decommissioning.',
@@ -1219,8 +1224,8 @@ const ENTITY_FIELD_TUTORIALS: EntityFieldGuide[] = [
       },
       {
         field: 'Service User',
-        meaning: 'Marks the account as a machine/system identity for non-human service communication.',
-        recommendation: 'Enable for integration users and automation identities so operators can distinguish them from human accounts.'
+        meaning: 'Marks the account as a machine/system identity for non-human service communication. These rows are excluded from GET /api/admin/users unless includeServiceUsers=true.',
+        recommendation: 'Create and manage these via Service Identities, not the Users directory. Use includeServiceUsers=true only when an integration truly needs a combined list.'
       },
       {
         field: 'Password',
@@ -4354,6 +4359,7 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
         'Query: search or q (text search)',
         'Query: group (group name exact or substring)',
         'Query: active=true|false',
+        'Query: includeServiceUsers=true|false (default excludes M2M/service identities)',
         'Query: page, pageSize (pagination)',
         'Query: customAttribute.{key}=value (exact match on normalized attribute key)'
       ],
@@ -4369,7 +4375,8 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
       ]),
       notes: [
         'Example: GET /api/admin/users?group=gestor&active=true&customAttribute.connect_jc_area_principal=RH',
-        'Custom attribute keys are normalized (connect_jc.cargo becomes connect_jc_cargo).'
+        'Custom attribute keys are normalized (connect_jc.cargo becomes connect_jc_cargo).',
+        'Service identities are omitted by default; pass includeServiceUsers=true to include them, or use GET /api/admin/service-identities.'
       ]
     }
   }
@@ -4416,6 +4423,7 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
         ...params,
         'Query: search (text search on member profiles)',
         'Query: active=true|false',
+        'Query: includeServiceUsers=true|false (default excludes M2M/service identities)',
         'Query: page, pageSize (pagination)',
         'Query: customAttribute.{key}=value (exact match on normalized attribute key)'
       ],
@@ -4431,7 +4439,8 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
       }),
       notes: [
         'Example: GET /api/admin/groups/{groupId}/users?active=true&customAttribute.connect_jc_area_principal=RH',
-        'Each user includes resolved customAttributes for downstream filtering.'
+        'Each user includes resolved customAttributes for downstream filtering.',
+        'Service identities are omitted by default; pass includeServiceUsers=true to include them among group members.'
       ]
     }
   }

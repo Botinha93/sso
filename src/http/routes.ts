@@ -2702,6 +2702,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return deps.userService.listUsers({
       group: parsed.group,
       active: parsed.active,
+      includeServiceUsers: parsed.includeServiceUsers,
       customAttributes: Object.keys(parsed.customAttributes ?? {}).length > 0 ? parsed.customAttributes : undefined,
       search: parsed.search,
       page: parsed.page,
@@ -3406,6 +3407,10 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const userApps = (await deps.appService.listApps()).filter((appItem) => {
       return userAppAccess.appIds.length === 0 || userAppAccess.appIds.includes(appItem.id);
     });
+    const customAttributeFields = await deps.userService.listPortalCustomAttributeFields(user.id, {
+      pictureKey: USER_PICTURE_ATTRIBUTE_KEY
+    });
+
     return {
       id: user.id,
       email: user.email,
@@ -3417,6 +3422,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         ...userCustomAttributes.customAttributes,
         ...(user.avatarUrl ? { [USER_PICTURE_ATTRIBUTE_KEY]: user.avatarUrl } : {})
       },
+      customAttributeFields,
       directCustomAttributes: {
         ...userCustomAttributes.directCustomAttributes,
         ...(user.avatarUrl ? { [USER_PICTURE_ATTRIBUTE_KEY]: user.avatarUrl } : {})
@@ -3463,7 +3469,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       }
     }
     if (input.customAttributes !== undefined) {
-      await deps.userService.setCustomAttributes(session.userId, input.customAttributes);
+      await deps.userService.setPortalCustomAttributes(session.userId, input.customAttributes, {
+        pictureKey: USER_PICTURE_ATTRIBUTE_KEY
+      });
     }
     return reply.status(204).send();
   });

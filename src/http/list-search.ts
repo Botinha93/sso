@@ -6,10 +6,30 @@ export interface AdminListQuery {
   pageSize?: number;
   group?: string;
   active?: boolean;
+  includeServiceUsers?: boolean;
   customAttributes?: Record<string, string>;
 }
 
 const CUSTOM_ATTRIBUTE_QUERY_PREFIX = "customAttribute.";
+
+const parseOptionalBooleanQuery = (rawValue: unknown): boolean | undefined => {
+  if (rawValue === "true" || rawValue === true) {
+    return true;
+  }
+  if (rawValue === "false" || rawValue === false) {
+    return false;
+  }
+  if (typeof rawValue === "string") {
+    const normalized = rawValue.trim().toLowerCase();
+    if (normalized === "true") {
+      return true;
+    }
+    if (normalized === "false") {
+      return false;
+    }
+  }
+  return undefined;
+};
 
 export const parseCustomAttributeFilters = (
   query: Record<string, unknown>
@@ -40,24 +60,11 @@ export const parseAdminListQuery = (query: Record<string, unknown>): AdminListQu
   const groupRaw = query.group;
   const group = typeof groupRaw === "string" && groupRaw.trim() ? groupRaw.trim() : undefined;
 
-  let active: boolean | undefined;
-  const activeRaw = query.active;
-  if (activeRaw === "true" || activeRaw === true) {
-    active = true;
-  } else if (activeRaw === "false" || activeRaw === false) {
-    active = false;
-  } else if (typeof activeRaw === "string") {
-    const normalized = activeRaw.trim().toLowerCase();
-    if (normalized === "true") {
-      active = true;
-    } else if (normalized === "false") {
-      active = false;
-    }
-  }
-
+  const active = parseOptionalBooleanQuery(query.active);
+  const includeServiceUsers = parseOptionalBooleanQuery(query.includeServiceUsers);
   const customAttributes = parseCustomAttributeFilters(query);
 
-  return { search, page, pageSize, group, active, customAttributes };
+  return { search, page, pageSize, group, active, includeServiceUsers, customAttributes };
 };
 
 export const applyListSearch = <T>(
@@ -98,6 +105,7 @@ export const filterAdminList = <T>(
 
 type AdminUserFilterShape = {
   active?: boolean;
+  isServiceUser?: boolean;
   customAttributes?: Record<string, string>;
 };
 
@@ -108,6 +116,9 @@ export const applyAdminUserFilters = <T extends AdminUserFilterShape>(
   let results = items;
   if (parsed.active !== undefined) {
     results = results.filter((user) => user.active === parsed.active);
+  }
+  if (parsed.includeServiceUsers !== true) {
+    results = results.filter((user) => !user.isServiceUser);
   }
   const attributeFilters = parsed.customAttributes ?? {};
   for (const [key, value] of Object.entries(attributeFilters)) {

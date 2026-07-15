@@ -291,6 +291,7 @@ export type {
   PortalDefaultLanguage,
   PortalAPI,
   SDKPortalApp,
+  SDKPortalCustomAttributeField,
   SDKPortalMe,
   SDKPortalRolePermissions,
   UpdatePortalProfileInput,
