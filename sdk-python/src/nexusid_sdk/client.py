@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any, Literal, Mapping
 from urllib.parse import urlencode
 
@@ -23,6 +25,12 @@ class RetryPolicy:
     retryable_status_codes: tuple[int, ...] = (408, 425, 429, 500, 502, 503, 504)
     backoff_seconds: float = 0.15
     inter_request_delay_seconds: float = 0.0
+    # When the server sends a ``Retry-After`` header (or ``retryAfterSeconds``
+    # body hint), wait that long before retrying instead of the linear backoff.
+    respect_retry_after: bool = True
+    # Upper bound on the honored ``Retry-After`` delay, so a large server hint
+    # cannot block the caller indefinitely.
+    max_retry_after_seconds: float = 30.0
 
 
 class NexusIDClient:
@@ -95,7 +103,7 @@ class NexusIDClient:
                 if response.status_code >= 400:
                     error = self._response_error(response)
                     if self._should_retry(attempt, response.status_code):
-                        self._sleep_before_retry(attempt)
+                        self._sleep_before_retry(attempt, response=response)
                         continue
                     raise error
 
@@ -242,6 +250,7 @@ class NexusIDClient:
             code=code,
             details=payload,
             request_id=request_id,
+            retry_after=self._parse_retry_after(response),
         )
 
     def _should_retry(self, attempt: int, status_code: int | None) -> bool:
@@ -251,10 +260,51 @@ class NexusIDClient:
             return True
         return status_code in self._retry.retryable_status_codes
 
-    def _sleep_before_retry(self, attempt: int) -> None:
+    def _sleep_before_retry(
+        self, attempt: int, response: httpx.Response | None = None
+    ) -> None:
         sleep_seconds = self._retry.backoff_seconds * attempt
+        if response is not None and self._retry.respect_retry_after:
+            retry_after = self._parse_retry_after(response)
+            if retry_after is not None:
+                sleep_seconds = min(retry_after, self._retry.max_retry_after_seconds)
         if sleep_seconds > 0:
             time.sleep(sleep_seconds)
+
+    @staticmethod
+    def _parse_retry_after(response: httpx.Response) -> float | None:
+        """Return how many seconds to wait before retrying, or ``None``.
+
+        Prefers the standard ``Retry-After`` header (supporting both the
+        delta-seconds and HTTP-date forms) and falls back to a
+        ``retryAfterSeconds`` field in a JSON error body (as emitted by the
+        NexusID rate limiter).
+        """
+        raw = response.headers.get("retry-after")
+        if raw:
+            raw = raw.strip()
+            try:
+                return max(0.0, float(raw))
+            except ValueError:
+                pass
+            try:
+                parsed = parsedate_to_datetime(raw)
+            except (TypeError, ValueError):
+                parsed = None
+            if parsed is not None:
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=timezone.utc)
+                delta = (parsed - datetime.now(timezone.utc)).total_seconds()
+                return max(0.0, delta)
+        try:
+            payload = response.json()
+        except ValueError:
+            return None
+        if isinstance(payload, dict):
+            value = payload.get("retryAfterSeconds")
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return max(0.0, float(value))
+        return None
 
     def _sleep_before_request(self) -> None:
         delay_seconds = self._retry.inter_request_delay_seconds

@@ -22,9 +22,14 @@ class APIResponseError(APIClientError):
         code: str | None = None,
         details: Any = None,
         request_id: str | None = None,
+        retry_after: float | None = None,
     ) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.code = code
         self.details = details
         self.request_id = request_id
+        # Seconds to wait before retrying, parsed from the ``Retry-After``
+        # response header (or a ``retryAfterSeconds`` body hint). ``None`` when
+        # the server gave no guidance.
+        self.retry_after = retry_after

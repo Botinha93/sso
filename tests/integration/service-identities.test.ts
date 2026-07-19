@@ -84,7 +84,7 @@ test("service identity CRUD and credential lifecycle", async (t) => {
       name: "test-worker",
       description: "Test worker service",
       status: "active",
-      allowedScopes: ["read:reports"],
+      allowedScopes: ["read:reports", "roles", "permissions"],
       allowedAudiences: ["api.example.com"],
       roleIds: [directRole.id],
       groupIds: [group.id]
@@ -95,7 +95,7 @@ test("service identity CRUD and credential lifecycle", async (t) => {
   assert.equal(createResp.statusCode, 201);
   const identity = createResp.json();
   assert.equal(identity.name, "test-worker");
-  assert.deepEqual(identity.allowedScopes, ["read:reports"]);
+  assert.deepEqual(identity.allowedScopes, ["read:reports", "roles", "permissions"]);
   assert.deepEqual(identity.roleIds, [directRole.id]);
   assert.deepEqual(identity.groupIds, [group.id]);
 
@@ -175,8 +175,26 @@ test("service identity CRUD and credential lifecycle", async (t) => {
   assert.equal(tokenPayload.scope, "read:reports");
   const tokenClaims = decodeJwt(tokenPayload.access_token) as { roles?: string[]; permissions?: string[]; service_identity_id?: string };
   assert.equal(tokenClaims.service_identity_id, identity.id);
-  assert.deepEqual(tokenClaims.roles?.sort(), ["report_operator", "report_reader"]);
-  assert.deepEqual(tokenClaims.permissions?.sort(), ["reports:operate", "reports:read"]);
+  // Authorization claims are scope-gated: not requested, so not embedded.
+  assert.equal(tokenClaims.roles, undefined);
+  assert.equal(tokenClaims.permissions, undefined);
+
+  const authorizationClaimsTokenResp = await app.inject({
+    method: "POST",
+    url: "/oauth/token",
+    payload: {
+      grant_type: "client_credentials",
+      client_id: issued.credential.clientId,
+      client_secret: issued.plainClientSecret,
+      scope: "read:reports roles permissions"
+    }
+  });
+
+  assert.equal(authorizationClaimsTokenResp.statusCode, 200);
+  const authorizationClaimsPayload = authorizationClaimsTokenResp.json() as { access_token: string };
+  const authorizationClaims = decodeJwt(authorizationClaimsPayload.access_token) as { roles?: string[]; permissions?: string[] };
+  assert.deepEqual(authorizationClaims.roles?.sort(), ["report_operator", "report_reader"]);
+  assert.deepEqual(authorizationClaims.permissions?.sort(), ["reports:operate", "reports:read"]);
 
   const restoreActiveFlowResp = await app.inject({
     method: "PUT",

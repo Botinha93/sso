@@ -57,6 +57,12 @@ export const saveRuntimeDatabaseConfig = async (config: RuntimeDatabaseConfig) =
 };
 
 export const applyRuntimeDatabaseConfig = (config: AppConfig): AppConfig => {
+  // An explicit DATABASE_PATH (e.g. set by the test harness) takes precedence
+  // over the persisted runtime configuration.
+  if (process.env.DATABASE_PATH) {
+    return config;
+  }
+
   const persisted = readRuntimeDatabaseConfigSync();
   if (!persisted) {
     return config;

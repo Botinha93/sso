@@ -123,8 +123,8 @@ export class JwtService {
     serviceIdentity: ServiceIdentity;
     clientId: string;
     scope: string[];
-    roles: string[];
-    permissions: string[];
+    roles?: string[];
+    permissions?: string[];
     accessTokenId: string;
   }) {
     const { serviceIdentity, clientId, scope, roles, permissions, accessTokenId } = params;
@@ -132,14 +132,21 @@ export class JwtService {
     const scopeValue = scope.join(" ");
     const accessTtl = DEFAULT_ACCESS_TOKEN_TTL_SECONDS;
 
-    let tokenBuilder = new SignJWT({
+    const payload: Record<string, unknown> = {
       scope: scopeValue,
       client_id: clientId,
       service_identity_id: serviceIdentity.id,
-      actor_type: "service_identity",
-      roles,
-      permissions
-    })
+      actor_type: "service_identity"
+    };
+
+    if (roles) {
+      payload.roles = roles;
+    }
+    if (permissions) {
+      payload.permissions = permissions;
+    }
+
+    let tokenBuilder = new SignJWT(payload)
       .setProtectedHeader({ alg: "RS256", kid: this.keys.kid })
       .setIssuer(this.appConfig.issuer)
       .setSubject(serviceIdentity.id)
