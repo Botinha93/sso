@@ -835,7 +835,15 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
           }
           const resource = toAdminResource(path);
           const action = toAdminAction(request.method);
-          const permissions = Array.isArray(claims.permissions) ? (claims.permissions as string[]) : [];
+          const serviceIdentityId = String(
+            claims.service_identity_id ?? claims.sub ?? ""
+          ).trim();
+          if (!serviceIdentityId) {
+            return reply.status(401).send({ error: "unauthorized" });
+          }
+          // Resolve from role assignments server-side — do not require the
+          // `permissions` OAuth scope (embedding the flattened list bloats JWTs).
+          const permissions = await deps.roleService.resolvePermissionsForUser(serviceIdentityId);
           if (!hasAdminPermission({ permissions, resource, action })) {
             return reply.status(403).send({ error: "forbidden" });
           }
