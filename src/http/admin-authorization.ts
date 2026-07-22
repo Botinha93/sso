@@ -70,3 +70,45 @@ export function hasAdminPermission(input: {
   }
   return false;
 }
+
+let cachedUngatedAdminClientIds: Set<string> | undefined;
+
+export function parseUngatedAdminClientIds(raw = process.env.ADMIN_UNGATED_CLIENT_IDS): Set<string> {
+  if (!raw?.trim()) {
+    return new Set();
+  }
+
+  return new Set(
+    raw
+      .split(/[,\s]+/)
+      .map((value) => value.trim())
+      .filter(Boolean)
+  );
+}
+
+export function isUngatedAdminClientId(clientId: string): boolean {
+  const normalized = clientId.trim();
+  if (!normalized) {
+    return false;
+  }
+
+  if (!cachedUngatedAdminClientIds) {
+    cachedUngatedAdminClientIds = parseUngatedAdminClientIds();
+  }
+
+  return cachedUngatedAdminClientIds.has(normalized);
+}
+
+export function resetUngatedAdminClientIdsCache(): void {
+  cachedUngatedAdminClientIds = undefined;
+}
+
+export function isBootstrapAdminServiceIdentityMetadata(
+  metadata: Record<string, unknown> | undefined
+): boolean {
+  if (!metadata) {
+    return false;
+  }
+
+  return metadata.bootstrap_admin === true || metadata.ungated_admin === true;
+}

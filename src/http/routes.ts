@@ -9,7 +9,7 @@ import { ensureExternalDatabaseSchema, saveRuntimeDatabaseConfig } from "../core
 import { verifyPassword } from "../security/password.js";
 import { isJwtVerificationError } from "../security/jwt.js";
 import { getAssetContentType, readFrontendAsset } from "./view-assets.js";
-import { hasAdminPermission, toAdminAction, toAdminResource } from "./admin-authorization.js";
+import { hasAdminPermission, isBootstrapAdminServiceIdentityMetadata, isUngatedAdminClientId, toAdminAction, toAdminResource } from "./admin-authorization.js";
 import { registerScimRoutes } from "./scim-routes.js";
 import { registerSamlAdminRoutes } from "./saml-routes.js";
 import { registerSamlProtocolRoutes } from "./saml-protocol-routes.js";
@@ -827,6 +827,10 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         try {
           const token = (request.headers.authorization as string).slice("Bearer ".length);
           const claims = await deps.authService.jwtService.verifyAccessToken(token);
+          const clientId = String(claims.client_id ?? "").trim();
+          if (isUngatedAdminClientId(clientId)) {
+            return;
+          }
           if (claims.actor_type !== "service_identity") {
             return reply.status(401).send({ error: "unauthorized" });
           }
@@ -840,6 +844,10 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
           ).trim();
           if (!serviceIdentityId) {
             return reply.status(401).send({ error: "unauthorized" });
+          }
+          const serviceIdentity = await deps.serviceIdentityService.getServiceIdentity(serviceIdentityId);
+          if (isBootstrapAdminServiceIdentityMetadata(serviceIdentity?.metadata)) {
+            return;
           }
           // Resolve from role assignments server-side — do not require the
           // `permissions` OAuth scope (embedding the flattened list bloats JWTs).

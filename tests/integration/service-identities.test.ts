@@ -433,3 +433,94 @@ test("service identity usage telemetry updates on token exchange and rejects rev
   });
   assert.equal(exchangeExpired.statusCode, 401);
 });
+
+test("bootstrap service identity bearer bypasses admin permission gating", async (t) => {
+  const { app, admin } = await createTestContext("integration-service-identities-bootstrap-admin");
+
+  t.after(async () => {
+    await app.close();
+  });
+
+  const login = await app.inject({
+    method: "POST",
+    url: "/auth/login",
+    payload: {
+      email: admin.email,
+      password: admin.password,
+      clientId: "sso-admin-ui",
+      scope: ["openid", "profile", "email"],
+    },
+  });
+
+  assert.equal(login.statusCode, 200);
+  const sid = extractCookie(login.headers["set-cookie"], "sid");
+
+  const csrfResponse = await app.inject({ method: "GET", url: "/api/csrf-token", headers: { cookie: sid } });
+  assert.equal(csrfResponse.statusCode, 200);
+  const csrfCookie = extractCookie(csrfResponse.headers["set-cookie"], "csrf_token");
+  const csrfToken = String(csrfResponse.json().csrf_token);
+  const authHeaders = {
+    cookie: `${sid}; ${csrfCookie}`,
+    "x-csrf-token": csrfToken,
+  };
+
+  const createResp = await app.inject({
+    method: "POST",
+    url: "/api/admin/service-identities",
+    payload: {
+      name: "bootstrap-worker",
+      description: "Setup admin bootstrap identity",
+      status: "active",
+      allowedScopes: ["roles"],
+      allowedAudiences: ["jc-decor"],
+      metadata: { bootstrap_admin: true }
+    },
+    headers: authHeaders
+  });
+  assert.equal(createResp.statusCode, 201);
+  const identity = createResp.json();
+
+  const issueResp = await app.inject({
+    method: "POST",
+    url: `/api/admin/service-identities/${identity.id}/credentials`,
+    payload: { expiresInDays: 30 },
+    headers: authHeaders
+  });
+  assert.equal(issueResp.statusCode, 201);
+  const issued = issueResp.json();
+
+  const tokenResp = await app.inject({
+    method: "POST",
+    url: "/oauth/token",
+    payload: {
+      grant_type: "client_credentials",
+      client_id: issued.credential.clientId,
+      client_secret: issued.plainClientSecret,
+      scope: "roles"
+    }
+  });
+  assert.equal(tokenResp.statusCode, 200);
+  const accessToken = String((tokenResp.json() as { access_token?: string }).access_token ?? "");
+  assert.ok(accessToken.length > 0);
+
+  const adminListResp = await app.inject({
+    method: "GET",
+    url: "/api/admin/service-identities",
+    headers: { authorization: `Bearer ${accessToken}` }
+  });
+  assert.equal(adminListResp.statusCode, 200);
+
+  const createChildResp = await app.inject({
+    method: "POST",
+    url: "/api/admin/service-identities",
+    headers: { authorization: `Bearer ${accessToken}` },
+    payload: {
+      name: "child-worker",
+      description: "Created by bootstrap admin bearer",
+      status: "active",
+      allowedScopes: ["roles"],
+      allowedAudiences: ["jc-decor"]
+    }
+  });
+  assert.equal(createChildResp.statusCode, 201);
+});

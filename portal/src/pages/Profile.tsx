@@ -246,18 +246,22 @@ function ProfileSection({ user }: { user: PortalUser }) {
           <div className="space-y-3">
             {customFields.map((field) => (
               <div key={field.key}>
-                <label className={labelCls} htmlFor={`custom-attr-${field.key}`}>
+                <label className={labelCls} htmlFor={field.userEditable ? `custom-attr-${field.key}` : undefined}>
                   {field.name}
                 </label>
-                <Input
-                  id={`custom-attr-${field.key}`}
-                  value={field.value}
-                  onChange={(e) => setFieldValue(field.key, e.target.value)}
-                  disabled={!field.userEditable}
-                  readOnly={!field.userEditable}
-                  placeholder={t('profile.profileSection.valuePlaceholder')}
-                  title={field.description || field.name}
-                />
+                {field.userEditable ? (
+                  <Input
+                    id={`custom-attr-${field.key}`}
+                    value={field.value}
+                    onChange={(e) => setFieldValue(field.key, e.target.value)}
+                    placeholder={t('profile.profileSection.valuePlaceholder')}
+                    title={field.description || field.name}
+                  />
+                ) : (
+                  <p className="text-sm text-foreground" title={field.description || field.name}>
+                    {field.value || <span className="text-muted-foreground italic">—</span>}
+                  </p>
+                )}
               </div>
             ))}
           </div>
