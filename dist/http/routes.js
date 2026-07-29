@@ -6,7 +6,7 @@ import { ensureExternalDatabaseSchema, saveRuntimeDatabaseConfig } from "../core
 import { verifyPassword } from "../security/password.js";
 import { isJwtVerificationError } from "../security/jwt.js";
 import { getAssetContentType, readFrontendAsset } from "./view-assets.js";
-import { hasAdminPermission, toAdminAction, toAdminResource } from "./admin-authorization.js";
+import { hasAdminPermission, isBootstrapAdminServiceIdentityMetadata, isUngatedAdminClientId, toAdminAction, toAdminResource } from "./admin-authorization.js";
 import { registerScimRoutes } from "./scim-routes.js";
 import { registerSamlAdminRoutes } from "./saml-routes.js";
 import { registerSamlProtocolRoutes } from "./saml-protocol-routes.js";
@@ -19,7 +19,7 @@ import { deriveRiskEventsFromAudit } from "./routes/security-risk-events.js";
 import { registerConnectorRoutes } from "./routes/connectors.js";
 import { registerPluginRoutes } from "./routes/plugins.js";
 import { MAX_IMAGE_UPLOAD_BYTES } from "./upload-limits.js";
-import { assignGroupRoleSchema, assignRoleSchema, assignUserGroupSchema, backChannelLogoutSchema, authorizeSchema, createAppSchema, createClientSchema, createScopeSchema, createAuthenticationFlowSchema, cibaApprovalSchema, cibaAuthenticationRequestSchema, deviceAuthorizationSchema, deviceVerificationSchema, dynamicClientRegistrationSchema, frontChannelLogoutSchema, createFederationProviderSchema, createGroupSchema, createUserAttributeSchema, createPolicySchema, createEventHookSchema, createTenantSchema, createRoleSchema, updateGroupSchema, updateRoleSchema, createUserSchema, introspectSchema, loginSchema, migrateDatabaseSchema, oidcRevokeSchema, oauthLogoutSchema, portalChangePasswordSchema, portalUpdateProfileSchema, recoverySchema, recoveryRequestSchema, sendTestEmailSchema, testDatabaseConnectionSchema, mfaLoginSchema, verifyTotpEnrollmentSchema, webauthnLoginBeginSchema, webauthnLoginFinishSchema, webauthnRegisterBeginSchema, webauthnRegisterFinishSchema, resetUserPasswordSchema, revokeTokenSchema, tokenSchema, setUserAttributeGroupAssignmentSchema, setPolicyAssignmentSchema, evaluatePolicyDecisionSchema, authorizationCheckSchema, removePolicyAssignmentSchema, setupInitializeSchema, testEventHookSchema, updateInstanceSettingsSchema, updateAppSchema, updateAuthenticationFlowSchema, updateClientSchema, updateEventHookSchema, updateFederationProviderSchema, updatePolicySchema, updateTenantSchema, updateUserAttributeSchema, updateUserSchema } from "./schemas.js";
+import { assignGroupRoleSchema, assignRoleSchema, assignUserGroupSchema, backChannelLogoutSchema, authorizeSchema, createAppSchema, createClientSchema, createScopeSchema, createAuthenticationFlowSchema, cibaApprovalSchema, cibaAuthenticationRequestSchema, deviceAuthorizationSchema, deviceVerificationSchema, dynamicClientRegistrationSchema, frontChannelLogoutSchema, createFederationProviderSchema, createGroupSchema, createUserAttributeSchema, createPolicySchema, createEventHookSchema, createTenantSchema, createRoleSchema, updateGroupSchema, updateRoleSchema, createUserSchema, introspectSchema, loginSchema, migrateDatabaseSchema, oidcRevokeSchema, oauthLogoutSchema, portalChangePasswordSchema, portalUpdateProfileSchema, recoverySchema, recoveryRequestSchema, sendTestEmailSchema, testDatabaseConnectionSchema, mfaLoginSchema, changePasswordLoginSchema, verifyTotpEnrollmentSchema, webauthnLoginBeginSchema, webauthnLoginFinishSchema, webauthnRegisterBeginSchema, webauthnRegisterFinishSchema, resetUserPasswordSchema, revokeTokenSchema, tokenSchema, setUserAttributeGroupAssignmentSchema, setPolicyAssignmentSchema, evaluatePolicyDecisionSchema, authorizationCheckSchema, removePolicyAssignmentSchema, setupInitializeSchema, testEventHookSchema, updateInstanceSettingsSchema, updateAppSchema, updateAuthenticationFlowSchema, updateClientSchema, updateEventHookSchema, updateFederationProviderSchema, updatePolicySchema, updateTenantSchema, updateUserAttributeSchema, updateUserSchema } from "./schemas.js";
 import { filterAdminList, filterAdminUsers, parseAdminListQuery } from "./list-search.js";
 import { GeolocationService } from "../services/geolocation-service.js";
 import { TranslationService } from "../services/translation-service.js";
@@ -250,6 +250,9 @@ export const registerRoutes = async (app, deps) => {
         if (path === "/auth/login/mfa") {
             return "MFA verification failed";
         }
+        if (path === "/auth/login/change-password") {
+            return "Password change failed";
+        }
         if (path === "/auth/login/webauthn/begin" || path === "/auth/login/webauthn/finish") {
             return "Authentication failed";
         }
@@ -338,34 +341,39 @@ export const registerRoutes = async (app, deps) => {
         return { actorKey: `ip:${ip}` };
     }
     async function enforceEndpointRateLimit(request, reply) {
+        const { rateLimitMultiplier } = await deps.instanceSettingsService.getRateLimitSettings();
+        const scaleLimit = (limit) => Math.max(1, Math.round(limit * rateLimitMultiplier));
         const path = request.url.split("?")[0];
         const configs = [];
         const { actorKey, clientId } = deriveRateLimitActorKey(request);
         const baseMetadata = clientId ? { clientId } : undefined;
         if (path === "/auth/login") {
-            configs.push({ endpointKey: "auth_login", limit: 10, windowMs: 60_000, actorKey, metadata: baseMetadata });
+            configs.push({ endpointKey: "auth_login", limit: scaleLimit(10), windowMs: 60_000, actorKey, metadata: baseMetadata });
         }
         if (path === "/auth/login/mfa") {
-            configs.push({ endpointKey: "auth_login_mfa", limit: 10, windowMs: 60_000, actorKey, metadata: baseMetadata });
+            configs.push({ endpointKey: "auth_login_mfa", limit: scaleLimit(10), windowMs: 60_000, actorKey, metadata: baseMetadata });
+        }
+        if (path === "/auth/login/change-password") {
+            configs.push({ endpointKey: "auth_login_change_password", limit: scaleLimit(10), windowMs: 60_000, actorKey, metadata: baseMetadata });
         }
         if (path === "/auth/recovery/request") {
-            configs.push({ endpointKey: "auth_recovery_request", limit: 5, windowMs: 15 * 60_000, actorKey, metadata: baseMetadata });
+            configs.push({ endpointKey: "auth_recovery_request", limit: scaleLimit(5), windowMs: 15 * 60_000, actorKey, metadata: baseMetadata });
         }
         if (path === "/api/setup/initialize") {
             // No client_id is available for setup, fall back to IP-only key.
-            configs.push({ endpointKey: "setup_initialize", limit: 5, windowMs: 15 * 60_000, actorKey });
+            configs.push({ endpointKey: "setup_initialize", limit: scaleLimit(5), windowMs: 15 * 60_000, actorKey });
         }
         if (path === "/oauth/device/verify") {
-            configs.push({ endpointKey: "oauth_device_verify", limit: 10, windowMs: 60_000, actorKey, metadata: baseMetadata });
+            configs.push({ endpointKey: "oauth_device_verify", limit: scaleLimit(10), windowMs: 60_000, actorKey, metadata: baseMetadata });
         }
         if (path === "/oauth/device/authorize") {
-            configs.push({ endpointKey: "oauth_device_authorize", limit: 10, windowMs: 60_000, actorKey, metadata: baseMetadata });
+            configs.push({ endpointKey: "oauth_device_authorize", limit: scaleLimit(10), windowMs: 60_000, actorKey, metadata: baseMetadata });
         }
         if (path === "/oauth/token") {
             const grantType = typeof request.body?.grant_type === "string" ? request.body.grant_type : undefined;
             configs.push({
                 endpointKey: `oauth_token:${grantType ?? "unknown"}`,
-                limit: grantType === "urn:ietf:params:oauth:grant-type:device_code" ? 30 : 20,
+                limit: scaleLimit(grantType === "urn:ietf:params:oauth:grant-type:device_code" ? 30 : 20),
                 windowMs: 60_000,
                 actorKey,
                 metadata: { grantType, ...(baseMetadata ?? {}) }
@@ -417,7 +425,9 @@ export const registerRoutes = async (app, deps) => {
             user: input.user,
             tenantId: await resolveTenantId(input.tenantSlug),
             clientId: input.clientId,
-            ip: input.ip
+            ip: input.ip,
+            pendingPassword: input.pendingPassword,
+            context: input.context
         });
     }
     async function enforcePreCredentialStages(input) {
@@ -468,9 +478,6 @@ export const registerRoutes = async (app, deps) => {
         }
     }
     async function enforcePostLoginStage(input) {
-        if (!await deps.authenticationFlowService.isStageEnabled("user_login")) {
-            return;
-        }
         await enforcePoliciesForStage({
             stage: "user_login",
             user: input.user,
@@ -478,6 +485,77 @@ export const registerRoutes = async (app, deps) => {
             clientId: input.clientId,
             ip: input.ip
         });
+    }
+    async function buildPasswordExpirationWarningForUser(user, tenantSlug) {
+        const status = await deps.policyService.getPasswordExpirationStatus(user, await resolveTenantId(tenantSlug));
+        return deps.policyService.buildPasswordExpirationWarning(status);
+    }
+    async function maybeIssuePasswordChangeChallenge(input) {
+        const status = await deps.policyService.getPasswordExpirationStatus(input.user, await resolveTenantId(input.tenantSlug));
+        if (!status.active || status.status !== "expired") {
+            return null;
+        }
+        return deps.passwordChangeService.createLoginChallenge({
+            userId: input.user.id,
+            clientId: input.clientId,
+            scope: input.scope,
+            tenantSlug: input.tenantSlug,
+            ip: input.ip
+        });
+    }
+    async function maybeIssueMfaChallenge(input) {
+        if (await deps.authenticationFlowService.isStageEnabled("mfa_totp") && await deps.totpService.requiresTotp(input.user.id)) {
+            return {
+                statusCode: 202,
+                body: deps.totpService.createLoginChallenge({
+                    userId: input.user.id,
+                    clientId: input.clientId,
+                    scope: input.scope,
+                    tenantSlug: input.tenantSlug,
+                    ip: input.ip
+                })
+            };
+        }
+        if (await deps.authenticationFlowService.isStageEnabled("mfa_webauthn") && (await deps.webauthnService.listCredentials(input.user.id)).length > 0) {
+            const challenge = await deps.webauthnService.startLogin({
+                user: input.user,
+                clientId: input.clientId,
+                scope: input.scope,
+                tenantSlug: input.tenantSlug,
+                ip: input.ip
+            });
+            return {
+                statusCode: 202,
+                body: {
+                    mfaRequired: true,
+                    mfaMethod: "webauthn",
+                    ...challenge
+                }
+            };
+        }
+        return null;
+    }
+    async function completeInteractiveLogin(input) {
+        await enforcePostLoginStage({
+            user: input.user,
+            tenantSlug: input.tenantSlug,
+            clientId: input.clientId,
+            ip: input.ip
+        });
+        const { session, tokens } = await deps.authService.completeLoginForUser({
+            userId: input.user.id,
+            clientId: input.clientId,
+            scope: input.scope,
+            tenantSlug: input.tenantSlug,
+            ip: input.ip,
+            userAgent: input.userAgent
+        });
+        const passwordExpirationWarning = await buildPasswordExpirationWarningForUser(input.user, input.tenantSlug);
+        return {
+            session,
+            ...tokens,
+            ...(passwordExpirationWarning ? { passwordExpirationWarning } : {})
+        };
     }
     async function enforceInvalidationForSession(input) {
         if (!await isStageEnabledForDesignation("invalidation", "user_logout")) {
@@ -543,6 +621,10 @@ export const registerRoutes = async (app, deps) => {
                 try {
                     const token = request.headers.authorization.slice("Bearer ".length);
                     const claims = await deps.authService.jwtService.verifyAccessToken(token);
+                    const clientId = String(claims.client_id ?? "").trim();
+                    if (isUngatedAdminClientId(clientId)) {
+                        return;
+                    }
                     if (claims.actor_type !== "service_identity") {
                         return reply.status(401).send({ error: "unauthorized" });
                     }
@@ -551,7 +633,17 @@ export const registerRoutes = async (app, deps) => {
                     }
                     const resource = toAdminResource(path);
                     const action = toAdminAction(request.method);
-                    const permissions = Array.isArray(claims.permissions) ? claims.permissions : [];
+                    const serviceIdentityId = String(claims.service_identity_id ?? claims.sub ?? "").trim();
+                    if (!serviceIdentityId) {
+                        return reply.status(401).send({ error: "unauthorized" });
+                    }
+                    const serviceIdentity = await deps.serviceIdentityService.getServiceIdentity(serviceIdentityId);
+                    if (isBootstrapAdminServiceIdentityMetadata(serviceIdentity?.metadata)) {
+                        return;
+                    }
+                    // Resolve from role assignments server-side — do not require the
+                    // `permissions` OAuth scope (embedding the flattened list bloats JWTs).
+                    const permissions = await deps.roleService.resolvePermissionsForUser(serviceIdentityId);
                     if (!hasAdminPermission({ permissions, resource, action })) {
                         return reply.status(403).send({ error: "forbidden" });
                     }
@@ -790,6 +882,24 @@ export const registerRoutes = async (app, deps) => {
             return reply.redirect(`/login?${params}`);
         }
         const consentStageEnabled = await deps.authenticationFlowService.isStageEnabled("consent");
+        if (consentStageEnabled) {
+            try {
+                await enforcePoliciesForStage({
+                    stage: "consent",
+                    user,
+                    tenantSlug: input.tenant,
+                    clientId: input.client_id,
+                    ip: request.ip
+                });
+            }
+            catch (error) {
+                if (error instanceof AuthenticationError) {
+                    const params = new URLSearchParams(request.query).toString();
+                    return reply.redirect(`/consent?${params}`);
+                }
+                throw error;
+            }
+        }
         const forceConsent = input.prompt === "consent" || input.approval_prompt === "force";
         const hasConsented = input.consent === "approve";
         if (consentStageEnabled && !hasConsented && (forceConsent || input.prompt !== "none")) {
@@ -925,6 +1035,13 @@ export const registerRoutes = async (app, deps) => {
                     captchaToken: parsed.data.captcha_token,
                     promptAcknowledged: parsed.data.prompt_acknowledged
                 });
+                const passwordExpiration = await deps.policyService.getPasswordExpirationStatus(user);
+                if (passwordExpiration.active && passwordExpiration.status === "expired") {
+                    return reply.status(400).send({
+                        error: "invalid_grant",
+                        error_description: "Password has expired. Sign in through the login page to choose a new password."
+                    });
+                }
                 if (await deps.authenticationFlowService.isStageEnabled("mfa_totp") && await deps.totpService.requiresTotp(user.id)) {
                     return reply.status(400).send({ error: "invalid_grant", error_description: "MFA is required for password grant" });
                 }
@@ -1274,37 +1391,28 @@ export const registerRoutes = async (app, deps) => {
                 captchaToken: input.captchaToken,
                 promptAcknowledged: input.promptAcknowledged
             });
-            if (await deps.authenticationFlowService.isStageEnabled("mfa_totp") && await deps.totpService.requiresTotp(user.id)) {
-                return reply.status(202).send(deps.totpService.createLoginChallenge({
-                    userId: user.id,
-                    clientId: input.clientId,
-                    scope: input.scope,
-                    tenantSlug: input.tenantSlug,
-                    ip: request.ip
-                }));
-            }
-            if (await deps.authenticationFlowService.isStageEnabled("mfa_webauthn") && (await deps.webauthnService.listCredentials(user.id)).length > 0) {
-                const challenge = await deps.webauthnService.startLogin({
-                    user,
-                    clientId: input.clientId,
-                    scope: input.scope,
-                    tenantSlug: input.tenantSlug,
-                    ip: request.ip
-                });
-                return reply.status(202).send({
-                    mfaRequired: true,
-                    mfaMethod: "webauthn",
-                    ...challenge
-                });
-            }
-            await enforcePostLoginStage({
+            const passwordChangeChallenge = await maybeIssuePasswordChangeChallenge({
                 user,
-                tenantSlug: input.tenantSlug,
                 clientId: input.clientId,
+                scope: input.scope,
+                tenantSlug: input.tenantSlug,
                 ip: request.ip
             });
-            const { session, tokens } = await deps.authService.completeLoginForUser({
-                userId: user.id,
+            if (passwordChangeChallenge) {
+                return reply.status(202).send(passwordChangeChallenge);
+            }
+            const mfaChallenge = await maybeIssueMfaChallenge({
+                user,
+                clientId: input.clientId,
+                scope: input.scope,
+                tenantSlug: input.tenantSlug,
+                ip: request.ip
+            });
+            if (mfaChallenge) {
+                return reply.status(mfaChallenge.statusCode).send(mfaChallenge.body);
+            }
+            const loginResult = await completeInteractiveLogin({
+                user,
                 clientId: input.clientId,
                 scope: input.scope,
                 tenantSlug: input.tenantSlug,
@@ -1314,14 +1422,14 @@ export const registerRoutes = async (app, deps) => {
             deps.securityService.clearLoginFailures(input.email);
             await runBestEffort(request, "auth.login.succeeded", async () => {
                 await deps.eventHookService.emit("auth.login.succeeded", {
-                    userId: session.userId,
-                    clientId: session.clientId,
-                    sessionId: session.id,
+                    userId: loginResult.session.userId,
+                    clientId: loginResult.session.clientId,
+                    sessionId: loginResult.session.id,
                     ip: request.ip
                 });
             });
-            await setSessionCookie(reply, deps.instanceSettingsService, session.id);
-            return { session, ...tokens };
+            await setSessionCookie(reply, deps.instanceSettingsService, loginResult.session.id);
+            return loginResult;
         }
         catch (err) {
             const reason = err instanceof Error ? err.message : "unknown";
@@ -1382,14 +1490,8 @@ export const registerRoutes = async (app, deps) => {
                 clientId: challenge.clientId,
                 ip: challenge.ip ?? request.ip
             });
-            await enforcePostLoginStage({
+            const loginResult = await completeInteractiveLogin({
                 user,
-                tenantSlug: challenge.tenantSlug,
-                clientId: challenge.clientId,
-                ip: challenge.ip ?? request.ip
-            });
-            const { session, tokens } = await deps.authService.completeLoginForUser({
-                userId: user.id,
                 clientId: challenge.clientId,
                 scope: challenge.scope,
                 tenantSlug: challenge.tenantSlug,
@@ -1398,18 +1500,72 @@ export const registerRoutes = async (app, deps) => {
             });
             await runBestEffort(request, "auth.login.succeeded.mfa_totp", async () => {
                 await deps.eventHookService.emit("auth.login.succeeded", {
-                    userId: session.userId,
-                    clientId: session.clientId,
-                    sessionId: session.id,
+                    userId: loginResult.session.userId,
+                    clientId: loginResult.session.clientId,
+                    sessionId: loginResult.session.id,
                     ip: request.ip,
                     mfa: "totp"
                 });
             });
-            await setSessionCookie(reply, deps.instanceSettingsService, session.id);
-            return { session, ...tokens };
+            await setSessionCookie(reply, deps.instanceSettingsService, loginResult.session.id);
+            return loginResult;
         }
         catch (err) {
             return reply.status(401).send({ error: "invalid_grant", error_description: "MFA verification failed" });
+        }
+    });
+    app.post("/auth/login/change-password", async (request, reply) => {
+        const input = changePasswordLoginSchema.parse(request.body);
+        try {
+            if (input.confirmPassword !== undefined && input.confirmPassword !== input.newPassword) {
+                throw new ValidationError("New password and confirmation do not match");
+            }
+            const challenge = deps.passwordChangeService.consumeLoginChallenge(input.changePasswordTicket);
+            const user = await deps.userService.findUserById(challenge.userId);
+            if (!user) {
+                throw new AuthenticationError("User not found");
+            }
+            await deps.policyService.enforceUserCreationPolicies(input.newPassword);
+            await deps.userService.resetPassword(user.id, input.newPassword);
+            const refreshedUser = await deps.userService.findUserById(user.id);
+            if (!refreshedUser) {
+                throw new AuthenticationError("User not found");
+            }
+            const mfaChallenge = await maybeIssueMfaChallenge({
+                user: refreshedUser,
+                clientId: challenge.clientId,
+                scope: challenge.scope,
+                tenantSlug: challenge.tenantSlug,
+                ip: challenge.ip ?? request.ip
+            });
+            if (mfaChallenge) {
+                return reply.status(mfaChallenge.statusCode).send(mfaChallenge.body);
+            }
+            const loginResult = await completeInteractiveLogin({
+                user: refreshedUser,
+                clientId: challenge.clientId,
+                scope: challenge.scope,
+                tenantSlug: challenge.tenantSlug,
+                ip: challenge.ip ?? request.ip,
+                userAgent: clientUserAgent(request)
+            });
+            await runBestEffort(request, "auth.login.succeeded.password_change", async () => {
+                await deps.eventHookService.emit("auth.login.succeeded", {
+                    userId: loginResult.session.userId,
+                    clientId: loginResult.session.clientId,
+                    sessionId: loginResult.session.id,
+                    ip: request.ip,
+                    passwordChanged: true
+                });
+            });
+            await setSessionCookie(reply, deps.instanceSettingsService, loginResult.session.id);
+            return loginResult;
+        }
+        catch (err) {
+            if (err instanceof ValidationError) {
+                return reply.status(err.statusCode).send({ error: "invalid_request", error_description: err.message });
+            }
+            return reply.status(401).send({ error: "invalid_grant", error_description: publicErrorMessageForPath("/auth/login/change-password", err instanceof AppError ? err : new AuthenticationError()) });
         }
     });
     app.post("/auth/login/webauthn/begin", async (request, reply) => {
@@ -1447,14 +1603,8 @@ export const registerRoutes = async (app, deps) => {
                 clientId: result.clientId,
                 ip: result.ip ?? request.ip
             });
-            await enforcePostLoginStage({
+            const loginResult = await completeInteractiveLogin({
                 user,
-                tenantSlug: result.tenantSlug,
-                clientId: result.clientId,
-                ip: result.ip ?? request.ip
-            });
-            const { session, tokens } = await deps.authService.completeLoginForUser({
-                userId: user.id,
                 clientId: result.clientId,
                 scope: result.scope,
                 tenantSlug: result.tenantSlug,
@@ -1463,15 +1613,15 @@ export const registerRoutes = async (app, deps) => {
             });
             await runBestEffort(request, "auth.login.succeeded.mfa_webauthn", async () => {
                 await deps.eventHookService.emit("auth.login.succeeded", {
-                    userId: session.userId,
-                    clientId: session.clientId,
-                    sessionId: session.id,
+                    userId: loginResult.session.userId,
+                    clientId: loginResult.session.clientId,
+                    sessionId: loginResult.session.id,
                     ip: request.ip,
                     mfa: "webauthn"
                 });
             });
-            await setSessionCookie(reply, deps.instanceSettingsService, session.id);
-            return { session, ...tokens };
+            await setSessionCookie(reply, deps.instanceSettingsService, loginResult.session.id);
+            return loginResult;
         }
         catch (error) {
             return reply.status(401).send({ error: "invalid_grant", error_description: "Authentication failed" });
@@ -2185,14 +2335,15 @@ export const registerRoutes = async (app, deps) => {
                 return reply.status(400).send({ error: "invalid_request", error_description: "Prompt acknowledgement is required" });
             }
             if (await isStageEnabledForDesignation("recovery", "user_write")) {
-                await deps.userService.resetPassword(user.id, input.newPassword);
                 await enforcePoliciesForStage({
                     stage: "user_write",
                     user,
                     tenantSlug: input.tenantSlug,
                     clientId: input.clientId,
-                    ip: request.ip
+                    ip: request.ip,
+                    pendingPassword: input.newPassword
                 });
+                await deps.userService.resetPassword(user.id, input.newPassword);
             }
             deps.recoveryService.consume(input.recoveryTicket);
             if (!await isStageEnabledForDesignation("recovery", "user_login")) {
@@ -2227,6 +2378,7 @@ export const registerRoutes = async (app, deps) => {
         return deps.userService.listUsers({
             group: parsed.group,
             active: parsed.active,
+            includeServiceUsers: parsed.includeServiceUsers,
             customAttributes: Object.keys(parsed.customAttributes ?? {}).length > 0 ? parsed.customAttributes : undefined,
             search: parsed.search,
             page: parsed.page,
@@ -2904,6 +3056,9 @@ export const registerRoutes = async (app, deps) => {
         const userApps = (await deps.appService.listApps()).filter((appItem) => {
             return userAppAccess.appIds.length === 0 || userAppAccess.appIds.includes(appItem.id);
         });
+        const customAttributeFields = await deps.userService.listPortalCustomAttributeFields(user.id, {
+            pictureKey: USER_PICTURE_ATTRIBUTE_KEY
+        });
         return {
             id: user.id,
             email: user.email,
@@ -2915,6 +3070,7 @@ export const registerRoutes = async (app, deps) => {
                 ...userCustomAttributes.customAttributes,
                 ...(user.avatarUrl ? { [USER_PICTURE_ATTRIBUTE_KEY]: user.avatarUrl } : {})
             },
+            customAttributeFields,
             directCustomAttributes: {
                 ...userCustomAttributes.directCustomAttributes,
                 ...(user.avatarUrl ? { [USER_PICTURE_ATTRIBUTE_KEY]: user.avatarUrl } : {})
@@ -2961,7 +3117,9 @@ export const registerRoutes = async (app, deps) => {
             }
         }
         if (input.customAttributes !== undefined) {
-            await deps.userService.setCustomAttributes(session.userId, input.customAttributes);
+            await deps.userService.setPortalCustomAttributes(session.userId, input.customAttributes, {
+                pictureKey: USER_PICTURE_ATTRIBUTE_KEY
+            });
         }
         return reply.status(204).send();
     });

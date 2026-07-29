@@ -293,12 +293,18 @@ export class AuthService {
             throw new AppError("Requested scope exceeds service identity policy", 400);
         }
         const accessTokenId = nanoid();
+        // Authorization claims are scope-gated, same as user access tokens:
+        // embedding them unconditionally bloats tokens past proxy header limits.
         const { accessToken, expiresIn, tokenType } = await this.jwtService.issueServiceIdentityToken({
             serviceIdentity,
             clientId: input.clientId,
             scope: requestedScope,
-            roles: await this.roleService.resolveNamesForUser(serviceIdentity.id),
-            permissions: await this.roleService.resolvePermissionsForUser(serviceIdentity.id),
+            roles: requestedScope.includes("roles")
+                ? await this.roleService.resolveNamesForUser(serviceIdentity.id)
+                : undefined,
+            permissions: requestedScope.includes("permissions")
+                ? await this.roleService.resolvePermissionsForUser(serviceIdentity.id)
+                : undefined,
             accessTokenId
         });
         await this.auditRepository.log({

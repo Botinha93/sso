@@ -70,7 +70,7 @@ export const loadConfig = () => applyRuntimeDatabaseConfig({
     trustProxy: asBoolean("TRUST_PROXY", false),
     cookieSecret: resolveCookieSecret(),
     databaseProvider: "sqlite",
-    databasePath: "./data/sso.sqlite",
+    databasePath: process.env.DATABASE_PATH ?? "./data/sso.sqlite",
     externalDatabaseUrl: undefined,
     issuer: required("ISSUER", "http://localhost:4000"),
     admin: {

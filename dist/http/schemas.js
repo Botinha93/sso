@@ -131,6 +131,11 @@ export const mfaLoginSchema = z.object({
     mfaTicket: z.string().min(8),
     code: z.string().min(6).max(8)
 });
+export const changePasswordLoginSchema = z.object({
+    changePasswordTicket: z.string().min(8),
+    newPassword: z.string().min(8),
+    confirmPassword: z.string().min(8).optional()
+});
 export const verifyTotpEnrollmentSchema = z.object({
     enrollmentId: z.string().min(8),
     code: z.string().min(6).max(8)
@@ -457,14 +462,18 @@ export const createUserAttributeSchema = z.object({
     name: z.string().min(2),
     description: z.string().min(2),
     type: userAttributeTypeSchema,
-    enabled: z.boolean().default(true)
+    enabled: z.boolean().default(true),
+    showOnPortal: z.boolean().default(false),
+    userEditable: z.boolean().default(false)
 });
 export const updateUserAttributeSchema = z.object({
     key: z.string().min(2).optional(),
     name: z.string().min(2).optional(),
     description: z.string().min(2).optional(),
     type: userAttributeTypeSchema.optional(),
-    enabled: z.boolean().optional()
+    enabled: z.boolean().optional(),
+    showOnPortal: z.boolean().optional(),
+    userEditable: z.boolean().optional()
 });
 export const setUserAttributeGroupAssignmentSchema = z.object({
     groupId: z.string().min(2),
@@ -606,6 +615,7 @@ export const updateInstanceSettingsSchema = z.object({
     loginLockoutThreshold: z.number().int().min(1).max(100).optional(),
     loginLockoutDurationMs: z.number().int().min(60_000).max(86_400_000).optional(),
     sessionAnomalyConcurrencyThreshold: z.number().int().min(1).max(100).optional(),
+    rateLimitMultiplier: z.number().min(0.1).max(100).optional(),
     emailTransport: z.enum(["disabled", "log", "smtp"]).optional(),
     emailFrom: z.string().email().optional(),
     smtpHost: z.string().min(1).optional(),

@@ -427,6 +427,8 @@ export class SqliteDatabase {
         description TEXT NOT NULL,
         type TEXT NOT NULL,
         enabled INTEGER NOT NULL,
+        show_on_portal INTEGER NOT NULL DEFAULT 0,
+        user_editable INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -785,6 +787,13 @@ export class SqliteDatabase {
         const hasGroupUserAttributeValueColumn = groupUserAttributeColumns.some((column) => column.name === "value");
         if (!hasGroupUserAttributeValueColumn) {
             this.connection.exec("ALTER TABLE group_user_attribute_assignments ADD COLUMN value TEXT;");
+        }
+        const userAttributeDefinitionColumns = this.connection.prepare("PRAGMA table_info(user_attribute_definitions)").all();
+        if (!userAttributeDefinitionColumns.some((column) => column.name === "show_on_portal")) {
+            this.connection.exec("ALTER TABLE user_attribute_definitions ADD COLUMN show_on_portal INTEGER NOT NULL DEFAULT 0;");
+        }
+        if (!userAttributeDefinitionColumns.some((column) => column.name === "user_editable")) {
+            this.connection.exec("ALTER TABLE user_attribute_definitions ADD COLUMN user_editable INTEGER NOT NULL DEFAULT 0;");
         }
         const hasUserAppIdColumn = userColumns.some((column) => column.name === "app_id");
         if (!hasUserAppIdColumn) {

@@ -784,7 +784,13 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       return null;
     }
 
-    return deps.passwordChangeService.createLoginChallenge(input);
+    return deps.passwordChangeService.createLoginChallenge({
+      userId: input.user.id,
+      clientId: input.clientId,
+      scope: input.scope,
+      tenantSlug: input.tenantSlug,
+      ip: input.ip
+    });
   }
 
   async function maybeIssueMfaChallenge(input: {
@@ -797,7 +803,13 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     if (await deps.authenticationFlowService.isStageEnabled("mfa_totp") && await deps.totpService.requiresTotp(input.user.id)) {
       return {
         statusCode: 202 as const,
-        body: deps.totpService.createLoginChallenge(input)
+        body: deps.totpService.createLoginChallenge({
+          userId: input.user.id,
+          clientId: input.clientId,
+          scope: input.scope,
+          tenantSlug: input.tenantSlug,
+          ip: input.ip
+        })
       };
     }
 

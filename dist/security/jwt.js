@@ -95,14 +95,19 @@ export class JwtService {
         const now = Math.floor(Date.now() / 1000);
         const scopeValue = scope.join(" ");
         const accessTtl = DEFAULT_ACCESS_TOKEN_TTL_SECONDS;
-        let tokenBuilder = new SignJWT({
+        const payload = {
             scope: scopeValue,
             client_id: clientId,
             service_identity_id: serviceIdentity.id,
-            actor_type: "service_identity",
-            roles,
-            permissions
-        })
+            actor_type: "service_identity"
+        };
+        if (roles) {
+            payload.roles = roles;
+        }
+        if (permissions) {
+            payload.permissions = permissions;
+        }
+        let tokenBuilder = new SignJWT(payload)
             .setProtectedHeader({ alg: "RS256", kid: this.keys.kid })
             .setIssuer(this.appConfig.issuer)
             .setSubject(serviceIdentity.id)

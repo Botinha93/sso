@@ -1,5 +1,6 @@
 import { ValidationError } from "../core/errors.js";
 import { hashPassword } from "../security/password.js";
+import type { User } from "../domain/models.js";
 import type {
   AppRepository,
   GroupAppAssignmentRepository,
