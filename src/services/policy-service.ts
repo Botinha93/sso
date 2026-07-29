@@ -4,8 +4,10 @@ import { AuthenticationError, ValidationError } from "../core/errors.js";
 import type {
   PolicyAssignmentRepository,
   PolicyDefinitionRepository,
+  TotpCredentialRepository,
   UserGroupAssignmentRepository
 } from "../repositories/contracts.js";
+import type { UserService } from "./user-service.js";
 import type {
   AuthenticationStageType,
   PolicyCategory,
@@ -22,6 +24,12 @@ import {
   resolvePolicyPriority,
   summarizeAuthorizationDecision
 } from "./policy-authorization-evaluator.js";
+import {
+  buildPasswordExpirationWarning,
+  evaluatePasswordExpiration,
+  type PasswordExpirationEvaluation,
+  type PasswordExpirationWarning
+} from "./password-expiration.js";
 
 const BUILT_IN_POLICIES = [
   {
@@ -155,20 +163,28 @@ if (requireSymbol && !/[^A-Za-z0-9]/.test(pendingPassword)) {
 
 return true`,
   password_expiration_days: `const days = Number(policy.assignment.config.days ?? 0)
+const warnDaysBefore = Number(policy.assignment.config.warnDaysBefore ?? 14)
 if (days <= 0) {
   return true
 }
 
 const changedAtRaw = policy.user.customAttributes.password_changed_at
-if (!changedAtRaw) {
+const baseline = changedAtRaw
+  ? new Date(changedAtRaw)
+  : new Date((function () {
+    const now = new Date()
+    return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  })())
+const expiryAt = new Date(baseline.getTime() + days * 24 * 60 * 60 * 1000)
+const daysRemaining = Math.max(0, Math.ceil((expiryAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+
+// Interactive login handles expiry and warning messaging. Keep this script for custom logic.
+if (expiryAt.getTime() < Date.now()) {
   return true
 }
 
-const baseline = new Date(changedAtRaw)
-const expiryAt = new Date(baseline.getTime() + days * 24 * 60 * 60 * 1000)
-
-if (expiryAt.getTime() < Date.now()) {
-  return { allow: false, message: 'Password has expired. Contact an administrator to reset it.' }
+if (daysRemaining <= warnDaysBefore) {
+  return true
 }
 
 return true`,
@@ -176,7 +192,9 @@ return true`,
 // Keep this script as documentation or add extra user_write checks if desired.
 return true`,
   two_factor_required: `const required = Boolean(policy.assignment.config.required ?? true)
-if (required && policy.user.customAttributes.mfa_enabled !== 'true') {
+const totpEnrolled = policy.request.context.totpEnrolled === true
+  || policy.user.customAttributes.mfa_enabled === 'true'
+if (required && !totpEnrolled) {
   return { allow: false, message: 'Two-factor authentication is required for this account' }
 }
 
@@ -377,11 +395,18 @@ export interface PolicySimulationResult {
   decisions: PolicySimulationDecision[];
 }
 
+const NATIVE_AUTHENTICATION_POLICIES = new Set([
+  "password_expiration_days",
+  "two_factor_required"
+]);
+
 export class PolicyService {
   constructor(
     private readonly policyDefinitionRepository: PolicyDefinitionRepository,
     private readonly policyAssignmentRepository: PolicyAssignmentRepository,
-    private readonly userGroupAssignmentRepository: UserGroupAssignmentRepository
+    private readonly userGroupAssignmentRepository: UserGroupAssignmentRepository,
+    private readonly totpCredentialRepository?: TotpCredentialRepository,
+    private readonly userService?: Pick<UserService, "ensurePasswordChangedAt">
   ) {}
 
   async ensureBuiltIns() {
@@ -570,12 +595,38 @@ export class PolicyService {
     }
   }
 
-  async enforceLoginPolicies(input: { user: User; tenantId?: string }) {
-    await this.enforceStagePolicies({
-      stage: "password",
-      user: input.user,
-      tenantId: input.tenantId
-    });
+  async getPasswordExpirationStatus(user: User, tenantId?: string): Promise<PasswordExpirationEvaluation> {
+    const effectiveByPolicyId = await this.resolveEffectivePolicies(user.id, tenantId);
+    let resolvedUser = user;
+
+    for (const effective of effectiveByPolicyId.values()) {
+      const definition = this.withResolvedDefinition(effective.definition);
+      if (definition.key !== "password_expiration_days" || definition.category !== "authentication") {
+        continue;
+      }
+      if (!effective.assignment.enabled) {
+        continue;
+      }
+
+      if (this.userService) {
+        resolvedUser = await this.userService.ensurePasswordChangedAt(resolvedUser);
+      }
+
+      return evaluatePasswordExpiration({
+        user: resolvedUser,
+        config: effective.assignment.config
+      });
+    }
+
+    return { active: false };
+  }
+
+  buildPasswordExpirationWarning(evaluation: PasswordExpirationEvaluation): PasswordExpirationWarning | undefined {
+    if (!evaluation.active || evaluation.status !== "warning") {
+      return undefined;
+    }
+
+    return buildPasswordExpirationWarning(evaluation);
   }
 
   async enforceStagePolicies(input: {
@@ -584,8 +635,11 @@ export class PolicyService {
     tenantId?: string;
     clientId?: string;
     ip?: string;
+    pendingPassword?: string;
+    context?: Record<string, unknown>;
   }) {
     const effectiveByPolicyId = await this.resolveEffectivePolicies(input.user.id, input.tenantId);
+    const stageContext = await this.resolveStageContext(input);
 
     for (const effective of effectiveByPolicyId.values()) {
       const definition = this.withResolvedDefinition(effective.definition);
@@ -600,26 +654,31 @@ export class PolicyService {
         continue;
       }
 
-      const javascriptCode = definition.javascriptCode?.trim();
+      if (NATIVE_AUTHENTICATION_POLICIES.has(definition.key)) {
+        await this.executeBuiltInPolicy({
+          definitionKey: definition.key,
+          assignment: effective.assignment,
+          stage: input.stage,
+          user: input.user,
+          context: stageContext
+        });
+        continue;
+      }
+
+      const javascriptCode = this.resolveEffectiveJavascriptCode(definition);
       if (javascriptCode) {
         this.executeCustomJavascriptPolicy({
-          definition,
+          definition: { ...definition, javascriptCode },
           assignment: effective.assignment,
           stage: input.stage,
           user: input.user,
           tenantId: input.tenantId,
           clientId: input.clientId,
-          ip: input.ip
+          ip: input.ip,
+          pendingPassword: input.pendingPassword,
+          context: stageContext
         });
-        continue;
       }
-
-      this.executeBuiltInPolicy({
-        definitionKey: definition.key,
-        assignment: effective.assignment,
-        stage: input.stage,
-        user: input.user
-      });
     }
   }
 
@@ -789,6 +848,7 @@ export class PolicyService {
     ip?: string;
     resource?: string;
     action?: string;
+    pendingPassword?: string;
     context?: Record<string, unknown>;
   }): { allow: boolean; message?: string; runtimeError?: boolean } {
     const sandbox: {
@@ -820,6 +880,7 @@ export class PolicyService {
           ip: input.ip,
           resource: input.resource,
           action: input.action,
+          pendingPassword: input.pendingPassword,
           context: input.context ?? {}
         }
       },
@@ -862,28 +923,22 @@ ${input.definition.javascriptCode ?? ""}
     return { allow: true };
   }
 
-  private executeBuiltInPolicy(input: {
+  private async executeBuiltInPolicy(input: {
     definitionKey: string;
     assignment: { enabled: boolean; config: Record<string, unknown> };
     stage: AuthenticationStageType;
     user: User;
+    context?: Record<string, unknown>;
   }) {
     if (input.definitionKey === "password_expiration_days" && input.stage === "password") {
-      const days = Number(input.assignment.config.days ?? 0);
-      if (days > 0) {
-        const changedAtRaw = input.user.customAttributes.password_changed_at;
-        const baseline = changedAtRaw ? new Date(changedAtRaw) : input.user.createdAt;
-        const expiryAt = new Date(baseline.getTime() + days * 24 * 60 * 60 * 1000);
-        if (expiryAt.getTime() < Date.now()) {
-          throw new AuthenticationError("Password has expired. Contact an administrator to reset it.");
-        }
-      }
       return;
     }
 
     if (input.definitionKey === "two_factor_required" && input.stage === "mfa_totp") {
       const required = Boolean(input.assignment.config.required ?? true);
-      if (required && input.user.customAttributes.mfa_enabled !== "true") {
+      const totpEnrolled = input.context?.totpEnrolled === true
+        || input.user.customAttributes.mfa_enabled === "true";
+      if (required && !totpEnrolled) {
         throw new AuthenticationError("Two-factor authentication is required for this account");
       }
     }
@@ -899,6 +954,7 @@ ${input.definition.javascriptCode ?? ""}
     ip?: string;
     resource?: string;
     action?: string;
+    pendingPassword?: string;
     context?: Record<string, unknown>;
   }) {
     const evaluation = this.evaluateCustomJavascriptPolicy(input);
@@ -1006,6 +1062,25 @@ ${input.definition.javascriptCode ?? ""}
 
   private resolveDefaultJavascriptCode(policyKey: string) {
     return DEFAULT_POLICY_JAVASCRIPT[policyKey];
+  }
+
+  private resolveEffectiveJavascriptCode(definition: PolicyDefinition) {
+    return definition.javascriptCode?.trim() ?? this.resolveDefaultJavascriptCode(definition.key)?.trim();
+  }
+
+  private async resolveStageContext(input: {
+    stage: AuthenticationStageType;
+    user: User;
+    context?: Record<string, unknown>;
+  }) {
+    const context = { ...(input.context ?? {}) };
+
+    if (input.stage === "mfa_totp" && context.totpEnrolled === undefined && this.totpCredentialRepository) {
+      const credential = await this.totpCredentialRepository.findByUserId(input.user.id);
+      context.totpEnrolled = Boolean(credential);
+    }
+
+    return context;
   }
 
   private normalizeKey(key: string) {

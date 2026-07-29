@@ -147,6 +147,12 @@ export const mfaLoginSchema = z.object({
   code: z.string().min(6).max(8)
 });
 
+export const changePasswordLoginSchema = z.object({
+  changePasswordTicket: z.string().min(8),
+  newPassword: z.string().min(8),
+  confirmPassword: z.string().min(8).optional()
+});
+
 export const verifyTotpEnrollmentSchema = z.object({
   enrollmentId: z.string().min(8),
   code: z.string().min(6).max(8)

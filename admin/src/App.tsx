@@ -59,12 +59,20 @@ function App() {
 function AppContent() {
   const location = useLocation()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [passwordExpirationWarning, setPasswordExpirationWarning] = useState<string | null>(null)
   const { data: setupStatus, isLoading: setupLoading } = useSetupStatus()
   const { data: adminMe, isLoading: meLoading, error: meError } = useAdminMe()
 
   useEffect(() => {
     setMobileNavOpen(false)
   }, [location.pathname])
+
+  useEffect(() => {
+    const warning = sessionStorage.getItem('passwordExpirationWarning')
+    if (warning) {
+      setPasswordExpirationWarning(warning)
+    }
+  }, [])
 
   const permissions: string[] = (adminMe as any)?.permissions ?? []
   const hasPermission = (perm: string) => permissions.includes('*:*') || permissions.includes(perm)
@@ -141,6 +149,21 @@ function AppContent() {
 
                 <main className="admin-shell-main min-w-0 flex-1 overflow-auto">
                   <div className="admin-shell-content admin-page-stack">
+                    {passwordExpirationWarning ? (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex items-start justify-between gap-3">
+                        <span>{passwordExpirationWarning}</span>
+                        <button
+                          type="button"
+                          className="text-amber-800 underline"
+                          onClick={() => {
+                            sessionStorage.removeItem('passwordExpirationWarning')
+                            setPasswordExpirationWarning(null)
+                          }}
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    ) : null}
                     <Suspense fallback={<SectionLoader />}>
                     <Routes location={location}>
                       <Route path="/" element={require('users:view', <Dashboard />)} />

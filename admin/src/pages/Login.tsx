@@ -58,6 +58,10 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [mfaCode, setMfaCode] = useState("");
   const [mfaTicket, setMfaTicket] = useState<string | null>(null);
+  const [changePasswordTicket, setChangePasswordTicket] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [providers, setProviders] = useState<FederationProvider[]>([]);
@@ -111,15 +115,29 @@ export default function Login() {
     return "/";
   };
 
+  const storePasswordExpirationWarning = (json: Record<string, unknown>) => {
+    const warning = json.passwordExpirationWarning;
+    if (warning && typeof warning === "object" && warning !== null && typeof (warning as { message?: unknown }).message === "string") {
+      sessionStorage.setItem("passwordExpirationWarning", (warning as { message: string }).message);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setInfoMessage(null);
     try {
-      const endpoint = mfaTicket ? "/auth/login/mfa" : "/auth/login";
-      const payload = mfaTicket
-        ? { mfaTicket, code: mfaCode.trim() }
-        : { email: email.trim(), password };
+      const endpoint = changePasswordTicket
+        ? "/auth/login/change-password"
+        : mfaTicket
+          ? "/auth/login/mfa"
+          : "/auth/login";
+      const payload = changePasswordTicket
+        ? { changePasswordTicket, newPassword, confirmPassword }
+        : mfaTicket
+          ? { mfaTicket, code: mfaCode.trim() }
+          : { email: email.trim(), password };
 
       const res = await fetch(endpoint, {
         method: "POST",
@@ -127,9 +145,15 @@ export default function Login() {
         body: JSON.stringify(payload)
       });
 
-      if (res.status === 202 && !mfaTicket) {
+      if (res.status === 202 && !mfaTicket && !changePasswordTicket) {
         const json = await res.json().catch(() => ({} as Record<string, unknown>));
-        if (typeof json.mfaTicket === "string") {
+        if (typeof json.changePasswordTicket === "string") {
+          setChangePasswordTicket(json.changePasswordTicket);
+          setNewPassword("");
+          setConfirmPassword("");
+          setInfoMessage(typeof json.message === "string" ? json.message : "Your password has expired. Choose a new password to continue.");
+          setError(null);
+        } else if (typeof json.mfaTicket === "string") {
           setMfaTicket(json.mfaTicket);
           setMfaCode("");
           setError(null);
@@ -137,10 +161,12 @@ export default function Login() {
           setError(extractErrorMessage(json, "Additional verification is required, but this login screen cannot start the challenge."));
         }
       } else if (res.ok) {
+        const json = await res.json().catch(() => ({} as Record<string, unknown>));
+        storePasswordExpirationWarning(json);
         window.location.href = buildRedirectAfterLogin();
       } else {
         const json = await res.json().catch(() => ({} as Record<string, unknown>));
-        setError(extractErrorMessage(json, mfaTicket ? "Invalid one-time code" : "Invalid email or password"));
+        setError(extractErrorMessage(json, changePasswordTicket ? "Failed to update password" : mfaTicket ? "Invalid one-time code" : "Invalid email or password"));
       }
     } catch {
       setError("Network error — is the server running?");
@@ -180,6 +206,15 @@ export default function Login() {
             </div>
           </div>
 
+          {infoMessage && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{infoMessage}</span>
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
               <div className="flex items-start gap-3">
@@ -192,9 +227,18 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
-                {mfaTicket ? "Authenticator code" : "Email or Username"}
+                {changePasswordTicket ? "New password" : mfaTicket ? "Authenticator code" : "Email or Username"}
               </label>
-              {mfaTicket ? (
+              {changePasswordTicket ? (
+                <Input
+                  type="password"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  required
+                  autoFocus
+                  placeholder="••••••••"
+                />
+              ) : mfaTicket ? (
                 <input
                   type="text"
                   inputMode="numeric"
@@ -216,7 +260,19 @@ export default function Login() {
                 />
               )}
             </div>
-            {!mfaTicket && (
+            {changePasswordTicket && (
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Confirm new password</label>
+                <Input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  required
+                  placeholder="••••••••"
+                />
+              </div>
+            )}
+            {!mfaTicket && !changePasswordTicket && (
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Password</label>
                 <Input
@@ -234,14 +290,18 @@ export default function Login() {
               variant="primary"
               className="w-full"
             >
-              {loading ? "Signing in…" : mfaTicket ? "Verify code" : "Sign in"}
+              {loading ? "Signing in…" : changePasswordTicket ? "Update password" : mfaTicket ? "Verify code" : "Sign in"}
             </Button>
-            {mfaTicket && (
+            {(mfaTicket || changePasswordTicket) && (
               <Button
                 type="button"
                 onClick={() => {
                   setMfaTicket(null)
+                  setChangePasswordTicket(null)
                   setMfaCode('')
+                  setNewPassword('')
+                  setConfirmPassword('')
+                  setInfoMessage(null)
                   setError(null)
                 }}
                 variant="secondary"

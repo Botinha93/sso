@@ -25,6 +25,7 @@ const portalHome = import.meta.env.BASE_URL
 export default function Launcher({ user }: Props) {
   const { t } = useI18n()
   const [ui, setUi] = useState<UiCustomization | null>(null)
+  const [passwordExpirationWarning, setPasswordExpirationWarning] = useState<string | null>(null)
   const canManageUsers =
     Array.isArray(user.permissions) &&
     (user.permissions.includes('*:*') || user.permissions.includes('users:view'))
@@ -42,6 +43,13 @@ export default function Launcher({ user }: Props) {
     }
     return map
   }, [user.directAppIds, user.inheritedAppSources])
+
+  useEffect(() => {
+    const warning = sessionStorage.getItem('passwordExpirationWarning')
+    if (warning) {
+      setPasswordExpirationWarning(warning)
+    }
+  }, [])
 
   useEffect(() => {
     void (async () => {
@@ -100,6 +108,21 @@ export default function Launcher({ user }: Props) {
         <div className="mb-4 sm:hidden">
           <LanguageSelector />
         </div>
+        {passwordExpirationWarning ? (
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex items-start justify-between gap-3">
+            <span>{passwordExpirationWarning}</span>
+            <button
+              type="button"
+              className="text-amber-800 underline"
+              onClick={() => {
+                sessionStorage.removeItem('passwordExpirationWarning')
+                setPasswordExpirationWarning(null)
+              }}
+            >
+              {t('profile.common.cancel')}
+            </button>
+          </div>
+        ) : null}
         {/* Welcome */}
         <div className="mb-10">
           <div className="flex items-center gap-3 mb-1">

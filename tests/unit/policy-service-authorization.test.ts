@@ -343,3 +343,98 @@ test("PolicyService uses definition effect/pattern and assignment strategy/prior
   assert.equal(result.allow, false);
   assert.ok(result.deniedBy.includes("deny_by_definition"));
 });
+
+const makeAuthenticationPolicy = (input: {
+  id: string;
+  key: string;
+  stageBindings: PolicyDefinition["stageBindings"];
+  javascriptCode?: string;
+}): PolicyDefinition => ({
+  id: input.id,
+  key: input.key,
+  name: input.key,
+  description: input.key,
+  category: "authentication",
+  stageBindings: input.stageBindings,
+  javascriptCode: input.javascriptCode,
+  enabled: true,
+  createdAt: new Date(),
+  updatedAt: new Date()
+});
+
+const makeAuthenticationAssignment = (policyId: string, config: Record<string, unknown> = {}): PolicyAssignment => ({
+  id: `${policyId}-assignment`,
+  policyId,
+  scopeType: "global",
+  scopeId: "global",
+  enabled: true,
+  config,
+  createdAt: new Date(),
+  updatedAt: new Date()
+});
+
+test("PolicyService enforces built-in authentication policy default JavaScript at runtime", async () => {
+  const definitions = [
+    makeAuthenticationPolicy({
+      id: "tenant-isolation-guard",
+      key: "tenant_isolation_guard",
+      stageBindings: ["risk_check"]
+    })
+  ];
+  const assignments = [
+    makeAuthenticationAssignment("tenant-isolation-guard", {
+      strictTenantAudience: true
+    })
+  ];
+
+  const service = new PolicyService(
+    new InMemoryPolicyDefinitionRepository(definitions),
+    new InMemoryPolicyAssignmentRepository(assignments),
+    new InMemoryUserGroupAssignmentRepository()
+  );
+
+  const user = makeUser();
+  user.customAttributes.tenant_id = "tenant-a";
+
+  await assert.rejects(
+    () => service.enforceStagePolicies({
+      stage: "risk_check",
+      user,
+      tenantId: "tenant-b"
+    }),
+    /Cross-tenant authorization context is not allowed/
+  );
+});
+
+test("PolicyService checks TOTP enrollment for two_factor_required policy", async () => {
+  const definitions = [
+    makeAuthenticationPolicy({
+      id: "two-factor-required",
+      key: "two_factor_required",
+      stageBindings: ["mfa_totp"]
+    })
+  ];
+  const assignments = [makeAuthenticationAssignment("two-factor-required", { required: true })];
+  const totpCredentialRepository = {
+    findByUserId: async () => undefined,
+    upsert: async () => {
+      throw new Error("not implemented");
+    },
+    delete: async () => undefined
+  };
+
+  const service = new PolicyService(
+    new InMemoryPolicyDefinitionRepository(definitions),
+    new InMemoryPolicyAssignmentRepository(assignments),
+    new InMemoryUserGroupAssignmentRepository(),
+    totpCredentialRepository
+  );
+
+  await assert.rejects(
+    () => service.enforceStagePolicies({
+      stage: "mfa_totp",
+      user: makeUser()
+    }),
+    /Two-factor authentication is required/
+  );
+});

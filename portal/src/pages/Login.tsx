@@ -49,8 +49,14 @@ export default function Login() {
   const { t } = useI18n()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [mfaCode, setMfaCode] = useState('')
+  const [mfaTicket, setMfaTicket] = useState<string | null>(null)
+  const [changePasswordTicket, setChangePasswordTicket] = useState<string | null>(null)
   const [showPw, setShowPw] = useState(false)
   const [error, setError] = useState('')
+  const [infoMessage, setInfoMessage] = useState('')
   const [pending, setPending] = useState(false)
   const [ui, setUi] = useState<UiCustomization | null>(null)
   const [uiLoading, setUiLoading] = useState(true)
@@ -74,28 +80,68 @@ export default function Login() {
     })()
   }, [])
 
+  const storePasswordExpirationWarning = (json: Record<string, unknown>) => {
+    const warning = json.passwordExpirationWarning
+    if (warning && typeof warning === 'object' && warning !== null && typeof (warning as { message?: unknown }).message === 'string') {
+      sessionStorage.setItem('passwordExpirationWarning', (warning as { message: string }).message)
+    }
+  }
+
+  const resetChallengeState = () => {
+    setMfaTicket(null)
+    setChangePasswordTicket(null)
+    setMfaCode('')
+    setNewPassword('')
+    setConfirmPassword('')
+    setInfoMessage('')
+    setError('')
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setInfoMessage('')
     setPending(true)
     try {
-      const res = await fetch('/auth/login', {
+      const endpoint = changePasswordTicket
+        ? '/auth/login/change-password'
+        : mfaTicket
+          ? '/auth/login/mfa'
+          : '/auth/login'
+      const payload = changePasswordTicket
+        ? { changePasswordTicket, newPassword, confirmPassword }
+        : mfaTicket
+          ? { mfaTicket, code: mfaCode.trim() }
+          : { email: username, password }
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: username, password })
+        body: JSON.stringify(payload)
       })
-      if (res.status === 202) {
-        const json = await res.json().catch(() => ({}))
-        setError(extractErrorMessage(json, 'Additional verification is required to finish signing in.'))
+
+      if (res.status === 202 && !mfaTicket && !changePasswordTicket) {
+        const json = await res.json().catch(() => ({} as Record<string, unknown>))
+        if (typeof json.changePasswordTicket === 'string') {
+          setChangePasswordTicket(json.changePasswordTicket)
+          setInfoMessage(typeof json.message === 'string' ? json.message : t('login.passwordExpired'))
+        } else if (typeof json.mfaTicket === 'string') {
+          setMfaTicket(json.mfaTicket)
+        } else {
+          setError(extractErrorMessage(json, t('login.additionalVerificationRequired')))
+        }
         return
       }
+
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
-        setError(extractErrorMessage(json, t('login.invalidCredentials')))
+        setError(extractErrorMessage(json, changePasswordTicket ? t('login.passwordUpdateFailed') : mfaTicket ? t('login.invalidMfaCode') : t('login.invalidCredentials')))
         return
       }
-      // Reload to let App detect session
+
+      const json = await res.json().catch(() => ({} as Record<string, unknown>))
+      storePasswordExpirationWarning(json)
       window.location.href = portalHome
     } catch {
       setError(t('login.networkError'))
@@ -125,46 +171,92 @@ export default function Login() {
 
         <Card className="rounded-2xl p-6 shadow-lg">
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                {t('login.usernameOrEmail')}
-              </label>
-              <Input
-                className="h-10 rounded-xl px-3.5"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                autoFocus
-                autoComplete="username"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                {t('login.password')}
-              </label>
-              <div className="relative">
+            {changePasswordTicket ? (
+              <>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                    {t('login.newPassword')}
+                  </label>
+                  <Input
+                    type="password"
+                    className="h-10 rounded-xl px-3.5"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    autoFocus
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                    {t('login.confirmNewPassword')}
+                  </label>
+                  <Input
+                    type="password"
+                    className="h-10 rounded-xl px-3.5"
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    required
+                  />
+                </div>
+              </>
+            ) : mfaTicket ? (
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                  {t('login.authenticatorCode')}
+                </label>
                 <Input
-                  type={showPw ? 'text' : 'password'}
-                  className="h-10 rounded-xl px-3.5 pr-10"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  autoComplete="current-password"
+                  className="h-10 rounded-xl px-3.5 tracking-[0.2em]"
+                  value={mfaCode}
+                  onChange={e => setMfaCode(e.target.value.replace(/\D+/g, '').slice(0, 8))}
+                  autoFocus
                   required
                 />
-                <Button
-                  onClick={() => setShowPw(p => !p)}
-                  aria-label={showPw ? 'Hide password' : 'Show password'}
-                  aria-pressed={showPw}
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-2 top-1.5 h-7 w-7 rounded-md"
-                >
-                  {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
-                </Button>
               </div>
-            </div>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                    {t('login.usernameOrEmail')}
+                  </label>
+                  <Input
+                    className="h-10 rounded-xl px-3.5"
+                    value={username}
+                    onChange={e => setUsername(e.target.value)}
+                    autoFocus
+                    autoComplete="username"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                    {t('login.password')}
+                  </label>
+                  <div className="relative">
+                    <Input
+                      type={showPw ? 'text' : 'password'}
+                      className="h-10 rounded-xl px-3.5 pr-10"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      autoComplete="current-password"
+                      required
+                    />
+                    <Button
+                      onClick={() => setShowPw(p => !p)}
+                      aria-label={showPw ? 'Hide password' : 'Show password'}
+                      aria-pressed={showPw}
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-2 top-1.5 h-7 w-7 rounded-md"
+                    >
+                      {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
 
-            {error && <Alert tone="danger">{error}</Alert>}
+            {infoMessage ? <Alert tone="warning">{infoMessage}</Alert> : null}
+            {error ? <Alert tone="danger">{error}</Alert> : null}
 
             <Button
               type="submit"
@@ -174,8 +266,20 @@ export default function Login() {
               style={{ backgroundColor: ui?.primaryColor ?? undefined }}
             >
               <LogIn size={15} />
-              {pending ? t('login.signingIn') : t('login.signIn')}
+              {pending
+                ? t('login.signingIn')
+                : changePasswordTicket
+                  ? t('login.updatePassword')
+                  : mfaTicket
+                    ? t('login.verifyCode')
+                    : t('login.signIn')}
             </Button>
+
+            {(mfaTicket || changePasswordTicket) ? (
+              <Button type="button" variant="secondary" className="h-10 w-full rounded-xl" onClick={resetChallengeState}>
+                {t('login.back')}
+              </Button>
+            ) : null}
           </form>
         </Card>
       </div>

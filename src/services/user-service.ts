@@ -19,6 +19,7 @@ import {
   normalizeCustomAttributeMap,
   normalizeUserAttributeKey
 } from "../domain/user-attribute-keys.js";
+import { passwordChangedAtTodayIso } from "./password-expiration.js";
 import {
   buildAdminUserListCache,
   serializeAdminUserFromCache,
@@ -215,7 +216,10 @@ export class UserService {
       passwordHash,
       givenName: input.givenName,
       familyName: input.familyName,
-      customAttributes,
+      customAttributes: {
+        ...customAttributes,
+        password_changed_at: customAttributes.password_changed_at ?? passwordChangedAtTodayIso()
+      },
       active: input.active ?? true
     });
 
@@ -419,6 +423,27 @@ export class UserService {
     return updated;
   }
 
+  async ensurePasswordChangedAt(user: User) {
+    const existing = user.customAttributes.password_changed_at?.trim();
+    if (existing) {
+      return user;
+    }
+
+    const passwordChangedAt = passwordChangedAtTodayIso();
+    const nextCustomAttributes = {
+      ...(user.customAttributes ?? {}),
+      password_changed_at: passwordChangedAt
+    };
+
+    await this.userRepository.setCustomAttributes(user.id, nextCustomAttributes);
+    this.invalidateAdminUserListCache();
+
+    return {
+      ...user,
+      customAttributes: nextCustomAttributes
+    };
+  }
+
   async resetPassword(id: string, password: string) {
     const existing = await this.userRepository.findById(id);
     if (!existing) {
@@ -426,6 +451,11 @@ export class UserService {
     }
 
     await this.userRepository.setPasswordHash(id, hashPassword(password));
+    await this.userRepository.setCustomAttributes(id, {
+      ...(existing.customAttributes ?? {}),
+      password_changed_at: new Date().toISOString()
+    });
+    this.invalidateAdminUserListCache();
   }
 
   async setUserActive(id: string, active: boolean) {

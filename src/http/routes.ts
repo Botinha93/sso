@@ -62,6 +62,7 @@ import {
   sendTestEmailSchema,
   testDatabaseConnectionSchema,
   mfaLoginSchema,
+  changePasswordLoginSchema,
   verifyTotpEnrollmentSchema,
   webauthnLoginBeginSchema,
   webauthnLoginFinishSchema,
@@ -108,6 +109,7 @@ import { ElevationService } from "../services/elevation-service.js";
 import { SetupService } from "../services/setup-service.js";
 import { TenantService } from "../services/tenant-service.js";
 import { TotpService } from "../services/totp-service.js";
+import { PasswordChangeService } from "../services/password-change-service.js";
 import { WebauthnService } from "../services/webauthn-service.js";
 import { ServiceIdentityService } from "../services/service-identity-service.js";
 import { UserService } from "../services/user-service.js";
@@ -160,6 +162,7 @@ interface RouteDeps {
   accessReviewService: AccessReviewService;
   elevationService: ElevationService;
   totpService: TotpService;
+  passwordChangeService: PasswordChangeService;
   webauthnService: WebauthnService;
   serviceIdentityService: ServiceIdentityService;
   userService: UserService;
@@ -453,6 +456,10 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       return "MFA verification failed";
     }
 
+    if (path === "/auth/login/change-password") {
+      return "Password change failed";
+    }
+
     if (path === "/auth/login/webauthn/begin" || path === "/auth/login/webauthn/finish") {
       return "Authentication failed";
     }
@@ -588,6 +595,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     if (path === "/auth/login/mfa") {
       configs.push({ endpointKey: "auth_login_mfa", limit: scaleLimit(10), windowMs: 60_000, actorKey, metadata: baseMetadata });
     }
+    if (path === "/auth/login/change-password") {
+      configs.push({ endpointKey: "auth_login_change_password", limit: scaleLimit(10), windowMs: 60_000, actorKey, metadata: baseMetadata });
+    }
     if (path === "/auth/recovery/request") {
       configs.push({ endpointKey: "auth_recovery_request", limit: scaleLimit(5), windowMs: 15 * 60_000, actorKey, metadata: baseMetadata });
     }
@@ -665,13 +675,17 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     tenantSlug?: string;
     clientId?: string;
     ip?: string;
+    pendingPassword?: string;
+    context?: Record<string, unknown>;
   }) {
     await deps.policyService.enforceStagePolicies({
       stage: input.stage,
       user: input.user,
       tenantId: await resolveTenantId(input.tenantSlug),
       clientId: input.clientId,
-      ip: input.ip
+      ip: input.ip,
+      pendingPassword: input.pendingPassword,
+      context: input.context
     });
   }
 
@@ -744,10 +758,6 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     clientId?: string;
     ip?: string;
   }) {
-    if (!await deps.authenticationFlowService.isStageEnabled("user_login")) {
-      return;
-    }
-
     await enforcePoliciesForStage({
       stage: "user_login",
       user: input.user,
@@ -755,6 +765,95 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       clientId: input.clientId,
       ip: input.ip
     });
+  }
+
+  async function buildPasswordExpirationWarningForUser(user: User, tenantSlug?: string) {
+    const status = await deps.policyService.getPasswordExpirationStatus(user, await resolveTenantId(tenantSlug));
+    return deps.policyService.buildPasswordExpirationWarning(status);
+  }
+
+  async function maybeIssuePasswordChangeChallenge(input: {
+    user: User;
+    clientId: string;
+    scope: string[];
+    tenantSlug?: string;
+    ip?: string;
+  }) {
+    const status = await deps.policyService.getPasswordExpirationStatus(input.user, await resolveTenantId(input.tenantSlug));
+    if (!status.active || status.status !== "expired") {
+      return null;
+    }
+
+    return deps.passwordChangeService.createLoginChallenge(input);
+  }
+
+  async function maybeIssueMfaChallenge(input: {
+    user: User;
+    clientId: string;
+    scope: string[];
+    tenantSlug?: string;
+    ip?: string;
+  }) {
+    if (await deps.authenticationFlowService.isStageEnabled("mfa_totp") && await deps.totpService.requiresTotp(input.user.id)) {
+      return {
+        statusCode: 202 as const,
+        body: deps.totpService.createLoginChallenge(input)
+      };
+    }
+
+    if (await deps.authenticationFlowService.isStageEnabled("mfa_webauthn") && (await deps.webauthnService.listCredentials(input.user.id)).length > 0) {
+      const challenge = await deps.webauthnService.startLogin({
+        user: input.user,
+        clientId: input.clientId,
+        scope: input.scope,
+        tenantSlug: input.tenantSlug,
+        ip: input.ip
+      });
+
+      return {
+        statusCode: 202 as const,
+        body: {
+          mfaRequired: true,
+          mfaMethod: "webauthn",
+          ...challenge
+        }
+      };
+    }
+
+    return null;
+  }
+
+  async function completeInteractiveLogin(input: {
+    user: User;
+    clientId: string;
+    scope: string[];
+    tenantSlug?: string;
+    ip?: string;
+    userAgent?: string;
+  }) {
+    await enforcePostLoginStage({
+      user: input.user,
+      tenantSlug: input.tenantSlug,
+      clientId: input.clientId,
+      ip: input.ip
+    });
+
+    const { session, tokens } = await deps.authService.completeLoginForUser({
+      userId: input.user.id,
+      clientId: input.clientId,
+      scope: input.scope,
+      tenantSlug: input.tenantSlug,
+      ip: input.ip,
+      userAgent: input.userAgent
+    });
+
+    const passwordExpirationWarning = await buildPasswordExpirationWarningForUser(input.user, input.tenantSlug);
+
+    return {
+      session,
+      ...tokens,
+      ...(passwordExpirationWarning ? { passwordExpirationWarning } : {})
+    };
   }
 
   async function enforceInvalidationForSession(input: { session: { userId: string; clientId: string }; ip?: string }) {
@@ -1127,6 +1226,24 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     }
 
     const consentStageEnabled = await deps.authenticationFlowService.isStageEnabled("consent");
+    if (consentStageEnabled) {
+      try {
+        await enforcePoliciesForStage({
+          stage: "consent",
+          user,
+          tenantSlug: input.tenant,
+          clientId: input.client_id,
+          ip: request.ip
+        });
+      } catch (error) {
+        if (error instanceof AuthenticationError) {
+          const params = new URLSearchParams(request.query as Record<string, string>).toString();
+          return reply.redirect(`/consent?${params}`);
+        }
+        throw error;
+      }
+    }
+
     const forceConsent = input.prompt === "consent" || input.approval_prompt === "force";
     const hasConsented = input.consent === "approve";
     if (consentStageEnabled && !hasConsented && (forceConsent || input.prompt !== "none")) {
@@ -1273,6 +1390,14 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
           captchaToken: parsed.data.captcha_token,
           promptAcknowledged: parsed.data.prompt_acknowledged
         });
+
+        const passwordExpiration = await deps.policyService.getPasswordExpirationStatus(user);
+        if (passwordExpiration.active && passwordExpiration.status === "expired") {
+          return reply.status(400).send({
+            error: "invalid_grant",
+            error_description: "Password has expired. Sign in through the login page to choose a new password."
+          });
+        }
 
         if (await deps.authenticationFlowService.isStageEnabled("mfa_totp") && await deps.totpService.requiresTotp(user.id)) {
           return reply.status(400).send({ error: "invalid_grant", error_description: "MFA is required for password grant" });
@@ -1653,43 +1778,30 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         promptAcknowledged: input.promptAcknowledged
       });
 
-      if (await deps.authenticationFlowService.isStageEnabled("mfa_totp") && await deps.totpService.requiresTotp(user.id)) {
-        return reply.status(202).send(
-          deps.totpService.createLoginChallenge({
-            userId: user.id,
-            clientId: input.clientId,
-            scope: input.scope,
-            tenantSlug: input.tenantSlug,
-            ip: request.ip
-          })
-        );
-      }
-
-      if (await deps.authenticationFlowService.isStageEnabled("mfa_webauthn") && (await deps.webauthnService.listCredentials(user.id)).length > 0) {
-        const challenge = await deps.webauthnService.startLogin({
-          user,
-          clientId: input.clientId,
-          scope: input.scope,
-          tenantSlug: input.tenantSlug,
-          ip: request.ip
-        });
-
-        return reply.status(202).send({
-          mfaRequired: true,
-          mfaMethod: "webauthn",
-          ...challenge
-        });
-      }
-
-      await enforcePostLoginStage({
+      const passwordChangeChallenge = await maybeIssuePasswordChangeChallenge({
         user,
-        tenantSlug: input.tenantSlug,
         clientId: input.clientId,
+        scope: input.scope,
+        tenantSlug: input.tenantSlug,
         ip: request.ip
       });
+      if (passwordChangeChallenge) {
+        return reply.status(202).send(passwordChangeChallenge);
+      }
 
-      const { session, tokens } = await deps.authService.completeLoginForUser({
-        userId: user.id,
+      const mfaChallenge = await maybeIssueMfaChallenge({
+        user,
+        clientId: input.clientId,
+        scope: input.scope,
+        tenantSlug: input.tenantSlug,
+        ip: request.ip
+      });
+      if (mfaChallenge) {
+        return reply.status(mfaChallenge.statusCode).send(mfaChallenge.body);
+      }
+
+      const loginResult = await completeInteractiveLogin({
+        user,
         clientId: input.clientId,
         scope: input.scope,
         tenantSlug: input.tenantSlug,
@@ -1699,14 +1811,14 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       deps.securityService.clearLoginFailures(input.email);
       await runBestEffort(request, "auth.login.succeeded", async () => {
         await deps.eventHookService.emit("auth.login.succeeded", {
-          userId: session.userId,
-          clientId: session.clientId,
-          sessionId: session.id,
+          userId: loginResult.session.userId,
+          clientId: loginResult.session.clientId,
+          sessionId: loginResult.session.id,
           ip: request.ip
         });
       });
-      await setSessionCookie(reply, deps.instanceSettingsService, session.id);
-      return { session, ...tokens };
+      await setSessionCookie(reply, deps.instanceSettingsService, loginResult.session.id);
+      return loginResult;
     } catch (err) {
       const reason = err instanceof Error ? err.message : "unknown";
       await runBestEffort(request, "security.recordLoginFailure", async () => {
@@ -1772,15 +1884,8 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         ip: challenge.ip ?? request.ip
       });
 
-      await enforcePostLoginStage({
+      const loginResult = await completeInteractiveLogin({
         user,
-        tenantSlug: challenge.tenantSlug,
-        clientId: challenge.clientId,
-        ip: challenge.ip ?? request.ip
-      });
-
-      const { session, tokens } = await deps.authService.completeLoginForUser({
-        userId: user.id,
         clientId: challenge.clientId,
         scope: challenge.scope,
         tenantSlug: challenge.tenantSlug,
@@ -1790,19 +1895,80 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
       await runBestEffort(request, "auth.login.succeeded.mfa_totp", async () => {
         await deps.eventHookService.emit("auth.login.succeeded", {
-          userId: session.userId,
-          clientId: session.clientId,
-          sessionId: session.id,
+          userId: loginResult.session.userId,
+          clientId: loginResult.session.clientId,
+          sessionId: loginResult.session.id,
           ip: request.ip,
           mfa: "totp"
         });
       });
 
-      await setSessionCookie(reply, deps.instanceSettingsService, session.id);
-
-      return { session, ...tokens };
+      await setSessionCookie(reply, deps.instanceSettingsService, loginResult.session.id);
+      return loginResult;
     } catch (err) {
       return reply.status(401).send({ error: "invalid_grant", error_description: "MFA verification failed" });
+    }
+  });
+
+  app.post("/auth/login/change-password", async (request, reply) => {
+    const input = changePasswordLoginSchema.parse(request.body);
+
+    try {
+      if (input.confirmPassword !== undefined && input.confirmPassword !== input.newPassword) {
+        throw new ValidationError("New password and confirmation do not match");
+      }
+
+      const challenge = deps.passwordChangeService.consumeLoginChallenge(input.changePasswordTicket);
+      const user = await deps.userService.findUserById(challenge.userId);
+      if (!user) {
+        throw new AuthenticationError("User not found");
+      }
+
+      await deps.policyService.enforceUserCreationPolicies(input.newPassword);
+      await deps.userService.resetPassword(user.id, input.newPassword);
+
+      const refreshedUser = await deps.userService.findUserById(user.id);
+      if (!refreshedUser) {
+        throw new AuthenticationError("User not found");
+      }
+
+      const mfaChallenge = await maybeIssueMfaChallenge({
+        user: refreshedUser,
+        clientId: challenge.clientId,
+        scope: challenge.scope,
+        tenantSlug: challenge.tenantSlug,
+        ip: challenge.ip ?? request.ip
+      });
+      if (mfaChallenge) {
+        return reply.status(mfaChallenge.statusCode).send(mfaChallenge.body);
+      }
+
+      const loginResult = await completeInteractiveLogin({
+        user: refreshedUser,
+        clientId: challenge.clientId,
+        scope: challenge.scope,
+        tenantSlug: challenge.tenantSlug,
+        ip: challenge.ip ?? request.ip,
+        userAgent: clientUserAgent(request)
+      });
+
+      await runBestEffort(request, "auth.login.succeeded.password_change", async () => {
+        await deps.eventHookService.emit("auth.login.succeeded", {
+          userId: loginResult.session.userId,
+          clientId: loginResult.session.clientId,
+          sessionId: loginResult.session.id,
+          ip: request.ip,
+          passwordChanged: true
+        });
+      });
+
+      await setSessionCookie(reply, deps.instanceSettingsService, loginResult.session.id);
+      return loginResult;
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        return reply.status(err.statusCode).send({ error: "invalid_request", error_description: err.message });
+      }
+      return reply.status(401).send({ error: "invalid_grant", error_description: publicErrorMessageForPath("/auth/login/change-password", err instanceof AppError ? err : new AuthenticationError()) });
     }
   });
 
@@ -1847,15 +2013,8 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         ip: result.ip ?? request.ip
       });
 
-      await enforcePostLoginStage({
+      const loginResult = await completeInteractiveLogin({
         user,
-        tenantSlug: result.tenantSlug,
-        clientId: result.clientId,
-        ip: result.ip ?? request.ip
-      });
-
-      const { session, tokens } = await deps.authService.completeLoginForUser({
-        userId: user.id,
         clientId: result.clientId,
         scope: result.scope,
         tenantSlug: result.tenantSlug,
@@ -1865,17 +2024,16 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
       await runBestEffort(request, "auth.login.succeeded.mfa_webauthn", async () => {
         await deps.eventHookService.emit("auth.login.succeeded", {
-          userId: session.userId,
-          clientId: session.clientId,
-          sessionId: session.id,
+          userId: loginResult.session.userId,
+          clientId: loginResult.session.clientId,
+          sessionId: loginResult.session.id,
           ip: request.ip,
           mfa: "webauthn"
         });
       });
 
-      await setSessionCookie(reply, deps.instanceSettingsService, session.id);
-
-      return { session, ...tokens };
+      await setSessionCookie(reply, deps.instanceSettingsService, loginResult.session.id);
+      return loginResult;
     } catch (error) {
       return reply.status(401).send({ error: "invalid_grant", error_description: "Authentication failed" });
     }
@@ -2673,14 +2831,15 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       }
 
       if (await isStageEnabledForDesignation("recovery", "user_write")) {
-        await deps.userService.resetPassword(user.id, input.newPassword);
         await enforcePoliciesForStage({
           stage: "user_write",
           user,
           tenantSlug: input.tenantSlug,
           clientId: input.clientId,
-          ip: request.ip
+          ip: request.ip,
+          pendingPassword: input.newPassword
         });
+        await deps.userService.resetPassword(user.id, input.newPassword);
       }
 
       deps.recoveryService.consume(input.recoveryTicket);

@@ -11,6 +11,7 @@ import { DatabaseMigrationService } from "./services/database-migration-service.
 import { FederationService } from "./services/federation-service.js";
 import { GroupService } from "./services/group-service.js";
 import { OidcService } from "./services/oidc-service.js";
+import { PasswordChangeService } from "./services/password-change-service.js";
 import { PolicyService } from "./services/policy-service.js";
 import { ProvisioningService } from "./services/provisioning-service.js";
 import { DeprovisioningService } from "./services/deprovisioning-service.js";
@@ -192,7 +193,9 @@ export const bootstrap = async (config: AppConfig) => {
   const policyService = new PolicyService(
     policyDefinitionRepository,
     policyAssignmentRepository,
-    userGroupAssignmentRepository
+    userGroupAssignmentRepository,
+    totpCredentialRepository,
+    userService
   );
   const authorizationService = new AuthorizationService(policyService);
   await policyService.ensureBuiltIns();
@@ -268,6 +271,7 @@ export const bootstrap = async (config: AppConfig) => {
     instanceSettingsService
   );
   const totpService = new TotpService(config, totpCredentialRepository);
+  const passwordChangeService = new PasswordChangeService();
   const webauthnService = new WebauthnService(config, webauthnCredentialRepository);
 
   // Keep sane defaults in place across upgrades and restarts.
@@ -299,7 +303,8 @@ export const bootstrap = async (config: AppConfig) => {
       stages: [
         { type: "password", required: true, order: 1 },
         { type: "mfa_totp", required: true, order: 2 },
-        { type: "consent", required: true, order: 3 }
+        { type: "consent", required: true, order: 3 },
+        { type: "user_login", required: true, order: 4 }
       ]
     });
   });
@@ -536,6 +541,7 @@ export const bootstrap = async (config: AppConfig) => {
     appService,
     setupService,
     totpService,
+    passwordChangeService,
     webauthnService,
     riskService,
     serviceIdentityService,

@@ -32,7 +32,7 @@ export const AUTH_STAGES: AuthStageType[] = [
 
 export const exampleConfigs: Record<string, string> = {
   password_requirements: '{"minLength":12,"requireUppercase":true,"requireLowercase":true,"requireNumber":true,"requireSymbol":true}',
-  password_expiration_days: '{"days":90}',
+  password_expiration_days: '{"days":90,"warnDaysBefore":14}',
   unique_email: '{"enabled":true}',
   two_factor_required: '{"required":true}',
   brute_force_lockout: '{"maxAttempts":5,"windowMinutes":15,"lockMinutes":30}',

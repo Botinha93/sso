@@ -304,7 +304,8 @@ export class SetupService {
         scopeType: "global",
         enabled: false,
         config: {
-          days: 90
+          days: 90,
+          warnDaysBefore: 14
         }
       });
     }
