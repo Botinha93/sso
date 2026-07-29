@@ -117,7 +117,10 @@ export const buildApp = async () => {
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
   });
   await app.register(rateLimit, {
-    max: 100,
+    max: async () => {
+      const { rateLimitMultiplier } = await services.instanceSettingsService.getRateLimitSettings();
+      return Math.max(1, Math.round(100 * rateLimitMultiplier));
+    },
     timeWindow: "1 minute",
     // Run after body parsing so the OAuth client_id is available when keying.
     hook: "preHandler",

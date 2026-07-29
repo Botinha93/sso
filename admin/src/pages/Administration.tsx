@@ -36,6 +36,7 @@ interface SettingsForm {
   loginLockoutThreshold: number
   loginLockoutDurationMinutes: number
   sessionAnomalyConcurrencyThreshold: number
+  rateLimitMultiplier: number
   emailTransport: 'disabled' | 'log' | 'smtp'
   emailFrom: string
   smtpHost: string
@@ -77,6 +78,7 @@ const defaultForm: SettingsForm = {
   loginLockoutThreshold: 5,
   loginLockoutDurationMinutes: 15,
   sessionAnomalyConcurrencyThreshold: 5,
+  rateLimitMultiplier: 10,
   emailTransport: 'log',
   emailFrom: 'no-reply@example.local',
   smtpHost: '',
@@ -168,6 +170,7 @@ export default function Administration() {
       loginLockoutThreshold: Number((data as any).loginLockoutThreshold ?? 5),
       loginLockoutDurationMinutes: Math.max(1, Math.round(Number((data as any).loginLockoutDurationMs ?? 15 * 60 * 1000) / 60_000)),
       sessionAnomalyConcurrencyThreshold: Number((data as any).sessionAnomalyConcurrencyThreshold ?? 5),
+      rateLimitMultiplier: Number((data as any).rateLimitMultiplier ?? 10),
       emailTransport: ((data as any).emailTransport as SettingsForm['emailTransport']) ?? 'log',
       emailFrom: String((data as any).emailFrom ?? 'no-reply@example.local'),
       smtpHost: String((data as any).smtpHost ?? ''),
@@ -212,6 +215,7 @@ export default function Administration() {
         loginLockoutThreshold: form.loginLockoutThreshold,
         loginLockoutDurationMs: form.loginLockoutDurationMinutes * 60_000,
         sessionAnomalyConcurrencyThreshold: form.sessionAnomalyConcurrencyThreshold,
+        rateLimitMultiplier: form.rateLimitMultiplier,
         emailTransport: form.emailTransport,
         emailFrom: form.emailFrom,
         smtpHost: form.smtpHost || undefined,
@@ -610,11 +614,24 @@ export default function Administration() {
               />
               <p className="mt-2 text-xs text-muted-foreground">Raises a session anomaly event when a user exceeds this many concurrent active sessions.</p>
             </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Rate Limit Multiplier</label>
+              <Input
+                type="number"
+                min={0.1}
+                max={100}
+                step={0.1}
+                value={form.rateLimitMultiplier}
+                onChange={(e) => setForm((v) => ({ ...v, rateLimitMultiplier: Number(e.target.value || 1) }))}
+              />
+              <p className="mt-2 text-xs text-muted-foreground">Scales global and endpoint rate limits. 1 is the base limit; 10 allows 10x more requests per window.</p>
+            </div>
           </div>
 
           <div className="mt-4 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
             <p className="font-medium text-foreground">What these controls affect</p>
-            <p className="mt-2 text-muted-foreground">These values are applied immediately to login lockout tracking and session anomaly detection without restarting the server.</p>
+            <p className="mt-2 text-muted-foreground">These values are applied immediately to login lockout tracking, session anomaly detection, and rate limiting without restarting the server.</p>
           </div>
         </Card>
 

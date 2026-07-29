@@ -690,6 +690,7 @@ export const updateInstanceSettingsSchema = z.object({
   loginLockoutThreshold: z.number().int().min(1).max(100).optional(),
   loginLockoutDurationMs: z.number().int().min(60_000).max(86_400_000).optional(),
   sessionAnomalyConcurrencyThreshold: z.number().int().min(1).max(100).optional(),
+  rateLimitMultiplier: z.number().min(0.1).max(100).optional(),
   emailTransport: z.enum(["disabled", "log", "smtp"]).optional(),
   emailFrom: z.string().email().optional(),
   smtpHost: z.string().min(1).optional(),

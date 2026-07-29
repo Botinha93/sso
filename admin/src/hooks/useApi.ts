@@ -1455,6 +1455,7 @@ export function useUpdateInstanceSettings() {
       loginLockoutThreshold?: number
       loginLockoutDurationMs?: number
       sessionAnomalyConcurrencyThreshold?: number
+      rateLimitMultiplier?: number
       emailTransport?: 'disabled' | 'log' | 'smtp'
       emailFrom?: string
       smtpHost?: string

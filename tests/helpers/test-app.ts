@@ -17,6 +17,7 @@ export const createTestContext = async (name: string): Promise<TestContext> => {
   process.env.NODE_ENV = "test";
   process.env.ISSUER = "http://localhost:4000";
   process.env.DATABASE_PATH = join(tempDir, "sso.sqlite");
+  process.env.RATE_LIMIT_MULTIPLIER = "1";
 
   const { buildApp } = await import("../../src/app.js");
   const app = await buildApp();

@@ -567,6 +567,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   }
 
   async function enforceEndpointRateLimit(request: any, reply: any) {
+    const { rateLimitMultiplier } = await deps.instanceSettingsService.getRateLimitSettings();
+    const scaleLimit = (limit: number) => Math.max(1, Math.round(limit * rateLimitMultiplier));
+
     const path = request.url.split("?")[0];
     const configs: Array<{
       endpointKey: string;
@@ -580,29 +583,29 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const baseMetadata = clientId ? { clientId } : undefined;
 
     if (path === "/auth/login") {
-      configs.push({ endpointKey: "auth_login", limit: 10, windowMs: 60_000, actorKey, metadata: baseMetadata });
+      configs.push({ endpointKey: "auth_login", limit: scaleLimit(10), windowMs: 60_000, actorKey, metadata: baseMetadata });
     }
     if (path === "/auth/login/mfa") {
-      configs.push({ endpointKey: "auth_login_mfa", limit: 10, windowMs: 60_000, actorKey, metadata: baseMetadata });
+      configs.push({ endpointKey: "auth_login_mfa", limit: scaleLimit(10), windowMs: 60_000, actorKey, metadata: baseMetadata });
     }
     if (path === "/auth/recovery/request") {
-      configs.push({ endpointKey: "auth_recovery_request", limit: 5, windowMs: 15 * 60_000, actorKey, metadata: baseMetadata });
+      configs.push({ endpointKey: "auth_recovery_request", limit: scaleLimit(5), windowMs: 15 * 60_000, actorKey, metadata: baseMetadata });
     }
     if (path === "/api/setup/initialize") {
       // No client_id is available for setup, fall back to IP-only key.
-      configs.push({ endpointKey: "setup_initialize", limit: 5, windowMs: 15 * 60_000, actorKey });
+      configs.push({ endpointKey: "setup_initialize", limit: scaleLimit(5), windowMs: 15 * 60_000, actorKey });
     }
     if (path === "/oauth/device/verify") {
-      configs.push({ endpointKey: "oauth_device_verify", limit: 10, windowMs: 60_000, actorKey, metadata: baseMetadata });
+      configs.push({ endpointKey: "oauth_device_verify", limit: scaleLimit(10), windowMs: 60_000, actorKey, metadata: baseMetadata });
     }
     if (path === "/oauth/device/authorize") {
-      configs.push({ endpointKey: "oauth_device_authorize", limit: 10, windowMs: 60_000, actorKey, metadata: baseMetadata });
+      configs.push({ endpointKey: "oauth_device_authorize", limit: scaleLimit(10), windowMs: 60_000, actorKey, metadata: baseMetadata });
     }
     if (path === "/oauth/token") {
       const grantType = typeof request.body?.grant_type === "string" ? request.body.grant_type : undefined;
       configs.push({
         endpointKey: `oauth_token:${grantType ?? "unknown"}`,
-        limit: grantType === "urn:ietf:params:oauth:grant-type:device_code" ? 30 : 20,
+        limit: scaleLimit(grantType === "urn:ietf:params:oauth:grant-type:device_code" ? 30 : 20),
         windowMs: 60_000,
         actorKey,
         metadata: { grantType, ...(baseMetadata ?? {}) }

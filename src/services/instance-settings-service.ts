@@ -134,6 +134,7 @@ export class InstanceSettingsService {
       loginLockoutThreshold: process.env.LOGIN_LOCKOUT_THRESHOLD ? Number(process.env.LOGIN_LOCKOUT_THRESHOLD) : 5,
       loginLockoutDurationMs: process.env.LOGIN_LOCKOUT_MS ? Number(process.env.LOGIN_LOCKOUT_MS) : 15 * 60 * 1000,
       sessionAnomalyConcurrencyThreshold: process.env.SESSION_ANOMALY_CONCURRENCY_THRESHOLD ? Number(process.env.SESSION_ANOMALY_CONCURRENCY_THRESHOLD) : 5,
+      rateLimitMultiplier: process.env.RATE_LIMIT_MULTIPLIER ? Number(process.env.RATE_LIMIT_MULTIPLIER) : 10,
       emailTransport: (process.env.EMAIL_TRANSPORT as "disabled" | "log" | "smtp" | undefined) ?? this.resolveDefaultEmailTransport(),
       emailFrom: process.env.EMAIL_FROM ?? "no-reply@example.local",
       smtpHost: process.env.SMTP_HOST,
@@ -169,7 +170,7 @@ export class InstanceSettingsService {
     };
   }
 
-  async updateSettings(input: Partial<Pick<InstanceSettings, "databaseProvider" | "databasePath" | "externalDatabaseUrl" | "requireHttps" | "secureCookies" | "allowAnyCorsOrigin" | "corsAllowedOrigins" | "requireHttpsRedirectUris" | "requireS256Pkce" | "allowImplicitFlow" | "loginFailureWindowMs" | "loginLockoutThreshold" | "loginLockoutDurationMs" | "sessionAnomalyConcurrencyThreshold" | "emailTransport" | "emailFrom" | "smtpHost" | "smtpPort" | "smtpSecure" | "smtpUser" | "smtpPass" | "uiCustomizations">>) {
+  async updateSettings(input: Partial<Pick<InstanceSettings, "databaseProvider" | "databasePath" | "externalDatabaseUrl" | "requireHttps" | "secureCookies" | "allowAnyCorsOrigin" | "corsAllowedOrigins" | "requireHttpsRedirectUris" | "requireS256Pkce" | "allowImplicitFlow" | "loginFailureWindowMs" | "loginLockoutThreshold" | "loginLockoutDurationMs" | "sessionAnomalyConcurrencyThreshold" | "rateLimitMultiplier" | "emailTransport" | "emailFrom" | "smtpHost" | "smtpPort" | "smtpSecure" | "smtpUser" | "smtpPass" | "uiCustomizations">>) {
     const current = await this.getSettings();
 
     const next: Omit<InstanceSettings, "updatedAt"> = {
@@ -188,6 +189,7 @@ export class InstanceSettingsService {
       loginLockoutThreshold: input.loginLockoutThreshold ?? current.loginLockoutThreshold,
       loginLockoutDurationMs: input.loginLockoutDurationMs ?? current.loginLockoutDurationMs,
       sessionAnomalyConcurrencyThreshold: input.sessionAnomalyConcurrencyThreshold ?? current.sessionAnomalyConcurrencyThreshold,
+      rateLimitMultiplier: input.rateLimitMultiplier ?? current.rateLimitMultiplier,
       emailTransport: input.emailTransport ?? current.emailTransport,
       emailFrom: input.emailFrom ?? current.emailFrom,
       smtpHost: input.smtpHost ?? current.smtpHost,
@@ -236,6 +238,10 @@ export class InstanceSettingsService {
 
     if (next.sessionAnomalyConcurrencyThreshold < 1) {
       throw new ValidationError("Session anomaly concurrency threshold must be at least 1");
+    }
+
+    if (next.rateLimitMultiplier < 0.1 || next.rateLimitMultiplier > 100) {
+      throw new ValidationError("Rate limit multiplier must be between 0.1 and 100");
     }
 
     if (next.emailTransport === "smtp") {
@@ -328,6 +334,13 @@ export class InstanceSettingsService {
       loginLockoutThreshold: settings.loginLockoutThreshold,
       loginLockoutDurationMs: settings.loginLockoutDurationMs,
       sessionAnomalyConcurrencyThreshold: settings.sessionAnomalyConcurrencyThreshold
+    };
+  }
+
+  async getRateLimitSettings() {
+    const settings = await this.getSettings();
+    return {
+      rateLimitMultiplier: settings.rateLimitMultiplier
     };
   }
 }
