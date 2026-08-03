@@ -181,13 +181,25 @@ export const bootstrap = async (config: AppConfig) => {
   );
 
   const existingUserAttributeDefinitions = await userAttributeService.listDefinitions();
-  if (!existingUserAttributeDefinitions.some((attribute) => attribute.key === "picture")) {
+  const existingUserAttributeKeys = new Set(existingUserAttributeDefinitions.map((attribute) => attribute.key));
+  if (!existingUserAttributeKeys.has("picture")) {
     await userAttributeService.createAttribute({
       key: "picture",
       name: "Picture",
       description: "Profile picture URL",
       type: "text",
       enabled: true
+    });
+  }
+  if (!existingUserAttributeKeys.has("password_changed_at")) {
+    await userAttributeService.createAttribute({
+      key: "password_changed_at",
+      name: "Password Changed At",
+      description: "Timestamp when the user's password was last changed",
+      type: "date",
+      enabled: true,
+      showOnPortal: false,
+      userEditable: false
     });
   }
   const policyService = new PolicyService(
