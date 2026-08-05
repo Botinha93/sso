@@ -3,7 +3,9 @@ import { ShieldCheck, AlertCircle } from "lucide-react";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Card from "../components/ui/Card";
-import { extractErrorMessage } from "../lib/errors";
+import LanguageSelector from "../components/LanguageSelector";
+import { useI18n } from "../i18n";
+import { extractErrorMessage, resolveLoginCredentialError } from "../lib/errors";
 
 interface FederationProvider {
   id: string;
@@ -54,6 +56,7 @@ function LoginLoadingSkeleton() {
 }
 
 export default function Login() {
+  const { t } = useI18n();
   const [email, setEmail] = useState(() => new URLSearchParams(window.location.search).get('identifier') ?? "");
   const [password, setPassword] = useState("");
   const [mfaCode, setMfaCode] = useState("");
@@ -151,14 +154,14 @@ export default function Login() {
           setChangePasswordTicket(json.changePasswordTicket);
           setNewPassword("");
           setConfirmPassword("");
-          setInfoMessage(typeof json.message === "string" ? json.message : "Your password has expired. Choose a new password to continue.");
+          setInfoMessage(typeof json.message === "string" ? json.message : t('login.passwordExpired'));
           setError(null);
         } else if (typeof json.mfaTicket === "string") {
           setMfaTicket(json.mfaTicket);
           setMfaCode("");
           setError(null);
         } else {
-          setError(extractErrorMessage(json, "Additional verification is required, but this login screen cannot start the challenge."));
+          setError(extractErrorMessage(json, t('login.additionalVerificationRequired')));
         }
       } else if (res.ok) {
         const json = await res.json().catch(() => ({} as Record<string, unknown>));
@@ -166,10 +169,16 @@ export default function Login() {
         window.location.href = buildRedirectAfterLogin();
       } else {
         const json = await res.json().catch(() => ({} as Record<string, unknown>));
-        setError(extractErrorMessage(json, changePasswordTicket ? "Failed to update password" : mfaTicket ? "Invalid one-time code" : "Invalid email or password"));
+        setError(
+          changePasswordTicket
+            ? extractErrorMessage(json, t('login.passwordUpdateFailed'))
+            : mfaTicket
+              ? extractErrorMessage(json, t('login.invalidMfaCode'))
+              : resolveLoginCredentialError(json, t('login.invalidCredentials'))
+        );
       }
     } catch {
-      setError("Network error — is the server running?");
+      setError(t('login.networkError'));
     } finally {
       setLoading(false);
     }
@@ -185,15 +194,19 @@ export default function Login() {
       {uiLoading ? (
         <LoginLoadingSkeleton />
       ) : (
-      <Card className="w-full max-w-md overflow-hidden rounded-2xl">
+      <div className="w-full max-w-md">
+        <div className="mb-4 flex justify-end">
+          <LanguageSelector />
+        </div>
+      <Card className="overflow-hidden rounded-2xl">
         {/* Dark header */}
         <div className="px-8 py-7" style={{ background: `linear-gradient(180deg, ${ui?.primaryColor ?? '#020617'} 0%, ${ui?.accentColor ?? '#0f172a'} 100%)` }}>
           <div className="flex items-center gap-3 mb-2">
             <img src={ui?.logoUrl ?? "/logo.svg"} alt="NexusID" className="h-9 w-9 rounded-xl ring-1 ring-sky-400/30" />
-            <div className="text-xl font-semibold text-slate-50 tracking-tight">{ui?.title ?? 'NexusID'}</div>
+            <div className="text-xl font-semibold text-slate-50 tracking-tight">{ui?.title ?? t('login.brandFallback')}</div>
           </div>
           <p className="text-slate-400 text-sm">
-            {ui?.subtitle ?? 'Sign in to the identity administration workspace.'}
+            {ui?.subtitle ?? t('login.subtitle')}
           </p>
         </div>
 
@@ -202,7 +215,7 @@ export default function Login() {
           <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-900">
             <div className="flex items-start gap-3">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>Your session is managed via a secure httpOnly cookie. Credentials are never stored in the browser.</span>
+              <span>{t('login.securityBanner')}</span>
             </div>
           </div>
 
@@ -227,7 +240,7 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
-                {changePasswordTicket ? "New password" : mfaTicket ? "Authenticator code" : "Email or Username"}
+                {changePasswordTicket ? t('login.newPassword') : mfaTicket ? t('login.authenticatorCode') : t('login.usernameOrEmail')}
               </label>
               {changePasswordTicket ? (
                 <Input
@@ -247,7 +260,7 @@ export default function Login() {
                   required
                   autoFocus
                   className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm tracking-[0.2em] text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 focus-visible:ring-sky-500/40"
-                  placeholder="123456"
+                  placeholder={t('login.mfaPlaceholder')}
                 />
               ) : (
                 <Input
@@ -256,13 +269,13 @@ export default function Login() {
                   onChange={e => setEmail(e.target.value)}
                   required
                   autoFocus
-                  placeholder="admin@example.com or admin"
+                  placeholder={t('login.emailPlaceholder')}
                 />
               )}
             </div>
             {changePasswordTicket && (
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Confirm new password</label>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">{t('login.confirmNewPassword')}</label>
                 <Input
                   type="password"
                   value={confirmPassword}
@@ -274,7 +287,7 @@ export default function Login() {
             )}
             {!mfaTicket && !changePasswordTicket && (
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Password</label>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">{t('login.password')}</label>
                 <Input
                   type="password"
                   value={password}
@@ -290,7 +303,13 @@ export default function Login() {
               variant="primary"
               className="w-full"
             >
-              {loading ? "Signing in…" : changePasswordTicket ? "Update password" : mfaTicket ? "Verify code" : "Sign in"}
+              {loading
+                ? t('login.signingIn')
+                : changePasswordTicket
+                  ? t('login.updatePassword')
+                  : mfaTicket
+                    ? t('login.verifyCode')
+                    : t('login.signIn')}
             </Button>
             {(mfaTicket || changePasswordTicket) && (
               <Button
@@ -307,7 +326,7 @@ export default function Login() {
                 variant="secondary"
                 className="w-full"
               >
-                Back
+                {t('login.back')}
               </Button>
             )}
           </form>
@@ -319,7 +338,7 @@ export default function Login() {
             </div>
           ) : providers.length > 0 && (
             <div className="space-y-2 pt-1">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Or continue with</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{t('login.orContinueWith')}</p>
               <div className="space-y-2">
                 {providers.map((provider) => (
                   <a
@@ -335,6 +354,7 @@ export default function Login() {
           )}
         </div>
       </Card>
+      </div>
       )}
     </div>
   );

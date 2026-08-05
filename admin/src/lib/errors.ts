@@ -22,6 +22,40 @@ const formatValidationIssue = (issue: any) => {
   return null
 }
 
+const LOGIN_CREDENTIAL_ERROR_MESSAGES = new Set([
+  'Incorrect username or password',
+  'Invalid credentials',
+])
+
+export const resolveLoginCredentialError = (errorPayload: unknown, localizedMessage: string) => {
+  const message = extractErrorMessage(errorPayload, '')
+  if (!message || LOGIN_CREDENTIAL_ERROR_MESSAGES.has(message)) {
+    return localizedMessage
+  }
+  return message
+}
+
+const DEVICE_ERROR_MESSAGES: Record<string, string> = {
+  'Device user code is invalid or expired': 'device.errors.invalidCode',
+  'Device code already consumed': 'device.errors.codeConsumed',
+}
+
+export const resolveDeviceVerificationError = (
+  errorPayload: unknown,
+  t: (key: string) => string,
+) => {
+  const message = extractErrorMessage(errorPayload, '')
+  if (!message || LOGIN_CREDENTIAL_ERROR_MESSAGES.has(message) || message === 'Authentication failed') {
+    return t('login.invalidCredentials')
+  }
+  const key = DEVICE_ERROR_MESSAGES[message]
+  if (key) return t(key)
+  if (message === 'Invalid request') {
+    return t('device.errors.verificationFailed')
+  }
+  return message || t('device.errors.verificationFailed')
+}
+
 export const extractErrorMessage = (errorPayload: any, fallback: string) => {
   if (typeof errorPayload === 'string' && errorPayload.trim()) return errorPayload
   if (!errorPayload || typeof errorPayload !== 'object') return fallback

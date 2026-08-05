@@ -253,6 +253,15 @@ export const registerRoutes = async (app, deps) => {
         if (path === "/auth/login/change-password") {
             return "Password change failed";
         }
+        if (path === "/auth/login") {
+            if (error instanceof ValidationError) {
+                return "Invalid request";
+            }
+            if (error.message === "Invalid credentials") {
+                return "Incorrect username or password";
+            }
+            return "Authentication failed";
+        }
         if (path === "/auth/login/webauthn/begin" || path === "/auth/login/webauthn/finish") {
             return "Authentication failed";
         }

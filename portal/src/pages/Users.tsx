@@ -13,6 +13,8 @@ import {
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
 import Input from '../components/ui/Input'
+import LanguageSelector from '../components/LanguageSelector'
+import { useI18n } from '../i18n'
 
 interface Props {
   currentUser: PortalUser
@@ -42,6 +44,7 @@ const emptyForm: CreateForm = {
 }
 
 export default function Users({ currentUser }: Props) {
+  const { t } = useI18n()
   const canEditUsers = useMemo(() => {
     const permissions = currentUser.permissions ?? []
     return permissions.includes('*:*') || permissions.includes('users:edit') || permissions.includes('users:create')
@@ -81,7 +84,7 @@ export default function Users({ currentUser }: Props) {
   const handleCreate = async () => {
     setCreateError('')
     if (!createForm.email || !createForm.username || !createForm.givenName || !createForm.familyName || !createForm.password) {
-      setCreateError('Please fill all required fields.')
+      setCreateError(t('users.errors.requiredFields'))
       return
     }
 
@@ -89,7 +92,7 @@ export default function Users({ currentUser }: Props) {
       await createUser.mutateAsync(createForm)
       setCreateForm(emptyForm)
     } catch (err: any) {
-      setCreateError(err?.message ?? 'Failed to create user')
+      setCreateError(err?.message ?? t('users.errors.createFailed'))
     }
   }
 
@@ -99,44 +102,49 @@ export default function Users({ currentUser }: Props) {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 transition-colors">
             <ArrowLeft size={15} />
-            Back to apps
+            {t('users.backToApps')}
           </Link>
-          <h1 className="text-sm font-semibold text-slate-900">User Management</h1>
-          <div className="w-24" />
+          <h1 className="text-sm font-semibold text-slate-900">{t('users.title')}</h1>
+          <div className="w-24 flex justify-end">
+            <LanguageSelector className="hidden sm:inline-flex" />
+          </div>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-5">
+        <div className="sm:hidden">
+          <LanguageSelector />
+        </div>
         {canEditUsers && (
           <Card className="rounded-2xl p-5 space-y-4">
             <div className="flex items-center gap-2">
               <UserPlus size={16} className="text-slate-600" />
-              <h2 className="text-sm font-semibold text-slate-900">Create user</h2>
+              <h2 className="text-sm font-semibold text-slate-900">{t('users.createUser')}</h2>
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className={labelCls}>Email</label>
+                <label className={labelCls}>{t('users.email')}</label>
                 <Input className={fieldCls} value={createForm.email} onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))} />
               </div>
               <div>
-                <label className={labelCls}>Username</label>
+                <label className={labelCls}>{t('users.username')}</label>
                 <Input className={fieldCls} value={createForm.username} onChange={(e) => setCreateForm((p) => ({ ...p, username: e.target.value }))} />
               </div>
               <div>
-                <label className={labelCls}>First name</label>
+                <label className={labelCls}>{t('users.firstName')}</label>
                 <Input className={fieldCls} value={createForm.givenName} onChange={(e) => setCreateForm((p) => ({ ...p, givenName: e.target.value }))} />
               </div>
               <div>
-                <label className={labelCls}>Last name</label>
+                <label className={labelCls}>{t('users.lastName')}</label>
                 <Input className={fieldCls} value={createForm.familyName} onChange={(e) => setCreateForm((p) => ({ ...p, familyName: e.target.value }))} />
               </div>
               <div className="sm:col-span-2">
-                <label className={labelCls}>Temporary password</label>
+                <label className={labelCls}>{t('users.temporaryPassword')}</label>
                 <Input type="password" className={fieldCls} value={createForm.password} onChange={(e) => setCreateForm((p) => ({ ...p, password: e.target.value }))} />
               </div>
               <div>
-                <label className={labelCls}>Direct roles</label>
+                <label className={labelCls}>{t('users.directRoles')}</label>
                 <div className="rounded-xl border border-slate-200 p-2 max-h-40 overflow-auto space-y-1">
                   {roles.map((role) => (
                     <label key={role.id} className="flex items-center gap-2 text-sm text-slate-700">
@@ -158,7 +166,7 @@ export default function Users({ currentUser }: Props) {
                 </div>
               </div>
               <div>
-                <label className={labelCls}>Groups</label>
+                <label className={labelCls}>{t('users.groups')}</label>
                 <div className="rounded-xl border border-slate-200 p-2 max-h-40 overflow-auto space-y-1">
                   {groups.map((group) => (
                     <label key={group.id} className="flex items-center gap-2 text-sm text-slate-700">
@@ -186,7 +194,7 @@ export default function Users({ currentUser }: Props) {
             <div>
               <Button onClick={handleCreate} disabled={createUser.isPending}>
                 {createUser.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
-                Create user
+                {t('users.create')}
               </Button>
             </div>
           </Card>
@@ -195,27 +203,27 @@ export default function Users({ currentUser }: Props) {
         <Card className="rounded-2xl p-5">
           <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-end">
             <div className="flex-1 min-w-0">
-              <label className={labelCls}>Search</label>
+              <label className={labelCls}>{t('users.search')}</label>
               <Input
                 className={fieldCls}
-                placeholder="username or email"
+                placeholder={t('users.searchPlaceholder')}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
             <div className="sm:w-52">
-              <label className={labelCls}>Role</label>
+              <label className={labelCls}>{t('users.role')}</label>
               <select className={fieldCls} value={roleFilterId} onChange={(e) => setRoleFilterId(e.target.value)}>
-                <option value="">All roles</option>
+                <option value="">{t('users.allRoles')}</option>
                 {roles.map((role) => (
                   <option key={role.id} value={role.id}>{role.name}</option>
                 ))}
               </select>
             </div>
             <div className="sm:w-52">
-              <label className={labelCls}>Group</label>
+              <label className={labelCls}>{t('users.group')}</label>
               <select className={fieldCls} value={groupFilterId} onChange={(e) => setGroupFilterId(e.target.value)}>
-                <option value="">All groups</option>
+                <option value="">{t('users.allGroups')}</option>
                 {groups.map((group) => (
                   <option key={group.id} value={group.id}>{group.name}</option>
                 ))}
@@ -232,7 +240,7 @@ export default function Users({ currentUser }: Props) {
                   setGroupFilterId('')
                 }}
               >
-                Clear filters
+                {t('users.clearFilters')}
               </Button>
             </div>
           </div>
@@ -242,9 +250,9 @@ export default function Users({ currentUser }: Props) {
               <Loader2 size={18} className="animate-spin" />
             </div>
           ) : error ? (
-            <p className="text-sm text-rose-600">Failed to load users.</p>
+            <p className="text-sm text-rose-600">{t('users.errors.loadFailed')}</p>
           ) : filteredUsers.length === 0 ? (
-            <p className="text-sm text-slate-500">No users found.</p>
+            <p className="text-sm text-slate-500">{t('users.noUsersFound')}</p>
           ) : (
             <div className="space-y-3">
               {filteredUsers.map((user) => (
@@ -257,7 +265,7 @@ export default function Users({ currentUser }: Props) {
                   onToggleActive={async (active) => updateUser.mutateAsync({ id: user.id, active })}
                   onSaveAssignments={async (roleIds, groupIds) => updateUser.mutateAsync({ id: user.id, roleIds, groupIds })}
                   onDelete={async () => {
-                    if (!confirm(`Delete user ${user.username}?`)) return
+                    if (!confirm(t('users.deleteConfirm', { username: user.username }))) return
                     await deleteUser.mutateAsync(user.id)
                   }}
                 />
@@ -294,6 +302,7 @@ function UserRow({
   onSaveAssignments: (roleIds: string[], groupIds: string[]) => Promise<unknown>
   onDelete: () => Promise<void>
 }) {
+  const { t } = useI18n()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const initialRoleIds = user.directRoleIds ?? []
@@ -314,7 +323,7 @@ function UserRow({
     try {
       await onToggleActive(!user.active)
     } catch (err: any) {
-      setError(err?.message ?? 'Failed to update user')
+      setError(err?.message ?? t('users.errors.updateFailed'))
     } finally {
       setBusy(false)
     }
@@ -326,7 +335,7 @@ function UserRow({
     try {
       await onDelete()
     } catch (err: any) {
-      setError(err?.message ?? 'Failed to delete user')
+      setError(err?.message ?? t('users.errors.deleteFailed'))
     } finally {
       setBusy(false)
     }
@@ -338,7 +347,7 @@ function UserRow({
     try {
       await onSaveAssignments(selectedRoleIds, selectedGroupIds)
     } catch (err: any) {
-      setError(err?.message ?? 'Failed to update assignments')
+      setError(err?.message ?? t('users.errors.assignmentsFailed'))
     } finally {
       setBusy(false)
     }
@@ -354,16 +363,16 @@ function UserRow({
         </div>
         <div className="flex items-center gap-2">
           <span className={`text-xs font-medium ${user.active ? 'text-emerald-700' : 'text-slate-500'}`}>
-            {user.active ? 'Active' : 'Inactive'}
+            {user.active ? t('users.active') : t('users.inactive')}
           </span>
           {canEditUsers ? (
             <>
               <Button size="sm" variant="outline" onClick={handleToggle} disabled={busy}>
-                {user.active ? 'Disable' : 'Enable'}
+                {user.active ? t('users.disable') : t('users.enable')}
               </Button>
               <Button size="sm" variant="danger" onClick={handleDelete} disabled={busy}>
                 <Trash2 size={13} />
-                Delete
+                {t('users.delete')}
               </Button>
             </>
           ) : null}
@@ -372,7 +381,7 @@ function UserRow({
       {canEditUsers ? (
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Direct roles</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">{t('users.directRoles')}</p>
             <div className="rounded-lg border border-slate-200 p-2 max-h-36 overflow-auto space-y-1">
               {roles.map((role) => (
                 <label key={role.id} className="flex items-center gap-2 text-xs text-slate-700">
@@ -391,7 +400,7 @@ function UserRow({
             </div>
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Groups</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">{t('users.groups')}</p>
             <div className="rounded-lg border border-slate-200 p-2 max-h-36 overflow-auto space-y-1">
               {groups.map((group) => (
                 <label key={group.id} className="flex items-center gap-2 text-xs text-slate-700">
@@ -411,7 +420,7 @@ function UserRow({
           </div>
           <div className="sm:col-span-2">
             <Button size="sm" variant="secondary" onClick={handleSaveAssignments} disabled={busy}>
-              Save role/group assignments
+              {t('users.saveAssignments')}
             </Button>
           </div>
         </div>

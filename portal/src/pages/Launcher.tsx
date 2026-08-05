@@ -149,8 +149,8 @@ export default function Launcher({ user }: Props) {
                     <Settings size={16} />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-foreground">Manage Users</p>
-                    <p className="text-xs text-muted-foreground">Create, edit, assign roles/groups, and disable users</p>
+                    <p className="text-sm font-semibold text-foreground">{t('launcher.manageUsers')}</p>
+                    <p className="text-xs text-muted-foreground">{t('launcher.manageUsersHint')}</p>
                   </div>
                 </Card>
               </Link>

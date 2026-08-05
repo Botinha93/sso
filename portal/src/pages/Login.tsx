@@ -6,7 +6,7 @@ import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
 import Input from '../components/ui/Input'
 import { useI18n } from '../i18n'
-import { extractErrorMessage } from '../lib/errors'
+import { extractErrorMessage, resolveLoginCredentialError } from '../lib/errors'
 
 const portalHome = import.meta.env.BASE_URL
 
@@ -136,7 +136,13 @@ export default function Login() {
 
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
-        setError(extractErrorMessage(json, changePasswordTicket ? t('login.passwordUpdateFailed') : mfaTicket ? t('login.invalidMfaCode') : t('login.invalidCredentials')))
+        setError(
+          changePasswordTicket
+            ? extractErrorMessage(json, t('login.passwordUpdateFailed'))
+            : mfaTicket
+              ? extractErrorMessage(json, t('login.invalidMfaCode'))
+              : resolveLoginCredentialError(json, t('login.invalidCredentials'))
+        )
         return
       }
 
@@ -242,7 +248,7 @@ export default function Login() {
                     />
                     <Button
                       onClick={() => setShowPw(p => !p)}
-                      aria-label={showPw ? 'Hide password' : 'Show password'}
+                      aria-label={showPw ? t('login.hidePassword') : t('login.showPassword')}
                       aria-pressed={showPw}
                       variant="ghost"
                       size="icon"

@@ -22,6 +22,19 @@ const formatValidationIssue = (issue: any) => {
   return null
 }
 
+const LOGIN_CREDENTIAL_ERROR_MESSAGES = new Set([
+  'Incorrect username or password',
+  'Invalid credentials',
+])
+
+export const resolveLoginCredentialError = (errorPayload: unknown, localizedMessage: string) => {
+  const message = extractErrorMessage(errorPayload, '')
+  if (!message || LOGIN_CREDENTIAL_ERROR_MESSAGES.has(message)) {
+    return localizedMessage
+  }
+  return message
+}
+
 export const extractErrorMessage = (errorPayload: any, fallback: string) => {
   if (typeof errorPayload === 'string' && errorPayload.trim()) return errorPayload
   if (!errorPayload || typeof errorPayload !== 'object') return fallback

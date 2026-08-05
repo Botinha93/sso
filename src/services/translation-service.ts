@@ -85,15 +85,15 @@ export const PORTAL_TRANSLATIONS: TranslationResources = {
     ru: "Войти"
   },
   "portal.login.error": {
-    en: "Invalid username or password",
-    es: "Nombre de usuario o contraseña inválidos",
-    fr: "Nom d'utilisateur ou mot de passe invalide",
-    de: "Ungültiger Benutzername oder Passwort",
-    it: "Nome utente o password non validi",
-    pt: "Nome de usuário ou senha inválidos",
-    ja: "ユーザー名またはパスワードが無効です",
-    zh: "用户名或密码无效",
-    ko: "잘못된 사용자명 또는 비밀번호",
+    en: "Incorrect username or password",
+    es: "Nombre de usuario o contraseña incorrectos",
+    fr: "Nom d'utilisateur ou mot de passe incorrect",
+    de: "Falscher Benutzername oder Passwort",
+    it: "Nome utente o password non corretti",
+    pt: "Nome de usuário ou senha incorretos",
+    ja: "ユーザー名またはパスワードが正しくありません",
+    zh: "用户名或密码不正确",
+    ko: "사용자 이름 또는 비밀번호가 올바르지 않습니다",
     ru: "Неверное имя пользователя или пароль"
   },
   "portal.launcher.title": {

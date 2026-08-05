@@ -460,6 +460,32 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       return "Password change failed";
     }
 
+    if (path === "/auth/login") {
+      if (error instanceof ValidationError) {
+        return "Invalid request";
+      }
+      if (error.message === "Invalid credentials") {
+        return "Incorrect username or password";
+      }
+      return "Authentication failed";
+    }
+
+    if (path === "/oauth/device/verify") {
+      if (error instanceof ValidationError) {
+        if (error.message === "Device user code is invalid or expired") {
+          return error.message;
+        }
+        if (error.message === "Device code already consumed") {
+          return error.message;
+        }
+        return "Invalid request";
+      }
+      if (error.message === "Invalid credentials") {
+        return "Incorrect username or password";
+      }
+      return "Authentication failed";
+    }
+
     if (path === "/auth/login/webauthn/begin" || path === "/auth/login/webauthn/finish") {
       return "Authentication failed";
     }
