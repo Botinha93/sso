@@ -19,6 +19,13 @@ const cards = [
     note: 'Best launched by a real authorization request so client and scope context are present.'
   },
   {
+    title: 'Password Expiration View',
+    description: 'Open the hosted warning shown during SSO login when a password is expired or close to expiry.',
+    href: '/password-expiration',
+    icon: KeyRound,
+    note: 'Normally opened by /oauth/authorize when the password expiration policy is active.'
+  },
+  {
     title: 'Device Verification View',
     description: 'Open the device verification screen where end users approve a device_code request.',
     href: '/oauth/device/verify',
@@ -36,7 +43,7 @@ export default function InteractionViews() {
         description="Quick access to the hosted OAuth and OIDC user-facing interaction screens. These views are normally opened by live protocol flows, but can be launched here for manual validation."
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => {
           const Icon = card.icon
           return (

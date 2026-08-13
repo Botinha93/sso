@@ -83,6 +83,11 @@ export interface PortalUser {
   customAttributes: Record<string, string>
   customAttributeFields: PortalCustomAttributeField[]
   apps: PortalApp[]
+  passwordExpirationWarning?: {
+    daysRemaining: number
+    expiresAt: string
+    message: string
+  }
 }
 
 export interface ManagedPortalUser {
@@ -128,13 +133,19 @@ export function usePortalUpdateProfile() {
 }
 
 export function usePortalChangePassword() {
+  const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: { currentPassword: string; newPassword: string }) =>
       apiFetch(`${API}/change-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
-      })
+      }),
+    onSuccess: () => {
+      sessionStorage.removeItem('passwordExpirationWarning')
+      sessionStorage.removeItem('passwordExpirationWarningDismissed')
+      qc.invalidateQueries({ queryKey: ['portal-me'] })
+    }
   })
 }
 

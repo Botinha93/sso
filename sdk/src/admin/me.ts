@@ -9,5 +9,8 @@ import type { MeAPI, SDKAdminMe } from "./types.js";
  * those roles (including roles inherited via group membership).
  */
 export const createMeAPI = (client: ClientInstance): MeAPI => ({
-  get: () => client.get<SDKAdminMe>("/api/admin/me")
+  get: () => client.get<SDKAdminMe>("/api/admin/me"),
+  changePassword: async (input) => {
+    await client.post("/api/admin/change-password", { body: input });
+  }
 });

@@ -25,9 +25,11 @@ import {
   summarizeAuthorizationDecision
 } from "./policy-authorization-evaluator.js";
 import {
+  buildPasswordExpirationNotice,
   buildPasswordExpirationWarning,
   evaluatePasswordExpiration,
   type PasswordExpirationEvaluation,
+  type PasswordExpirationNotice,
   type PasswordExpirationWarning
 } from "./password-expiration.js";
 
@@ -627,6 +629,10 @@ export class PolicyService {
     }
 
     return buildPasswordExpirationWarning(evaluation);
+  }
+
+  buildPasswordExpirationNotice(evaluation: PasswordExpirationEvaluation): PasswordExpirationNotice | undefined {
+    return buildPasswordExpirationNotice(evaluation);
   }
 
   async enforceStagePolicies(input: {

@@ -30,6 +30,12 @@ export interface SDKPortalCustomAttributeField {
   value: string;
 }
 
+export interface SDKPasswordExpirationWarning {
+  daysRemaining: number;
+  expiresAt: string;
+  message: string;
+}
+
 export interface SDKPortalMe {
   id: string;
   email: string;
@@ -49,6 +55,8 @@ export interface SDKPortalMe {
   permissions: string[];
   rolePermissions: SDKPortalRolePermissions[];
   apps: SDKPortalApp[];
+  /** Present when the password expiration policy is in its warning window. */
+  passwordExpirationWarning?: SDKPasswordExpirationWarning;
 }
 
 export interface UpdatePortalProfileInput {

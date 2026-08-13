@@ -940,6 +940,45 @@ paths:
                     description: Flattened, de-duplicated permission strings granted by the user's effective roles.
                     items:
                       type: string
+                  passwordExpirationWarning:
+                    type: object
+                    description: Present when the password expiration policy is in its warning window.
+                    properties:
+                      daysRemaining:
+                        type: integer
+                      expiresAt:
+                        type: string
+                        format: date-time
+                      message:
+                        type: string
+        '401':
+          description: No active session
+  /api/admin/change-password:
+    post:
+      summary: Change current admin user password
+      description: |
+        Changes the authenticated admin session user's password after verifying
+        `currentPassword`. Does not require extra admin permissions beyond an
+        active session.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword:
+                  type: string
+                newPassword:
+                  type: string
+      responses:
+        '204':
+          description: Password changed successfully
+        '400':
+          description: Current password is incorrect or new password fails policy
         '401':
           description: No active session
   /api/admin/clients:
@@ -3214,6 +3253,17 @@ paths:
                     type: array
                     items:
                       type: string
+                  passwordExpirationWarning:
+                    type: object
+                    description: Present when the password expiration policy is in its warning window.
+                    properties:
+                      daysRemaining:
+                        type: integer
+                      expiresAt:
+                        type: string
+                        format: date-time
+                      message:
+                        type: string
                   createdAt:
                     type: string
                     format: date-time

@@ -117,7 +117,7 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'GET', path: '/.well-known/openid-configuration', auth: 'public', description: 'OIDC discovery metadata document.' },
   { method: 'GET', path: '/.well-known/jwks.json', auth: 'public', description: 'JWKS document for token signature verification.' },
   { method: 'POST', path: '/connect/register', auth: 'public', description: 'Dynamic client registration endpoint.' },
-  { method: 'GET', path: '/oauth/authorize', auth: 'session', description: 'Authorization endpoint for authorization code (PKCE), implicit compatibility, and OIDC hybrid response types (code token, code id_token, id_token token, code id_token token).' },
+  { method: 'GET', path: '/oauth/authorize', auth: 'session', description: 'Authorization endpoint for authorization code (PKCE), implicit compatibility, and OIDC hybrid response types (code token, code id_token, id_token token, code id_token token). Redirects to /password-expiration when the password expiration policy requires a warning or forced change.' },
   { method: 'POST', path: '/oauth/token', auth: 'client', description: 'Shared token endpoint for authorization_code, refresh_token, client_credentials, password, device_code, jwt-bearer, saml2-bearer, and ciba grants.' },
   { method: 'POST', path: '/oauth/device/authorize', auth: 'client', description: 'Starts device authorization flow and returns user_code/device_code.' },
   { method: 'POST', path: '/oauth/device/verify', auth: 'public', description: 'User approval/denial endpoint for device flow verification.' },
@@ -163,7 +163,8 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'GET', path: '/auth/federation/:providerId/start', auth: 'public', description: 'Starts external IdP authorization redirect.' },
   { method: 'GET', path: '/auth/federation/:providerId/callback', auth: 'public', description: 'Processes external IdP callback and creates local session.' },
 
-  { method: 'GET', path: '/api/admin/me', auth: 'session', description: 'Returns authenticated admin profile, roles, groups, and permissions.' },
+  { method: 'GET', path: '/api/admin/me', auth: 'session', description: 'Returns authenticated admin profile, roles, groups, permissions, and passwordExpirationWarning when the password is close to expiry.' },
+  { method: 'POST', path: '/api/admin/change-password', auth: 'session+csrf', description: 'Changes the current admin user password after verifying currentPassword.' },
   { method: 'GET', path: '/api/admin/security/risk-events', auth: 'session', description: 'Lists normalized security risk events derived from audit telemetry (login failures, lockouts, anomaly detections, and protocol/security blocks).' },
   { method: 'GET', path: '/api/admin/settings', auth: 'session', description: 'Returns persisted instance-wide administration and security settings.' },
   { method: 'PUT', path: '/api/admin/settings', auth: 'session+csrf', description: 'Updates instance-wide transport, CORS, OAuth, email, and runtime security controls.' },
@@ -293,12 +294,13 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'DELETE', path: '/api/admin/events/hooks/:id', auth: 'session+csrf', description: 'Deletes event hook.' },
   { method: 'GET', path: '/api/admin/events/notifications', auth: 'session', description: 'Lists event delivery notifications.' },
 
-  { method: 'GET', path: '/api/portal/me', auth: 'bearer', description: 'Returns current portal identity context: profile, groups, roles, permissions, rolePermission matrix, and effective apps (direct + inherited from groups). Accepts either a portal session cookie or a Bearer access token.' },
+  { method: 'GET', path: '/api/portal/me', auth: 'bearer', description: 'Returns current portal identity context: profile, groups, roles, permissions, rolePermission matrix, effective apps (direct + inherited from groups), and passwordExpirationWarning when the password is close to expiry. Accepts either a portal session cookie or a Bearer access token.' },
   { method: 'GET', path: '/api/portal/language/default', auth: 'public', description: 'Resolves default portal language from geo/IP/Accept-Language headers.' },
   { method: 'PATCH', path: '/api/portal/profile', auth: 'session+csrf', description: 'Updates editable fields for current portal user (name and custom attributes).' },
   { method: 'POST', path: '/api/portal/change-password', auth: 'session+csrf', description: 'Changes current portal user password after verifying currentPassword.' },
   { method: 'DELETE', path: '/api/portal/account', auth: 'session+csrf', description: 'Deletes current portal account and revokes active sessions/tokens.' },
   { method: 'POST', path: '/api/portal/avatar', auth: 'session+csrf', description: 'Uploads current user avatar (multipart image file) and returns the resolved avatar URL.' },
+  { method: 'GET', path: '/api/account/password-expiration', auth: 'session', description: 'Returns the current session user password expiration status used by the hosted SSO password warning screen.' },
   { method: 'GET', path: '/api/account/mfa/totp', auth: 'session', description: 'Returns TOTP enrollment status for the current account.' },
   { method: 'POST', path: '/api/account/mfa/totp/enroll', auth: 'session+csrf', description: 'Starts TOTP enrollment and returns secret/otpauth URI.' },
   { method: 'POST', path: '/api/account/mfa/totp/verify', auth: 'session+csrf', description: 'Verifies TOTP enrollment code and enables MFA.' },
@@ -2930,7 +2932,7 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
   if (providerIdParam) params.push('Path: providerId (string)')
   if (route.path === '/oauth/authorize') {
     params.push('Query: response_type, client_id, redirect_uri, scope, state?')
-    params.push('Query: nonce?, prompt?, approval_prompt?, response_mode?, code_challenge?, code_challenge_method?')
+    params.push('Query: nonce?, prompt?, approval_prompt?, response_mode?, code_challenge?, code_challenge_method?, password_warning?')
   }
   if (route.path === '/oauth/userinfo') {
     params.push('Header: Authorization: Bearer <access_token>')
@@ -3774,7 +3776,36 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
   if (route.path === '/api/admin/me') {
     return {
       parameters: params,
-      expectedResponse: prettyJson({ id: 'user_xxx', email: 'admin@example.com', username: 'admin', roles: ['platform_admin'], permissions: ['*:*'] })
+      expectedResponse: prettyJson({
+        id: 'user_xxx',
+        email: 'admin@example.com',
+        username: 'admin',
+        roles: ['platform_admin'],
+        permissions: ['*:*'],
+        passwordExpirationWarning: {
+          daysRemaining: 7,
+          expiresAt: '2026-08-20T00:00:00.000Z',
+          message: 'Your password expires in 7 days. Please change it soon.'
+        }
+      }),
+      notes: [
+        'passwordExpirationWarning is omitted when the password expiration policy is inactive or the password is not yet in the warning window.'
+      ]
+    }
+  }
+
+  if (route.path === '/api/admin/change-password' && route.method === 'POST') {
+    return {
+      parameters: [...params, 'CSRF: provide x-csrf-token header from GET /api/csrf-token when cookies are used'],
+      requestJson: prettyJson({
+        currentPassword: 'OldPassword123!',
+        newPassword: 'NewPassword123!'
+      }),
+      expectedResponse: '204 No Content',
+      notes: [
+        'Any authenticated admin session can change its own password; extra admin permissions are not required.',
+        'currentPassword must match the active credential for the logged-in account.'
+      ]
     }
   }
 

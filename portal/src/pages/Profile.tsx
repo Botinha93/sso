@@ -1,6 +1,6 @@
 import { AlertTriangle, ArrowLeft, Check, Eye, EyeOff, KeyRound, Loader2, Save, ShieldCheck, Trash2, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import type { PortalUser } from '../hooks'
 import LanguageSelector from '../components/LanguageSelector'
 import Alert from '../components/ui/Alert'
@@ -36,10 +36,21 @@ interface Props {
 
 type Section = 'profile' | 'password' | 'totp' | 'danger'
 
+const PROFILE_SECTIONS: Section[] = ['profile', 'password', 'totp', 'danger']
+
+function resolveProfileSection(value: string | null): Section {
+  return PROFILE_SECTIONS.includes(value as Section) ? (value as Section) : 'profile'
+}
+
 export default function Profile({ user }: Props) {
   const { t } = useI18n()
   const navigate = useNavigate()
-  const [section, setSection] = useState<Section>('profile')
+  const [searchParams] = useSearchParams()
+  const [section, setSection] = useState<Section>(() => resolveProfileSection(searchParams.get('section')))
+
+  useEffect(() => {
+    setSection(resolveProfileSection(searchParams.get('section')))
+  }, [searchParams])
 
   const handleLogout = async () => {
     await logout()

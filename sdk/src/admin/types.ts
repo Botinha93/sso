@@ -871,6 +871,12 @@ export interface AuditAPI {
   list(query?: AuditListQuery): Promise<SDKAuditEvent[]>;
 }
 
+export interface SDKPasswordExpirationWarning {
+  daysRemaining: number;
+  expiresAt: string;
+  message: string;
+}
+
 export interface SDKAdminMe {
   id: string;
   email: string;
@@ -884,11 +890,15 @@ export interface SDKAdminMe {
   groups: string[];
   /** Flattened, de-duplicated permission strings granted by the user's effective roles. */
   permissions: string[];
+  /** Present when the password expiration policy is in its warning window. */
+  passwordExpirationWarning?: SDKPasswordExpirationWarning;
 }
 
 export interface MeAPI {
   /** Returns the current admin/portal session user with effective roles, groups, and flattened permissions. */
   get(): Promise<SDKAdminMe>;
+  /** Changes the current admin session user's password after verifying the current password. */
+  changePassword(input: { currentPassword: string; newPassword: string }): Promise<void>;
 }
 
 export interface SDKAuthenticationFlow {

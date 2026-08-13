@@ -115,6 +115,23 @@ export function useAdminMe() {
   })
 }
 
+export function useAdminChangePassword() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { currentPassword: string; newPassword: string }) =>
+      jsonFetch(`${API_BASE}/change-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      }),
+    onSuccess: () => {
+      sessionStorage.removeItem('passwordExpirationWarning')
+      sessionStorage.removeItem('passwordExpirationWarningDismissed')
+      queryClient.invalidateQueries({ queryKey: ['admin-me'] })
+    }
+  })
+}
+
 // --- Clients ---
 export function useClients(search?: string) {
   return useQuery({

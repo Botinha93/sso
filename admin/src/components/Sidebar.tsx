@@ -25,6 +25,7 @@ import {
   BarChart3,
   Settings2,
   BookText,
+  KeyRound,
   LogOut,
   Bot,
   GitMerge,
@@ -90,9 +91,11 @@ const navGroups = [
 const Sidebar = ({
   permissions = [],
   onNavigate,
+  onChangePassword,
 }: {
   permissions?: string[]
   onNavigate?: () => void
+  onChangePassword?: () => void
 }) => {
   const can = (permission: string) => permissions.includes('*:*') || permissions.includes(permission)
 
@@ -152,7 +155,20 @@ const Sidebar = ({
       </div>
 
       {/* Footer */}
-      <div className="border-t border-slate-800/80 px-3 py-4">
+      <div className="border-t border-slate-800/80 px-3 py-4 space-y-0.5">
+        {onChangePassword ? (
+          <button
+            type="button"
+            onClick={() => {
+              onChangePassword()
+              onNavigate?.()
+            }}
+            className="group flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-sm text-slate-400 transition-colors hover:border-slate-700/70 hover:bg-slate-800/80 hover:text-slate-100"
+          >
+            <KeyRound size={15} strokeWidth={2} className="opacity-70 transition-transform group-hover:scale-110" />
+            Change password
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={handleLogout}

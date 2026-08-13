@@ -26,6 +26,7 @@ export default function Launcher({ user }: Props) {
   const { t } = useI18n()
   const [ui, setUi] = useState<UiCustomization | null>(null)
   const [passwordExpirationWarning, setPasswordExpirationWarning] = useState<string | null>(null)
+  const [warningDismissed, setWarningDismissed] = useState(() => sessionStorage.getItem('passwordExpirationWarningDismissed') === '1')
   const canManageUsers =
     Array.isArray(user.permissions) &&
     (user.permissions.includes('*:*') || user.permissions.includes('users:view'))
@@ -45,11 +46,10 @@ export default function Launcher({ user }: Props) {
   }, [user.directAppIds, user.inheritedAppSources])
 
   useEffect(() => {
-    const warning = sessionStorage.getItem('passwordExpirationWarning')
-    if (warning) {
-      setPasswordExpirationWarning(warning)
-    }
-  }, [])
+    const fromMe = user.passwordExpirationWarning?.message
+    const fromLogin = sessionStorage.getItem('passwordExpirationWarning')
+    setPasswordExpirationWarning(fromMe || fromLogin || null)
+  }, [user.passwordExpirationWarning])
 
   useEffect(() => {
     void (async () => {
@@ -108,19 +108,26 @@ export default function Launcher({ user }: Props) {
         <div className="mb-4 sm:hidden">
           <LanguageSelector />
         </div>
-        {passwordExpirationWarning ? (
-          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex items-start justify-between gap-3">
+        {passwordExpirationWarning && !warningDismissed ? (
+          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <span>{passwordExpirationWarning}</span>
-            <button
-              type="button"
-              className="text-amber-800 underline"
-              onClick={() => {
-                sessionStorage.removeItem('passwordExpirationWarning')
-                setPasswordExpirationWarning(null)
-              }}
-            >
-              {t('profile.common.cancel')}
-            </button>
+            <div className="flex shrink-0 items-center gap-3">
+              <Link to="/profile?section=password" className="font-medium text-amber-900 underline">
+                {t('launcher.changePassword')}
+              </Link>
+              <button
+                type="button"
+                className="text-amber-800 underline"
+                onClick={() => {
+                  sessionStorage.removeItem('passwordExpirationWarning')
+                  sessionStorage.setItem('passwordExpirationWarningDismissed', '1')
+                  setWarningDismissed(true)
+                  setPasswordExpirationWarning(null)
+                }}
+              >
+                {t('launcher.dismissWarning')}
+              </button>
+            </div>
           </div>
         ) : null}
         {/* Welcome */}

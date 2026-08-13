@@ -121,13 +121,19 @@ export default function Login() {
         body: JSON.stringify(payload)
       })
 
-      if (res.status === 202 && !mfaTicket && !changePasswordTicket) {
+      if (res.status === 202) {
         const json = await res.json().catch(() => ({} as Record<string, unknown>))
         if (typeof json.changePasswordTicket === 'string') {
           setChangePasswordTicket(json.changePasswordTicket)
+          setMfaTicket(null)
+          setNewPassword('')
+          setConfirmPassword('')
           setInfoMessage(typeof json.message === 'string' ? json.message : t('login.passwordExpired'))
         } else if (typeof json.mfaTicket === 'string') {
           setMfaTicket(json.mfaTicket)
+          setChangePasswordTicket(null)
+          setMfaCode('')
+          setInfoMessage('')
         } else {
           setError(extractErrorMessage(json, t('login.additionalVerificationRequired')))
         }

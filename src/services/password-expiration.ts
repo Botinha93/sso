@@ -33,6 +33,10 @@ export type PasswordExpirationWarning = {
   message: string;
 };
 
+export type PasswordExpirationNotice = PasswordExpirationWarning & {
+  status: "warning" | "expired";
+};
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export function passwordChangedAtTodayIso(reference = new Date()) {
@@ -102,4 +106,28 @@ export function buildPasswordExpirationWarning(evaluation: Extract<PasswordExpir
     expiresAt: evaluation.expiresAt.toISOString(),
     message: `Your password expires in ${evaluation.daysRemaining} ${dayLabel}. Please change it soon.`
   };
+}
+
+export function buildPasswordExpirationNotice(evaluation: PasswordExpirationEvaluation): PasswordExpirationNotice | undefined {
+  if (!evaluation.active) {
+    return undefined;
+  }
+
+  if (evaluation.status === "expired") {
+    return {
+      status: "expired",
+      daysRemaining: 0,
+      expiresAt: evaluation.expiresAt.toISOString(),
+      message: "Your password has expired. Choose a new password to continue signing in."
+    };
+  }
+
+  if (evaluation.status === "warning") {
+    return {
+      status: "warning",
+      ...buildPasswordExpirationWarning(evaluation)
+    };
+  }
+
+  return undefined;
 }

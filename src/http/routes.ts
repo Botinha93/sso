@@ -940,6 +940,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     "/oauth/introspect",
     "/oauth/token/revoke",
   ]);
+  const isSelfServiceAdminPath = (path: string) => path === "/api/admin/me" || path === "/api/admin/change-password";
 
   app.addHook("preHandler", async (request, reply) => {
     const endpointLimitResult = await enforceEndpointRateLimit(request, reply);
@@ -974,7 +975,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
           if (claims.actor_type !== "service_identity") {
             return reply.status(401).send({ error: "unauthorized" });
           }
-          if (path === "/api/admin/me") {
+          if (isSelfServiceAdminPath(path)) {
             return;
           }
           const resource = toAdminResource(path);
@@ -1006,7 +1007,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         return reply.status(401).send({ error: "unauthorized" });
       }
 
-      if (path === "/api/admin/me") {
+      if (isSelfServiceAdminPath(path)) {
         return;
       }
 
@@ -1261,6 +1262,25 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     if (!user) {
       const params = new URLSearchParams(request.query as Record<string, string>).toString();
       return reply.redirect(`/login?${params}`);
+    }
+
+    const passwordExpiration = await deps.policyService.getPasswordExpirationStatus(user, await resolveTenantId(input.tenant));
+    const passwordExpirationNotice = deps.policyService.buildPasswordExpirationNotice(passwordExpiration);
+    if (passwordExpirationNotice) {
+      const authorizeQuery = new URLSearchParams(request.query as Record<string, string>);
+      authorizeQuery.delete("password_warning");
+
+      if (input.prompt === "none") {
+        if (passwordExpirationNotice.status === "expired") {
+          const redirectUrl = new URL(input.redirect_uri);
+          redirectUrl.searchParams.set("error", "login_required");
+          redirectUrl.searchParams.set("error_description", "Password has expired");
+          if (input.state) redirectUrl.searchParams.set("state", input.state);
+          return reply.redirect(redirectUrl.toString());
+        }
+      } else if (passwordExpirationNotice.status === "expired" || input.password_warning !== "continue") {
+        return reply.redirect(`/password-expiration?${authorizeQuery.toString()}`);
+      }
     }
 
     const consentStageEnabled = await deps.authenticationFlowService.isStageEnabled("consent");
@@ -2098,6 +2118,8 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       return reply.status(401).send({ error: "unauthorized" });
     }
 
+    const passwordExpirationWarning = await buildPasswordExpirationWarningForUser(user);
+
     return {
       id: user.id,
       email: user.email,
@@ -2107,7 +2129,49 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       avatarUrl: user.avatarUrl,
       roles: await deps.roleService.resolveNamesForUser(user.id),
       groups: await deps.groupService.resolveGroupNamesForUser(user.id),
-      permissions: await deps.roleService.resolvePermissionsForUser(user.id)
+      permissions: await deps.roleService.resolvePermissionsForUser(user.id),
+      ...(passwordExpirationWarning ? { passwordExpirationWarning } : {})
+    };
+  });
+
+  app.post("/api/admin/change-password", async (request, reply) => {
+    const session = await getSession(request);
+    if (!session) {
+      return reply.status(401).send({ error: "unauthorized" });
+    }
+
+    const { currentPassword, newPassword } = portalChangePasswordSchema.parse(request.body);
+    const user = await deps.userService.findUserById(session.userId);
+    if (!user) {
+      return reply.status(401).send({ error: "unauthorized" });
+    }
+    if (!verifyPassword(currentPassword, user.passwordHash)) {
+      return reply.status(400).send({ error: "InvalidPassword", message: "Current password is incorrect" });
+    }
+
+    await deps.policyService.enforceUserCreationPolicies(newPassword);
+    await deps.userService.resetPassword(session.userId, newPassword);
+    return reply.status(204).send();
+  });
+
+  app.get("/api/account/password-expiration", async (request, reply) => {
+    const auth = await requireSessionUser(request, reply);
+    if (!auth) {
+      return;
+    }
+
+    const status = await deps.policyService.getPasswordExpirationStatus(auth.user);
+    const notice = deps.policyService.buildPasswordExpirationNotice(status);
+    if (!status.active) {
+      return { active: false as const };
+    }
+
+    return {
+      active: true as const,
+      status: status.status,
+      daysRemaining: status.daysRemaining,
+      expiresAt: status.expiresAt.toISOString(),
+      ...(notice ? { message: notice.message } : {})
     };
   });
 
@@ -3626,6 +3690,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const customAttributeFields = await deps.userService.listPortalCustomAttributeFields(user.id, {
       pictureKey: USER_PICTURE_ATTRIBUTE_KEY
     });
+    const passwordExpirationWarning = await buildPasswordExpirationWarningForUser(user);
 
     return {
       id: user.id,
@@ -3653,7 +3718,8 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       groups: await deps.groupService.resolveGroupNamesForUser(user.id),
       permissions: await deps.roleService.resolvePermissionsForUser(user.id),
       rolePermissions: roleDetails,
-      apps: userApps.map(a => ({ id: a.id, name: a.name, description: a.description, icon: a.icon, imageUrl: a.imageUrl, url: a.url }))
+      apps: userApps.map(a => ({ id: a.id, name: a.name, description: a.description, icon: a.icon, imageUrl: a.imageUrl, url: a.url })),
+      ...(passwordExpirationWarning ? { passwordExpirationWarning } : {})
     };
   });
 

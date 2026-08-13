@@ -202,6 +202,7 @@ export const authorizeSchema = z.object({
   code_challenge: z.string().optional(),
   code_challenge_method: z.enum(["S256", "plain"]).optional(),
   consent: z.enum(["approve"]).optional(),
+  password_warning: z.enum(["continue"]).optional(),
   response_mode: z.enum(["query", "fragment", "form_post"]).optional()
 });
 

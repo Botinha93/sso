@@ -123,6 +123,7 @@ export type {
   SDKAccessReviewCampaignResult,
   SDKAccessReviewItem,
   SDKAdminMe,
+  SDKPasswordExpirationWarning,
   SDKApp,
   SDKBreakGlassResult,
   SDKConnector,
