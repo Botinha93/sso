@@ -7,6 +7,7 @@ import ImageField from '../components/ImageField'
 import ListSearch from '../components/ListSearch'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { imageFieldForCreate, imageFieldForUpdate, resolveMediaSrc } from '../lib/media'
+import { toDateInputValue } from '../lib/utils'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
 import Button from '../components/ui/Button'
@@ -149,7 +150,7 @@ const AttributeValueField = ({
   }
 
   if (attribute?.type === 'date') {
-    return <Input type="date" value={value} onChange={(e) => onChange(e.target.value)} />
+    return <Input type="date" value={toDateInputValue(value)} onChange={(e) => onChange(e.target.value)} />
   }
 
   if (attribute?.type === 'json') {
@@ -534,7 +535,12 @@ const Users = () => {
       givenName: user.givenName,
       familyName: user.familyName,
       avatarUrl: user.avatarUrl ?? '',
-      customAttributes: user.directCustomAttributes ?? {},
+      customAttributes: Object.fromEntries(
+        Object.entries(user.directCustomAttributes ?? {}).map(([key, value]) => [
+          key,
+          attributeByKey.get(key)?.type === 'date' ? toDateInputValue(value) : value
+        ])
+      ),
       groupIds: currentGroupIds,
       roleIds: user.directRoleIds ?? []
     })

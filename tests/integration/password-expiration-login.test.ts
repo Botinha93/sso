@@ -296,3 +296,97 @@ test("SSO authorize shows password expiration before redirecting to the app", as
   assert.match(String(expiredBlocked.headers.location), /\/password-expiration\?/);
 });
 
+test("password_changed_at stays on the original calendar date across login", async (t) => {
+  const { app, admin } = await createTestContext("integration-password-changed-at-stable");
+  t.after(async () => {
+    await app.close();
+  });
+
+  const headers = await createAdminHeaders(app, admin);
+  await enablePasswordExpiration(app, headers, { days: 90, warnDaysBefore: 14 });
+
+  const changedAt = new Date(Date.now() - 80 * MS_PER_DAY);
+  const expectedDate = changedAt.toISOString().slice(0, 10);
+
+  const created = await app.inject({
+    method: "POST",
+    url: "/api/admin/users",
+    headers,
+    payload: {
+      email: "stable-date@example.com",
+      username: "stable.date",
+      password: "Change-Me-Now1!",
+      givenName: "Stable",
+      familyName: "Date",
+      customAttributes: {
+        password_changed_at: changedAt.toISOString()
+      }
+    }
+  });
+  assert.equal(created.statusCode, 201, created.body);
+  const userId = created.json().id as string;
+  assert.equal(created.json().customAttributes.password_changed_at, expectedDate);
+
+  const login = await loginAs(app, "stable-date@example.com", "Change-Me-Now1!");
+  assert.equal(login.statusCode, 200, login.body);
+
+  const fetched = await app.inject({
+    method: "GET",
+    url: `/api/admin/users/${userId}`,
+    headers
+  });
+  assert.equal(fetched.statusCode, 200, fetched.body);
+  assert.equal(fetched.json().customAttributes.password_changed_at, expectedDate);
+  assert.notEqual(fetched.json().customAttributes.password_changed_at, new Date().toISOString().slice(0, 10));
+});
+
+test("missing password_changed_at is backfilled from account createdAt, not today", async (t) => {
+  const { app, admin } = await createTestContext("integration-password-changed-at-backfill");
+  t.after(async () => {
+    await app.close();
+  });
+
+  const headers = await createAdminHeaders(app, admin);
+  await enablePasswordExpiration(app, headers, { days: 90, warnDaysBefore: 14 });
+
+  const created = await app.inject({
+    method: "POST",
+    url: "/api/admin/users",
+    headers,
+    payload: {
+      email: "backfill-date@example.com",
+      username: "backfill.date",
+      password: "Change-Me-Now1!",
+      givenName: "Backfill",
+      familyName: "Date"
+    }
+  });
+  assert.equal(created.statusCode, 201, created.body);
+  const userId = created.json().id as string;
+  const createdAt = created.json().createdAt as string;
+
+  const wiped = await app.inject({
+    method: "PATCH",
+    url: `/api/admin/users/${userId}`,
+    headers,
+    payload: {
+      customAttributes: {}
+    }
+  });
+  assert.equal(wiped.statusCode, 200, wiped.body);
+
+  const login = await loginAs(app, "backfill-date@example.com", "Change-Me-Now1!");
+  assert.equal(login.statusCode, 200, login.body);
+
+  const fetched = await app.inject({
+    method: "GET",
+    url: `/api/admin/users/${userId}`,
+    headers
+  });
+  assert.equal(fetched.statusCode, 200, fetched.body);
+  assert.equal(
+    fetched.json().customAttributes.password_changed_at,
+    new Date(createdAt).toISOString().slice(0, 10)
+  );
+});
+

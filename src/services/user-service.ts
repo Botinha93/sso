@@ -20,7 +20,12 @@ import {
   normalizeCustomAttributeMap,
   normalizeUserAttributeKey
 } from "../domain/user-attribute-keys.js";
-import { passwordChangedAtTodayIso } from "./password-expiration.js";
+import {
+  PASSWORD_CHANGED_AT_BACKFILL_DATE,
+  needsPasswordChangedAtBackfill,
+  passwordChangedAtDateValue,
+  toDateAttributeValue
+} from "./password-expiration.js";
 import {
   buildAdminUserListCache,
   serializeAdminUserFromCache,
@@ -111,6 +116,18 @@ export class UserService {
 
   private normalizeCustomAttributes(customAttributes: Record<string, string> | undefined) {
     return normalizeCustomAttributeMap(customAttributes, { omitEmptyValues: true });
+  }
+
+  private normalizePasswordChangedAt(customAttributes: Record<string, string>) {
+    const passwordChangedAt = toDateAttributeValue(customAttributes.password_changed_at);
+    if (!passwordChangedAt) {
+      return customAttributes;
+    }
+
+    return {
+      ...customAttributes,
+      password_changed_at: passwordChangedAt
+    };
   }
 
   private invalidateAdminUserListCache() {
@@ -219,7 +236,8 @@ export class UserService {
       familyName: input.familyName,
       customAttributes: {
         ...customAttributes,
-        password_changed_at: customAttributes.password_changed_at ?? passwordChangedAtTodayIso()
+        password_changed_at: toDateAttributeValue(customAttributes.password_changed_at)
+          ?? passwordChangedAtDateValue()
       },
       active: input.active ?? true
     });
@@ -425,12 +443,25 @@ export class UserService {
   }
 
   async ensurePasswordChangedAt(user: User) {
-    const existing = user.customAttributes.password_changed_at?.trim();
+    const existing = toDateAttributeValue(user.customAttributes.password_changed_at);
     if (existing) {
-      return user;
+      if (existing === user.customAttributes.password_changed_at?.trim()) {
+        return user;
+      }
+
+      const normalizedCustomAttributes = {
+        ...(user.customAttributes ?? {}),
+        password_changed_at: existing
+      };
+      await this.userRepository.setCustomAttributes(user.id, normalizedCustomAttributes);
+      this.invalidateAdminUserListCache();
+      return {
+        ...user,
+        customAttributes: normalizedCustomAttributes
+      };
     }
 
-    const passwordChangedAt = passwordChangedAtTodayIso();
+    const passwordChangedAt = passwordChangedAtDateValue(user.createdAt);
     const nextCustomAttributes = {
       ...(user.customAttributes ?? {}),
       password_changed_at: passwordChangedAt
@@ -454,7 +485,7 @@ export class UserService {
     await this.userRepository.setPasswordHash(id, hashPassword(password));
     await this.userRepository.setCustomAttributes(id, {
       ...(existing.customAttributes ?? {}),
-      password_changed_at: new Date().toISOString()
+      password_changed_at: passwordChangedAtDateValue()
     });
     this.invalidateAdminUserListCache();
   }
@@ -464,8 +495,33 @@ export class UserService {
     this.invalidateAdminUserListCache();
   }
 
+  async backfillActiveUsersPasswordChangedAt(dateValue = PASSWORD_CHANGED_AT_BACKFILL_DATE) {
+    const users = await this.userRepository.list();
+    let updated = 0;
+
+    for (const user of users) {
+      if (!needsPasswordChangedAtBackfill(user, dateValue)) {
+        continue;
+      }
+
+      await this.userRepository.setCustomAttributes(user.id, {
+        ...(user.customAttributes ?? {}),
+        password_changed_at: dateValue
+      });
+      updated += 1;
+    }
+
+    if (updated > 0) {
+      this.invalidateAdminUserListCache();
+    }
+
+    return updated;
+  }
+
   async setCustomAttributes(id: string, customAttributes: Record<string, string>) {
-    const normalizedCustomAttributes = this.normalizeCustomAttributes(customAttributes);
+    const normalizedCustomAttributes = this.normalizePasswordChangedAt(
+      this.normalizeCustomAttributes(customAttributes)
+    );
     await this.validateCustomAttributes(normalizedCustomAttributes);
     await this.userRepository.setCustomAttributes(id, normalizedCustomAttributes);
     this.invalidateAdminUserListCache();

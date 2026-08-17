@@ -38,6 +38,7 @@ export type PasswordExpirationNotice = PasswordExpirationWarning & {
 };
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 export function passwordChangedAtTodayIso(reference = new Date()) {
   return new Date(Date.UTC(
@@ -47,9 +48,41 @@ export function passwordChangedAtTodayIso(reference = new Date()) {
   )).toISOString();
 }
 
+export function toDateAttributeValue(value: string | undefined) {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) {
+    return undefined;
+  }
+  if (DATE_ONLY.test(trimmed)) {
+    return trimmed;
+  }
+  const parsed = Date.parse(trimmed);
+  if (Number.isNaN(parsed)) {
+    return undefined;
+  }
+  return new Date(parsed).toISOString().slice(0, 10);
+}
+
+export function passwordChangedAtDateValue(reference = new Date()) {
+  return passwordChangedAtTodayIso(reference).slice(0, 10);
+}
+
+export const PASSWORD_CHANGED_AT_BACKFILL_DATE = "2026-08-01";
+
+export function needsPasswordChangedAtBackfill(
+  user: Pick<User, "active" | "isServiceUser" | "customAttributes">,
+  dateValue = PASSWORD_CHANGED_AT_BACKFILL_DATE
+) {
+  return user.active && !user.isServiceUser
+    && toDateAttributeValue(user.customAttributes.password_changed_at) !== dateValue;
+}
+
 export function resolvePasswordChangedAt(user: User) {
-  const changedAtRaw = user.customAttributes.password_changed_at?.trim();
-  return changedAtRaw ? new Date(changedAtRaw) : new Date(passwordChangedAtTodayIso());
+  const changedAtRaw = toDateAttributeValue(user.customAttributes.password_changed_at);
+  if (changedAtRaw) {
+    return new Date(changedAtRaw);
+  }
+  return new Date(passwordChangedAtTodayIso(user.createdAt));
 }
 
 export function evaluatePasswordExpiration(input: {

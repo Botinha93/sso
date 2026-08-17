@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { User } from "../../src/domain/models.js";
-import { buildPasswordExpirationNotice, evaluatePasswordExpiration, passwordChangedAtTodayIso, resolvePasswordChangedAt } from "../../src/services/password-expiration.js";
+import { PASSWORD_CHANGED_AT_BACKFILL_DATE, buildPasswordExpirationNotice, evaluatePasswordExpiration, needsPasswordChangedAtBackfill, passwordChangedAtDateValue, passwordChangedAtTodayIso, resolvePasswordChangedAt, toDateAttributeValue } from "../../src/services/password-expiration.js";
 
 const makeUser = (overrides: Partial<User> = {}): User => ({
   id: "user-1",
@@ -65,9 +65,41 @@ test("evaluatePasswordExpiration marks expired passwords", () => {
   assert.equal(result.daysRemaining, 0);
 });
 
-test("resolvePasswordChangedAt defaults missing attribute to start of today", () => {
-  const baseline = resolvePasswordChangedAt(makeUser());
-  assert.equal(baseline.toISOString(), passwordChangedAtTodayIso());
+test("resolvePasswordChangedAt defaults missing attribute to the user's created date", () => {
+  const createdAt = new Date("2024-03-15T18:45:00.000Z");
+  const baseline = resolvePasswordChangedAt(makeUser({ createdAt }));
+  assert.equal(baseline.toISOString(), passwordChangedAtTodayIso(createdAt));
+});
+
+test("resolvePasswordChangedAt accepts ISO timestamps and date-only values", () => {
+  const fromIso = resolvePasswordChangedAt(makeUser({
+    customAttributes: { password_changed_at: "2024-03-15T18:45:00.000Z" }
+  }));
+  assert.equal(fromIso.toISOString(), "2024-03-15T00:00:00.000Z");
+
+  const fromDateOnly = resolvePasswordChangedAt(makeUser({
+    customAttributes: { password_changed_at: "2024-03-15" }
+  }));
+  assert.equal(fromDateOnly.toISOString(), "2024-03-15T00:00:00.000Z");
+});
+
+test("toDateAttributeValue and passwordChangedAtDateValue store calendar dates", () => {
+  assert.equal(toDateAttributeValue("2024-03-15T18:45:00.000Z"), "2024-03-15");
+  assert.equal(toDateAttributeValue("2024-03-15"), "2024-03-15");
+  assert.equal(toDateAttributeValue("  "), undefined);
+  assert.equal(passwordChangedAtDateValue(new Date("2024-03-15T18:45:00.000Z")), "2024-03-15");
+});
+
+test("needsPasswordChangedAtBackfill targets active non-service users not already on the backfill date", () => {
+  assert.equal(needsPasswordChangedAtBackfill(makeUser()), true);
+  assert.equal(needsPasswordChangedAtBackfill(makeUser({
+    customAttributes: { password_changed_at: PASSWORD_CHANGED_AT_BACKFILL_DATE }
+  })), false);
+  assert.equal(needsPasswordChangedAtBackfill(makeUser({
+    customAttributes: { password_changed_at: "2026-08-01T12:00:00.000Z" }
+  })), false);
+  assert.equal(needsPasswordChangedAtBackfill(makeUser({ active: false })), false);
+  assert.equal(needsPasswordChangedAtBackfill(makeUser({ isServiceUser: true })), false);
 });
 
 test("buildPasswordExpirationNotice returns warning and expired messages", () => {

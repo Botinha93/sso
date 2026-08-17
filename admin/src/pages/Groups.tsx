@@ -11,6 +11,7 @@ import StatusBadge from '../components/ui/StatusBadge'
 import Button from '../components/ui/Button'
 import Input from '../components/ui/Input'
 import Card from '../components/ui/Card'
+import { toDateInputValue } from '../lib/utils'
 import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
 import BulkActionsBar, { SelectionCheckbox } from '../components/BulkActionsBar'
 import React from 'react';
@@ -101,7 +102,7 @@ const AttributeValueField = ({
   }
 
   if (attribute?.type === 'date') {
-    return <Input type="date" value={value} onChange={(e) => onChange(e.target.value)} />
+    return <Input type="date" value={toDateInputValue(value)} onChange={(e) => onChange(e.target.value)} />
   }
 
   if (attribute?.type === 'json') {
@@ -451,7 +452,14 @@ const Groups = () => {
     setEditGroupName(group.name)
     setEditGroupDescription(group.description)
     setEditGroupAppIds(group.appIds ?? ((group as any).appId ? [(group as any).appId] : []))
-    setEditGroupCustomAttributes(group.customAttributes ?? {})
+    setEditGroupCustomAttributes(
+      Object.fromEntries(
+        Object.entries(group.customAttributes ?? {}).map(([key, value]) => [
+          key,
+          attributeByKey.get(key)?.type === 'date' ? toDateInputValue(value) : value
+        ])
+      )
+    )
     setEditSelectedRoleIds(group.roleIds ?? [])
     setAttributePicker((prev) => ({ ...prev, edit: '' }))
     setEditActiveTab('details')

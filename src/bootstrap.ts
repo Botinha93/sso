@@ -45,6 +45,20 @@ import { MediaService } from "./services/media-service.js";
 import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { readRuntimeDatabaseConfigSync, saveRuntimeDatabaseConfig } from "./core/runtime-database-config.js";
+import { PASSWORD_CHANGED_AT_BACKFILL_DATE } from "./services/password-expiration.js";
+
+const isPasswordChangedAtBackfillEnabled = () => {
+  if (process.env.NODE_ENV === "test") {
+    return false;
+  }
+
+  const raw = process.env.BACKFILL_PASSWORD_CHANGED_AT?.trim().toLowerCase();
+  if (raw === undefined || raw === "") {
+    return true;
+  }
+
+  return !["0", "false", "no", "off"].includes(raw);
+};
 
 const pinRuntimeDatabaseConfigIfNeeded = async (
   config: AppConfig,
@@ -201,6 +215,12 @@ export const bootstrap = async (config: AppConfig) => {
       showOnPortal: false,
       userEditable: false
     });
+  }
+  if (isPasswordChangedAtBackfillEnabled()) {
+    const updated = await userService.backfillActiveUsersPasswordChangedAt(PASSWORD_CHANGED_AT_BACKFILL_DATE);
+    console.log(
+      `[bootstrap] BACKFILL_PASSWORD_CHANGED_AT set password_changed_at=${PASSWORD_CHANGED_AT_BACKFILL_DATE} for ${updated} active user(s). Set BACKFILL_PASSWORD_CHANGED_AT=false to disable.`
+    );
   }
   const policyService = new PolicyService(
     policyDefinitionRepository,
