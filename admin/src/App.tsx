@@ -5,7 +5,7 @@ import { Menu } from 'lucide-react'
 import Sidebar from './components/Sidebar'
 import ChangePasswordModal from './components/ChangePasswordModal'
 import { useAdminMe, useSetupStatus } from './hooks/useApi'
-import { useI18n } from './i18n'
+import { useI18n, formatPasswordExpirationWarning } from './i18n'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Clients = lazy(() => import('./pages/Clients'))
@@ -64,19 +64,24 @@ function AppContent() {
   const { t } = useI18n()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
-  const [passwordExpirationWarning, setPasswordExpirationWarning] = useState<string | null>(null)
+  const [passwordExpirationDays, setPasswordExpirationDays] = useState<number | null>(null)
   const [warningDismissed, setWarningDismissed] = useState(() => sessionStorage.getItem('passwordExpirationWarningDismissed') === '1')
   const { data: setupStatus, isLoading: setupLoading } = useSetupStatus()
   const { data: adminMe, isLoading: meLoading, error: meError } = useAdminMe()
+  const passwordExpirationWarning = passwordExpirationDays == null
+    ? null
+    : formatPasswordExpirationWarning(t, passwordExpirationDays)
 
   useEffect(() => {
     setMobileNavOpen(false)
   }, [location.pathname])
 
   useEffect(() => {
-    const fromMe = (adminMe as { passwordExpirationWarning?: { message?: string } } | undefined)?.passwordExpirationWarning?.message
-    const fromLogin = sessionStorage.getItem('passwordExpirationWarning')
-    setPasswordExpirationWarning(fromMe || fromLogin || null)
+    const fromMe = (adminMe as { passwordExpirationWarning?: { daysRemaining?: number } } | undefined)?.passwordExpirationWarning?.daysRemaining
+    const stored = sessionStorage.getItem('passwordExpirationWarning')
+    const fromLogin = stored && /^\d+$/.test(stored) ? Number(stored) : undefined
+    const days = typeof fromMe === 'number' ? fromMe : fromLogin
+    setPasswordExpirationDays(typeof days === 'number' && Number.isFinite(days) ? days : null)
   }, [adminMe])
 
   const permissions: string[] = (adminMe as any)?.permissions ?? []
@@ -174,7 +179,7 @@ function AppContent() {
                               sessionStorage.removeItem('passwordExpirationWarning')
                               sessionStorage.setItem('passwordExpirationWarningDismissed', '1')
                               setWarningDismissed(true)
-                              setPasswordExpirationWarning(null)
+                              setPasswordExpirationDays(null)
                             }}
                           >
                             {t('password.dismiss')}

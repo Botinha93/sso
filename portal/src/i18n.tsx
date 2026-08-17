@@ -45,6 +45,8 @@ const TRANSLATIONS: Record<Language, Dictionary> = {
     'login.verifyCode': 'Verify code',
     'login.back': 'Back',
     'login.passwordExpirationBanner': 'Your password will expire soon.',
+    'passwordExpiration.warningMessage': 'Your password expires in {days} days. Please change it soon.',
+    'passwordExpiration.warningMessageOne': 'Your password expires in 1 day. Please change it soon.',
     'users.backToApps': 'Back to apps',
     'users.title': 'User Management',
     'users.createUser': 'Create user',
@@ -194,6 +196,8 @@ const TRANSLATIONS: Record<Language, Dictionary> = {
     'login.verifyCode': 'Verificar código',
     'login.back': 'Atrás',
     'login.passwordExpirationBanner': 'Tu contraseña expirará pronto.',
+    'passwordExpiration.warningMessage': 'Tu contraseña caduca en {days} días. Cámbiala pronto.',
+    'passwordExpiration.warningMessageOne': 'Tu contraseña caduca en 1 día. Cámbiala pronto.',
     'login.showPassword': 'Mostrar contraseña',
     'login.hidePassword': 'Ocultar contraseña',
     'users.backToApps': 'Volver a aplicaciones',
@@ -297,6 +301,8 @@ const TRANSLATIONS: Record<Language, Dictionary> = {
     'login.verifyCode': 'Vérifier le code',
     'login.back': 'Retour',
     'login.passwordExpirationBanner': 'Votre mot de passe expirera bientôt.',
+    'passwordExpiration.warningMessage': 'Votre mot de passe expire dans {days} jours. Veuillez le changer bientôt.',
+    'passwordExpiration.warningMessageOne': 'Votre mot de passe expire dans 1 jour. Veuillez le changer bientôt.',
     'login.showPassword': 'Afficher le mot de passe',
     'login.hidePassword': 'Masquer le mot de passe',
     'users.backToApps': 'Retour aux applications',
@@ -400,6 +406,8 @@ const TRANSLATIONS: Record<Language, Dictionary> = {
     'login.verifyCode': 'Code verifizieren',
     'login.back': 'Zurück',
     'login.passwordExpirationBanner': 'Ihr Passwort läuft bald ab.',
+    'passwordExpiration.warningMessage': 'Ihr Passwort läuft in {days} Tagen ab. Bitte ändern Sie es bald.',
+    'passwordExpiration.warningMessageOne': 'Ihr Passwort läuft in 1 Tag ab. Bitte ändern Sie es bald.',
     'login.showPassword': 'Passwort anzeigen',
     'login.hidePassword': 'Passwort ausblenden',
     'users.backToApps': 'Zurück zu Apps',
@@ -503,6 +511,8 @@ const TRANSLATIONS: Record<Language, Dictionary> = {
     'login.verifyCode': 'Verifica codice',
     'login.back': 'Indietro',
     'login.passwordExpirationBanner': 'La tua password scadrà presto.',
+    'passwordExpiration.warningMessage': 'La password scade tra {days} giorni. Cambiala presto.',
+    'passwordExpiration.warningMessageOne': 'La password scade tra 1 giorno. Cambiala presto.',
     'login.showPassword': 'Mostra password',
     'login.hidePassword': 'Nascondi password',
     'users.backToApps': 'Torna alle app',
@@ -606,6 +616,8 @@ const TRANSLATIONS: Record<Language, Dictionary> = {
     'login.verifyCode': 'Verificar código',
     'login.back': 'Voltar',
     'login.passwordExpirationBanner': 'Sua senha expirará em breve.',
+    'passwordExpiration.warningMessage': 'Sua senha expira em {days} dias. Altere-a em breve.',
+    'passwordExpiration.warningMessageOne': 'Sua senha expira em 1 dia. Altere-a em breve.',
     'login.showPassword': 'Mostrar senha',
     'login.hidePassword': 'Ocultar senha',
     'users.backToApps': 'Voltar aos aplicativos',
@@ -752,6 +764,8 @@ const TRANSLATIONS: Record<Language, Dictionary> = {
     'login.verifyCode': 'コードを確認',
     'login.back': '戻る',
     'login.passwordExpirationBanner': 'パスワードの有効期限がまもなく切れます。',
+    'passwordExpiration.warningMessage': 'パスワードの有効期限は{days}日後です。早めに変更してください。',
+    'passwordExpiration.warningMessageOne': 'パスワードの有効期限は1日後です。早めに変更してください。',
     'login.showPassword': 'パスワードを表示',
     'login.hidePassword': 'パスワードを非表示',
     'users.backToApps': 'アプリに戻る',
@@ -855,6 +869,8 @@ const TRANSLATIONS: Record<Language, Dictionary> = {
     'login.verifyCode': '验证代码',
     'login.back': '返回',
     'login.passwordExpirationBanner': '您的密码即将过期。',
+    'passwordExpiration.warningMessage': '您的密码将在 {days} 天后过期。请尽快更改。',
+    'passwordExpiration.warningMessageOne': '您的密码将在 1 天后过期。请尽快更改。',
     'login.showPassword': '显示密码',
     'login.hidePassword': '隐藏密码',
     'users.backToApps': '返回应用',
@@ -958,6 +974,8 @@ const TRANSLATIONS: Record<Language, Dictionary> = {
     'login.verifyCode': '코드 확인',
     'login.back': '뒤로',
     'login.passwordExpirationBanner': '비밀번호가 곧 만료됩니다.',
+    'passwordExpiration.warningMessage': '비밀번호가 {days}일 후에 만료됩니다. 빨리 변경해 주세요.',
+    'passwordExpiration.warningMessageOne': '비밀번호가 1일 후에 만료됩니다. 빨리 변경해 주세요.',
     'login.showPassword': '비밀번호 표시',
     'login.hidePassword': '비밀번호 숨기기',
     'users.backToApps': '앱으로 돌아가기',
@@ -1061,6 +1079,8 @@ const TRANSLATIONS: Record<Language, Dictionary> = {
     'login.verifyCode': 'Проверить код',
     'login.back': 'Назад',
     'login.passwordExpirationBanner': 'Срок действия вашего пароля скоро истечет.',
+    'passwordExpiration.warningMessage': 'Срок действия пароля истекает через {days} дней. Пожалуйста, смените его скорее.',
+    'passwordExpiration.warningMessageOne': 'Срок действия пароля истекает через 1 день. Пожалуйста, смените его скорее.',
     'login.showPassword': 'Показать пароль',
     'login.hidePassword': 'Скрыть пароль',
     'users.backToApps': 'Назад к приложениям',
@@ -1204,4 +1224,11 @@ export function useI18n() {
     throw new Error('useI18n must be used within LanguageProvider')
   }
   return context
+}
+
+export function formatPasswordExpirationWarning(t: I18nContextValue['t'], daysRemaining: number) {
+  if (daysRemaining === 1) {
+    return t('passwordExpiration.warningMessageOne')
+  }
+  return t('passwordExpiration.warningMessage', { days: String(daysRemaining) })
 }

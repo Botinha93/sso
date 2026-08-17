@@ -82,8 +82,11 @@ export default function Login() {
 
   const storePasswordExpirationWarning = (json: Record<string, unknown>) => {
     const warning = json.passwordExpirationWarning
-    if (warning && typeof warning === 'object' && warning !== null && typeof (warning as { message?: unknown }).message === 'string') {
-      sessionStorage.setItem('passwordExpirationWarning', (warning as { message: string }).message)
+    const daysRemaining = warning && typeof warning === 'object'
+      ? (warning as { daysRemaining?: unknown }).daysRemaining
+      : undefined
+    if (typeof daysRemaining === 'number' && Number.isFinite(daysRemaining)) {
+      sessionStorage.setItem('passwordExpirationWarning', String(daysRemaining))
     }
   }
 

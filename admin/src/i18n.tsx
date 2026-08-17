@@ -46,6 +46,8 @@ const TRANSLATIONS: Record<Language, Dictionary> = {
     'passwordExpiration.expiredTitle': 'Password expired',
     'passwordExpiration.subtitle': 'Update your password before continuing to the application.',
     'passwordExpiration.defaultWarning': 'Your password will expire soon. Please change it.',
+    'passwordExpiration.warningMessage': 'Your password expires in {days} days. Please change it soon.',
+    'passwordExpiration.warningMessageOne': 'Your password expires in 1 day. Please change it soon.',
     'passwordExpiration.required': 'You must choose a new password before continuing.',
     'passwordExpiration.continueToApp': 'Continue to application',
     'passwordExpiration.loadFailed': 'Unable to check password expiration. Please try again.',
@@ -119,6 +121,8 @@ const TRANSLATIONS: Record<Language, Dictionary> = {
     'passwordExpiration.expiredTitle': 'Contraseña caducada',
     'passwordExpiration.subtitle': 'Actualiza tu contraseña antes de continuar a la aplicación.',
     'passwordExpiration.defaultWarning': 'Tu contraseña caducará pronto. Cámbiala.',
+    'passwordExpiration.warningMessage': 'Tu contraseña caduca en {days} días. Cámbiala pronto.',
+    'passwordExpiration.warningMessageOne': 'Tu contraseña caduca en 1 día. Cámbiala pronto.',
     'passwordExpiration.required': 'Debes elegir una nueva contraseña antes de continuar.',
     'passwordExpiration.continueToApp': 'Continuar a la aplicación',
     'passwordExpiration.loadFailed': 'No se pudo comprobar la caducidad de la contraseña. Inténtalo de nuevo.',
@@ -192,6 +196,8 @@ const TRANSLATIONS: Record<Language, Dictionary> = {
     'passwordExpiration.expiredTitle': 'Mot de passe expiré',
     'passwordExpiration.subtitle': 'Mettez à jour votre mot de passe avant de continuer vers l’application.',
     'passwordExpiration.defaultWarning': 'Votre mot de passe expirera bientôt. Veuillez le changer.',
+    'passwordExpiration.warningMessage': 'Votre mot de passe expire dans {days} jours. Veuillez le changer bientôt.',
+    'passwordExpiration.warningMessageOne': 'Votre mot de passe expire dans 1 jour. Veuillez le changer bientôt.',
     'passwordExpiration.required': 'Vous devez choisir un nouveau mot de passe avant de continuer.',
     'passwordExpiration.continueToApp': 'Continuer vers l’application',
     'passwordExpiration.loadFailed': 'Impossible de vérifier l’expiration du mot de passe. Réessayez.',
@@ -265,6 +271,8 @@ const TRANSLATIONS: Record<Language, Dictionary> = {
     'passwordExpiration.expiredTitle': 'Passwort abgelaufen',
     'passwordExpiration.subtitle': 'Aktualisieren Sie Ihr Passwort, bevor Sie mit der Anwendung fortfahren.',
     'passwordExpiration.defaultWarning': 'Ihr Passwort läuft bald ab. Bitte ändern Sie es.',
+    'passwordExpiration.warningMessage': 'Ihr Passwort läuft in {days} Tagen ab. Bitte ändern Sie es bald.',
+    'passwordExpiration.warningMessageOne': 'Ihr Passwort läuft in 1 Tag ab. Bitte ändern Sie es bald.',
     'passwordExpiration.required': 'Sie müssen ein neues Passwort wählen, bevor Sie fortfahren.',
     'passwordExpiration.continueToApp': 'Weiter zur Anwendung',
     'passwordExpiration.loadFailed': 'Die Passwortgültigkeit konnte nicht geprüft werden. Bitte erneut versuchen.',
@@ -338,6 +346,8 @@ const TRANSLATIONS: Record<Language, Dictionary> = {
     'passwordExpiration.expiredTitle': 'Password scaduta',
     'passwordExpiration.subtitle': 'Aggiorna la password prima di continuare all’applicazione.',
     'passwordExpiration.defaultWarning': 'La password scadrà presto. Cambiala.',
+    'passwordExpiration.warningMessage': 'La password scade tra {days} giorni. Cambiala presto.',
+    'passwordExpiration.warningMessageOne': 'La password scade tra 1 giorno. Cambiala presto.',
     'passwordExpiration.required': 'Devi scegliere una nuova password prima di continuare.',
     'passwordExpiration.continueToApp': 'Continua all’applicazione',
     'passwordExpiration.loadFailed': 'Impossibile verificare la scadenza della password. Riprova.',
@@ -411,6 +421,8 @@ const TRANSLATIONS: Record<Language, Dictionary> = {
     'passwordExpiration.expiredTitle': 'Senha expirada',
     'passwordExpiration.subtitle': 'Atualize sua senha antes de continuar para o aplicativo.',
     'passwordExpiration.defaultWarning': 'Sua senha expirará em breve. Altere-a.',
+    'passwordExpiration.warningMessage': 'Sua senha expira em {days} dias. Altere-a em breve.',
+    'passwordExpiration.warningMessageOne': 'Sua senha expira em 1 dia. Altere-a em breve.',
     'passwordExpiration.required': 'Você precisa escolher uma nova senha antes de continuar.',
     'passwordExpiration.continueToApp': 'Continuar para o aplicativo',
     'passwordExpiration.loadFailed': 'Não foi possível verificar a expiração da senha. Tente novamente.',
@@ -484,6 +496,8 @@ const TRANSLATIONS: Record<Language, Dictionary> = {
     'passwordExpiration.expiredTitle': 'パスワードの有効期限切れ',
     'passwordExpiration.subtitle': 'アプリケーションに進む前にパスワードを更新してください。',
     'passwordExpiration.defaultWarning': 'パスワードの有効期限がまもなく切れます。変更してください。',
+    'passwordExpiration.warningMessage': 'パスワードの有効期限は{days}日後です。早めに変更してください。',
+    'passwordExpiration.warningMessageOne': 'パスワードの有効期限は1日後です。早めに変更してください。',
     'passwordExpiration.required': '続行する前に新しいパスワードを設定する必要があります。',
     'passwordExpiration.continueToApp': 'アプリケーションへ進む',
     'passwordExpiration.loadFailed': 'パスワードの有効期限を確認できませんでした。もう一度お試しください。',
@@ -557,6 +571,8 @@ const TRANSLATIONS: Record<Language, Dictionary> = {
     'passwordExpiration.expiredTitle': '密码已过期',
     'passwordExpiration.subtitle': '请先更新密码，然后再继续访问应用。',
     'passwordExpiration.defaultWarning': '您的密码即将过期。请尽快更改。',
+    'passwordExpiration.warningMessage': '您的密码将在 {days} 天后过期。请尽快更改。',
+    'passwordExpiration.warningMessageOne': '您的密码将在 1 天后过期。请尽快更改。',
     'passwordExpiration.required': '继续之前必须设置新密码。',
     'passwordExpiration.continueToApp': '继续前往应用',
     'passwordExpiration.loadFailed': '无法检查密码有效期。请重试。',
@@ -630,6 +646,8 @@ const TRANSLATIONS: Record<Language, Dictionary> = {
     'passwordExpiration.expiredTitle': '비밀번호가 만료되었습니다',
     'passwordExpiration.subtitle': '애플리케이션으로 계속하기 전에 비밀번호를 업데이트하세요.',
     'passwordExpiration.defaultWarning': '비밀번호가 곧 만료됩니다. 변경해 주세요.',
+    'passwordExpiration.warningMessage': '비밀번호가 {days}일 후에 만료됩니다. 빨리 변경해 주세요.',
+    'passwordExpiration.warningMessageOne': '비밀번호가 1일 후에 만료됩니다. 빨리 변경해 주세요.',
     'passwordExpiration.required': '계속하려면 새 비밀번호를 설정해야 합니다.',
     'passwordExpiration.continueToApp': '애플리케이션으로 계속',
     'passwordExpiration.loadFailed': '비밀번호 만료 여부를 확인할 수 없습니다. 다시 시도하세요.',
@@ -703,6 +721,8 @@ const TRANSLATIONS: Record<Language, Dictionary> = {
     'passwordExpiration.expiredTitle': 'Срок действия пароля истёк',
     'passwordExpiration.subtitle': 'Обновите пароль, прежде чем продолжить в приложение.',
     'passwordExpiration.defaultWarning': 'Срок действия пароля скоро истечёт. Пожалуйста, смените его.',
+    'passwordExpiration.warningMessage': 'Срок действия пароля истекает через {days} дней. Пожалуйста, смените его скорее.',
+    'passwordExpiration.warningMessageOne': 'Срок действия пароля истекает через 1 день. Пожалуйста, смените его скорее.',
     'passwordExpiration.required': 'Перед продолжением необходимо выбрать новый пароль.',
     'passwordExpiration.continueToApp': 'Продолжить в приложение',
     'passwordExpiration.loadFailed': 'Не удалось проверить срок действия пароля. Попробуйте ещё раз.',
@@ -819,4 +839,11 @@ export function consentScopeLabel(t: I18nContextValue['t'], scope: string) {
   const key = `consent.scope.${scope}`
   const translated = t(key)
   return translated === key ? scope : translated
+}
+
+export function formatPasswordExpirationWarning(t: I18nContextValue['t'], daysRemaining: number) {
+  if (daysRemaining === 1) {
+    return t('passwordExpiration.warningMessageOne')
+  }
+  return t('passwordExpiration.warningMessage', { days: String(daysRemaining) })
 }

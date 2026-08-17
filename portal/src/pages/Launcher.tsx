@@ -5,7 +5,7 @@ import { logout, type PortalUser } from '../hooks'
 import LanguageSelector from '../components/LanguageSelector'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
-import { useI18n } from '../i18n'
+import { useI18n, formatPasswordExpirationWarning } from '../i18n'
 
 interface Props {
   user: PortalUser
@@ -25,7 +25,7 @@ const portalHome = import.meta.env.BASE_URL
 export default function Launcher({ user }: Props) {
   const { t } = useI18n()
   const [ui, setUi] = useState<UiCustomization | null>(null)
-  const [passwordExpirationWarning, setPasswordExpirationWarning] = useState<string | null>(null)
+  const [passwordExpirationDays, setPasswordExpirationDays] = useState<number | null>(null)
   const [warningDismissed, setWarningDismissed] = useState(() => sessionStorage.getItem('passwordExpirationWarningDismissed') === '1')
   const canManageUsers =
     Array.isArray(user.permissions) &&
@@ -46,9 +46,11 @@ export default function Launcher({ user }: Props) {
   }, [user.directAppIds, user.inheritedAppSources])
 
   useEffect(() => {
-    const fromMe = user.passwordExpirationWarning?.message
-    const fromLogin = sessionStorage.getItem('passwordExpirationWarning')
-    setPasswordExpirationWarning(fromMe || fromLogin || null)
+    const fromMe = user.passwordExpirationWarning?.daysRemaining
+    const stored = sessionStorage.getItem('passwordExpirationWarning')
+    const fromLogin = stored && /^\d+$/.test(stored) ? Number(stored) : undefined
+    const days = typeof fromMe === 'number' ? fromMe : fromLogin
+    setPasswordExpirationDays(typeof days === 'number' && Number.isFinite(days) ? days : null)
   }, [user.passwordExpirationWarning])
 
   useEffect(() => {
@@ -66,6 +68,10 @@ export default function Launcher({ user }: Props) {
       }
     })()
   }, [user.apps])
+
+  const passwordExpirationWarning = passwordExpirationDays == null
+    ? null
+    : formatPasswordExpirationWarning(t, passwordExpirationDays)
 
   const handleLogout = async () => {
     await logout()
@@ -122,7 +128,7 @@ export default function Launcher({ user }: Props) {
                   sessionStorage.removeItem('passwordExpirationWarning')
                   sessionStorage.setItem('passwordExpirationWarningDismissed', '1')
                   setWarningDismissed(true)
-                  setPasswordExpirationWarning(null)
+                  setPasswordExpirationDays(null)
                 }}
               >
                 {t('launcher.dismissWarning')}

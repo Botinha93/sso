@@ -6,7 +6,7 @@ import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
 import LanguageSelector from "../components/LanguageSelector";
 import { useAdminChangePassword } from "../hooks/useApi";
-import { useI18n } from "../i18n";
+import { useI18n, formatPasswordExpirationWarning } from "../i18n";
 
 interface UiCustomization {
   title?: string;
@@ -106,8 +106,11 @@ export default function PasswordExpiration() {
 
   const expired = status?.status === "expired";
   const title = expired ? t("passwordExpiration.expiredTitle") : t("passwordExpiration.title");
-  const message = status?.message
-    ?? (expired ? t("login.passwordExpired") : t("passwordExpiration.defaultWarning"));
+  const message = expired
+    ? t("login.passwordExpired")
+    : typeof status?.daysRemaining === "number"
+      ? formatPasswordExpirationWarning(t, status.daysRemaining)
+      : t("passwordExpiration.defaultWarning");
 
   return (
     <div
