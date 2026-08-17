@@ -54,7 +54,7 @@ const isPasswordChangedAtBackfillEnabled = () => {
 
   const raw = process.env.BACKFILL_PASSWORD_CHANGED_AT?.trim().toLowerCase();
   if (raw === undefined || raw === "") {
-    return true;
+    return false;
   }
 
   return !["0", "false", "no", "off"].includes(raw);
