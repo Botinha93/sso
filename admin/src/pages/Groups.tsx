@@ -812,7 +812,7 @@ const Groups = () => {
                 >
                   <option value="">Add attribute...</option>
                   {enabledAttributeDefinitions
-                    .filter((attribute) => !(attribute.key in groupCustomAttributes))
+                    .filter((attribute) => !(attribute.key in groupCustomAttributes) && attribute.key !== 'password_changed_at')
                     .map((attribute) => (
                       <option key={attribute.id} value={attribute.key}>{attribute.name}</option>
                     ))}
@@ -961,7 +961,7 @@ const Groups = () => {
                     >
                       <option value="">Add attribute...</option>
                       {enabledAttributeDefinitions
-                        .filter((attribute) => !(attribute.key in editGroupCustomAttributes))
+                        .filter((attribute) => !(attribute.key in editGroupCustomAttributes) && attribute.key !== 'password_changed_at')
                         .map((attribute) => (
                           <option key={attribute.id} value={attribute.key}>{attribute.name}</option>
                         ))}

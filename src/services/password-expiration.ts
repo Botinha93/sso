@@ -67,14 +67,24 @@ export function passwordChangedAtDateValue(reference = new Date()) {
   return passwordChangedAtTodayIso(reference).slice(0, 10);
 }
 
+/** Calendar date on the server clock (UTC), never a client/browser date. */
+export function serverPasswordChangedAtDateValue() {
+  return passwordChangedAtDateValue(new Date());
+}
+
 export const PASSWORD_CHANGED_AT_BACKFILL_DATE = "2026-08-01";
 
 export function needsPasswordChangedAtBackfill(
   user: Pick<User, "active" | "isServiceUser" | "customAttributes">,
   dateValue = PASSWORD_CHANGED_AT_BACKFILL_DATE
 ) {
-  return user.active && !user.isServiceUser
-    && toDateAttributeValue(user.customAttributes.password_changed_at) !== dateValue;
+  if (!user.active || user.isServiceUser) {
+    return false;
+  }
+
+  const existing = toDateAttributeValue(user.customAttributes.password_changed_at);
+  // Keep later password changes; only fill missing or pre-baseline dates.
+  return !existing || existing < dateValue;
 }
 
 export function resolvePasswordChangedAt(user: User) {

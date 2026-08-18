@@ -17,13 +17,17 @@ import type {
 import { RoleService } from "./role-service.js";
 import { GroupService } from "./group-service.js";
 import {
+  isSystemManagedUserAttributeKey,
   normalizeCustomAttributeMap,
-  normalizeUserAttributeKey
+  normalizeUserAttributeKey,
+  omitSystemManagedCustomAttributes,
+  PASSWORD_CHANGED_AT_ATTRIBUTE_KEY
 } from "../domain/user-attribute-keys.js";
 import {
   PASSWORD_CHANGED_AT_BACKFILL_DATE,
   needsPasswordChangedAtBackfill,
   passwordChangedAtDateValue,
+  serverPasswordChangedAtDateValue,
   toDateAttributeValue
 } from "./password-expiration.js";
 import {
@@ -59,12 +63,13 @@ export class UserService {
     return Array.from(new Set(input.appIds ?? (input.appId ? [input.appId] : [])));
   }
 
-  private async validateAppIds(appIds: string[]) {
+  private async sanitizeAppIds(appIds: string[]) {
+    if (appIds.length === 0) {
+      return [];
+    }
     const apps = await this.appRepository.list();
     const known = new Set(apps.map((app) => app.id));
-    if (appIds.some((appId) => !known.has(appId))) {
-      throw new ValidationError("One or more appIds are invalid");
-    }
+    return appIds.filter((appId) => known.has(appId));
   }
 
   private async setUserAppAssignments(userId: string, appIds: string[]) {
@@ -196,7 +201,7 @@ export class UserService {
     groupIds?: string[];
     active?: boolean;
   }) {
-    const appIds = this.normalizeAppIds(input);
+    const appIds = await this.sanitizeAppIds(this.normalizeAppIds(input));
     const customAttributes = this.normalizeCustomAttributes(input.customAttributes);
 
     if (await this.userRepository.findByEmail(input.email)) {
@@ -207,7 +212,6 @@ export class UserService {
       throw new ValidationError("A user with this username already exists");
     }
 
-    await this.validateAppIds(appIds);
     await this.validateCustomAttributes(customAttributes);
 
     if (!input.password && !input.passwordHash) {
@@ -235,9 +239,9 @@ export class UserService {
       givenName: input.givenName,
       familyName: input.familyName,
       customAttributes: {
-        ...customAttributes,
-        password_changed_at: toDateAttributeValue(customAttributes.password_changed_at)
-          ?? passwordChangedAtDateValue()
+        ...omitSystemManagedCustomAttributes(customAttributes),
+        [PASSWORD_CHANGED_AT_ATTRIBUTE_KEY]: toDateAttributeValue(customAttributes[PASSWORD_CHANGED_AT_ATTRIBUTE_KEY])
+          ?? serverPasswordChangedAtDateValue()
       },
       active: input.active ?? true
     });
@@ -408,12 +412,8 @@ export class UserService {
     }
 
     const appIds = input.appId !== undefined || input.appIds !== undefined
-      ? this.normalizeAppIds(input)
+      ? await this.sanitizeAppIds(this.normalizeAppIds(input))
       : undefined;
-
-    if (appIds) {
-      await this.validateAppIds(appIds);
-    }
     if (input.customAttributes) {
       await this.validateCustomAttributes(this.normalizeCustomAttributes(input.customAttributes));
     }
@@ -485,7 +485,7 @@ export class UserService {
     await this.userRepository.setPasswordHash(id, hashPassword(password));
     await this.userRepository.setCustomAttributes(id, {
       ...(existing.customAttributes ?? {}),
-      password_changed_at: passwordChangedAtDateValue()
+      [PASSWORD_CHANGED_AT_ATTRIBUTE_KEY]: serverPasswordChangedAtDateValue()
     });
     this.invalidateAdminUserListCache();
   }
@@ -519,11 +519,28 @@ export class UserService {
   }
 
   async setCustomAttributes(id: string, customAttributes: Record<string, string>) {
+    const existing = await this.userRepository.findById(id);
+    if (!existing) {
+      throw new ValidationError("User not found");
+    }
+
     const normalizedCustomAttributes = this.normalizePasswordChangedAt(
       this.normalizeCustomAttributes(customAttributes)
     );
-    await this.validateCustomAttributes(normalizedCustomAttributes);
-    await this.userRepository.setCustomAttributes(id, normalizedCustomAttributes);
+    const sentPasswordChangedAt = Object.keys(customAttributes).some((key) => isSystemManagedUserAttributeKey(key));
+    const incomingPasswordChangedAt = sentPasswordChangedAt
+      ? toDateAttributeValue(customAttributes[PASSWORD_CHANGED_AT_ATTRIBUTE_KEY])
+      : undefined;
+    const preservedPasswordChangedAt = toDateAttributeValue(existing.customAttributes[PASSWORD_CHANGED_AT_ATTRIBUTE_KEY])
+      ?? existing.customAttributes[PASSWORD_CHANGED_AT_ATTRIBUTE_KEY]?.trim();
+    const nextCustomAttributes = omitSystemManagedCustomAttributes(normalizedCustomAttributes);
+    const nextPasswordChangedAt = incomingPasswordChangedAt ?? preservedPasswordChangedAt;
+    if (nextPasswordChangedAt) {
+      nextCustomAttributes[PASSWORD_CHANGED_AT_ATTRIBUTE_KEY] = nextPasswordChangedAt;
+    }
+
+    await this.validateCustomAttributes(nextCustomAttributes);
+    await this.userRepository.setCustomAttributes(id, nextCustomAttributes);
     this.invalidateAdminUserListCache();
   }
 
@@ -545,6 +562,10 @@ export class UserService {
     const normalizedIncoming = normalizeCustomAttributeMap(customAttributes, { omitEmptyValues: false });
 
     for (const [key, value] of Object.entries(normalizedIncoming)) {
+      if (isSystemManagedUserAttributeKey(key) || key === pictureKey) {
+        continue;
+      }
+
       const definition = editableByKey.get(key);
       if (!definition) {
         throw new ValidationError(`Custom attribute is not editable on the portal: ${key}`);
@@ -567,7 +588,7 @@ export class UserService {
     const resolved = await this.resolveCustomAttributesForUser(userId);
 
     return definitions
-      .filter((definition) => definition.enabled && definition.showOnPortal && definition.key !== pictureKey)
+      .filter((definition) => definition.enabled && definition.showOnPortal && definition.key !== pictureKey && !isSystemManagedUserAttributeKey(definition.key))
       .map((definition) => ({
         key: definition.key,
         name: definition.name,

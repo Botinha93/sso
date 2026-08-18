@@ -281,56 +281,53 @@ export class SetupService {
     const policies = await this.policyService.listPolicies();
     const byKey = new Map(policies.map((policy) => [policy.key, policy]));
 
-    const passwordRequirements = byKey.get("password_requirements");
-    if (passwordRequirements) {
-      await this.policyService.setAssignment({
-        policyId: passwordRequirements.id,
-        scopeType: "global",
-        enabled: true,
-        config: {
-          minLength: 12,
-          requireUppercase: true,
-          requireLowercase: true,
-          requireNumber: true,
-          requireSymbol: false
-        }
-      });
-    }
+    const seedGlobalAssignmentIfMissing = async (
+      key: string,
+      assignment: { enabled: boolean; config: Record<string, unknown> }
+    ) => {
+      const policy = byKey.get(key);
+      if (!policy || policy.assignments.some((item) => item.scopeType === "global")) {
+        return;
+      }
 
-    const passwordExpiration = byKey.get("password_expiration_days");
-    if (passwordExpiration) {
       await this.policyService.setAssignment({
-        policyId: passwordExpiration.id,
+        policyId: policy.id,
         scopeType: "global",
-        enabled: false,
-        config: {
-          days: 90,
-          warnDaysBefore: 14
-        }
+        enabled: assignment.enabled,
+        config: assignment.config
       });
-    }
+    };
 
-    const uniqueEmail = byKey.get("unique_email");
-    if (uniqueEmail) {
-      await this.policyService.setAssignment({
-        policyId: uniqueEmail.id,
-        scopeType: "global",
-        enabled: true,
-        config: {}
-      });
-    }
+    await seedGlobalAssignmentIfMissing("password_requirements", {
+      enabled: true,
+      config: {
+        minLength: 12,
+        requireUppercase: true,
+        requireLowercase: true,
+        requireNumber: true,
+        requireSymbol: false
+      }
+    });
 
-    const twoFactor = byKey.get("two_factor_required");
-    if (twoFactor) {
-      await this.policyService.setAssignment({
-        policyId: twoFactor.id,
-        scopeType: "global",
-        enabled: false,
-        config: {
-          required: false
-        }
-      });
-    }
+    await seedGlobalAssignmentIfMissing("password_expiration_days", {
+      enabled: false,
+      config: {
+        days: 90,
+        warnDaysBefore: 14
+      }
+    });
+
+    await seedGlobalAssignmentIfMissing("unique_email", {
+      enabled: true,
+      config: {}
+    });
+
+    await seedGlobalAssignmentIfMissing("two_factor_required", {
+      enabled: false,
+      config: {
+        required: false
+      }
+    });
 
     // Ensure core OIDC scopes exist even on first run.
     const existingScopes = (await this.scopeService.listScopes()).map((scope) => scope.name);

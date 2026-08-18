@@ -1,11 +1,27 @@
 import { ValidationError } from "../core/errors.js";
 
+export const PASSWORD_CHANGED_AT_ATTRIBUTE_KEY = "password_changed_at";
+
 export function normalizeUserAttributeKey(key: string) {
   const normalized = key.trim().toLowerCase().replace(/[^a-z0-9_]/g, "_");
   if (!normalized || normalized.length < 2) {
     throw new ValidationError("Attribute key must be at least 2 characters");
   }
   return normalized;
+}
+
+export function isSystemManagedUserAttributeKey(key: string) {
+  try {
+    return normalizeUserAttributeKey(key) === PASSWORD_CHANGED_AT_ATTRIBUTE_KEY;
+  } catch {
+    return false;
+  }
+}
+
+export function omitSystemManagedCustomAttributes(customAttributes: Record<string, string>) {
+  return Object.fromEntries(
+    Object.entries(customAttributes).filter(([key]) => !isSystemManagedUserAttributeKey(key))
+  );
 }
 
 export function normalizeCustomAttributeMap(

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { User } from "../../src/domain/models.js";
-import { PASSWORD_CHANGED_AT_BACKFILL_DATE, buildPasswordExpirationNotice, evaluatePasswordExpiration, needsPasswordChangedAtBackfill, passwordChangedAtDateValue, passwordChangedAtTodayIso, resolvePasswordChangedAt, toDateAttributeValue } from "../../src/services/password-expiration.js";
+import { PASSWORD_CHANGED_AT_BACKFILL_DATE, buildPasswordExpirationNotice, evaluatePasswordExpiration, needsPasswordChangedAtBackfill, passwordChangedAtDateValue, passwordChangedAtTodayIso, resolvePasswordChangedAt, serverPasswordChangedAtDateValue, toDateAttributeValue } from "../../src/services/password-expiration.js";
 
 const makeUser = (overrides: Partial<User> = {}): User => ({
   id: "user-1",
@@ -98,8 +98,19 @@ test("needsPasswordChangedAtBackfill targets active non-service users not alread
   assert.equal(needsPasswordChangedAtBackfill(makeUser({
     customAttributes: { password_changed_at: "2026-08-01T12:00:00.000Z" }
   })), false);
+  assert.equal(needsPasswordChangedAtBackfill(makeUser({
+    customAttributes: { password_changed_at: "2026-08-18" }
+  })), false);
+  assert.equal(needsPasswordChangedAtBackfill(makeUser({
+    customAttributes: { password_changed_at: "2026-07-01" }
+  })), true);
   assert.equal(needsPasswordChangedAtBackfill(makeUser({ active: false })), false);
   assert.equal(needsPasswordChangedAtBackfill(makeUser({ isServiceUser: true })), false);
+});
+
+test("serverPasswordChangedAtDateValue uses the server clock, not a client-supplied date", () => {
+  assert.equal(serverPasswordChangedAtDateValue(), passwordChangedAtDateValue(new Date()));
+  assert.notEqual(passwordChangedAtDateValue(new Date("2024-03-15T18:45:00.000Z")), serverPasswordChangedAtDateValue());
 });
 
 test("buildPasswordExpirationNotice returns warning and expired messages", () => {

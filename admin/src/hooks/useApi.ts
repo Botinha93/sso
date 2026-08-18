@@ -412,13 +412,15 @@ export function useDefaultAppImages() {
 }
 
 export function useResetUserPassword() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ id, password }: { id: string; password: string }) =>
       jsonFetch(`${API_BASE}/users/${id}/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password })
-      })
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] })
   })
 }
 

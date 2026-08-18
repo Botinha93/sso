@@ -12,7 +12,8 @@ import type {
 } from "../repositories/contracts.js";
 import {
   normalizeCustomAttributeMap,
-  normalizeUserAttributeKey
+  normalizeUserAttributeKey,
+  omitSystemManagedCustomAttributes
 } from "../domain/user-attribute-keys.js";
 
 export class GroupService {
@@ -32,12 +33,13 @@ export class GroupService {
     return Array.from(new Set(input.appIds ?? (input.appId ? [input.appId] : [])));
   }
 
-  private async validateAppIds(appIds: string[]) {
+  private async sanitizeAppIds(appIds: string[]) {
+    if (appIds.length === 0) {
+      return [];
+    }
     const apps = await this.appRepository.list();
     const known = new Set(apps.map((app) => app.id));
-    if (appIds.some((appId) => !known.has(appId))) {
-      throw new ValidationError("One or more appIds are invalid");
-    }
+    return appIds.filter((appId) => known.has(appId));
   }
 
   private async setGroupAppAssignments(groupId: string, appIds: string[]) {
@@ -88,7 +90,9 @@ export class GroupService {
   }
 
   private async setGroupCustomAttributes(groupId: string, customAttributes: Record<string, string>) {
-    const normalizedCustomAttributes = normalizeCustomAttributeMap(customAttributes);
+    const normalizedCustomAttributes = omitSystemManagedCustomAttributes(
+      normalizeCustomAttributeMap(customAttributes)
+    );
     const definitions = await this.userAttributeRepository.list();
     const definitionsByKey = new Map(definitions.map((definition) => [definition.key, definition]));
     const existingAssignments = await this.groupUserAttributeAssignmentRepository.listByGroup(groupId);
@@ -147,12 +151,11 @@ export class GroupService {
     customAttributes?: Record<string, string>;
     roleIds: string[];
   }) {
-    const appIds = this.normalizeAppIds(input);
+    const appIds = await this.sanitizeAppIds(this.normalizeAppIds(input));
     const roleIds = Array.from(new Set(input.roleIds));
     const knownRoles = await this.roleRepository.findByIds(roleIds);
     const customAttributes = normalizeCustomAttributeMap(input.customAttributes);
 
-    await this.validateAppIds(appIds);
     await this.validateCustomAttributes(customAttributes);
 
     if (knownRoles.length !== roleIds.length) {
@@ -212,12 +215,8 @@ export class GroupService {
     customAttributes?: Record<string, string>;
   }) {
     const appIds = input.appId !== undefined || input.appIds !== undefined
-      ? this.normalizeAppIds(input)
+      ? await this.sanitizeAppIds(this.normalizeAppIds(input))
       : undefined;
-
-    if (appIds) {
-      await this.validateAppIds(appIds);
-    }
     if (input.customAttributes) {
       await this.validateCustomAttributes(normalizeCustomAttributeMap(input.customAttributes));
     }

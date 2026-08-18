@@ -205,7 +205,10 @@ export const bootstrap = async (config: AppConfig) => {
       enabled: true
     });
   }
-  if (!existingUserAttributeKeys.has("password_changed_at")) {
+  const passwordChangedAtDefinition = existingUserAttributeDefinitions.find(
+    (attribute) => attribute.key === "password_changed_at"
+  );
+  if (!passwordChangedAtDefinition) {
     await userAttributeService.createAttribute({
       key: "password_changed_at",
       name: "Password Changed At",
@@ -214,6 +217,11 @@ export const bootstrap = async (config: AppConfig) => {
       enabled: true,
       showOnPortal: false,
       userEditable: false
+    });
+  } else if (passwordChangedAtDefinition.userEditable || passwordChangedAtDefinition.showOnPortal) {
+    await userAttributeService.updateAttribute(passwordChangedAtDefinition.id, {
+      userEditable: false,
+      showOnPortal: false
     });
   }
   if (isPasswordChangedAtBackfillEnabled()) {

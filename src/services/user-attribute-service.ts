@@ -7,6 +7,7 @@ import type {
 } from "../repositories/contracts.js";
 import type { UserAttributeType } from "../domain/models.js";
 import {
+  isSystemManagedUserAttributeKey,
   normalizeCustomAttributeMap,
   normalizeUserAttributeKey
 } from "../domain/user-attribute-keys.js";
@@ -46,6 +47,9 @@ export class UserAttributeService {
     userEditable?: boolean;
   }) {
     const key = normalizeUserAttributeKey(input.key);
+    if (isSystemManagedUserAttributeKey(key) && input.userEditable) {
+      throw new ValidationError("System-managed attributes cannot be user editable");
+    }
 
     if (await this.userAttributeRepository.findByKey(key)) {
       throw new ValidationError("User attribute key already exists");
@@ -88,6 +92,11 @@ export class UserAttributeService {
       }
     }
 
+    const nextKey = normalizedKey ?? existing.key;
+    if (isSystemManagedUserAttributeKey(nextKey) && input.userEditable === true) {
+      throw new ValidationError("System-managed attributes cannot be user editable");
+    }
+
     const patch: Partial<{
       key: string;
       name: string;
@@ -127,6 +136,10 @@ export class UserAttributeService {
     const group = await this.groupRepository.findById(input.groupId);
     if (!group) {
       throw new ValidationError("Group not found");
+    }
+
+    if (isSystemManagedUserAttributeKey(attribute.key)) {
+      throw new ValidationError("System-managed attributes cannot be assigned to groups");
     }
 
     this.validateAttributeValue(attribute.type, input.enabled ? input.value : undefined);

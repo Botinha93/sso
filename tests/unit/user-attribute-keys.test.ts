@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 
 import {
   normalizeCustomAttributeMap,
-  normalizeUserAttributeKey
+  normalizeUserAttributeKey,
+  isSystemManagedUserAttributeKey,
+  omitSystemManagedCustomAttributes
 } from "../../src/domain/user-attribute-keys.js";
 
 test("normalizeUserAttributeKey lowercases and replaces non-alphanumeric separators", () => {
@@ -36,5 +38,16 @@ test("normalizeCustomAttributeMap canonicalizes keys and omits empty values when
     {
       connect_jc_cargo: "Vendedor"
     }
+  );
+});
+
+test("system-managed password_changed_at is omitted from client attribute maps", () => {
+  assert.equal(isSystemManagedUserAttributeKey("password_changed_at"), true);
+  assert.deepEqual(
+    omitSystemManagedCustomAttributes({
+      password_changed_at: "2024-03-15",
+      department: "sales"
+    }),
+    { department: "sales" }
   );
 });

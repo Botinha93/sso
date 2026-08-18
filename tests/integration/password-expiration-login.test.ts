@@ -148,6 +148,95 @@ test("login and /me expose a password expiration warning with a change-password 
   });
   assert.equal(meAfterChange.statusCode, 200, meAfterChange.body);
   assert.equal(meAfterChange.json().passwordExpirationWarning, undefined);
+
+  const userId = created.json().id as string;
+  const fetchedAfterChange = await app.inject({
+    method: "GET",
+    url: `/api/admin/users/${userId}`,
+    headers
+  });
+  assert.equal(fetchedAfterChange.statusCode, 200, fetchedAfterChange.body);
+  assert.equal(
+    fetchedAfterChange.json().customAttributes.password_changed_at,
+    new Date().toISOString().slice(0, 10)
+  );
+});
+
+test("password changes stamp server date and ignore client password_changed_at updates", async (t) => {
+  const { app, admin } = await createTestContext("integration-password-changed-at-server-stamp");
+  t.after(async () => {
+    await app.close();
+  });
+
+  const headers = await createAdminHeaders(app, admin);
+  await enablePasswordExpiration(app, headers, { days: 90, warnDaysBefore: 14 });
+
+  const originalDate = new Date(Date.now() - 80 * MS_PER_DAY).toISOString();
+  const created = await app.inject({
+    method: "POST",
+    url: "/api/admin/users",
+    headers,
+    payload: {
+      email: "stamp-date@example.com",
+      username: "stamp.date",
+      password: "Change-Me-Now1!",
+      givenName: "Stamp",
+      familyName: "Date",
+      customAttributes: {
+        password_changed_at: originalDate
+      }
+    }
+  });
+  assert.equal(created.statusCode, 201, created.body);
+  const userId = created.json().id as string;
+  assert.equal(created.json().customAttributes.password_changed_at, originalDate.slice(0, 10));
+
+  const login = await loginAs(app, "stamp-date@example.com", "Change-Me-Now1!");
+  assert.equal(login.statusCode, 200, login.body);
+  const sid = extractCookie(login.headers["set-cookie"], "sid");
+  const csrfResponse = await app.inject({
+    method: "GET",
+    url: "/api/csrf-token",
+    headers: { cookie: sid }
+  });
+  const csrfCookie = extractCookie(csrfResponse.headers["set-cookie"], "csrf_token");
+  const userHeaders = {
+    cookie: `${sid}; ${csrfCookie}`,
+    "x-csrf-token": String(csrfResponse.json().csrf_token)
+  };
+
+  const portalChanged = await app.inject({
+    method: "POST",
+    url: "/api/portal/change-password",
+    headers: userHeaders,
+    payload: {
+      currentPassword: "Change-Me-Now1!",
+      newPassword: "Change-Me-Next2!"
+    }
+  });
+  assert.equal(portalChanged.statusCode, 204, portalChanged.body);
+
+  const serverDate = new Date().toISOString().slice(0, 10);
+  const afterChange = await app.inject({
+    method: "GET",
+    url: `/api/admin/users/${userId}`,
+    headers
+  });
+  assert.equal(afterChange.statusCode, 200, afterChange.body);
+  assert.equal(afterChange.json().customAttributes.password_changed_at, serverDate);
+
+  const patched = await app.inject({
+    method: "PATCH",
+    url: `/api/admin/users/${userId}`,
+    headers,
+    payload: {
+      givenName: "Stamped",
+      customAttributes: {}
+    }
+  });
+  assert.equal(patched.statusCode, 200, patched.body);
+  assert.equal(patched.json().givenName, "Stamped");
+  assert.equal(patched.json().customAttributes.password_changed_at, serverDate);
 });
 
 test("expired passwords require a change on login", async (t) => {

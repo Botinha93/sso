@@ -131,18 +131,22 @@ const defaultValueForAttribute = (type?: AttributeType) => {
   return ''
 }
 
+const SYSTEM_MANAGED_ATTRIBUTE_KEYS = new Set(['password_changed_at'])
+
 const AttributeValueField = ({
   attribute,
   value,
   onChange,
+  readOnly = false,
 }: {
   attribute?: UserAttributeDefinition
   value: string
   onChange: (value: string) => void
+  readOnly?: boolean
 }) => {
   if (attribute?.type === 'boolean') {
     return (
-      <Select value={value} onChange={(e) => onChange(e.target.value)}>
+      <Select value={value} onChange={(e) => onChange(e.target.value)} disabled={readOnly}>
         <option value="false">false</option>
         <option value="true">true</option>
       </Select>
@@ -150,7 +154,7 @@ const AttributeValueField = ({
   }
 
   if (attribute?.type === 'date') {
-    return <Input type="date" value={toDateInputValue(value)} onChange={(e) => onChange(e.target.value)} />
+    return <Input type="date" value={toDateInputValue(value)} onChange={(e) => onChange(e.target.value)} disabled={readOnly} />
   }
 
   if (attribute?.type === 'json') {
@@ -158,6 +162,7 @@ const AttributeValueField = ({
       <Textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        disabled={readOnly}
         className="w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20 min-h-[88px] font-mono"
         placeholder='{"key":"value"}'
       />
@@ -169,6 +174,7 @@ const AttributeValueField = ({
       type={attribute?.type === 'number' ? 'number' : 'text'}
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      disabled={readOnly}
       placeholder={attribute?.description || attribute?.name || 'Value'}
     />
   )
@@ -502,7 +508,9 @@ const Users = () => {
         givenName: formData.givenName,
         familyName: formData.familyName,
         password: formData.password,
-        customAttributes: formData.customAttributes,
+        customAttributes: Object.fromEntries(
+          Object.entries(formData.customAttributes).filter(([key]) => !SYSTEM_MANAGED_ATTRIBUTE_KEYS.has(key))
+        ),
         roleIds: formData.roleIds,
         groupIds: formData.groupIds
       })
@@ -567,7 +575,9 @@ const Users = () => {
         givenName: editFormData.givenName,
         familyName: editFormData.familyName,
         avatarUrl: imageFieldForUpdate(editFormData.avatarUrl),
-        customAttributes: editFormData.customAttributes,
+        customAttributes: Object.fromEntries(
+          Object.entries(editFormData.customAttributes).filter(([key]) => !SYSTEM_MANAGED_ATTRIBUTE_KEYS.has(key))
+        ),
         roleIds: editFormData.roleIds
       })
       const originalGroupIds = (userToEdit.groups ?? [])
@@ -1008,6 +1018,7 @@ const Users = () => {
               ) : (
                 Object.entries(formData.customAttributes).map(([key, value]) => {
                   const attribute = attributeByKey.get(key)
+                  const systemManaged = SYSTEM_MANAGED_ATTRIBUTE_KEYS.has(key)
                   return (
                     <div key={key} className="rounded-lg border border-border p-3">
                       <div className="mb-2 flex items-center justify-between gap-2">
@@ -1015,20 +1026,23 @@ const Users = () => {
                           <p className="text-sm font-medium text-foreground">{attribute?.name ?? key}</p>
                           <p className="text-xs text-muted-foreground font-mono">{key}</p>
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="hover:bg-rose-50 hover:text-rose-600"
-                          onClick={() => removeAttribute('create', key)}
-                          title="Remove attribute"
-                        >
-                          <X size={12} />
-                        </Button>
+                        {systemManaged ? null : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="hover:bg-rose-50 hover:text-rose-600"
+                            onClick={() => removeAttribute('create', key)}
+                            title="Remove attribute"
+                          >
+                            <X size={12} />
+                          </Button>
+                        )}
                       </div>
                       <AttributeValueField
                         attribute={attribute}
                         value={value}
+                        readOnly={systemManaged}
                         onChange={(nextValue) => updateAttributeValue('create', key, nextValue)}
                       />
                     </div>
@@ -1042,7 +1056,7 @@ const Users = () => {
                 >
                   <option value="">Add attribute...</option>
                   {enabledAttributeDefinitions
-                    .filter((attribute) => !(attribute.key in formData.customAttributes))
+                    .filter((attribute) => !(attribute.key in formData.customAttributes) && !SYSTEM_MANAGED_ATTRIBUTE_KEYS.has(attribute.key))
                     .map((attribute) => (
                       <option key={attribute.id} value={attribute.key}>{attribute.name}</option>
                     ))}
@@ -1205,6 +1219,7 @@ const Users = () => {
               ) : (
                 Object.entries(editFormData.customAttributes).map(([key, value]) => {
                   const attribute = attributeByKey.get(key)
+                  const systemManaged = SYSTEM_MANAGED_ATTRIBUTE_KEYS.has(key)
                   return (
                     <div key={key} className="rounded-lg border border-border p-3">
                       <div className="mb-2 flex items-center justify-between gap-2">
@@ -1212,22 +1227,28 @@ const Users = () => {
                           <p className="text-sm font-medium text-foreground">{attribute?.name ?? key}</p>
                           <p className="text-xs text-muted-foreground font-mono">{key}</p>
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="hover:bg-rose-50 hover:text-rose-600"
-                          onClick={() => removeAttribute('edit', key)}
-                          title="Remove attribute"
-                        >
-                          <X size={12} />
-                        </Button>
+                        {systemManaged ? null : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="hover:bg-rose-50 hover:text-rose-600"
+                            onClick={() => removeAttribute('edit', key)}
+                            title="Remove attribute"
+                          >
+                            <X size={12} />
+                          </Button>
+                        )}
                       </div>
                       <AttributeValueField
                         attribute={attribute}
                         value={value}
+                        readOnly={systemManaged}
                         onChange={(nextValue) => updateAttributeValue('edit', key, nextValue)}
                       />
+                      {systemManaged ? (
+                        <p className="mt-1 text-xs text-muted-foreground">Updated automatically from the server when the password changes.</p>
+                      ) : null}
                     </div>
                   )
                 })
@@ -1239,7 +1260,7 @@ const Users = () => {
                 >
                   <option value="">Add attribute...</option>
                   {enabledAttributeDefinitions
-                    .filter((attribute) => !(attribute.key in editFormData.customAttributes))
+                    .filter((attribute) => !(attribute.key in editFormData.customAttributes) && !SYSTEM_MANAGED_ATTRIBUTE_KEYS.has(attribute.key))
                     .map((attribute) => (
                       <option key={attribute.id} value={attribute.key}>{attribute.name}</option>
                     ))}

@@ -153,12 +153,22 @@ const parseStringRecord = (value: unknown): Record<string, string> => {
     return {};
   }
 
-  try {
-    const parsed = JSON.parse(String(value)) as Record<string, unknown>;
-    return Object.fromEntries(Object.entries(parsed).map(([key, entry]) => [key, String(entry)]));
-  } catch {
+  let parsed: unknown = value;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return {};
+    }
+  }
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     return {};
   }
+
+  return Object.fromEntries(
+    Object.entries(parsed as Record<string, unknown>).map(([key, entry]) => [key, String(entry)])
+  );
 };
 
 const parseObjectRecord = (value: unknown): Record<string, unknown> => {
