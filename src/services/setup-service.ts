@@ -24,7 +24,8 @@ const ALL_RESOURCES = [
   "policies",
   "events",
   "scopes",
-  "administration"
+  "administration",
+  "suggestions"
 ] as const;
 
 const ACTIONS = ["view", "add", "change", "delete", "disable"] as const;
@@ -197,12 +198,27 @@ export class SetupService {
         "sessions:view",
         "sessions:delete",
         "consents:view",
-        "consents:delete"
+        "consents:delete",
+        "suggestions:view",
+        "suggestions:change"
       ],
       scope: "platform"
     });
-    if (existingHelpdesk && existingHelpdesk.appId !== adminPortalAppId) {
-      await this.roleService.updateRole(existingHelpdesk.id, { appId: adminPortalAppId });
+    if (existingHelpdesk) {
+      const currentPermissions = Array.isArray(existingHelpdesk.permissions) ? existingHelpdesk.permissions : [];
+      const nextPermissions = Array.from(new Set([
+        ...currentPermissions,
+        "suggestions:view",
+        "suggestions:change"
+      ]));
+      const permissionChanged = Array.isArray(existingHelpdesk.permissions)
+        && nextPermissions.length !== currentPermissions.length;
+      if (existingHelpdesk.appId !== adminPortalAppId || permissionChanged) {
+        await this.roleService.updateRole(existingHelpdesk.id, {
+          ...(existingHelpdesk.appId !== adminPortalAppId ? { appId: adminPortalAppId } : {}),
+          ...(permissionChanged ? { permissions: nextPermissions } : {})
+        });
+      }
     }
 
     return {

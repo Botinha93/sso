@@ -6,6 +6,7 @@ import Launcher from './pages/Launcher'
 import Login from './pages/Login'
 import Profile from './pages/Profile'
 import Users from './pages/Users'
+import Suggestions from './pages/Suggestions'
 
 export default function App() {
   const { language } = useI18n()
@@ -68,6 +69,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Launcher user={user} />} />
       <Route path="/profile" element={<Profile user={user} />} />
+      <Route path="/suggestions" element={<Suggestions user={user} />} />
       <Route path="/users" element={canManageUsers ? <Users currentUser={user} /> : <Navigate to="/" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -897,6 +897,21 @@ export class SqliteDatabase {
         created_at TEXT NOT NULL,
         PRIMARY KEY (bucket, event)
       );
+
+      CREATE TABLE IF NOT EXISTS suggestions (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        app_id TEXT,
+        proposed_name TEXT,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        image_urls_json TEXT NOT NULL DEFAULT '[]',
+        author_user_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        internal_notes TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
     `);
 
     this.migrateLegacyServiceIdentitiesToUsers();

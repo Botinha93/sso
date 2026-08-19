@@ -48,8 +48,8 @@ import type {
   UserRoleAssignment
 } from "../domain/models.js";
 import type { RepositoryBundle } from "./factory.js";
-import type { RiskEvent, RiskDecision, RiskReason, ServiceIdentity, ServiceIdentityCredential, ServiceIdentityStatus, Connector, ConnectorRun, ConnectorMapping, AuthMetricRollup } from "../domain/models.js";
-import type { GroupAppAssignmentRepository, RiskEventRepository, ServiceIdentityRepository, ServiceIdentityCredentialRepository, UserAppAssignmentRepository, ConnectorRepository, ConnectorRunRepository, ConnectorMappingRepository, AuthMetricRepository } from "./contracts.js";
+import type { RiskEvent, RiskDecision, RiskReason, ServiceIdentity, ServiceIdentityCredential, ServiceIdentityStatus, Connector, ConnectorRun, ConnectorMapping, AuthMetricRollup, Suggestion } from "../domain/models.js";
+import type { GroupAppAssignmentRepository, RiskEventRepository, ServiceIdentityRepository, ServiceIdentityCredentialRepository, UserAppAssignmentRepository, ConnectorRepository, ConnectorRunRepository, ConnectorMappingRepository, AuthMetricRepository, SuggestionRepository } from "./contracts.js";
 
 type PrismaRow = Record<string, unknown>;
 
@@ -61,6 +61,13 @@ const readField = (row: PrismaRow, ...keys: string[]) => {
   }
 
   return undefined;
+};
+
+const asRowArray = (rows: PrismaRow[] | PrismaRow | null | undefined): PrismaRow[] => {
+  if (!rows) {
+    return [];
+  }
+  return Array.isArray(rows) ? rows : [rows];
 };
 
 type PrismaClientLike = {
@@ -925,17 +932,37 @@ class PrismaUserRepository {
   }
 
   async findByEmail(email: string): Promise<User | undefined> {
-    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
-      SELECT * FROM users WHERE LOWER(email) = LOWER(${email}) LIMIT 1
-    `;
+    const needle = email.trim().toLowerCase();
+    if (!needle) {
+      return undefined;
+    }
+    const rows = asRowArray(await this.prisma.$queryRaw<PrismaRow[]>`
+      SELECT * FROM users WHERE LOWER(email) = ${needle} LIMIT 1
+    `);
     return rows[0] ? mapUser(rows[0]) : undefined;
   }
 
   async findByUsername(username: string): Promise<User | undefined> {
-    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
-      SELECT * FROM users WHERE LOWER(username) = LOWER(${username}) LIMIT 1
-    `;
+    const needle = username.trim().toLowerCase();
+    if (!needle) {
+      return undefined;
+    }
+    const rows = asRowArray(await this.prisma.$queryRaw<PrismaRow[]>`
+      SELECT * FROM users WHERE LOWER(username) = ${needle} LIMIT 1
+    `);
     return rows[0] ? mapUser(rows[0]) : undefined;
+  }
+
+  async findByLoginIdentifier(identifier: string): Promise<User[]> {
+    const needle = identifier.trim().toLowerCase();
+    if (!needle) {
+      return [];
+    }
+    const rows = asRowArray(await this.prisma.$queryRaw<PrismaRow[]>`
+      SELECT * FROM users
+      WHERE LOWER(email) = ${needle} OR LOWER(username) = ${needle}
+    `);
+    return rows.map((row) => mapUser(row));
   }
 
   async findById(id: string): Promise<User | undefined> {
@@ -3141,6 +3168,82 @@ class PrismaAuthMetricRepository implements AuthMetricRepository {
   }
 }
 
+class PrismaSuggestionRepository implements SuggestionRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+
+  private mapRow(row: PrismaRow): Suggestion {
+    return {
+      id: String(row.id),
+      kind: String(row.kind) as Suggestion["kind"],
+      appId: row.app_id ? String(row.app_id) : undefined,
+      proposedName: row.proposed_name ? String(row.proposed_name) : undefined,
+      title: String(row.title),
+      body: String(row.body),
+      imageUrls: parseStringArray(readField(row, "imageUrlsJson", "image_urls_json")),
+      authorUserId: String(readField(row, "authorUserId", "author_user_id")),
+      status: String(row.status) as Suggestion["status"],
+      internalNotes: row.internal_notes || row.internalNotes ? String(readField(row, "internalNotes", "internal_notes")) : undefined,
+      createdAt: asDate(readField(row, "createdAt", "created_at")),
+      updatedAt: asDate(readField(row, "updatedAt", "updated_at"))
+    };
+  }
+
+  async list(): Promise<Suggestion[]> {
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`SELECT * FROM suggestions ORDER BY created_at DESC`;
+    return rows.map((row) => this.mapRow(row));
+  }
+
+  async listByAuthor(authorUserId: string): Promise<Suggestion[]> {
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      SELECT * FROM suggestions WHERE author_user_id = ${authorUserId} ORDER BY created_at DESC
+    `;
+    return rows.map((row) => this.mapRow(row));
+  }
+
+  async findById(id: string): Promise<Suggestion | undefined> {
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`SELECT * FROM suggestions WHERE id = ${id}`;
+    return rows.length > 0 ? this.mapRow(rows[0]) : undefined;
+  }
+
+  async create(input: Omit<Suggestion, "id" | "createdAt" | "updatedAt">): Promise<Suggestion> {
+    const id = nanoid();
+    const now = new Date().toISOString();
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      INSERT INTO suggestions (
+        id, kind, app_id, proposed_name, title, body, image_urls_json, author_user_id, status, internal_notes, created_at, updated_at
+      )
+      VALUES (
+        ${id}, ${input.kind}, ${input.appId ?? null}, ${input.proposedName ?? null}, ${input.title}, ${input.body},
+        ${JSON.stringify(input.imageUrls)}, ${input.authorUserId}, ${input.status}, ${input.internalNotes ?? null}, ${now}, ${now}
+      )
+      RETURNING *
+    `;
+    return this.mapRow(rows[0]);
+  }
+
+  async update(id: string, input: Partial<Omit<Suggestion, "id" | "createdAt" | "authorUserId">>): Promise<Suggestion | undefined> {
+    const existing = await this.findById(id);
+    if (!existing) return undefined;
+
+    const merged = { ...existing, ...input, updatedAt: new Date() };
+    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
+      UPDATE suggestions SET
+        kind = ${merged.kind},
+        app_id = ${merged.appId ?? null},
+        proposed_name = ${merged.proposedName ?? null},
+        title = ${merged.title},
+        body = ${merged.body},
+        image_urls_json = ${JSON.stringify(merged.imageUrls)},
+        status = ${merged.status},
+        internal_notes = ${merged.internalNotes ?? null},
+        updated_at = ${merged.updatedAt.toISOString()}
+      WHERE id = ${id}
+      RETURNING *
+    `;
+    return rows.length > 0 ? this.mapRow(rows[0]) : undefined;
+  }
+}
+
 export const createPrismaRepositories = (prisma: PrismaClientLike): RepositoryBundle => ({
   roleRepository: new PrismaRoleRepository(prisma),
   tenantRepository: new PrismaTenantRepository(prisma),
@@ -3193,5 +3296,6 @@ export const createPrismaRepositories = (prisma: PrismaClientLike): RepositoryBu
   connectorRepository: new PrismaConnectorRepository(prisma),
   connectorRunRepository: new PrismaConnectorRunRepository(prisma),
   connectorMappingRepository: new PrismaConnectorMappingRepository(prisma),
-  authMetricRepository: new PrismaAuthMetricRepository(prisma)
+  authMetricRepository: new PrismaAuthMetricRepository(prisma),
+  suggestionRepository: new PrismaSuggestionRepository(prisma)
 });

@@ -41,6 +41,7 @@ import { PluginService } from "./services/plugin-service.js";
 import { PluginRuntimeService } from "./services/plugin-runtime-service.js";
 import { UserAttributeService } from "./services/user-attribute-service.js";
 import { UserService } from "./services/user-service.js";
+import { SuggestionService } from "./services/suggestion-service.js";
 import { MediaService } from "./services/media-service.js";
 import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -129,7 +130,8 @@ export const bootstrap = async (config: AppConfig) => {
     instanceSettingsRepository,
     samlServiceProviderRepository,
     samlNameIdMappingRepository,
-    samlAssertionAuditRepository
+    samlAssertionAuditRepository,
+    suggestionRepository
   } = repositories;
 
   const riskService = new RiskService(repositories.riskEventRepository);
@@ -187,6 +189,13 @@ export const bootstrap = async (config: AppConfig) => {
     groupUserAttributeAssignmentRepository,
     roleService,
     groupService
+  );
+  const suggestionService = new SuggestionService(
+    suggestionRepository,
+    userRepository,
+    appRepository,
+    userService,
+    auditRepository
   );
   const userAttributeService = new UserAttributeService(
     userAttributeRepository,
@@ -590,6 +599,7 @@ export const bootstrap = async (config: AppConfig) => {
     pluginService,
     pluginRuntimeService,
     mediaService,
+    suggestionService,
     authService,
     oidcService,
     auditRepository,

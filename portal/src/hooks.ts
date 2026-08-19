@@ -378,3 +378,59 @@ export function useWebauthnDeleteCredential() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['account-webauthn-credentials'] })
   })
 }
+
+export interface PortalSuggestion {
+  id: string
+  kind: 'existing_app' | 'new_system'
+  appId?: string
+  appName?: string
+  proposedName?: string
+  title: string
+  body: string
+  imageUrls: string[]
+  status: 'open' | 'in_review' | 'planned' | 'completed' | 'declined'
+  createdAt: string
+  updatedAt: string
+}
+
+export function usePortalSuggestions() {
+  return useQuery<PortalSuggestion[]>({
+    queryKey: ['portal-suggestions'],
+    queryFn: () => apiFetch(`${API}/suggestions`)
+  })
+}
+
+export function usePortalCreateSuggestion() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: {
+      kind: 'existing_app' | 'new_system'
+      appId?: string
+      proposedName?: string
+      title: string
+      body: string
+      imageUrls: string[]
+    }) => apiFetch(`${API}/suggestions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['portal-suggestions'] })
+  })
+}
+
+export function usePortalUploadSuggestionImage() {
+  return useMutation({
+    mutationFn: async (file: File): Promise<{ url: string }> => {
+      const token = await getCsrfToken()
+      const form = new FormData()
+      form.set('file', file)
+      return apiFetch(`${API}/suggestions/images`, {
+        method: 'POST',
+        headers: { 'X-CSRF-Token': token },
+        body: form
+      })
+    }
+  })
+}
+

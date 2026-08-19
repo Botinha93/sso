@@ -1,6 +1,7 @@
 import { ValidationError } from "../core/errors.js";
 import { hashPassword } from "../security/password.js";
 import type { User } from "../domain/models.js";
+import { pickUserForLoginIdentifier, uniqueUsers } from "../domain/login-identifier.js";
 import type {
   AppRepository,
   GroupAppAssignmentRepository,
@@ -203,14 +204,10 @@ export class UserService {
   }) {
     const appIds = await this.sanitizeAppIds(this.normalizeAppIds(input));
     const customAttributes = this.normalizeCustomAttributes(input.customAttributes);
+    const email = input.email.trim().toLowerCase();
+    const username = input.username.trim();
 
-    if (await this.userRepository.findByEmail(input.email)) {
-      throw new ValidationError("A user with this email already exists");
-    }
-
-    if (await this.userRepository.findByUsername(input.username)) {
-      throw new ValidationError("A user with this username already exists");
-    }
+    await this.assertIdentifiersAvailable({ email, username });
 
     await this.validateCustomAttributes(customAttributes);
 
@@ -233,8 +230,8 @@ export class UserService {
       externalId: input.externalId,
       isServiceUser: input.isServiceUser ?? false,
       avatarUrl: input.avatarUrl,
-      email: input.email,
-      username: input.username,
+      email,
+      username,
       passwordHash,
       givenName: input.givenName,
       familyName: input.familyName,
@@ -368,6 +365,53 @@ export class UserService {
     return this.userRepository.findByUsername(username);
   }
 
+  async findLoginCandidates(identifier: string) {
+    const candidates = await this.userRepository.findByLoginIdentifier(identifier);
+    if (candidates.length > 0) {
+      return uniqueUsers(candidates);
+    }
+
+    return uniqueUsers([
+      await this.userRepository.findByEmail(identifier),
+      await this.userRepository.findByUsername(identifier)
+    ]);
+  }
+
+  async findUserByLoginIdentifier(identifier: string) {
+    return pickUserForLoginIdentifier(identifier, await this.findLoginCandidates(identifier));
+  }
+
+  private async assertIdentifiersAvailable(input: {
+    email?: string;
+    username?: string;
+    ignoreUserId?: string;
+  }) {
+    const email = input.email?.trim().toLowerCase();
+    const username = input.username?.trim();
+
+    if (email) {
+      const byEmail = await this.userRepository.findByEmail(email);
+      if (byEmail && byEmail.id !== input.ignoreUserId) {
+        throw new ValidationError("A user with this email already exists");
+      }
+      const usernameTakenByEmail = await this.userRepository.findByUsername(email);
+      if (usernameTakenByEmail && usernameTakenByEmail.id !== input.ignoreUserId) {
+        throw new ValidationError("This email is already used as a username");
+      }
+    }
+
+    if (username) {
+      const byUsername = await this.userRepository.findByUsername(username);
+      if (byUsername && byUsername.id !== input.ignoreUserId) {
+        throw new ValidationError("A user with this username already exists");
+      }
+      const emailTakenByUsername = await this.userRepository.findByEmail(username);
+      if (emailTakenByUsername && emailTakenByUsername.id !== input.ignoreUserId) {
+        throw new ValidationError("This username is already used as an email");
+      }
+    }
+  }
+
   async findUserById(id: string) {
     return this.userRepository.findById(id);
   }
@@ -397,19 +441,13 @@ export class UserService {
       input = { ...input, email: undefined };
     }
 
-    if (input.email && input.email.toLowerCase() !== existing.email.toLowerCase()) {
-      const byEmail = await this.userRepository.findByEmail(input.email);
-      if (byEmail && byEmail.id !== id) {
-        throw new ValidationError("A user with this email already exists");
-      }
-    }
-
-    if (input.username && input.username.toLowerCase() !== existing.username.toLowerCase()) {
-      const byUsername = await this.userRepository.findByUsername(input.username);
-      if (byUsername && byUsername.id !== id) {
-        throw new ValidationError("A user with this username already exists");
-      }
-    }
+    const nextEmail = input.email !== undefined ? input.email.trim().toLowerCase() : undefined;
+    const nextUsername = input.username !== undefined ? input.username.trim() : undefined;
+    await this.assertIdentifiersAvailable({
+      email: nextEmail !== undefined && nextEmail !== existing.email.toLowerCase() ? nextEmail : undefined,
+      username: nextUsername !== undefined && nextUsername.toLowerCase() !== existing.username.toLowerCase() ? nextUsername : undefined,
+      ignoreUserId: id
+    });
 
     const appIds = input.appId !== undefined || input.appIds !== undefined
       ? await this.sanitizeAppIds(this.normalizeAppIds(input))
@@ -420,6 +458,8 @@ export class UserService {
 
     const updated = await this.userRepository.updateProfile(id, {
       ...input,
+      email: nextEmail,
+      username: nextUsername,
       appId: appIds ? appIds[0] : input.appId
     });
 

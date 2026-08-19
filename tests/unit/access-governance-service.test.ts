@@ -91,6 +91,7 @@ test("access governance service enforces pending-only decisions", async () => {
       },
       findByEmail: async () => undefined,
       findByUsername: async () => undefined,
+      findByLoginIdentifier: async () => [],
       updateProfile: async () => undefined,
       setPasswordHash: async () => undefined,
       setActive: async () => undefined,

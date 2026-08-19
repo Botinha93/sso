@@ -73,6 +73,65 @@ const ensureAppAssignmentTables = async (prisma: PrismaClientLike & Record<strin
   `;
 };
 
+const ensureSuggestionsTable = async (prisma: PrismaClientLike & Record<string, unknown>, provider: AppConfig["databaseProvider"]) => {
+  if (provider === "postgresql") {
+    await (prisma as any).$queryRaw`
+      CREATE TABLE IF NOT EXISTS suggestions (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        app_id TEXT,
+        proposed_name TEXT,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        image_urls_json TEXT NOT NULL DEFAULT '[]',
+        author_user_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        internal_notes TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `;
+    return;
+  }
+
+  if (provider === "mysql") {
+    await (prisma as any).$queryRaw`
+      CREATE TABLE IF NOT EXISTS suggestions (
+        id VARCHAR(191) PRIMARY KEY,
+        kind VARCHAR(191) NOT NULL,
+        app_id VARCHAR(191),
+        proposed_name TEXT,
+        title TEXT NOT NULL,
+        body LONGTEXT NOT NULL,
+        image_urls_json TEXT NOT NULL,
+        author_user_id VARCHAR(191) NOT NULL,
+        status VARCHAR(191) NOT NULL,
+        internal_notes TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `;
+    return;
+  }
+
+  await (prisma as any).$queryRaw`
+    CREATE TABLE IF NOT EXISTS suggestions (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      app_id TEXT,
+      proposed_name TEXT,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      image_urls_json TEXT NOT NULL DEFAULT '[]',
+      author_user_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      internal_notes TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `;
+};
+
 type PrismaRepositoryClient = PrismaClientLike & Record<string, unknown>;
 
 type PrismaClientModule = {
@@ -139,6 +198,7 @@ export async function getPrismaClient(config: AppConfig): Promise<PrismaClientLi
   const module = await loadPrismaClientModule(config.databaseProvider);
   const prisma = new module.PrismaClient() as PrismaClientLike & Record<string, unknown>;
   await ensureAppAssignmentTables(prisma, config.databaseProvider);
+  await ensureSuggestionsTable(prisma, config.databaseProvider);
   return prisma;
 }
 

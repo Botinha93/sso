@@ -64,7 +64,7 @@ export class MediaService {
   }
 
   async saveUploadedImage(input: {
-    bucket: "users" | "apps";
+    bucket: "users" | "apps" | "suggestions";
     ownerId: string;
     bytes: Buffer;
     mimeType: string;

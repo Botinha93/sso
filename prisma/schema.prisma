@@ -682,6 +682,21 @@ model connector_mappings {
   @@index([connector_id])
 }
 
+model suggestions {
+  id               String  @id
+  kind             String
+  app_id           String?
+  proposed_name    String?
+  title            String
+  body             String
+  image_urls_json  String  @default("[]")
+  author_user_id   String
+  status           String
+  internal_notes   String?
+  created_at       String
+  updated_at       String
+}
+
 model auth_metric_rollups {
   id         String @id
   bucket     String

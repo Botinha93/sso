@@ -21,6 +21,7 @@ import { registerServiceIdentityRoutes } from "./routes/service-identities.js";
 import { deriveRiskEventsFromAudit } from "./routes/security-risk-events.js";
 import { registerConnectorRoutes } from "./routes/connectors.js";
 import { registerPluginRoutes } from "./routes/plugins.js";
+import { registerSuggestionRoutes } from "./routes/suggestions.js";
 import { MAX_IMAGE_UPLOAD_BYTES } from "./upload-limits.js";
 import {
   assignGroupRoleSchema,
@@ -130,6 +131,7 @@ import { ConnectorService, AuthMetricsService } from "../services/connector-serv
 import { PluginService } from "../services/plugin-service.js";
 import { PluginRuntimeService } from "../services/plugin-runtime-service.js";
 import { MediaService } from "../services/media-service.js";
+import { SuggestionService } from "../services/suggestion-service.js";
 import { filterAdminList, filterAdminUsers, parseAdminListQuery } from "./list-search.js";
 import { GeolocationService } from "../services/geolocation-service.js";
 import { TranslationService } from "../services/translation-service.js";
@@ -179,6 +181,7 @@ interface RouteDeps {
   pluginService: PluginService;
   pluginRuntimeService: PluginRuntimeService;
   mediaService: MediaService;
+  suggestionService: SuggestionService;
   authorizationService: AuthorizationService;
   samlService: SamlService;
   samlReplayProtectionService: SamlReplayProtectionService;
@@ -2034,7 +2037,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const input = webauthnLoginBeginSchema.parse(request.body);
 
     try {
-      const user = await deps.userService.findUserByEmail(input.identifier.trim()) ?? await deps.userService.findUserByUsername(input.identifier.trim());
+      const user = await deps.userService.findUserByLoginIdentifier(input.identifier.trim());
       if (!user || !user.active) {
         throw new AuthenticationError("Invalid credentials");
       }
@@ -2822,7 +2825,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
   app.post("/auth/recovery/request", async (request, reply) => {
     const input = recoveryRequestSchema.parse(request.body);
-    const user = await deps.userService.findUserByEmail(input.identifier) ?? await deps.userService.findUserByUsername(input.identifier);
+    const user = await deps.userService.findUserByLoginIdentifier(input.identifier);
 
     // Keep enumeration-safe response semantics regardless of account existence.
     if (!user || !user.active) {
@@ -3639,6 +3642,15 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     if (session) return session.userId;
     return null;
   }
+
+  await registerSuggestionRoutes(app, {
+    suggestionService: deps.suggestionService,
+    roleService: deps.roleService,
+    mediaService: deps.mediaService,
+    getPortalUserId,
+    requireSessionUser,
+    readImageUpload
+  });
 
   app.get("/api/portal/language/default", async (request) => {
     const countryHeaders = ["cf-ipcountry", "x-vercel-ip-country", "x-country-code"] as const;

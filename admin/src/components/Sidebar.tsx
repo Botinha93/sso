@@ -23,6 +23,7 @@ import {
   Tablet,
   BellRing,
   BarChart3,
+  Lightbulb,
   Settings2,
   BookText,
   KeyRound,
@@ -49,6 +50,7 @@ const navGroups = [
       { path: '/sessions', label: 'Sessions', icon: ShieldCheck, permission: 'sessions:view' },
       { path: '/devices', label: 'Devices', icon: Tablet, permission: 'sessions:view' },
       { path: '/events', label: 'Events', icon: BellRing, permission: 'events:view' },
+      { path: '/suggestions', label: 'Suggestions', icon: Lightbulb, permission: 'suggestions:view' },
       { path: '/audit', label: 'Audit Log', icon: FileText, permission: 'audit_log:view' },
     ]
   },

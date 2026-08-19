@@ -169,13 +169,17 @@ export default function Launcher({ user }: Props) {
               </Link>
             </div>
           )}
-          {user.apps.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border p-12 text-center">
-              <p className="text-muted-foreground text-sm">{t('launcher.noAppsTitle')}</p>
-              <p className="text-muted-foreground text-xs mt-1">{t('launcher.noAppsHint')}</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4">
+              <AppTile
+                app={{
+                  id: '__portal_suggestions__',
+                  name: t('suggestions.appName'),
+                  description: t('suggestions.appDescription'),
+                }}
+                inheritedFromGroups={[]}
+                viaGroupLabel={(group) => t('launcher.viaGroup', { group })}
+                to="/suggestions"
+              />
               {user.apps.map(app => (
                 <AppTile
                   key={app.id}
@@ -185,7 +189,12 @@ export default function Launcher({ user }: Props) {
                 />
               ))}
             </div>
-          )}
+            {user.apps.length === 0 ? (
+            <div className="mt-4 rounded-2xl border border-dashed border-border p-8 text-center">
+              <p className="text-muted-foreground text-sm">{t('launcher.noAppsTitle')}</p>
+              <p className="text-muted-foreground text-xs mt-1">{t('launcher.noAppsHint')}</p>
+            </div>
+            ) : null}
         </section>
       </main>
     </div>
@@ -210,9 +219,10 @@ interface AppTileProps {
   app: PortalUser['apps'][0]
   inheritedFromGroups: string[]
   viaGroupLabel: (group: string) => string
+  to?: string
 }
 
-function AppTile({ app, inheritedFromGroups, viaGroupLabel }: AppTileProps) {
+function AppTile({ app, inheritedFromGroups, viaGroupLabel, to }: AppTileProps) {
   const isInherited = inheritedFromGroups.length > 0
   const groupTooltip = isInherited
     ? inheritedFromGroups.map((group) => viaGroupLabel(group)).join(' · ')
@@ -243,6 +253,10 @@ function AppTile({ app, inheritedFromGroups, viaGroupLabel }: AppTileProps) {
       )}
     </Card>
   )
+
+  if (to) {
+    return <Link to={to}>{content}</Link>
+  }
 
   if (app.url) {
     return (

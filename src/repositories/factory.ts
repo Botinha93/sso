@@ -51,7 +51,8 @@ import type {
   ConnectorRepository,
   ConnectorRunRepository,
   ConnectorMappingRepository,
-  AuthMetricRepository
+  AuthMetricRepository,
+  SuggestionRepository
 } from "./contracts.js";
 import { createPrismaRepositoryBundle } from "./prisma-factory.js";
 
@@ -108,6 +109,7 @@ export interface RepositoryBundle {
   connectorRunRepository: ConnectorRunRepository;
   connectorMappingRepository: ConnectorMappingRepository;
   authMetricRepository: AuthMetricRepository;
+  suggestionRepository: SuggestionRepository;
   dispose?: () => Promise<void>;
 }
 

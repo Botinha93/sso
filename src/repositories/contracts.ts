@@ -54,7 +54,8 @@ import type {
   Connector,
   ConnectorRun,
   ConnectorMapping,
-  AuthMetricRollup
+  AuthMetricRollup,
+  Suggestion
 } from "../domain/models.js";
 
 type Awaitable<T> = T | Promise<T>;
@@ -73,6 +74,7 @@ export interface UserRepository {
   list(): Awaitable<User[]>;
   findByEmail(email: string): Awaitable<User | undefined>;
   findByUsername(username: string): Awaitable<User | undefined>;
+  findByLoginIdentifier(identifier: string): Awaitable<User[]>;
   findById(id: string): Awaitable<User | undefined>;
   updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId" | "externalSource" | "externalId" | "isServiceUser" | "avatarUrl">>): Awaitable<User | undefined>;
   setPasswordHash(id: string, passwordHash: string): Awaitable<void>;
@@ -435,4 +437,12 @@ export interface ConnectorMappingRepository {
 export interface AuthMetricRepository {
   increment(bucket: string, event: string, by?: number): Awaitable<void>;
   query(input: { startBucket: string; endBucket: string; event?: string }): Awaitable<AuthMetricRollup[]>;
+}
+
+export interface SuggestionRepository {
+  create(input: Omit<Suggestion, "id" | "createdAt" | "updatedAt">): Awaitable<Suggestion>;
+  list(): Awaitable<Suggestion[]>;
+  listByAuthor(authorUserId: string): Awaitable<Suggestion[]>;
+  findById(id: string): Awaitable<Suggestion | undefined>;
+  update(id: string, input: Partial<Omit<Suggestion, "id" | "createdAt" | "authorUserId">>): Awaitable<Suggestion | undefined>;
 }

@@ -405,6 +405,23 @@ model AuthMetricRollup {
   @@map("auth_metric_rollups")
 }
 
+model Suggestion {
+  id              String  @id
+  kind            String
+  appId           String? @map("app_id")
+  proposedName    String? @map("proposed_name")
+  title           String
+  body            String
+  imageUrlsJson   String  @default("[]") @map("image_urls_json")
+  authorUserId    String  @map("author_user_id")
+  status          String
+  internalNotes   String? @map("internal_notes")
+  createdAt       String  @map("created_at")
+  updatedAt       String  @map("updated_at")
+
+  @@map("suggestions")
+}
+
 model UserAttributeDefinition {
   id            String @id
   key           String @unique

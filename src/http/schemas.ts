@@ -883,3 +883,25 @@ export const uploadPluginSchema = z.object({
   bundleBase64: z.string().min(8),
   activate: z.boolean().default(false)
 });
+
+export const createPortalSuggestionSchema = z.object({
+  kind: z.enum(["existing_app", "new_system"]),
+  appId: z.string().min(1).optional(),
+  proposedName: z.string().max(200).optional(),
+  title: z.string().min(1).max(200),
+  body: z.string().min(1).max(20000),
+  imageUrls: z.array(z.string().min(1)).max(12).default([])
+}).superRefine((input, ctx) => {
+  if (input.kind === "existing_app" && !input.appId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["appId"],
+      message: "App is required for existing-app suggestions"
+    });
+  }
+});
+
+export const updateAdminSuggestionSchema = z.object({
+  status: z.enum(["open", "in_review", "planned", "completed", "declined"]).optional(),
+  internalNotes: z.string().max(10000).nullable().optional()
+});

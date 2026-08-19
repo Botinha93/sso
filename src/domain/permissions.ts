@@ -15,7 +15,8 @@ const PLATFORM_RESOURCES = new Set([
   "events",
   "scopes",
   "administration",
-  "portal"
+  "portal",
+  "suggestions"
 ]);
 
 const PLATFORM_ACTIONS = new Set(["view", "add", "change", "delete", "disable", "read"]);

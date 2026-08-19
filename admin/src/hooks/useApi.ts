@@ -2031,3 +2031,48 @@ export function useAdminRiskEvents(limit = 25) {
     queryFn: () => jsonFetch(`${API_BASE}/security/risk-events?limit=${limit}`) as Promise<AdminRiskEventDto[]>
   })
 }
+
+export interface AdminSuggestionAuthor {
+  id: string
+  email: string
+  username: string
+  givenName: string
+  familyName: string
+}
+
+export interface AdminSuggestion {
+  id: string
+  kind: 'existing_app' | 'new_system'
+  appId?: string
+  appName?: string
+  proposedName?: string
+  title: string
+  body: string
+  imageUrls: string[]
+  status: 'open' | 'in_review' | 'planned' | 'completed' | 'declined'
+  createdAt: string
+  updatedAt: string
+  internalNotes?: string
+  author?: AdminSuggestionAuthor
+}
+
+export function useAdminSuggestions(search?: string) {
+  return useQuery<AdminSuggestion[]>({
+    queryKey: ['admin-suggestions', search ?? ''],
+    queryFn: () => jsonFetch(adminListUrl('/suggestions', search))
+  })
+}
+
+export function useUpdateAdminSuggestion() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; status?: AdminSuggestion['status']; internalNotes?: string | null }) =>
+      jsonFetch(`${API_BASE}/suggestions/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      }) as Promise<AdminSuggestion>,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-suggestions'] })
+  })
+}
+

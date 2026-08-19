@@ -581,7 +581,9 @@ export type AuditEventType =
   | "plugin_runtime_executed"
   | "plugin_runtime_failed"
   | "plugin_runtime_console"
-  | "plugin_runtime_log";
+  | "plugin_runtime_log"
+  | "suggestion_created"
+  | "suggestion_updated";
 
 export type ElevationStatus = "pending" | "approved" | "active" | "revoked" | "expired";
 export type ElevationSessionStatus = "active" | "revoked" | "expired";
@@ -764,4 +766,25 @@ export interface AuthMetricRollup {
   event: string; // "login_success" | "login_failure" | "token_issued" | "policy_denied"
   count: number;
   createdAt: Date;
+}
+
+export const SUGGESTION_KINDS = ["existing_app", "new_system"] as const;
+export type SuggestionKind = (typeof SUGGESTION_KINDS)[number];
+
+export const SUGGESTION_STATUSES = ["open", "in_review", "planned", "completed", "declined"] as const;
+export type SuggestionStatus = (typeof SUGGESTION_STATUSES)[number];
+
+export interface Suggestion {
+  id: string;
+  kind: SuggestionKind;
+  appId?: string;
+  proposedName?: string;
+  title: string;
+  body: string;
+  imageUrls: string[];
+  authorUserId: string;
+  status: SuggestionStatus;
+  internalNotes?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }

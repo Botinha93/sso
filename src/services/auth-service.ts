@@ -28,6 +28,7 @@ import {
   claimsWithoutSubject,
   type ScopeClaimResolverContext
 } from "../domain/oidc-scopes.js";
+import { pickUserForLoginIdentifier } from "../domain/login-identifier.js";
 
 interface DeviceAuthorizationRecord {
   deviceCode: string;
@@ -104,9 +105,11 @@ export class AuthService {
   async validateUserCredentials(identifier: string, password: string): Promise<User> {
     const normalized = identifier.trim();
     await this.securityService.assertLoginAllowed(normalized);
-    const user = await this.userService.findUserByEmail(normalized) ?? await this.userService.findUserByUsername(normalized);
+    const candidates = await this.userService.findLoginCandidates(normalized);
+    const matches = candidates.filter((user) => user.active && verifyPassword(password, user.passwordHash));
+    const user = pickUserForLoginIdentifier(normalized, matches);
 
-    if (!user || !user.active || !verifyPassword(password, user.passwordHash)) {
+    if (!user) {
       throw new AuthenticationError("Invalid credentials");
     }
 
@@ -491,11 +494,7 @@ export class AuthService {
     }
 
     const identifier = input.username.trim();
-    await this.securityService.assertLoginAllowed(identifier);
-    const user = await this.userService.findUserByEmail(identifier) ?? await this.userService.findUserByUsername(identifier);
-    if (!user || !user.active || !verifyPassword(input.password, user.passwordHash)) {
-      throw new AuthenticationError("Invalid credentials");
-    }
+    const user = await this.validateUserCredentials(identifier, input.password);
 
     await this.securityService.clearLoginFailures(identifier);
 
@@ -661,10 +660,7 @@ export class AuthService {
     }
 
     const identifier = input.username.trim();
-    const user = await this.userService.findUserByEmail(identifier) ?? await this.userService.findUserByUsername(identifier);
-    if (!user || !user.active || !verifyPassword(input.password, user.passwordHash)) {
-      throw new AuthenticationError("Invalid credentials");
-    }
+    const user = await this.validateUserCredentials(identifier, input.password);
 
     if (!input.approve) {
       record.status = "denied";
@@ -864,8 +860,7 @@ export class AuthService {
     }
 
     const user = await this.userService.findUserById(subject)
-      ?? await this.userService.findUserByEmail(subject)
-      ?? await this.userService.findUserByUsername(subject);
+      ?? await this.userService.findUserByLoginIdentifier(subject);
 
     if (!user || !user.active) {
       throw new AuthenticationError("User not available for SAML bearer assertion");
@@ -902,10 +897,7 @@ export class AuthService {
     }
 
     const identifier = input.username.trim();
-    const user = await this.userService.findUserByEmail(identifier) ?? await this.userService.findUserByUsername(identifier);
-    if (!user || !user.active || !verifyPassword(input.password, user.passwordHash)) {
-      throw new AuthenticationError("Invalid credentials");
-    }
+    const user = await this.validateUserCredentials(identifier, input.password);
 
     if (!input.approve) {
       record.status = "denied";

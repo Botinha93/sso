@@ -35,6 +35,7 @@ const Plugins = lazy(() => import('./pages/Plugins'))
 const ConnectorDetail = lazy(() => import('./pages/ConnectorDetail'))
 const Metrics = lazy(() => import('./pages/Metrics'))
 const Documentation = lazy(() => import('./pages/Documentation'))
+const Suggestions = lazy(() => import('./pages/Suggestions'))
 const Login = lazy(() => import('./pages/Login'))
 const Consent = lazy(() => import('./pages/Consent'))
 const PasswordExpiration = lazy(() => import('./pages/PasswordExpiration'))
@@ -211,6 +212,7 @@ function AppContent() {
                       <Route path="/elevations" element={require('administration:view', <Elevations />)} />
                       <Route path="/elevation-sessions" element={require('administration:view', <ElevationSessions />)} />
                       <Route path="/events" element={require('events:view', <EventHooks />)} />
+                      <Route path="/suggestions" element={require('suggestions:view', <Suggestions />)} />
                       <Route path="/administration" element={require('administration:view', <Administration />)} />
                       <Route path="/service-identities" element={require('service_identities:view', <ServiceIdentities />)} />
                       <Route path="/connectors" element={require('connectors:view', <Connectors />)} />

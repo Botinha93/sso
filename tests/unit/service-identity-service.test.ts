@@ -30,6 +30,13 @@ class InMemoryUserRepository {
     return Array.from(this.store.values()).find((user) => user.username.toLowerCase() === username.toLowerCase());
   }
 
+  async findByLoginIdentifier(identifier: string): Promise<User[]> {
+    const needle = identifier.trim().toLowerCase();
+    return Array.from(this.store.values()).filter((user) =>
+      user.email.toLowerCase() === needle || user.username.toLowerCase() === needle
+    );
+  }
+
   async updateProfile(id: string, input: Partial<Pick<User, "email" | "username" | "givenName" | "familyName" | "appId" | "externalSource" | "externalId" | "isServiceUser" | "avatarUrl">>): Promise<User | undefined> {
     const existing = this.store.get(id);
     if (!existing) return undefined;
