@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { SignJWT } from "jose";
 import { createTestContext, extractCookie } from "../helpers/test-app.js";
 
 test("OAuth/OIDC grant flows: authorization_code, refresh, client_credentials, password, implicit, device_code", async (t) => {
@@ -91,6 +92,21 @@ test("OAuth/OIDC grant flows: authorization_code, refresh, client_credentials, p
   });
 
   assert.equal(userInfoResponse.statusCode, 200);
+
+  const hmacAccessToken = await new SignJWT({ sub: "someone" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuer("https://example.invalid")
+    .sign(new TextEncoder().encode("not-the-idp-signing-key"));
+  const wrongAlgUserInfo = await app.inject({
+    method: "GET",
+    url: "/oauth/userinfo",
+    headers: {
+      authorization: `Bearer ${hmacAccessToken}`
+    }
+  });
+  assert.equal(wrongAlgUserInfo.statusCode, 401);
+  assert.equal(wrongAlgUserInfo.json().error, "invalid_token");
+
   const userInfo = userInfoResponse.json() as {
     sub?: string;
     roles?: string[];

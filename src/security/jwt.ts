@@ -272,8 +272,22 @@ const JWT_VERIFICATION_ERROR_CODES = new Set([
   "ERR_JWS_SIGNATURE_VERIFICATION_FAILED",
   "ERR_JWS_INVALID",
   "ERR_JWT_EXPIRED",
+  "ERR_JWT_INVALID",
   "ERR_JWT_CLAIM_VALIDATION_FAILED",
-  "ERR_JWS_ALG_NOT_ALLOWED"
+  "ERR_JOSE_ALG_NOT_ALLOWED",
+  "ERR_JOSE_NOT_SUPPORTED",
+  "ERR_JWE_INVALID"
+]);
+
+const JWT_VERIFICATION_ERROR_NAMES = new Set([
+  "JWSSignatureVerificationFailed",
+  "JWSInvalid",
+  "JWTExpired",
+  "JWTInvalid",
+  "JWTClaimValidationFailed",
+  "JOSEAlgNotAllowed",
+  "JOSENotSupported",
+  "JWEInvalid"
 ]);
 
 export const isJwtVerificationError = (error: unknown) => {
@@ -286,8 +300,5 @@ export const isJwtVerificationError = (error: unknown) => {
     return true;
   }
 
-  return candidate.name === "JWSSignatureVerificationFailed"
-    || candidate.name === "JWSInvalid"
-    || candidate.name === "JWTExpired"
-    || candidate.name === "JWTClaimValidationFailed";
+  return Boolean(candidate.name && JWT_VERIFICATION_ERROR_NAMES.has(candidate.name));
 };
