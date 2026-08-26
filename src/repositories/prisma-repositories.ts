@@ -67,7 +67,19 @@ const asRowArray = (rows: PrismaRow[] | PrismaRow | null | undefined): PrismaRow
   if (!rows) {
     return [];
   }
-  return Array.isArray(rows) ? rows : [rows];
+  if (Array.isArray(rows)) {
+    return rows;
+  }
+  const nestedRows = (rows as { rows?: unknown }).rows;
+  if (Array.isArray(nestedRows)) {
+    return nestedRows as PrismaRow[];
+  }
+  return [rows];
+};
+
+const usesInsensitiveStringFilters = () => {
+  const provider = process.env.DATABASE_PROVIDER;
+  return provider === "postgresql" || provider === "mysql";
 };
 
 type PrismaClientLike = {
@@ -932,36 +944,66 @@ class PrismaUserRepository {
   }
 
   async findByEmail(email: string): Promise<User | undefined> {
+    const users = await this.findUsersByInsensitiveField("email", email);
     const needle = email.trim().toLowerCase();
-    if (!needle) {
-      return undefined;
-    }
-    const rows = asRowArray(await this.prisma.$queryRaw<PrismaRow[]>`
-      SELECT * FROM users WHERE LOWER(email) = ${needle} LIMIT 1
-    `);
-    return rows[0] ? mapUser(rows[0]) : undefined;
+    return users.find((user) => user.email.toLowerCase() === needle) ?? users[0];
   }
 
   async findByUsername(username: string): Promise<User | undefined> {
+    const users = await this.findUsersByInsensitiveField("username", username);
     const needle = username.trim().toLowerCase();
-    if (!needle) {
-      return undefined;
-    }
-    const rows = asRowArray(await this.prisma.$queryRaw<PrismaRow[]>`
-      SELECT * FROM users WHERE LOWER(username) = ${needle} LIMIT 1
-    `);
-    return rows[0] ? mapUser(rows[0]) : undefined;
+    return users.find((user) => user.username.toLowerCase() === needle) ?? users[0];
   }
 
   async findByLoginIdentifier(identifier: string): Promise<User[]> {
-    const needle = identifier.trim().toLowerCase();
-    if (!needle) {
+    const trimmed = identifier.trim();
+    if (!trimmed) {
       return [];
     }
+
+    if (usesInsensitiveStringFilters()) {
+      const rows = await this.prisma.user.findMany({
+        where: {
+          OR: [
+            { email: { equals: trimmed, mode: "insensitive" } },
+            { username: { equals: trimmed, mode: "insensitive" } }
+          ]
+        }
+      });
+      return rows.map((row: PrismaRow) => mapUser(row));
+    }
+
+    const needle = trimmed.toLowerCase();
     const rows = asRowArray(await this.prisma.$queryRaw<PrismaRow[]>`
       SELECT * FROM users
       WHERE LOWER(email) = ${needle} OR LOWER(username) = ${needle}
     `);
+    return rows.map((row) => mapUser(row));
+  }
+
+  private async findUsersByInsensitiveField(field: "email" | "username", value: string): Promise<User[]> {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return [];
+    }
+
+    if (usesInsensitiveStringFilters()) {
+      const rows = await this.prisma.user.findMany({
+        where: {
+          [field]: { equals: trimmed, mode: "insensitive" }
+        }
+      });
+      return rows.map((row: PrismaRow) => mapUser(row));
+    }
+
+    const needle = trimmed.toLowerCase();
+    const rows = field === "email"
+      ? asRowArray(await this.prisma.$queryRaw<PrismaRow[]>`
+          SELECT * FROM users WHERE LOWER(email) = ${needle}
+        `)
+      : asRowArray(await this.prisma.$queryRaw<PrismaRow[]>`
+          SELECT * FROM users WHERE LOWER(username) = ${needle}
+        `);
     return rows.map((row) => mapUser(row));
   }
 

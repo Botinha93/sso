@@ -9,18 +9,22 @@ export const hashPassword = (password: string): string => {
 };
 
 export const verifyPassword = (password: string, passwordHash: string): boolean => {
-  const [salt, storedKey] = passwordHash.split(":");
+  try {
+    const [salt, storedKey] = passwordHash.split(":");
 
-  if (!salt || !storedKey) {
+    if (!salt || !storedKey) {
+      return false;
+    }
+
+    const derivedKey = scryptSync(password, salt, KEY_LENGTH);
+    const storedBuffer = Buffer.from(storedKey, "hex");
+
+    if (derivedKey.length !== storedBuffer.length) {
+      return false;
+    }
+
+    return timingSafeEqual(derivedKey, storedBuffer);
+  } catch {
     return false;
   }
-
-  const derivedKey = scryptSync(password, salt, KEY_LENGTH);
-  const storedBuffer = Buffer.from(storedKey, "hex");
-
-  if (derivedKey.length !== storedBuffer.length) {
-    return false;
-  }
-
-  return timingSafeEqual(derivedKey, storedBuffer);
 };

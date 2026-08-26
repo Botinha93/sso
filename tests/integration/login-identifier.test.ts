@@ -31,6 +31,52 @@ async function createAdminHeaders(
   };
 }
 
+test("login succeeds with a dotted username and a different email local-part", async (t) => {
+  const { app, admin } = await createTestContext("integration-login-diego-identifier");
+  t.after(async () => {
+    await app.close();
+  });
+
+  const headers = await createAdminHeaders(app, admin);
+  const created = await app.inject({
+    method: "POST",
+    url: "/api/admin/users",
+    headers,
+    payload: {
+      email: "diego@jcdecor.com.br",
+      username: "diego.maciel",
+      password: "Change-Me-Now1!",
+      givenName: "Diego",
+      familyName: "Maciel"
+    }
+  });
+  assert.equal(created.statusCode, 201, created.body);
+
+  const withEmail = await app.inject({
+    method: "POST",
+    url: "/auth/login",
+    payload: {
+      email: "diego@jcdecor.com.br",
+      password: "Change-Me-Now1!",
+      clientId: "sso-admin-ui",
+      scope: ["openid", "profile", "email"]
+    }
+  });
+  assert.equal(withEmail.statusCode, 200, withEmail.body);
+
+  const withUsername = await app.inject({
+    method: "POST",
+    url: "/auth/login",
+    payload: {
+      email: "diego.maciel",
+      password: "Change-Me-Now1!",
+      clientId: "sso-admin-ui",
+      scope: ["openid", "profile", "email"]
+    }
+  });
+  assert.equal(withUsername.statusCode, 200, withUsername.body);
+});
+
 test("login succeeds with both email and username for the same user", async (t) => {
   const { app, admin } = await createTestContext("integration-login-identifier");
   t.after(async () => {
