@@ -90,7 +90,9 @@ test("security hardening: lockout, endpoint throttling, and session anomaly audi
   });
 
   assert.equal(lockedLogin.statusCode, 401);
-  assert.equal(lockedLogin.json().message, "Authentication failed");
+  assert.equal(lockedLogin.json().code, "account_locked");
+  assert.match(lockedLogin.json().message, /temporarily locked/i);
+  assert.match(lockedLogin.json().message, /try again in \d+ minutes?/i);
 
   const firstAnalystLogin = await login(app, {
     email: "analyst@example.com",

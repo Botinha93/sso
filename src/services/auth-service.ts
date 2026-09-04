@@ -104,8 +104,8 @@ export class AuthService {
 
   async validateUserCredentials(identifier: string, password: string): Promise<User> {
     const normalized = identifier.trim();
-    await this.securityService.assertLoginAllowed(normalized);
     const candidates = await this.userService.findLoginCandidates(normalized);
+    this.securityService.assertLoginAllowed(normalized, candidates.map((user) => user.id));
     const matches = candidates.filter((user) => user.active && verifyPassword(password, user.passwordHash));
     const user = pickUserForLoginIdentifier(normalized, matches);
 
@@ -114,6 +114,19 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  /**
+   * Accounts a login identifier (email or username) resolves to, used to scope
+   * lockout bookkeeping to the account instead of the typed identifier alone.
+   */
+  async resolveLoginLockoutUserIds(identifier: string): Promise<string[]> {
+    try {
+      const candidates = await this.userService.findLoginCandidates(identifier.trim());
+      return candidates.map((user) => user.id);
+    } catch {
+      return [];
+    }
   }
 
   async completeLoginForUser(input: {
@@ -496,7 +509,7 @@ export class AuthService {
     const identifier = input.username.trim();
     const user = await this.validateUserCredentials(identifier, input.password);
 
-    await this.securityService.clearLoginFailures(identifier);
+    this.securityService.clearLoginFailures(identifier, [user.id]);
 
     const requestedScope = input.scope ? input.scope.split(" ") : client.allowedScopes;
     const allowedScope = requestedScope.filter((scope) => client.allowedScopes.includes(scope));

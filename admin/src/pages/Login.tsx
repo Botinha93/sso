@@ -180,7 +180,7 @@ export default function Login() {
             ? extractErrorMessage(json, t('login.passwordUpdateFailed'))
             : mfaTicket
               ? extractErrorMessage(json, t('login.invalidMfaCode'))
-              : resolveLoginCredentialError(json, t('login.invalidCredentials'))
+              : resolveLoginCredentialError(json, t('login.invalidCredentials'), t)
         );
       }
     } catch {

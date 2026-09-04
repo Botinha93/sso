@@ -1,4 +1,4 @@
-import { AuthenticationError } from "../core/errors.js";
+import { AccountLockedError } from "../core/errors.js";
 import type { AuditRepository } from "../repositories/contracts.js";
 import { EventHookService } from "./event-hook-service.js";
 import type { InstanceSettingsService } from "./instance-settings-service.js";
@@ -35,73 +35,112 @@ export class SecurityService {
     private readonly instanceSettingsService: InstanceSettingsService
   ) {}
 
-  assertLoginAllowed(identifier: string) {
-    const key = this.normalizeIdentifier(identifier);
-    const record = this.loginFailures.get(key);
-    if (!record?.lockedUntil) {
-      return;
-    }
+  /**
+   * Login lockout is tracked per resolved account (falling back to the typed
+   * identifier when no account matches). A user can sign in with either their
+   * email or their username, so failures recorded through one identifier must
+   * also lock the other one; otherwise the account appears to accept one
+   * identifier and reject the other.
+   */
+  assertLoginAllowed(identifier: string, userIds: string[] = []) {
+    const now = Date.now();
+    for (const key of this.lockoutKeys(identifier, userIds)) {
+      const record = this.loginFailures.get(key);
+      if (!record?.lockedUntil) {
+        continue;
+      }
 
-    if (record.lockedUntil.getTime() <= Date.now()) {
-      this.loginFailures.delete(key);
-      return;
-    }
+      if (record.lockedUntil.getTime() <= now) {
+        this.loginFailures.delete(key);
+        continue;
+      }
 
-    throw new AuthenticationError("Account temporarily locked due to repeated failed login attempts");
+      throw new AccountLockedError(record.lockedUntil);
+    }
   }
 
-  async recordLoginFailure(input: { identifier: string; ip?: string; reason?: string }) {
-    const key = this.normalizeIdentifier(input.identifier);
+  async recordLoginFailure(input: { identifier: string; userIds?: string[]; ip?: string; reason?: string }) {
+    const identifier = this.normalizeIdentifier(input.identifier);
+    const userIds = (input.userIds ?? []).filter(Boolean);
+    const keys = this.lockoutKeys(identifier, userIds);
     const now = new Date();
-    const existing = this.loginFailures.get(key);
     const securitySettings = await this.instanceSettingsService.getSecuritySettings();
     const windowMs = securitySettings.loginFailureWindowMs;
     const maxAttempts = securitySettings.loginLockoutThreshold;
     const lockoutMs = securitySettings.loginLockoutDurationMs;
 
-    const record = existing && now.getTime() - existing.firstAttemptAt.getTime() <= windowMs
-      ? {
-          ...existing,
-          count: existing.count + 1,
-          lastAttemptAt: now
-        }
-      : {
-          count: 1,
-          firstAttemptAt: now,
-          lastAttemptAt: now,
-          lockedUntil: undefined
-        };
+    const entries = keys.map((key) => {
+      const existing = this.loginFailures.get(key);
+      const record: LoginFailureRecord = existing && now.getTime() - existing.firstAttemptAt.getTime() <= windowMs
+        ? {
+            ...existing,
+            count: existing.count + 1,
+            lastAttemptAt: now
+          }
+        : {
+            count: 1,
+            firstAttemptAt: now,
+            lastAttemptAt: now,
+            lockedUntil: undefined
+          };
+      return { key, existing, record };
+    });
 
-    let justLocked = false;
-    if (record.count >= maxAttempts) {
-      record.lockedUntil = new Date(now.getTime() + lockoutMs);
-      justLocked = !existing?.lockedUntil || existing.lockedUntil.getTime() <= now.getTime();
+    const alreadyLocked = entries.some(({ existing }) => existing?.lockedUntil && existing.lockedUntil.getTime() > now.getTime());
+    const shouldLock = entries.some(({ record }) => record.count >= maxAttempts);
+    let lockedUntil: Date | undefined;
+    if (shouldLock) {
+      // Lock every key together so the account is locked no matter which identifier is typed next.
+      lockedUntil = new Date(now.getTime() + lockoutMs);
+      for (const entry of entries) {
+        entry.record.lockedUntil = lockedUntil;
+      }
     }
 
-    this.loginFailures.set(key, record);
+    for (const { key, record } of entries) {
+      this.loginFailures.set(key, record);
+    }
 
-    if (justLocked) {
+    if (shouldLock && !alreadyLocked) {
       await this.auditRepository.log({
         type: "account_lockout",
         actorType: "system",
         ip: input.ip,
         metadata: {
-          identifier: key,
-          lockedUntil: record.lockedUntil?.toISOString(),
+          identifier,
+          userIds,
+          lockedUntil: lockedUntil?.toISOString(),
           reason: input.reason ?? "repeated_failed_login"
         }
       });
       await this.eventHookService.emit("auth.lockout.triggered", {
-        identifier: key,
+        identifier,
+        userIds,
         ip: input.ip,
-        lockedUntil: record.lockedUntil?.toISOString(),
+        lockedUntil: lockedUntil?.toISOString(),
         reason: input.reason ?? "repeated_failed_login"
       });
     }
   }
 
-  clearLoginFailures(identifier: string) {
-    this.loginFailures.delete(this.normalizeIdentifier(identifier));
+  clearLoginFailures(identifier: string, userIds: string[] = []) {
+    for (const key of this.lockoutKeys(identifier, userIds)) {
+      this.loginFailures.delete(key);
+    }
+  }
+
+  /**
+   * When the identifier resolves to one or more accounts, the account is the
+   * unit of lockout: failures, checks and clears all go against `user:<id>`
+   * regardless of whether the email or the username was typed. Identifiers that
+   * match no account fall back to a key on the normalized identifier itself.
+   */
+  private lockoutKeys(identifier: string, userIds: string[]) {
+    const userKeys = [...new Set(userIds.filter(Boolean).map((userId) => `user:${userId}`))];
+    if (userKeys.length > 0) {
+      return userKeys;
+    }
+    return [this.normalizeIdentifier(identifier)];
   }
 
   async enforceEndpointRateLimit(input: {

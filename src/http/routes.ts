@@ -4,7 +4,7 @@ import type { FastifyInstance } from "fastify";
 import type { AppConfig } from "../core/config.js";
 import type { AuthenticationStageType, FlowDesignation, GrantType, UiSurface, User } from "../domain/models.js";
 import { bootstrap } from "../bootstrap.js";
-import { AppError, AuthenticationError, ValidationError } from "../core/errors.js";
+import { AccountLockedError, AppError, AuthenticationError, ValidationError } from "../core/errors.js";
 import { ensureExternalDatabaseSchema, saveRuntimeDatabaseConfig } from "../core/runtime-database-config.js";
 import { verifyPassword } from "../security/password.js";
 import { isJwtVerificationError } from "../security/jwt.js";
@@ -450,9 +450,30 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return path.startsWith("/auth") || path.startsWith("/oauth") || path.startsWith("/saml");
   }
 
+  /**
+   * Extra response fields for a login lockout so clients can tell it apart from a
+   * wrong password and show how long to wait.
+   */
+  function lockoutResponseDetails(error: unknown) {
+    if (!(error instanceof AccountLockedError)) {
+      return {};
+    }
+    return {
+      code: "account_locked",
+      lockedUntil: error.lockedUntil.toISOString(),
+      retryAfterSeconds: error.retryAfterSeconds
+    };
+  }
+
   function publicErrorMessageForPath(path: string, error: AppError) {
     if (path === "/oauth/introspect" || path === "/oauth/userinfo") {
       return "Token validation failed";
+    }
+
+    if (error instanceof AccountLockedError) {
+      // A lockout is deliberately explained: hiding it behind "Authentication failed"
+      // makes a temporarily locked account look like a broken login.
+      return error.message;
     }
 
     if (path === "/auth/login/mfa") {
@@ -1483,7 +1504,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
           ip: request.ip,
           userAgent: clientUserAgent(request)
         });
-        deps.securityService.clearLoginFailures(parsed.data.username);
+        deps.securityService.clearLoginFailures(parsed.data.username, [user.id]);
         return tokenResponse;
       }
       if (parsed.data.grant_type === "urn:ietf:params:oauth:grant-type:device_code") {
@@ -1540,6 +1561,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       if (parsed.data.grant_type === "password") {
         await deps.securityService.recordLoginFailure({
           identifier: parsed.data.username,
+          userIds: await deps.authService.resolveLoginLockoutUserIds(parsed.data.username),
           ip: request.ip,
           reason: err instanceof Error ? err.message : "unknown"
         });
@@ -1568,7 +1590,11 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         });
       }
       if (err instanceof AppError) {
-        return reply.status(err.statusCode).send({ error: "invalid_grant", error_description: publicErrorMessageForPath("/oauth/token", err) });
+        return reply.status(err.statusCode).send({
+          error: "invalid_grant",
+          error_description: publicErrorMessageForPath("/oauth/token", err),
+          ...lockoutResponseDetails(err)
+        });
       }
       throw err;
     }
@@ -1869,7 +1895,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         ip: request.ip,
         userAgent: clientUserAgent(request)
       });
-      deps.securityService.clearLoginFailures(input.email);
+      deps.securityService.clearLoginFailures(input.email, [user.id]);
       await runBestEffort(request, "auth.login.succeeded", async () => {
         await deps.eventHookService.emit("auth.login.succeeded", {
           userId: loginResult.session.userId,
@@ -1885,6 +1911,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       await runBestEffort(request, "security.recordLoginFailure", async () => {
         await deps.securityService.recordLoginFailure({
           identifier: input.email,
+          userIds: await deps.authService.resolveLoginLockoutUserIds(input.email),
           ip: request.ip,
           reason
         });
@@ -3867,7 +3894,8 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       if (isSensitiveProtocolPath(path)) {
         return reply.status(error.statusCode).send({
           error: error.name,
-          message: publicErrorMessageForPath(path, error)
+          message: publicErrorMessageForPath(path, error),
+          ...lockoutResponseDetails(error)
         });
       }
       return reply.status(error.statusCode).send({ error: error.name, message: error.message });

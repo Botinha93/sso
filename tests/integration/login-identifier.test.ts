@@ -183,3 +183,56 @@ test("login with a colliding email/username string authenticates the user whose 
   assert.equal(emailLogin.statusCode, 200, emailLogin.body);
   assert.ok(emailLogin.json().session?.id);
 });
+
+test("lockout triggered through the email also blocks login with the username", async (t) => {
+  const { app, admin } = await createTestContext("integration-login-lockout-identifier");
+  t.after(async () => {
+    await app.close();
+  });
+
+  const headers = await createAdminHeaders(app, admin);
+  const created = await app.inject({
+    method: "POST",
+    url: "/api/admin/users",
+    headers,
+    payload: {
+      email: "davi@jcdecor.com.br",
+      username: "davi.ribeiro",
+      password: "Change-Me-Now1!",
+      givenName: "Davi",
+      familyName: "Ribeiro"
+    }
+  });
+  assert.equal(created.statusCode, 201, created.body);
+
+  const login = (email: string, password: string) => app.inject({
+    method: "POST",
+    url: "/auth/login",
+    payload: {
+      email,
+      password,
+      clientId: "sso-admin-ui",
+      scope: ["openid", "profile", "email"]
+    }
+  });
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const failed = await login("davi@jcdecor.com.br", "definitely-wrong-password");
+    assert.equal(failed.statusCode, 401, failed.body);
+  }
+
+  const lockedByEmail = await login("davi@jcdecor.com.br", "Change-Me-Now1!");
+  assert.equal(lockedByEmail.statusCode, 401, lockedByEmail.body);
+  assert.equal(lockedByEmail.json().code, "account_locked");
+  assert.match(lockedByEmail.json().message, /temporarily locked/i);
+
+  // Before the fix this succeeded: the lock was keyed by the typed identifier only.
+  const lockedByUsername = await login("davi.ribeiro", "Change-Me-Now1!");
+  assert.equal(lockedByUsername.statusCode, 401, lockedByUsername.body);
+  assert.equal(lockedByUsername.json().code, "account_locked");
+  assert.match(lockedByUsername.json().message, /temporarily locked/i);
+  assert.ok(Number(lockedByUsername.json().retryAfterSeconds) > 0);
+
+  const unrelated = await login(admin.email, admin.password);
+  assert.equal(unrelated.statusCode, 200, unrelated.body);
+});

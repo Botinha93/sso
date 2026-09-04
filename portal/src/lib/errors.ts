@@ -27,7 +27,23 @@ const LOGIN_CREDENTIAL_ERROR_MESSAGES = new Set([
   'Invalid credentials',
 ])
 
-export const resolveLoginCredentialError = (errorPayload: unknown, localizedMessage: string) => {
+const isAccountLockedPayload = (payload: any) =>
+  !!payload && typeof payload === 'object' && (payload.code === 'account_locked' || payload.error === 'AccountLockedError')
+
+const lockedRetryMinutes = (payload: any) => {
+  const seconds = Number(payload?.retryAfterSeconds)
+  if (Number.isFinite(seconds) && seconds > 0) return String(Math.max(1, Math.ceil(seconds / 60)))
+  return '15'
+}
+
+export const resolveLoginCredentialError = (
+  errorPayload: unknown,
+  localizedMessage: string,
+  t?: (key: string, params?: Record<string, string>) => string,
+) => {
+  if (isAccountLockedPayload(errorPayload) && t) {
+    return t('login.accountLocked', { minutes: lockedRetryMinutes(errorPayload) })
+  }
   const message = extractErrorMessage(errorPayload, '')
   if (!message || LOGIN_CREDENTIAL_ERROR_MESSAGES.has(message)) {
     return localizedMessage
