@@ -533,5 +533,5 @@ test("bootstrap_admin metadata cannot be granted through the management API", as
       allowedAudiences: ["jc-decor"]
     }
   });
-  assert.equal(createChildResp.statusCode, 201);
+  assert.equal(createChildResp.statusCode, 403);
 });

@@ -27,10 +27,13 @@ RUN apt-get update \
   && rm -f /etc/nginx/sites-enabled/default \
   && rm -rf /var/lib/apt/lists/*
 
+# nginx inside this image is the single proxy hop in front of the app; raise
+# TRUST_PROXY (e.g. 2) when another proxy such as Cloudflare sits in front.
 ENV NODE_ENV=production \
   HOST=0.0.0.0 \
   PORT=4001 \
   APP_INTERNAL_PORT=4001 \
+  TRUST_PROXY=1 \
   AUTO_SETUP=false
 
 WORKDIR /app
