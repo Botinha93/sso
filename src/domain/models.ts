@@ -532,6 +532,8 @@ export type AuditEventType =
   | "token_revoked"
   | "consent_granted"
   | "consent_revoked"
+  | "consent_granted"
+  | "consent_denied"
   | "session_revoked"
   | "session_anomaly_detected"
   | "client_created"

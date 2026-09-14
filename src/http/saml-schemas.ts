@@ -73,7 +73,6 @@ export const samlSsoSchema = z.object({
   spId: z.string().min(1, "spId is required"),
   requestId: z.string().optional(),
   relayState: z.string().max(512).optional(),
-  userId: z.string().optional(),
   responseMode: z.enum(["form_post", "json"]).default("form_post")
 });
 

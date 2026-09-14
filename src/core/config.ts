@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { applyRuntimeDatabaseConfig } from "./runtime-database-config.js";
 
 const required = (name: string, fallback?: string): string => {
@@ -15,21 +16,32 @@ const asNumber = (name: string, fallback: number): number => {
   return raw ? Number(raw) : fallback;
 };
 
-const asBoolean = (name: string, fallback: boolean): boolean => {
-  const raw = process.env[name];
-  if (raw === undefined) {
-    return fallback;
-  }
-
-  const normalized = raw.trim().toLowerCase();
-  if (["1", "true", "yes", "on"].includes(normalized)) {
-    return true;
-  }
-  if (["0", "false", "no", "off"].includes(normalized)) {
+/**
+ * TRUST_PROXY accepts the same shapes Fastify does: a boolean, a hop count
+ * (e.g. "2" when Cloudflare and nginx both sit in front of the app), or a
+ * comma-separated list of proxy addresses/CIDRs. A bare "true" trusts the
+ * left-most X-Forwarded-For entry, which a client can spoof, so a hop count
+ * or address list is recommended for production.
+ */
+const asTrustProxy = (): boolean | number | string | string[] => {
+  const raw = process.env.TRUST_PROXY?.trim();
+  if (!raw) {
     return false;
   }
 
-  throw new Error(`Invalid boolean environment variable: ${name}`);
+  const normalized = raw.toLowerCase();
+  if (["true", "yes", "on"].includes(normalized)) {
+    return true;
+  }
+  if (["false", "no", "off"].includes(normalized)) {
+    return false;
+  }
+  if (/^\d+$/.test(raw)) {
+    return Number(raw);
+  }
+
+  const entries = raw.split(",").map((value) => value.trim()).filter(Boolean);
+  return entries.length === 1 ? entries[0] : entries;
 };
 
 const asHost = (): string => {
@@ -45,6 +57,9 @@ const asHost = (): string => {
 const resolveCookieSecret = (): string => {
   const configured = process.env.COOKIE_SECRET?.trim();
   if (configured) {
+    if (process.env.NODE_ENV === "production" && configured.length < 32) {
+      throw new Error("COOKIE_SECRET must be at least 32 characters in production (generate with: openssl rand -hex 32)");
+    }
     return configured;
   }
 
@@ -52,7 +67,17 @@ const resolveCookieSecret = (): string => {
     throw new Error("Missing required environment variable: COOKIE_SECRET");
   }
 
-  return "northstar-sso-cookie-secret";
+  // Session cookies are signed with this secret. Outside production a random
+  // per-process value is used instead of a well-known constant, so a
+  // deployment that forgot NODE_ENV=production does not ship a guessable key.
+  // Sessions are invalidated on restart in that mode.
+  if (!process.env.__GENERATED_COOKIE_SECRET) {
+    process.env.__GENERATED_COOKIE_SECRET = randomBytes(32).toString("hex");
+    if (process.env.NODE_ENV !== "test") {
+      console.warn("[config] COOKIE_SECRET is not set; using a random per-process secret. Set COOKIE_SECRET for stable sessions.");
+    }
+  }
+  return process.env.__GENERATED_COOKIE_SECRET;
 };
 
 export interface FederationProviderConfig {
@@ -96,7 +121,7 @@ const asFederationProviders = (): FederationProviderConfig[] => {
 export interface AppConfig {
   port: number;
   host: string;
-  trustProxy: boolean;
+  trustProxy: boolean | number | string | string[];
   cookieSecret: string;
   databaseProvider: "sqlite" | "postgresql" | "mysql";
   databasePath: string;
@@ -114,7 +139,7 @@ export interface AppConfig {
 export const loadConfig = (): AppConfig => applyRuntimeDatabaseConfig({
   port: asNumber("PORT", 4000),
   host: asHost(),
-  trustProxy: asBoolean("TRUST_PROXY", false),
+  trustProxy: asTrustProxy(),
   cookieSecret: resolveCookieSecret(),
   databaseProvider: "sqlite",
   databasePath: process.env.DATABASE_PATH ?? "./data/sso.sqlite",

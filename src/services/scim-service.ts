@@ -13,6 +13,34 @@ export class ScimService {
     private readonly groupService: GroupService
   ) {}
 
+  /**
+   * A SCIM token is a provisioning credential, not an administrator. It may
+   * only modify resources that were created through SCIM (externalSource
+   * "scim"). Locally managed accounts and groups (including the built-in
+   * administrator groups) are read-only to SCIM clients.
+   */
+  private async requireScimManagedUser(id: string) {
+    const existing = await this.userService.findUserById(id);
+    if (!existing) {
+      throw new ValidationError("User not found");
+    }
+    if (existing.externalSource !== "scim") {
+      throw new ValidationError("User is not managed by SCIM");
+    }
+    return existing;
+  }
+
+  private async requireScimManagedGroup(id: string) {
+    const existing = await this.groupService.findGroupById(id);
+    if (!existing) {
+      throw new ValidationError("Group not found");
+    }
+    if (existing.externalSource !== "scim") {
+      throw new ValidationError("Group is not managed by SCIM");
+    }
+    return existing;
+  }
+
   getServiceProviderConfig() {
     return {
       schemas: ["urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig"],
@@ -156,10 +184,7 @@ export class ScimService {
     active?: boolean;
     password?: string;
   }) {
-    const existing = await this.userService.findUserById(id);
-    if (!existing) {
-      throw new ValidationError("User not found");
-    }
+    const existing = await this.requireScimManagedUser(id);
 
     const primaryEmail = input.emails?.find((email) => email.primary)?.value ?? input.emails?.[0]?.value;
     const updated = await this.userService.updateUserProfile(id, {
@@ -188,10 +213,7 @@ export class ScimService {
   }
 
   async patchUser(id: string, operations: Array<{ op: "add" | "replace" | "remove"; path?: string; value?: unknown }>) {
-    const existing = await this.userService.findUserById(id);
-    if (!existing) {
-      throw new ValidationError("User not found");
-    }
+    await this.requireScimManagedUser(id);
 
     const profilePatch: {
       externalSource?: string;
@@ -244,6 +266,7 @@ export class ScimService {
   }
 
   async deleteUser(id: string) {
+    await this.requireScimManagedUser(id);
     await this.userService.deleteUser(id);
   }
 
@@ -289,10 +312,7 @@ export class ScimService {
   }
 
   async replaceGroup(id: string, input: { externalId?: string; displayName: string; members?: Array<{ value: string }> }) {
-    const existing = await this.groupService.findGroupById(id);
-    if (!existing) {
-      throw new ValidationError("Group not found");
-    }
+    const existing = await this.requireScimManagedGroup(id);
 
     await this.groupService.updateGroup(id, {
       externalSource: "scim",
@@ -321,10 +341,7 @@ export class ScimService {
   }
 
   async patchGroup(id: string, operations: Array<{ op: "add" | "replace" | "remove"; path?: string; value?: unknown }>) {
-    const existing = await this.groupService.findGroupById(id);
-    if (!existing) {
-      throw new ValidationError("Group not found");
-    }
+    await this.requireScimManagedGroup(id);
 
     for (const operation of operations) {
       const path = (operation.path ?? "").toLowerCase();
@@ -358,6 +375,7 @@ export class ScimService {
   }
 
   async deleteGroup(id: string) {
+    await this.requireScimManagedGroup(id);
     await this.groupService.deleteGroup(id);
   }
 

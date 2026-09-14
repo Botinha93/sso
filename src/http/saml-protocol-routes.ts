@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import { randomBytes } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import type { AuditRepository } from "../repositories/contracts.js";
 import type { SamlServiceProviderRepository } from "../repositories/contracts.js";
@@ -9,7 +10,8 @@ import type { UserService } from "../services/user-service.js";
 import { AppError, ValidationError } from "../core/errors.js";
 import type { SamlReplayProtectionService } from "../services/saml-replay-protection-service.js";
 import type { InstanceSettingsService } from "../services/instance-settings-service.js";
-import { clearSessionCookie } from "./session-cookie.js";
+import { clearSessionCookie, readSessionIdFromRequest } from "./session-cookie.js";
+import { escapeHtml } from "./safe-url.js";
 import {
   samlAcsSchema,
   samlMetadataSchema,
@@ -34,9 +36,9 @@ interface SamlProtocolRouteDeps {
   instanceSettingsService: InstanceSettingsService;
 }
 
-const htmlForm = (input: { action: string; fields: Array<{ name: string; value: string }> }) => {
+const htmlForm = (input: { action: string; fields: Array<{ name: string; value: string }>; nonce: string }) => {
   const hiddenFields = input.fields
-    .map((field) => `<input type="hidden" name="${field.name}" value="${field.value}">`)
+    .map((field) => `<input type="hidden" name="${escapeHtml(field.name)}" value="${escapeHtml(field.value)}">`)
     .join("\n");
 
   return `<!DOCTYPE html>
@@ -45,19 +47,36 @@ const htmlForm = (input: { action: string; fields: Array<{ name: string; value: 
     <meta charset="UTF-8" />
     <title>SAML Response</title>
   </head>
-  <body onload="document.forms[0].submit()">
-    <form method="POST" action="${input.action}">
+  <body>
+    <form method="POST" action="${escapeHtml(input.action)}">
       ${hiddenFields}
       <noscript>
         <button type="submit">Continue</button>
       </noscript>
     </form>
+    <script nonce="${input.nonce}">document.forms[0].submit();</script>
   </body>
 </html>`;
 };
 
+const sendHtmlForm = (reply: any, input: { action: string; fields: Array<{ name: string; value: string }> }) => {
+  const nonce = randomBytes(16).toString("base64");
+  let formAction = "'none'";
+  try {
+    formAction = new URL(input.action).origin;
+  } catch {
+    // keep 'none'
+  }
+  reply.header(
+    "Content-Security-Policy",
+    `default-src 'none'; script-src 'nonce-${nonce}'; form-action ${formAction}; base-uri 'none'; frame-ancestors 'none'`
+  );
+  reply.header("Cache-Control", "no-store");
+  return reply.type("text/html; charset=utf-8").send(htmlForm({ ...input, nonce }));
+};
+
 const getSessionUser = async (request: any, deps: SamlProtocolRouteDeps) => {
-  const sid = request.cookies?.sid;
+  const sid = readSessionIdFromRequest(request);
   if (!sid) {
     return undefined;
   }
@@ -67,7 +86,8 @@ const getSessionUser = async (request: any, deps: SamlProtocolRouteDeps) => {
     return undefined;
   }
 
-  return deps.userService.findUserById(session.userId);
+  const user = await deps.userService.findUserById(session.userId);
+  return user && user.active ? user : undefined;
 };
 
 const sanitizeAuditError = (error: unknown): string => {
@@ -93,10 +113,10 @@ export const registerSamlProtocolRoutes = async (app: FastifyInstance, deps: Sam
       throw new ValidationError("Service provider not found or disabled");
     }
 
-    let user = await getSessionUser(request, deps);
-    if (!user && input.userId) {
-      user = await deps.userService.findUserById(input.userId);
-    }
+    // The subject of an IdP-initiated assertion is always the authenticated
+    // browser session. A caller-supplied user id was previously accepted here,
+    // which allowed unauthenticated impersonation of any user at any SP.
+    const user = await getSessionUser(request, deps);
     if (!user) {
       return reply.status(401).send({ error: "unauthorized" });
     }
@@ -147,15 +167,13 @@ export const registerSamlProtocolRoutes = async (app: FastifyInstance, deps: Sam
       });
     }
 
-    const form = htmlForm({
+    return sendHtmlForm(reply, {
       action: sp.acsUrl,
       fields: [
         { name: "SAMLResponse", value: Buffer.from(samlResponse.xml, "utf-8").toString("base64") },
         ...(input.relayState ? [{ name: "RelayState", value: input.relayState }] : [])
       ]
     });
-
-    return reply.type("text/html; charset=utf-8").send(form);
   });
 
   app.post("/saml/acs/:spId", async (request, reply) => {
@@ -163,7 +181,7 @@ export const registerSamlProtocolRoutes = async (app: FastifyInstance, deps: Sam
     const body = samlAcsSchema.parse(request.body);
     const sp = await deps.samlServiceProviderRepository.findById(spId);
 
-    if (!sp) {
+    if (!sp || !sp.enabled) {
       return reply.status(404).send({ error: "Service provider not found" });
     }
 
@@ -246,7 +264,10 @@ export const registerSamlProtocolRoutes = async (app: FastifyInstance, deps: Sam
 
   app.post("/saml/slo", async (request, reply) => {
     const body = samlSloSchema.parse(request.body);
-    const sid = body.sessionId ?? request.cookies?.sid;
+    // Only the caller's own (signed) session can be terminated here; a
+    // session id supplied in the body is ignored.
+    void body.sessionId;
+    const sid = readSessionIdFromRequest(request);
 
     if (sid) {
       await deps.authService.sessionRepository.revoke(sid, new Date());

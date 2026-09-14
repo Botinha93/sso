@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid";
 import { ValidationError } from "../core/errors.js";
+import { assertSafeOutboundUrl } from "../http/safe-url.js";
 import type { EventHook } from "../domain/models.js";
 import type {
   EventHookRepository,
@@ -39,6 +40,7 @@ const ALL_EVENTS_TOKEN = "*";
 const DEFAULT_DELIVERY_TIMEOUT_MS = 5_000;
 const DEFAULT_MAX_QUEUE_SIZE = 1_000;
 const DEFAULT_MAX_CONCURRENT_EVENTS = 4;
+const MAX_RESPONSE_BODY_CHARS = 4_096;
 
 type PluginRuntimeLike = {
   dispatch: (eventType: string, payload: Record<string, unknown>) => Promise<void>;
@@ -98,6 +100,8 @@ export class EventHookService {
     enabled?: boolean;
   }) {
     this.assertValidEventType(input.eventType);
+    await assertSafeOutboundUrl(input.targetUrl, { label: "Event hook target URL" });
+    this.assertSafeHeaders(input.headers);
     return this.eventHookRepository.create({
       id: nanoid(),
       eventType: input.eventType.trim(),
@@ -118,6 +122,10 @@ export class EventHookService {
     if (input.eventType !== undefined) {
       this.assertValidEventType(input.eventType);
     }
+    if (input.targetUrl !== undefined) {
+      await assertSafeOutboundUrl(input.targetUrl, { label: "Event hook target URL" });
+    }
+    this.assertSafeHeaders(input.headers);
 
     const updated = await this.eventHookRepository.update(id, {
       eventType: input.eventType?.trim(),
@@ -241,6 +249,23 @@ export class EventHookService {
     return { deliveredToHookId: hookId, eventType };
   }
 
+  /**
+   * Operators may attach custom headers (for example an Authorization value
+   * for the receiver). Headers that would let the request impersonate a
+   * browser session or override the destination host are refused.
+   */
+  private assertSafeHeaders(headers: Record<string, string> | undefined) {
+    if (!headers) {
+      return;
+    }
+    const forbidden = new Set(["host", "cookie", "content-length", "transfer-encoding", "connection"]);
+    for (const name of Object.keys(headers)) {
+      if (forbidden.has(name.trim().toLowerCase())) {
+        throw new ValidationError(`Event hook header not allowed: ${name}`);
+      }
+    }
+  }
+
   private assertValidEventType(eventType: string) {
     const normalized = eventType.trim();
     if (!this.listSystemEventTypes().includes(normalized)) {
@@ -262,14 +287,21 @@ export class EventHookService {
     const timeout = setTimeout(() => controller.abort(), this.deliveryTimeoutMs);
 
     try {
+      // Re-validate at delivery time: DNS for the hostname may have changed
+      // since the hook was created (rebinding to an internal address).
+      await assertSafeOutboundUrl(hook.targetUrl, { label: "Event hook target URL" });
+
       const response = await fetch(hook.targetUrl, {
         method: hook.method,
         headers,
         body: JSON.stringify({ eventType, payload, sentAt: new Date().toISOString() }),
-        signal: controller.signal
+        signal: controller.signal,
+        // Following redirects would let a public hostname bounce the request
+        // to an internal service.
+        redirect: "manual"
       });
 
-      const responseBody = await response.text();
+      const responseBody = (await response.text()).slice(0, MAX_RESPONSE_BODY_CHARS);
       await this.eventNotificationRepository.create({
         eventType,
         hookId: hook.id,

@@ -15,6 +15,15 @@ interface UiCustomization {
   backgroundCss?: string;
 }
 
+async function fetchCsrfToken(): Promise<string> {
+  const res = await fetch('/api/csrf-token', { credentials: 'include' });
+  if (!res.ok) {
+    throw new Error('Could not obtain a CSRF token');
+  }
+  const data = await res.json() as { csrf_token: string };
+  return data.csrf_token;
+}
+
 export default function Consent() {
   const { t } = useI18n()
   const [searchParams] = useSearchParams();
@@ -26,9 +35,6 @@ export default function Consent() {
   const scope = searchParams.get("scope") || "openid";
   const scopes = scope.split(" ").filter(Boolean);
   const redirectUri = searchParams.get("redirect_uri") || "/";
-  const state = searchParams.get("state");
-  const responseType = searchParams.get("response_type");
-  const responseMode = searchParams.get("response_mode") || (responseType === "token" ? "fragment" : "query");
 
   React.useEffect(() => {
     void (async () => {
@@ -45,47 +51,59 @@ export default function Consent() {
     })();
   }, [clientId]);
 
-  const handleApprove = () => {
+  // The decision is recorded server-side (session + CSRF token) and then the
+  // browser returns to /oauth/authorize, which finds the stored consent. A
+  // plain link can therefore never approve access on the user's behalf.
+  const submitDecision = async (decision: "approve" | "deny") => {
     setLoading(true);
     setError(null);
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("consent", "approve");
-    window.location.href = `/oauth/authorize?${params.toString()}`;
+    try {
+      const csrfToken = await fetchCsrfToken();
+      const res = await fetch('/oauth/consent', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'content-type': 'application/json',
+          'x-csrf-token': csrfToken
+        },
+        body: JSON.stringify({
+          client_id: searchParams.get("client_id"),
+          redirect_uri: searchParams.get("redirect_uri"),
+          scope,
+          decision
+        })
+      });
+
+      if (res.status === 401) {
+        const loginParams = new URLSearchParams(searchParams.toString());
+        window.location.href = `/login?${loginParams.toString()}`;
+        return;
+      }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error_description?: string; message?: string };
+        throw new Error(body.error_description ?? body.message ?? `Request failed (${res.status})`);
+      }
+
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("consent");
+      if (decision === "deny") {
+        // The server validates redirect_uri against the client registration
+        // before redirecting with error=access_denied.
+        params.set("consent", "deny");
+      }
+      window.location.href = `/oauth/authorize?${params.toString()}`;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unexpected error');
+      setLoading(false);
+    }
+  };
+
+  const handleApprove = () => {
+    void submitDecision("approve");
   };
 
   const handleDeny = () => {
-    const params = new URLSearchParams();
-    params.set("error", "access_denied");
-    if (state) params.set("state", state);
-
-    if (responseMode === "fragment") {
-      const url = new URL(redirectUri);
-      url.hash = params.toString();
-      window.location.href = url.toString();
-      return;
-    }
-
-    if (responseMode === "form_post") {
-      const form = document.createElement("form");
-      form.method = "POST";
-      form.action = redirectUri;
-
-      Array.from(params.entries()).forEach(([key, value]) => {
-        const input = document.createElement("input");
-        input.type = "hidden";
-        input.name = key;
-        input.value = value;
-        form.appendChild(input);
-      });
-
-      document.body.appendChild(form);
-      form.submit();
-      return;
-    }
-
-    const url = new URL(redirectUri);
-    Array.from(params.entries()).forEach(([key, value]) => url.searchParams.set(key, value));
-    window.location.href = url.toString();
+    void submitDecision("deny");
   };
 
   return (

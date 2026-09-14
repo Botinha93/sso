@@ -13,7 +13,9 @@ import { hasAdminPermission, isBootstrapAdminServiceIdentityMetadata, isUngatedA
 import { registerScimRoutes } from "./scim-routes.js";
 import { registerSamlAdminRoutes } from "./saml-routes.js";
 import { registerSamlProtocolRoutes } from "./saml-protocol-routes.js";
-import { clearSessionCookie, setSessionCookie } from "./session-cookie.js";
+import { clearSessionCookie, readSessionIdFromRequest, setSessionCookie } from "./session-cookie.js";
+import { assertSafeDatabaseUrl, assertSafeOutboundUrl, escapeHtml, isSafeLocalRedirect } from "./safe-url.js";
+import { hashOpaqueToken } from "../security/token-hash.js";
 import { registerAccessGovernanceRoutes } from "./routes/access-governance.js";
 import { registerProvisioningRoutes } from "./routes/provisioning.js";
 import { registerElevationRoutes } from "./routes/elevations.js";
@@ -410,10 +412,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   };
 
   function asSafeRedirect(value: unknown): string {
-    if (typeof value !== "string" || !value.startsWith("/")) {
-      return "/";
-    }
-    return value;
+    return isSafeLocalRedirect(value) ? value : "/";
   }
 
   async function isAllowedPostLogoutRedirect(clientId: string | undefined, redirectUri: string) {
@@ -587,17 +586,39 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   }
 
   async function getSession(request: any) {
-    const sid = request.cookies?.sid;
+    const sid = readSessionIdFromRequest(request);
     if (!sid) return null;
     let session;
     try {
       session = await deps.authService.sessionRepository.findById(sid);
     } catch (error) {
-      request.log?.error({ err: error, sid }, "session lookup failed");
+      request.log?.error({ err: error }, "session lookup failed");
       return null;
     }
     if (!session || session.expiresAt.getTime() < Date.now() || session.revokedAt) return null;
+
+    // A deactivated account must lose access immediately, not at cookie expiry.
+    const user = await deps.userService.findUserById(session.userId);
+    if (!user || !user.active) return null;
     return session;
+  }
+
+  async function revokeAllSessionsForUser(userId: string, reason: string) {
+    const now = new Date();
+    const sessions = (await deps.authService.sessionRepository.list())
+      .filter((session) => session.userId === userId && !session.revokedAt);
+    for (const session of sessions) {
+      deps.securityService.revokeSessionObservation(session.id);
+      await deps.authService.sessionRepository.revoke(session.id, now);
+    }
+    if (sessions.length > 0) {
+      await deps.auditRepository.log({
+        type: "session_revoked",
+        actorType: "system",
+        metadata: { userId, revokedSessions: sessions.length, reason }
+      });
+    }
+    return sessions.length;
   }
 
   function clientUserAgent(request: any) {
@@ -605,7 +626,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : undefined;
   }
 
-  function deriveRateLimitActorKey(request: any): { actorKey: string; clientId?: string } {
+  function deriveRateLimitActorKeys(request: any): { actorKeys: string[]; clientId?: string } {
     const ip = request.ip ?? "unknown";
     const bodyClientId =
       typeof request.body?.client_id === "string" && request.body.client_id.length > 0
@@ -614,13 +635,16 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
           ? request.body.clientId
           : undefined;
 
+    // The IP bucket always applies: the client id is attacker-controlled and
+    // must never be the *only* key, otherwise rotating it bypasses the limit.
+    // A second, per-client bucket lets a noisy client hit its own limit
+    // without blocking other clients sharing the same egress IP.
+    const actorKeys = [`ip:${ip}`];
     if (bodyClientId) {
-      // Bucket per OAuth client + IP so a noisy client doesn't lock out
-      // other clients sharing the same egress IP (e.g. behind NAT/proxy).
-      return { actorKey: `client:${bodyClientId}|ip:${ip}`, clientId: bodyClientId };
+      actorKeys.push(`client:${bodyClientId.slice(0, 128)}|ip:${ip}`);
     }
 
-    return { actorKey: `ip:${ip}` };
+    return { actorKeys, clientId: bodyClientId };
   }
 
   async function enforceEndpointRateLimit(request: any, reply: any) {
@@ -636,40 +660,76 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       metadata?: Record<string, unknown>;
     }> = [];
 
-    const { actorKey, clientId } = deriveRateLimitActorKey(request);
+    const { actorKeys, clientId } = deriveRateLimitActorKeys(request);
     const baseMetadata = clientId ? { clientId } : undefined;
+    const ipActorKey = actorKeys[0];
+    const pushForAllActors = (endpointKey: string, limit: number, windowMs: number, metadata?: Record<string, unknown>) => {
+      for (const actorKey of actorKeys) {
+        configs.push({ endpointKey, limit, windowMs, actorKey, metadata });
+      }
+    };
 
     if (path === "/auth/login") {
-      configs.push({ endpointKey: "auth_login", limit: scaleLimit(10), windowMs: 60_000, actorKey, metadata: baseMetadata });
+      pushForAllActors("auth_login", scaleLimit(10), 60_000, baseMetadata);
     }
     if (path === "/auth/login/mfa") {
-      configs.push({ endpointKey: "auth_login_mfa", limit: scaleLimit(10), windowMs: 60_000, actorKey, metadata: baseMetadata });
+      pushForAllActors("auth_login_mfa", scaleLimit(10), 60_000, baseMetadata);
     }
     if (path === "/auth/login/change-password") {
-      configs.push({ endpointKey: "auth_login_change_password", limit: scaleLimit(10), windowMs: 60_000, actorKey, metadata: baseMetadata });
+      pushForAllActors("auth_login_change_password", scaleLimit(10), 60_000, baseMetadata);
+    }
+    if (path === "/auth/login/webauthn/begin" || path === "/auth/login/webauthn/finish") {
+      pushForAllActors("auth_login_webauthn", scaleLimit(10), 60_000, baseMetadata);
     }
     if (path === "/auth/recovery/request") {
-      configs.push({ endpointKey: "auth_recovery_request", limit: scaleLimit(5), windowMs: 15 * 60_000, actorKey, metadata: baseMetadata });
+      pushForAllActors("auth_recovery_request", scaleLimit(5), 15 * 60_000, baseMetadata);
+      const identifier = typeof request.body?.identifier === "string" ? request.body.identifier.trim().toLowerCase() : "";
+      if (identifier) {
+        // Per-target limit: stops recovery mail-bombing of a single account
+        // from many source addresses.
+        configs.push({
+          endpointKey: "auth_recovery_request_identifier",
+          limit: 5,
+          windowMs: 15 * 60_000,
+          actorKey: `identifier:${hashOpaqueToken(identifier).slice(0, 32)}`
+        });
+      }
+    }
+    if (path === "/auth/recovery") {
+      pushForAllActors("auth_recovery_verify", scaleLimit(10), 15 * 60_000, baseMetadata);
     }
     if (path === "/api/setup/initialize") {
-      // No client_id is available for setup, fall back to IP-only key.
-      configs.push({ endpointKey: "setup_initialize", limit: scaleLimit(5), windowMs: 15 * 60_000, actorKey });
+      configs.push({ endpointKey: "setup_initialize", limit: scaleLimit(5), windowMs: 15 * 60_000, actorKey: ipActorKey });
+    }
+    if (path === "/connect/register") {
+      configs.push({ endpointKey: "connect_register", limit: scaleLimit(10), windowMs: 15 * 60_000, actorKey: ipActorKey });
+    }
+    if (path === "/oauth/consent") {
+      configs.push({ endpointKey: "oauth_consent", limit: scaleLimit(30), windowMs: 60_000, actorKey: ipActorKey });
     }
     if (path === "/oauth/device/verify") {
-      configs.push({ endpointKey: "oauth_device_verify", limit: scaleLimit(10), windowMs: 60_000, actorKey, metadata: baseMetadata });
+      pushForAllActors("oauth_device_verify", scaleLimit(10), 60_000, baseMetadata);
     }
     if (path === "/oauth/device/authorize") {
-      configs.push({ endpointKey: "oauth_device_authorize", limit: scaleLimit(10), windowMs: 60_000, actorKey, metadata: baseMetadata });
+      pushForAllActors("oauth_device_authorize", scaleLimit(10), 60_000, baseMetadata);
     }
-    if (path === "/oauth/token") {
+    if (path === "/oauth/ciba/approve") {
+      pushForAllActors("oauth_ciba_approve", scaleLimit(10), 60_000, baseMetadata);
+    }
+    if (path === "/oauth/token" || path === "/oauth/token/exchange") {
       const grantType = typeof request.body?.grant_type === "string" ? request.body.grant_type : undefined;
-      configs.push({
-        endpointKey: `oauth_token:${grantType ?? "unknown"}`,
-        limit: scaleLimit(grantType === "urn:ietf:params:oauth:grant-type:device_code" ? 30 : 20),
-        windowMs: 60_000,
-        actorKey,
-        metadata: { grantType, ...(baseMetadata ?? {}) }
-      });
+      pushForAllActors(
+        `oauth_token:${grantType ?? "unknown"}`,
+        scaleLimit(grantType === "urn:ietf:params:oauth:grant-type:device_code" ? 30 : 20),
+        60_000,
+        { grantType, ...(baseMetadata ?? {}) }
+      );
+    }
+    if (path === "/saml/sso" || path === "/saml/slo" || path.startsWith("/saml/acs/")) {
+      configs.push({ endpointKey: "saml_protocol", limit: scaleLimit(30), windowMs: 60_000, actorKey: ipActorKey });
+    }
+    if (path.startsWith("/scim/v2")) {
+      configs.push({ endpointKey: "scim", limit: scaleLimit(60), windowMs: 60_000, actorKey: ipActorKey });
     }
 
     for (const config of configs) {
@@ -975,7 +1035,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const path = request.url.split("?")[0];
     const hasBearerToken = typeof request.headers.authorization === "string" && request.headers.authorization.startsWith("Bearer ");
     const requiresCsrf = csrfProtectedMethods.has(request.method) && !csrfExemptPaths.has(path) && !hasBearerToken;
-    if (requiresCsrf && (path.startsWith("/api/admin") || path.startsWith("/api/account") || path.startsWith("/api/portal") || path === "/auth/logout")) {
+    if (requiresCsrf && (path.startsWith("/api/admin") || path.startsWith("/api/account") || path.startsWith("/api/portal") || path === "/auth/logout" || path === "/oauth/consent")) {
       if (!verifyCsrf(request, reply)) {
         return;
       }
@@ -1067,7 +1127,21 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
   app.get("/api/setup/status", async () => deps.setupService.status());
   app.post("/api/setup/initialize", async (request, reply) => {
+    // The installer is unauthenticated by nature, so it must refuse to do any
+    // work (including connecting to a caller-supplied database) once the
+    // running instance has been initialised.
+    const currentStatus = await deps.setupService.status();
+    if (!currentStatus.requiresSetup) {
+      return reply.status(409).send({ error: "setup_already_completed", message: "Setup has already been completed" });
+    }
+
     const input = setupInitializeSchema.parse(request.body);
+    if (input.databaseProvider && input.databaseProvider !== "sqlite") {
+      if (!input.externalDatabaseUrl) {
+        return reply.status(400).send({ error: "validation_error", message: "externalDatabaseUrl is required for external database providers" });
+      }
+      assertSafeDatabaseUrl(input.externalDatabaseUrl, input.databaseProvider);
+    }
     const targetConfig = resolveSetupDatabaseConfig(input);
     const databaseChanged = isDifferentDatabaseConfig(deps.config, targetConfig);
     const bootstrappedServices = databaseChanged ? await (async () => {
@@ -1124,6 +1198,13 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
     try {
       const uploaded = await deps.mediaService.readUploaded(relativePath);
+      // Uploaded media is user-supplied. SVG in particular can carry scripts,
+      // so it is served under a sandboxing CSP and never rendered as a page.
+      reply.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox");
+      reply.header("X-Content-Type-Options", "nosniff");
+      if (uploaded.mimeType === "image/svg+xml") {
+        reply.header("Content-Disposition", "attachment");
+      }
       return reply.type(uploaded.mimeType).send(uploaded.data);
     } catch {
       return reply.status(404).send({ error: "not_found" });
@@ -1207,7 +1288,51 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.get("/.well-known/openid-configuration", async () => await deps.oidcService.discoveryDocument());
   app.get("/.well-known/jwks.json", async () => deps.oidcService.jwks());
 
+  // Dynamic client registration (RFC 7591) mode:
+  //   disabled (default) - endpoint returns 403
+  //   admin              - requires an admin session (clients:add) or admin bearer token
+  //   open               - anonymous registration, limited to authorization_code/refresh_token
+  const dynamicClientRegistrationMode = () => {
+    const raw = (process.env.DYNAMIC_CLIENT_REGISTRATION ?? "disabled").trim().toLowerCase();
+    return raw === "open" || raw === "admin" ? raw : "disabled";
+  };
+  const OPEN_REGISTRATION_GRANTS = new Set<GrantType>(["authorization_code", "refresh_token"]);
+
   app.post("/connect/register", async (request, reply) => {
+    const mode = dynamicClientRegistrationMode();
+    if (mode === "disabled") {
+      return reply.status(403).send({ error: "access_denied", error_description: "Dynamic client registration is disabled" });
+    }
+
+    if (mode === "admin") {
+      const session = await getSession(request);
+      let authorized = false;
+      if (session) {
+        if (!verifyCsrf(request, reply)) {
+          return;
+        }
+        const permissions = await deps.roleService.resolvePermissionsForUser(session.userId);
+        authorized = hasAdminPermission({ permissions, resource: "clients", action: "add" });
+      } else if (typeof request.headers.authorization === "string" && request.headers.authorization.startsWith("Bearer ")) {
+        try {
+          const claims = await deps.authService.jwtService.verifyAccessToken(request.headers.authorization.slice("Bearer ".length));
+          const subject = String(claims.service_identity_id ?? claims.sub ?? "").trim();
+          const clientIdClaim = String(claims.client_id ?? "").trim();
+          if (isUngatedAdminClientId(clientIdClaim)) {
+            authorized = true;
+          } else if (claims.actor_type === "service_identity" && subject) {
+            const permissions = await deps.roleService.resolvePermissionsForUser(subject);
+            authorized = hasAdminPermission({ permissions, resource: "clients", action: "add" });
+          }
+        } catch {
+          authorized = false;
+        }
+      }
+      if (!authorized) {
+        return reply.status(401).send({ error: "unauthorized", error_description: "Client registration requires administrator credentials" });
+      }
+    }
+
     const input = dynamicClientRegistrationSchema.parse(request.body);
 
     if (input.app_id && !await deps.appService.findAppById(input.app_id)) {
@@ -1216,9 +1341,16 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
     const clientId = `dyn_${randomBytes(8).toString("hex")}`;
     const clientSecret = randomBytes(24).toString("hex");
-    const grantTypes: GrantType[] = input.grant_types?.length
+    const requestedGrants: GrantType[] = input.grant_types?.length
       ? [...input.grant_types] as GrantType[]
       : ["authorization_code"];
+    if (mode === "open" && requestedGrants.some((grant) => !OPEN_REGISTRATION_GRANTS.has(grant))) {
+      return reply.status(400).send({
+        error: "invalid_client_metadata",
+        error_description: "Anonymous registration only supports authorization_code and refresh_token grants"
+      });
+    }
+    const grantTypes = requestedGrants;
     const allowedScopes = input.scope
       ? input.scope.split(" ").map((s) => s.trim()).filter(Boolean)
       : ["openid", "profile", "email"];
@@ -1252,6 +1384,100 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     });
   });
 
+  // How long after an explicit approval a prompt=consent request is treated
+  // as satisfied by that approval.
+  const CONSENT_FRESHNESS_MS = 5 * 60_000;
+
+  /**
+   * response_mode=form_post. All values are HTML-escaped and the inline
+   * submit script carries a per-response nonce so the global CSP (no
+   * 'unsafe-inline') still applies to anything an attacker might reflect.
+   */
+  const sendAutoSubmitForm = (reply: any, action: string, fields: Record<string, string>) => {
+    const nonce = randomBytes(16).toString("base64");
+    let formAction: string;
+    try {
+      formAction = new URL(action).origin;
+    } catch {
+      formAction = "'none'";
+    }
+    const inputs = Object.entries(fields)
+      .map(([key, value]) => `<input type="hidden" name="${escapeHtml(key)}" value="${escapeHtml(value)}">`)
+      .join("");
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Redirecting</title></head><body>`
+      + `<form method="POST" action="${escapeHtml(action)}">${inputs}<noscript><button type="submit">Continue</button></noscript></form>`
+      + `<script nonce="${nonce}">document.forms[0].submit();</script></body></html>`;
+    reply.header(
+      "Content-Security-Policy",
+      `default-src 'none'; script-src 'nonce-${nonce}'; form-action ${formAction}; base-uri 'none'; frame-ancestors 'none'`
+    );
+    reply.header("Cache-Control", "no-store");
+    reply.header("Referrer-Policy", "no-referrer");
+    return reply.type("text/html; charset=utf-8").send(html);
+  };
+
+  /**
+   * Records the user's approval for a client. Requires the signed session
+   * cookie plus the CSRF double-submit token, so a third-party page cannot
+   * grant consent on the user's behalf. /oauth/authorize then finds the
+   * stored consent and issues the response.
+   */
+  app.post("/oauth/consent", async (request, reply) => {
+    const session = await getSession(request);
+    if (!session) {
+      return reply.status(401).send({ error: "unauthorized" });
+    }
+
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const clientId = typeof body.client_id === "string" ? body.client_id.trim() : "";
+    const redirectUri = typeof body.redirect_uri === "string" ? body.redirect_uri.trim() : "";
+    const scopeRaw = typeof body.scope === "string" ? body.scope : "";
+    const decision = body.decision === "deny" ? "deny" : "approve";
+    if (!clientId || !redirectUri || !scopeRaw) {
+      return reply.status(400).send({ error: "invalid_request", error_description: "client_id, redirect_uri and scope are required" });
+    }
+
+    const client = await deps.clientService.findClientById(clientId);
+    if (!client) {
+      return reply.status(400).send({ error: "invalid_client", error_description: "Unknown client_id" });
+    }
+    if (!client.redirectUris.includes(redirectUri)) {
+      return reply.status(400).send({ error: "invalid_request", error_description: "redirect_uri not registered for client" });
+    }
+
+    if (decision === "deny") {
+      await deps.auditRepository.log({
+        type: "consent_denied",
+        actorId: session.userId,
+        actorType: "user",
+        clientId: client.id,
+        ip: request.ip
+      });
+      return reply.status(200).send({ decision: "deny" });
+    }
+
+    const scopes = scopeRaw.split(" ").map((value) => value.trim()).filter(Boolean);
+    const grantedScopes = scopes.filter((scope) => client.allowedScopes.includes(scope));
+    const existing = await deps.authService.consentRepository.findByUserAndClient(session.userId, client.id);
+    const mergedScopes = Array.from(new Set([...(existing?.scope ?? []), ...grantedScopes]));
+    const consent = await deps.authService.consentRepository.upsert({
+      userId: session.userId,
+      clientId: client.id,
+      scope: mergedScopes
+    });
+
+    await deps.auditRepository.log({
+      type: "consent_granted",
+      actorId: session.userId,
+      actorType: "user",
+      clientId: client.id,
+      ip: request.ip,
+      metadata: { scope: grantedScopes }
+    });
+
+    return reply.status(200).send({ decision: "approve", consentId: consent.id, scope: consent.scope });
+  });
+
   app.get("/oauth/authorize", async (request, reply) => {
     const input = authorizeSchema.parse(request.query);
 
@@ -1273,6 +1499,11 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     }
     if (!client.redirectUris.includes(input.redirect_uri)) {
       return reply.status(400).send({ error: "invalid_request", error_description: "redirect_uri not registered for client" });
+    }
+    if (!client.grants.includes("authorization_code")) {
+      // Every front-channel response type is issued under the authorization_code
+      // grant registration; fail before prompting the user for login/consent.
+      throw new AuthenticationError("Client does not support authorization_code grant");
     }
 
     const session = await getSession(request);
@@ -1326,22 +1557,51 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       }
     }
 
-    const forceConsent = input.prompt === "consent" || input.approval_prompt === "force";
-    const hasConsented = input.consent === "approve";
-    if (consentStageEnabled && !hasConsented && (forceConsent || input.prompt !== "none")) {
-      const params = new URLSearchParams(request.query as Record<string, string>).toString();
-      return reply.redirect(`/consent?${params}`);
-    }
-    if (consentStageEnabled && !hasConsented && input.prompt === "none") {
-      const redirectUrl = new URL(input.redirect_uri);
-      redirectUrl.searchParams.set("error", "interaction_required");
-      if (input.state) redirectUrl.searchParams.set("state", input.state);
-      return reply.redirect(redirectUrl.toString());
-    }
-
     const responseTypes = new Set(input.response_type.split(" ").map((value) => value.trim()).filter(Boolean));
     const hasFrontChannelToken = responseTypes.has("token") || responseTypes.has("id_token");
     const responseMode = input.response_mode ?? (hasFrontChannelToken ? "fragment" : "query");
+    const requestedScopes = input.scope.split(" ").map((value) => value.trim()).filter(Boolean);
+    const grantableScopes = requestedScopes.filter((scope) => client.allowedScopes.includes(scope));
+
+    const sendErrorToClient = (error: string, description?: string) => {
+      const errorParams: Record<string, string> = { error };
+      if (description) errorParams.error_description = description;
+      if (input.state) errorParams.state = input.state;
+      if (responseMode === "fragment") {
+        return reply.redirect(`${input.redirect_uri}#${new URLSearchParams(errorParams).toString()}`);
+      }
+      if (responseMode === "form_post") {
+        return sendAutoSubmitForm(reply, input.redirect_uri, errorParams);
+      }
+      const redirectUrl = new URL(input.redirect_uri);
+      Object.entries(errorParams).forEach(([key, value]) => redirectUrl.searchParams.set(key, value));
+      return reply.redirect(redirectUrl.toString());
+    };
+
+    // The user declined on the consent screen. The redirect target is still
+    // validated against the client registration above, so this cannot be
+    // abused as an open redirect.
+    if (input.consent === "deny") {
+      return sendErrorToClient("access_denied", "The user denied the request");
+    }
+
+    // Consent is only ever recorded server-side via POST /oauth/consent (CSRF
+    // protected, bound to the session). A query flag such as consent=approve
+    // is ignored: a cross-site link must not be able to approve on the user's
+    // behalf.
+    const forceConsent = input.prompt === "consent" || input.approval_prompt === "force";
+    const storedConsent = await deps.authService.consentRepository.findByUserAndClient(user.id, client.id);
+    const consentCoversScopes = Boolean(storedConsent) && grantableScopes.every((scope) => storedConsent!.scope.includes(scope));
+    const consentIsFresh = Boolean(storedConsent) && Date.now() - storedConsent!.updatedAt.getTime() <= CONSENT_FRESHNESS_MS;
+    const hasConsented = consentCoversScopes && (!forceConsent || consentIsFresh);
+    if (consentStageEnabled && !hasConsented && input.prompt === "none") {
+      return sendErrorToClient("interaction_required");
+    }
+    if (consentStageEnabled && !hasConsented) {
+      const consentQuery = new URLSearchParams(request.query as Record<string, string>);
+      consentQuery.delete("consent");
+      return reply.redirect(`/consent?${consentQuery.toString()}`);
+    }
 
     if (hasFrontChannelToken && responseMode === "query") {
       return reply.status(400).send({ error: "invalid_request", error_description: "response_mode=query is not allowed for token or id_token responses" });
@@ -1403,11 +1663,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     }
 
     if (responseMode === "form_post") {
-      const fields = Object.entries(params)
-        .map(([k, v]) => `<input type="hidden" name="${k}" value="${v}">`)
-        .join("");
-      const html = `<!DOCTYPE html><html><body onload="document.forms[0].submit()"><form method="POST" action="${input.redirect_uri}">${fields}</form></body></html>`;
-      return reply.type("text/html").send(html);
+      return sendAutoSubmitForm(reply, input.redirect_uri, params);
     }
 
     // Default: query
@@ -1421,6 +1677,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     if (!parsed.success) {
       return reply.status(400).send({ error: "invalid_request", error_description: "Invalid token request" });
     }
+    let passwordGrantCredentialsChecked = false;
     try {
       if (parsed.data.grant_type === "authorization_code") {
         const tokens = await deps.authService.exchangeAuthorizationCode({
@@ -1464,6 +1721,17 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         });
       }
       if (parsed.data.grant_type === "password") {
+        // Authenticate the client before touching user credentials so that an
+        // unauthenticated caller gets neither a password oracle nor the ability
+        // to trip account lockouts.
+        const passwordGrantClient = await deps.authService.authenticateClient({
+          clientId: parsed.data.client_id,
+          clientSecret: parsed.data.client_secret
+        });
+        if (!passwordGrantClient.grants.includes("password")) {
+          throw new AuthenticationError("Client does not support password grant");
+        }
+        passwordGrantCredentialsChecked = true;
         const user = await deps.authService.validateUserCredentials(parsed.data.username, parsed.data.password);
         await enforcePreCredentialStages({
           user,
@@ -1558,7 +1826,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         return response;
       }
     } catch (err) {
-      if (parsed.data.grant_type === "password") {
+      if (parsed.data.grant_type === "password" && passwordGrantCredentialsChecked) {
         await deps.securityService.recordLoginFailure({
           identifier: parsed.data.username,
           userIds: await deps.authService.resolveLoginLockoutUserIds(parsed.data.username),
@@ -1630,25 +1898,40 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       return reply.status(401).send({ error: "invalid_token", error_description: "Subject token validation failed" });
     }
 
+    // Refuse refresh tokens and revoked tokens as subjects.
+    if (subjectPayload.type === "refresh") {
+      return reply.status(400).send({ error: "invalid_request", error_description: "Refresh tokens cannot be exchanged" });
+    }
+    const subjectJti = typeof subjectPayload.jti === "string" ? subjectPayload.jti : undefined;
+    if (!subjectJti || await deps.authService.isAccessTokenRevoked(subjectJti)) {
+      return reply.status(401).send({ error: "invalid_token", error_description: "Subject token validation failed" });
+    }
+
     let exchangeActor: { type: "client"; id: string } | { type: "service_identity"; id: string; clientId: string; allowedScopes: string[]; allowedAudiences: string[] } | undefined;
 
-    // Optionally validate the caller presenting the exchange request.
-    // Accept either a registered OAuth client or a service identity credential.
-    if (client_id || client_secret) {
-      if (!client_id || !client_secret) {
-        return reply.status(400).send({ error: "invalid_request", error_description: "client_id and client_secret must be provided together" });
-      }
+    // RFC 8693: the party requesting the exchange must authenticate. Without
+    // this, anyone holding any access token could mint tokens with arbitrary
+    // scope and audience.
+    if (!client_id || !client_secret) {
+      return reply.status(401).send({ error: "invalid_client", error_description: "client_id and client_secret are required for token exchange" });
+    }
 
+    {
       let matchedClient = false;
 
       try {
         const client = await deps.clientService.findClientById(client_id);
-        if (client && client.secret === client_secret) {
-          if (!client.grants.includes("token_exchange")) {
-            return reply.status(401).send({ error: "invalid_client", error_description: "Client does not support token_exchange grant" });
+        if (client) {
+          const provided = Buffer.from(client_secret);
+          const actual = Buffer.from(client.secret);
+          const secretMatches = provided.length === actual.length && timingSafeEqual(provided, actual);
+          if (secretMatches) {
+            if (!client.grants.includes("token_exchange")) {
+              return reply.status(401).send({ error: "invalid_client", error_description: "Client does not support token_exchange grant" });
+            }
+            matchedClient = true;
+            exchangeActor = { type: "client", id: client.id };
           }
-          matchedClient = true;
-          exchangeActor = { type: "client", id: client.id };
         }
       } catch {
         // Fallback to service identity verification below.
@@ -1670,10 +1953,21 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     }
 
     const subjectSub = String(subjectPayload.sub ?? "");
-    const requestedScopes = scope ? scope.split(" ").map((value) => value.trim()).filter(Boolean) : (subjectPayload.scope ? String(subjectPayload.scope).split(" ").map((value) => value.trim()).filter(Boolean) : []);
+    if (!subjectSub) {
+      return reply.status(400).send({ error: "invalid_request", error_description: "Subject token has no subject" });
+    }
+    const subjectScopes = subjectPayload.scope ? String(subjectPayload.scope).split(" ").map((value) => value.trim()).filter(Boolean) : [];
+    const requestedScopes = scope ? scope.split(" ").map((value) => value.trim()).filter(Boolean) : subjectScopes;
     const requestedAudiences = audience
       ? audience.split(/[\s,]+/).map((value) => value.trim()).filter(Boolean)
       : [];
+
+    // Exchange can narrow but never widen the privileges carried by the
+    // subject token.
+    const subjectScopeSet = new Set(subjectScopes);
+    if (requestedScopes.some((value) => !subjectScopeSet.has(value))) {
+      return reply.status(400).send({ error: "invalid_scope", error_description: "Requested scope exceeds the subject token" });
+    }
 
     let finalScopes = requestedScopes;
     if (exchangeActor?.type === "service_identity") {
@@ -1694,6 +1988,10 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     let exchangeClient: Awaited<ReturnType<typeof deps.clientService.findClientById>> | undefined;
     if (exchangeActor?.type === "client") {
       exchangeClient = await deps.clientService.findClientById(exchangeActor.id);
+      const clientAllowedScopes = new Set(exchangeClient?.allowedScopes ?? []);
+      if (finalScopes.some((value) => !clientAllowedScopes.has(value))) {
+        return reply.status(400).send({ error: "invalid_scope", error_description: "Requested scope exceeds client policy" });
+      }
       if (requestedAudiences.length > 0) {
         const allowedAudiences = new Set(exchangeClient?.resources ?? []);
         if (requestedAudiences.some((value) => !allowedAudiences.has(value))) {
@@ -1752,6 +2050,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
   app.post("/oauth/ciba/authenticate", async (request, reply) => {
     const input = cibaAuthenticationRequestSchema.parse(request.body);
+    if (input.client_notification_endpoint) {
+      await assertSafeOutboundUrl(input.client_notification_endpoint, { label: "client_notification_endpoint" });
+    }
     const issued = await deps.authService.createCibaAuthenticationRequest({
       clientId: input.client_id,
       clientSecret: input.client_secret,
@@ -1802,9 +2103,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     try {
       const payload = await deps.authService.jwtService.verifyAccessToken(token);
       if (payload.type === "refresh" && payload.jti) {
-        deps.authService.revokeRefreshToken(String(payload.jti));
+        await deps.authService.revokeRefreshToken(String(payload.jti));
       } else if (payload.jti) {
-        deps.authService.revokeAccessToken(String(payload.jti));
+        await deps.authService.revokeAccessToken(String(payload.jti));
       }
     } catch { /* invalid tokens - return 200 per spec */ }
     return reply.status(200).send({});
@@ -2130,7 +2431,8 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.get("/auth/federation/providers", async () => deps.federationService.listProviders());
 
   app.get("/api/admin/federation/providers", async (request) => {
-    const providers = await deps.federationService.listConfiguredProviders();
+    const providers = (await deps.federationService.listConfiguredProviders())
+      .map((provider) => ({ ...provider, clientSecret: undefined }));
     return filterAdminList(providers, request.query as Record<string, unknown>, [
       (provider) => provider.id,
       (provider) => provider.label
@@ -2302,7 +2604,43 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return reply.status(204).send();
   });
 
-  app.get("/api/admin/settings", async () => deps.instanceSettingsService.getSettings());
+  app.get("/api/admin/settings", async () => {
+    const settings = await deps.instanceSettingsService.getSettings();
+    // Secrets are write-only from the console. An empty value on save keeps
+    // the stored credential (see updateSettings' `??` semantics).
+    return {
+      ...settings,
+      smtpPass: undefined,
+      hasSmtpPass: Boolean(settings.smtpPass),
+      externalDatabaseUrl: settings.externalDatabaseUrl ? redactUrlCredentials(settings.externalDatabaseUrl) : settings.externalDatabaseUrl
+    };
+  });
+
+  function redactUrlCredentials(raw: string) {
+    try {
+      const parsed = new URL(raw);
+      if (parsed.password) {
+        parsed.password = "***";
+      }
+      return parsed.toString();
+    } catch {
+      return raw;
+    }
+  }
+
+  async function requirePlatformAdmin(request: any, reply: any) {
+    const session = await getSession(request);
+    if (!session) {
+      reply.status(401).send({ error: "unauthorized" });
+      return false;
+    }
+    const permissions = await deps.roleService.resolvePermissionsForUser(session.userId);
+    if (!permissions.includes("*:*")) {
+      reply.status(403).send({ error: "forbidden", message: "This operation requires the platform administrator role" });
+      return false;
+    }
+    return true;
+  }
 
   // Delegation: provisioning, access governance, elevations
   await registerProvisioningRoutes(app, {
@@ -2341,16 +2679,27 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
 
   app.post("/api/admin/settings/database/test", async (request, reply) => {
+    if (!await requirePlatformAdmin(request, reply)) {
+      return;
+    }
     const input = testDatabaseConnectionSchema.parse(request.body);
+    assertSafeDatabaseUrl(input.externalDatabaseUrl, input.provider);
     const result = await deps.databaseMigrationService.testConnection(input.provider, input.externalDatabaseUrl);
     return reply.status(200).send(result);
   });
 
   app.post("/api/admin/settings/database/migrate", async (request, reply) => {
+    if (!await requirePlatformAdmin(request, reply)) {
+      return;
+    }
     const input = migrateDatabaseSchema.parse(request.body);
+    assertSafeDatabaseUrl(input.externalDatabaseUrl, input.provider);
     const instanceSettings = await deps.instanceSettingsService.getSettings();
+    // The source is always the configured SQLite database. Accepting an
+    // arbitrary path here would let an operator copy any readable SQLite file
+    // on the host into an external database they control.
     const result = await deps.databaseMigrationService.migrateFromSqlite({
-      sqlitePath: input.sqlitePath ?? instanceSettings.databasePath,
+      sqlitePath: instanceSettings.databasePath,
       provider: input.provider,
       externalDatabaseUrl: input.externalDatabaseUrl
     });
@@ -2889,18 +3238,23 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       }
 
       const response: Record<string, unknown> = {
-        status: "sent_if_account_exists",
-        expiresIn: challenge.expiresIn
+        status: "sent_if_account_exists"
       };
-      if (process.env.NODE_ENV !== "production") {
+      // The ticket and code are only ever echoed to the automated test suite.
+      // Any other environment (including one that forgot NODE_ENV=production)
+      // must deliver them out-of-band.
+      if (process.env.NODE_ENV === "test") {
         response.recoveryTicket = challenge.ticket;
         response.verificationCode = challenge.verificationCode;
+        response.expiresIn = challenge.expiresIn;
       }
 
       return reply.status(200).send(response);
     } catch (err) {
       if (err instanceof AppError) {
-        return reply.status(err.statusCode).send({ error: "invalid_request", error_description: publicErrorMessageForPath("/auth/recovery/request", err) });
+        // Do not distinguish policy/transport failures from unknown accounts.
+        request.log.warn({ err }, "recovery request failed");
+        return reply.status(200).send({ status: "sent_if_account_exists" });
       }
       throw err;
     }
@@ -3062,7 +3416,12 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         }
       }
     }
-    if (active !== undefined) await deps.userService.setUserActive(id, active);
+    if (active !== undefined) {
+      await deps.userService.setUserActive(id, active);
+      if (active === false) {
+        await revokeAllSessionsForUser(id, "user_deactivated");
+      }
+    }
     if (customAttributes) await deps.userService.setCustomAttributes(id, customAttributes);
     if (roleIds) {
       const existingAssignments = await deps.roleService.listAssignmentsForUser(id);
@@ -3176,7 +3535,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return reply.status(204).send();
   });
   app.get("/api/admin/clients", async (request) => {
-    const clients = await deps.clientService.listClients();
+    // Never return live client secrets to the console; the preview is enough
+    // for identification and rotation happens through the update endpoint.
+    const clients = (await deps.clientService.listClients()).map((client) => ({ ...client, secret: undefined }));
     return filterAdminList(clients, request.query as Record<string, unknown>, [
       (client) => client.id,
       (client) => client.name,
@@ -3566,88 +3927,15 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return deriveRiskEventsFromAudit(sourceEvents, requestedLimit);
   });
 
-  app.get("/users", async (request, reply) => {
-    if (prefersHtmlResponse(request)) {
-      return sendFrontendIndex(reply, "admin");
-    }
-    return deps.userService.listUsers();
-  });
-  app.get("/clients", async (request, reply) => {
-    if (prefersHtmlResponse(request)) {
-      return sendFrontendIndex(reply, "admin");
-    }
-    return deps.clientService.listClients();
-  });
-  app.get("/roles", async (request, reply) => {
-    if (prefersHtmlResponse(request)) {
-      return sendFrontendIndex(reply, "admin");
-    }
-    return deps.roleService.listRoles();
-  });
-  app.get("/groups", async (request, reply) => {
-    if (prefersHtmlResponse(request)) {
-      return sendFrontendIndex(reply, "admin");
-    }
-    return deps.groupService.listGroups();
-  });
-  app.get("/tenants", async (request, reply) => {
-    if (prefersHtmlResponse(request)) {
-      return sendFrontendIndex(reply, "admin");
-    }
-    return deps.tenantService.listTenants();
-  });
-  app.post("/users", async (request, reply) => {
-    const input = createUserSchema.parse(request.body);
-    if (input.password) {
-      await deps.policyService.enforceUserCreationPolicies(input.password);
-    }
-    const user = await deps.userService.createUser(input);
-    await deps.eventHookService.emit("user.created", {
-      userId: user.id,
-      email: user.email,
-      username: user.username
-    });
-    reply.code(201);
-    return { id: user.id, email: user.email, username: user.username };
-  });
-  app.post("/roles", async (request, reply) => {
-    const input = createRoleSchema.parse(request.body);
-    reply.code(201);
-    return deps.roleService.createRole(input);
-  });
-  app.post("/role-assignments", async (request, reply) => {
-    const input = assignRoleSchema.parse(request.body);
-    reply.code(201);
-    return deps.roleService.assignRole(input);
-  });
-  app.post("/groups", async (request, reply) => {
-    const input = createGroupSchema.parse(request.body);
-    reply.code(201);
-    return deps.groupService.createGroup(input);
-  });
-  app.post("/tenants", async (request, reply) => {
-    const input = createTenantSchema.parse(request.body);
-    reply.code(201);
-    return deps.tenantService.createTenant(input);
-  });
-  app.post("/oauth/revoke", async (request) => {
-    const input = revokeTokenSchema.parse(request.body);
-    if (input.tokenType === "access") {
-      deps.authService.revokeAccessToken(input.tokenId);
-    } else {
-      deps.authService.revokeRefreshToken(input.tokenId);
-    }
-    return { revoked: true };
-  });
+  // The former unauthenticated helper routes (/users, /clients, /roles,
+  // /groups, /tenants, /role-assignments, /oauth/revoke) were removed: they
+  // exposed client secrets and allowed anonymous creation of privileged
+  // accounts. Use the /api/admin/* equivalents.
 
   // ─── User Portal API ──────────────────────────────────────────────────────────
 
   async function getPortalSession(request: any) {
-    const sid = request.cookies?.sid;
-    if (!sid) return null;
-    const session = await deps.authService.sessionRepository.findById(sid);
-    if (!session || session.expiresAt.getTime() < Date.now() || session.revokedAt) return null;
-    return session;
+    return getSession(request);
   }
 
   // Resolves the current portal user id from either a Bearer access token or a

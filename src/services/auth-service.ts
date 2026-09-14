@@ -277,7 +277,7 @@ export class AuthService {
 
     const user = await this.userService.findUserById(authorizationCode.userId);
 
-    if (!user) {
+    if (!user || !user.active) {
       throw new AuthenticationError("User no longer exists");
     }
 
@@ -370,11 +370,18 @@ export class AuthService {
       throw new AuthenticationError("Refresh token has expired");
     }
 
+    // A refresh token is bound to the client it was issued to (RFC 6749 §6).
+    if (refreshRecord.clientId !== client.id || payload.client_id !== client.id) {
+      await this.refreshTokenRepository.revokeTokenFamily(refreshRecord.tokenId, new Date());
+      throw new AuthenticationError("Refresh token was not issued to this client");
+    }
+
     await this.refreshTokenRepository.markConsumed(refreshRecord.tokenId, new Date());
 
     const user = await this.userService.findUserById(String(payload.sub));
 
-    if (!user) {
+    if (!user || !user.active) {
+      await this.refreshTokenRepository.revokeTokenFamily(refreshRecord.tokenId, new Date());
       throw new AuthenticationError("User no longer exists");
     }
 
@@ -820,6 +827,20 @@ export class AuthService {
       throw new AuthenticationError("JWT bearer assertion validation failed");
     }
 
+    // Only access tokens this same client obtained may be presented as an
+    // assertion. Without this binding any token from any client (or a refresh
+    // token) could be laundered into tokens for a different client.
+    if (payload.type === "refresh" || payload.actor_type === "service_identity") {
+      throw new AuthenticationError("JWT bearer assertion must be a user access token");
+    }
+    if (payload.client_id !== client.id) {
+      throw new AuthenticationError("JWT bearer assertion was not issued to this client");
+    }
+    const assertionJti = typeof payload.jti === "string" ? payload.jti : undefined;
+    if (!assertionJti || await this.accessTokenRepository.isRevoked(assertionJti)) {
+      throw new AuthenticationError("JWT bearer assertion has been revoked");
+    }
+
     const subject = typeof payload.sub === "string" ? payload.sub : undefined;
     if (!subject) {
       throw new ValidationError("JWT bearer assertion is missing subject");
@@ -862,34 +883,14 @@ export class AuthService {
       throw new AuthenticationError("Client does not support saml2_bearer grant");
     }
 
-    const rawAssertion = input.assertion.includes("<")
-      ? input.assertion
-      : Buffer.from(input.assertion, "base64").toString("utf8");
-
-    const nameIdMatch = rawAssertion.match(/<(?:[A-Za-z0-9_:-]+:)?NameID[^>]*>([^<]+)<\/(?:[A-Za-z0-9_:-]+:)?NameID>/);
-    const subject = nameIdMatch?.[1]?.trim();
-    if (!subject) {
-      throw new ValidationError("SAML bearer assertion is missing NameID subject");
-    }
-
-    const user = await this.userService.findUserById(subject)
-      ?? await this.userService.findUserByLoginIdentifier(subject);
-
-    if (!user || !user.active) {
-      throw new AuthenticationError("User not available for SAML bearer assertion");
-    }
-
-    const requestedScope = input.scope ? input.scope.split(" ").map((value) => value.trim()).filter(Boolean) : client.allowedScopes;
-    const allowedScope = requestedScope.filter((scope) => client.allowedScopes.includes(scope));
-
-    return this.issueUserScopedAccessToken({
-      user,
-      client,
-      scope: allowedScope,
-      grant: "saml2_bearer",
-      ip: input.ip,
-      userAgent: input.userAgent
-    });
+    // RFC 7522 requires the assertion to be signed by a trusted identity
+    // provider and checked for issuer, audience, validity window and replay.
+    // The previous implementation extracted <NameID> with a regular expression
+    // and performed none of those checks, which allowed any client with this
+    // grant to obtain tokens for any user. The grant stays refused until a
+    // trusted-IdP registration and a real XML-DSig verifier are available.
+    void input.assertion;
+    throw new AuthenticationError("saml2_bearer grant is not available: no trusted SAML identity provider is configured");
   }
 
   async verifyDeviceUserCode(input: {
@@ -1247,6 +1248,10 @@ export class AuthService {
 
   async revokeAccessToken(tokenId: string) {
     await this.accessTokenRepository.revokeByTokenId(tokenId, new Date());
+  }
+
+  async isAccessTokenRevoked(tokenId: string) {
+    return this.accessTokenRepository.isRevoked(tokenId);
   }
 
   async revokeRefreshToken(tokenId: string) {

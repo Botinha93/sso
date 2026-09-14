@@ -1,5 +1,5 @@
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
-import { dirname, extname, join, resolve } from "node:path";
+import { dirname, extname, join, resolve, sep } from "node:path";
 import { nanoid } from "nanoid";
 
 const MIME_TO_EXTENSION: Record<string, string> = {
@@ -44,7 +44,7 @@ export class MediaService {
   resolveUploadPath(relativePath: string) {
     const normalized = relativePath.replace(/^\/+/, "");
     const filePath = resolve(this.uploadsRoot, normalized);
-    if (!filePath.startsWith(this.uploadsRoot)) {
+    if (filePath !== this.uploadsRoot && !filePath.startsWith(this.uploadsRoot + sep)) {
       throw new Error("Invalid media path");
     }
     return filePath;

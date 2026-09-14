@@ -5,6 +5,7 @@ import { ScimService } from "../../src/services/scim-service.js";
 const buildScimService = () => {
   const users = new Map<string, {
     id: string;
+    externalSource?: string;
     username: string;
     email: string;
     givenName: string;
@@ -15,6 +16,7 @@ const buildScimService = () => {
       "user-1",
       {
         id: "user-1",
+        externalSource: "scim",
         username: "alice",
         email: "alice@example.com",
         givenName: "Alice",
@@ -24,8 +26,8 @@ const buildScimService = () => {
     ]
   ]);
 
-  const groups = new Map<string, { id: string; name: string; description: string }>([
-    ["group-1", { id: "group-1", name: "Developers", description: "Developers group" }]
+  const groups = new Map<string, { id: string; externalSource?: string; name: string; description: string }>([
+    ["group-1", { id: "group-1", externalSource: "scim", name: "Developers", description: "Developers group" }]
   ]);
 
   const memberships = new Map<string, Set<string>>([
@@ -35,6 +37,7 @@ const buildScimService = () => {
 
   users.set("user-2", {
     id: "user-2",
+    externalSource: "scim",
     username: "bob",
     email: "bob@example.com",
     givenName: "Bob",

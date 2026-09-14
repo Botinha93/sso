@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { createTestContext, extractCookie } from "../helpers/test-app.js";
+import { createTestContext, extractCookie, registerClientAsAdmin, approveConsent } from "../helpers/test-app.js";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -312,17 +312,13 @@ test("SSO authorize shows password expiration before redirecting to the app", as
   assert.equal(created.statusCode, 201, created.body);
   const userId = String(created.json().id);
 
-  const registered = await app.inject({
-    method: "POST",
-    url: "/connect/register",
-    payload: {
+  const registered = await registerClientAsAdmin(app, admin, {
       client_name: "SSO App",
       redirect_uris: ["http://localhost:3000/callback"],
       grant_types: ["authorization_code"],
       response_types: ["code"],
       scope: "openid profile email"
-    }
-  });
+    });
   assert.equal(registered.statusCode, 201, registered.body);
   const clientId = String(registered.json().client_id);
 
@@ -331,7 +327,8 @@ test("SSO authorize shows password expiration before redirecting to the app", as
   const sid = extractCookie(login.headers["set-cookie"], "sid");
   const codeVerifier = "code-verifier-for-password-expiration-sso";
   const codeChallenge = createHash("sha256").update(codeVerifier).digest("base64url");
-  const authorizeUrl = `/oauth/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent("http://localhost:3000/callback")}&scope=${encodeURIComponent("openid profile email")}&state=sso-warn&consent=approve&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`;
+  const authorizeUrl = `/oauth/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent("http://localhost:3000/callback")}&scope=${encodeURIComponent("openid profile email")}&state=sso-warn&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`;
+  await approveConsent(app, sid, authorizeUrl);
 
   const blocked = await app.inject({
     method: "GET",

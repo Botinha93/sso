@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { performance } from "node:perf_hooks";
-import { createTestContext, extractCookie } from "../helpers/test-app.js";
+import { createTestContext, extractCookie, registerClientAsAdmin } from "../helpers/test-app.js";
 
 test("Non-functional: token issuance and policy decision throughput baseline", async (t) => {
   const { app, admin } = await createTestContext("nf-throughput");
@@ -10,17 +10,13 @@ test("Non-functional: token issuance and policy decision throughput baseline", a
     await app.close();
   });
 
-  const registerResponse = await app.inject({
-    method: "POST",
-    url: "/connect/register",
-    payload: {
+  const registerResponse = await registerClientAsAdmin(app, admin, {
       client_name: "Throughput Client",
       redirect_uris: ["http://localhost:3000/callback"],
       grant_types: ["client_credentials"],
       response_types: ["token"],
       scope: "openid profile email"
-    }
-  });
+    });
 
   assert.equal(registerResponse.statusCode, 201);
   const registeredClient = registerResponse.json() as { client_id: string; client_secret: string };

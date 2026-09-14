@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { createTestContext, extractCookie } from "../helpers/test-app.js";
+import { createTestContext, extractCookie, registerClientAsAdmin, approveConsent } from "../helpers/test-app.js";
 
 test("E2E: login -> authorization code -> token -> userinfo -> logout", async (t) => {
   const { app, admin } = await createTestContext("e2e-oidc");
@@ -9,17 +9,13 @@ test("E2E: login -> authorization code -> token -> userinfo -> logout", async (t
     await app.close();
   });
 
-  const registerResponse = await app.inject({
-    method: "POST",
-    url: "/connect/register",
-    payload: {
+  const registerResponse = await registerClientAsAdmin(app, admin, {
       client_name: "E2E Client",
       redirect_uris: ["http://localhost:3000/callback"],
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
       scope: "openid profile email roles groups permissions"
-    }
-  });
+    });
 
   assert.equal(registerResponse.statusCode, 201);
   const registeredClient = registerResponse.json();
@@ -43,9 +39,11 @@ test("E2E: login -> authorization code -> token -> userinfo -> logout", async (t
   const codeVerifier = "e2e-code-verifier";
   const codeChallenge = createHash("sha256").update(codeVerifier).digest("base64url");
 
+  const authorizeUrl = `/oauth/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent("http://localhost:3000/callback")}&scope=${encodeURIComponent("openid profile email roles groups permissions")}&state=e2e-state&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`;
+  await approveConsent(app, sid, authorizeUrl);
   const authorizeResponse = await app.inject({
     method: "GET",
-    url: `/oauth/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent("http://localhost:3000/callback")}&scope=${encodeURIComponent("openid profile email roles groups permissions")}&state=e2e-state&consent=approve&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`,
+    url: authorizeUrl,
     headers: {
       cookie: sid
     }

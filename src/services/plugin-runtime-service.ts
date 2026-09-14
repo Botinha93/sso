@@ -15,6 +15,24 @@ interface LoadedPlugin {
   onEvent: PluginHandler;
 }
 
+const PLUGIN_EVENT_TIMEOUT_MS = 2_000;
+
+const withTimeout = async <T>(work: Promise<T> | T, timeoutMs: number, message: string): Promise<T> => {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve(work),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+};
+
 export class PluginRuntimeService {
   private readonly loadedPlugins = new Map<string, LoadedPlugin>();
   private initialized = false;
@@ -64,7 +82,11 @@ export class PluginRuntimeService {
 
       const sentAt = new Date().toISOString();
       try {
-        await loaded.onEvent(
+        // Note: node:vm is not a security boundary. Plugin upload is therefore
+        // restricted to the plugins:* / *:* permission. The timeout below stops
+        // an asynchronous handler from stalling event delivery indefinitely;
+        // a synchronous infinite loop can only be interrupted by a worker.
+        await withTimeout(loaded.onEvent(
           {
             type: eventType,
             payload,
@@ -84,7 +106,7 @@ export class PluginRuntimeService {
               });
             }
           }
-        );
+        ), PLUGIN_EVENT_TIMEOUT_MS, `Plugin ${loaded.plugin.id} did not finish handling ${eventType} within ${PLUGIN_EVENT_TIMEOUT_MS}ms`);
 
         await this.auditRepository.log({
           type: "plugin_runtime_executed",

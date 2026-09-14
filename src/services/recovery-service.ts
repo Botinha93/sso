@@ -1,3 +1,4 @@
+import { randomInt, timingSafeEqual } from "node:crypto";
 import { nanoid } from "nanoid";
 import { ValidationError } from "../core/errors.js";
 
@@ -50,7 +51,9 @@ export class RecoveryService {
       throw new ValidationError("Recovery ticket has been invalidated");
     }
 
-    if (input.code.trim() !== challenge.verificationCode) {
+    const provided = Buffer.from(input.code.trim());
+    const expected = Buffer.from(challenge.verificationCode);
+    if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) {
       challenge.failedAttempts += 1;
       return false;
     }
@@ -75,10 +78,6 @@ export class RecoveryService {
   }
 
   private generateNumericCode(length: number) {
-    let output = "";
-    for (let i = 0; i < length; i += 1) {
-      output += String(Math.floor(Math.random() * 10));
-    }
-    return output;
+    return String(randomInt(0, 10 ** length)).padStart(length, "0");
   }
 }

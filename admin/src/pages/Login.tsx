@@ -109,7 +109,9 @@ export default function Login() {
   const buildRedirectAfterLogin = () => {
     const params = new URLSearchParams(window.location.search);
     const explicit = params.get("redirect");
-    if (explicit?.startsWith("/")) {
+    // Only same-origin paths: reject protocol-relative ("//host") and
+    // backslash variants the browser would treat as an external origin.
+    if (explicit && /^\/(?![\/\\])/.test(explicit) && !explicit.includes("\\")) {
       return explicit;
     }
     if (params.get("client_id") && params.get("redirect_uri") && params.get("response_type")) {

@@ -2,13 +2,15 @@ import { z } from "zod";
 import { nullableIconSchema, nullableImageUrlSchema, optionalImageUrlSchema } from "./media-schemas.js";
 
 const appUrlSchema = z.string().refine((value) => {
-  if (value.startsWith("/")) {
+  // Relative launcher paths are allowed; absolute URLs must be http(s) so an
+  // administrator cannot plant javascript:/data: links for every portal user.
+  if (value.startsWith("/") && !value.startsWith("//") && !value.startsWith("/\\")) {
     return true;
   }
 
   try {
-    new URL(value);
-    return true;
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
   } catch {
     return false;
   }
@@ -189,8 +191,8 @@ export const authorizeSchema = z.object({
   client_id: z.string().min(2),
   redirect_uri: z.string().url(),
   scope: z.string().min(1),
-  state: z.string().optional(),
-  nonce: z.string().optional(),
+  state: z.string().max(2048).optional(),
+  nonce: z.string().max(1024).optional(),
   acr_values: z.string().optional(),
   ui_locales: z.string().optional(),
   id_token_hint: z.string().optional(),
@@ -201,7 +203,7 @@ export const authorizeSchema = z.object({
   tenant: z.string().min(2).optional(),
   code_challenge: z.string().optional(),
   code_challenge_method: z.enum(["S256", "plain"]).optional(),
-  consent: z.enum(["approve"]).optional(),
+  consent: z.enum(["approve", "deny"]).optional(),
   password_warning: z.enum(["continue"]).optional(),
   response_mode: z.enum(["query", "fragment", "form_post"]).optional()
 });

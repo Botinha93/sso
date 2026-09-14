@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createTestContext, extractCookie } from "../helpers/test-app.js";
+import { createTestContext, extractCookie, registerClientAsAdmin, getCsrf } from "../helpers/test-app.js";
 
 const analystPassword = "Change-Me-Now1";
 
@@ -23,20 +23,20 @@ const login = async (app: Awaited<ReturnType<typeof createTestContext>>["app"], 
   });
 };
 
-const registerClient = async (app: Awaited<ReturnType<typeof createTestContext>>["app"], input: {
-  name: string;
-  redirectUris?: string[];
-}) => {
-  const response = await app.inject({
-    method: "POST",
-    url: "/connect/register",
-    payload: {
-      client_name: input.name,
-      redirect_uris: input.redirectUris ?? ["http://localhost:3000/callback"],
-      grant_types: ["authorization_code", "refresh_token", "client_credentials", "password"],
-      response_types: ["code", "token"],
-      scope: "openid profile email"
-    }
+const registerClient = async (
+  app: Awaited<ReturnType<typeof createTestContext>>["app"],
+  admin: Awaited<ReturnType<typeof createTestContext>>["admin"],
+  input: {
+    name: string;
+    redirectUris?: string[];
+  }
+) => {
+  const response = await registerClientAsAdmin(app, admin, {
+    client_name: input.name,
+    redirect_uris: input.redirectUris ?? ["http://localhost:3000/callback"],
+    grant_types: ["authorization_code", "refresh_token", "client_credentials", "password"],
+    response_types: ["code", "token"],
+    scope: "openid profile email"
   });
 
   assert.equal(response.statusCode, 201);
@@ -59,9 +59,11 @@ test("security hardening: lockout, endpoint throttling, and session anomaly audi
   assert.equal(adminLogin.statusCode, 200);
   const sid = extractCookie(adminLogin.headers["set-cookie"], "sid");
 
+  const adminCsrf = await getCsrf(app, sid);
   const createUserResponse = await app.inject({
     method: "POST",
-    url: "/users",
+    url: "/api/admin/users",
+    headers: adminCsrf.headers,
     payload: {
       email: "analyst@example.com",
       username: "analyst",
@@ -171,7 +173,7 @@ test("security hardening: introspection and logout responses do not leak sensiti
     await app.close();
   });
 
-  const client = await registerClient(app, { name: "Security Client" });
+  const client = await registerClient(app, admin, { name: "Security Client" });
 
   const loginResponse = await login(app, {
     email: admin.email,
@@ -231,8 +233,8 @@ test("security hardening: backchannel logout only revokes sessions owned by the 
     await app.close();
   });
 
-  const clientA = await registerClient(app, { name: "Backchannel Client A" });
-  const clientB = await registerClient(app, { name: "Backchannel Client B" });
+  const clientA = await registerClient(app, admin, { name: "Backchannel Client A" });
+  const clientB = await registerClient(app, admin, { name: "Backchannel Client B" });
 
   const loginResponse = await login(app, {
     email: admin.email,
@@ -288,7 +290,8 @@ test("security hardening: setup initialization is endpoint-rate-limited", async 
       }
     });
 
-    assert.equal(setupAttempt.statusCode, 422);
+    // The installer refuses to run at all once the instance is initialised.
+    assert.equal(setupAttempt.statusCode, 409);
     assert.match(setupAttempt.body, /setup has already been completed/i);
   }
 

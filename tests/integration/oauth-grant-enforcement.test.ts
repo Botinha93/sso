@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { createTestContext, extractCookie } from "../helpers/test-app.js";
+import { createTestContext, extractCookie, registerClientAsAdmin, approveConsent } from "../helpers/test-app.js";
 
 test("OAuth grant enforcement across authorize/token/device/token-exchange paths", async (t) => {
   const { app, admin } = await createTestContext("integration-grant-enforcement");
@@ -30,9 +30,11 @@ test("OAuth grant enforcement across authorize/token/device/token-exchange paths
   const codeVerifier = "grant-enforcement-verifier";
   const codeChallenge = createHash("sha256").update(codeVerifier).digest("base64url");
 
+  const authCodeUrl = `/oauth/authorize?response_type=code&client_id=${encodeURIComponent(limited.client_id)}&redirect_uri=${encodeURIComponent("http://localhost:3000/callback")}&scope=${encodeURIComponent("openid profile email")}&state=enforce-state&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`;
+  await approveConsent(app, sid, authCodeUrl);
   const authCodeResponse = await app.inject({
     method: "GET",
-    url: `/oauth/authorize?response_type=code&client_id=${encodeURIComponent(limited.client_id)}&redirect_uri=${encodeURIComponent("http://localhost:3000/callback")}&scope=${encodeURIComponent("openid profile email")}&state=enforce-state&consent=approve&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`,
+    url: authCodeUrl,
     headers: { cookie: sid }
   });
   assert.equal(authCodeResponse.statusCode, 302);
@@ -88,17 +90,13 @@ test("OAuth grant enforcement across authorize/token/device/token-exchange paths
   });
   assert.equal(disallowedDeviceAuthorize.statusCode, 401);
 
-  const machineRegister = await app.inject({
-    method: "POST",
-    url: "/connect/register",
-    payload: {
+  const machineRegister = await registerClientAsAdmin(app, admin, {
       client_name: "Machine Client",
       redirect_uris: ["http://localhost:3000/callback"],
       grant_types: ["client_credentials"],
       response_types: ["code"],
       scope: "openid profile email"
-    }
-  });
+    });
   assert.equal(machineRegister.statusCode, 201);
   const machine = machineRegister.json() as { client_id: string; client_secret: string };
 
@@ -120,17 +118,13 @@ test("OAuth grant enforcement across authorize/token/device/token-exchange paths
   });
   assert.equal(machineClientCredentials.statusCode, 200);
 
-  const passwordOnlyRegister = await app.inject({
-    method: "POST",
-    url: "/connect/register",
-    payload: {
+  const passwordOnlyRegister = await registerClientAsAdmin(app, admin, {
       client_name: "Password Only Client",
       redirect_uris: ["http://localhost:3000/callback"],
       grant_types: ["password"],
       response_types: ["code"],
       scope: "openid profile email"
-    }
-  });
+    });
   assert.equal(passwordOnlyRegister.statusCode, 201);
   const passwordOnly = passwordOnlyRegister.json() as { client_id: string; client_secret: string };
 
@@ -162,17 +156,13 @@ test("OAuth grant enforcement across authorize/token/device/token-exchange paths
   });
   assert.equal(passwordRefreshDenied.statusCode, 401);
 
-  const deviceOnlyRegister = await app.inject({
-    method: "POST",
-    url: "/connect/register",
-    payload: {
+  const deviceOnlyRegister = await registerClientAsAdmin(app, admin, {
       client_name: "Device Only Client",
       redirect_uris: ["http://localhost:3000/callback"],
       grant_types: ["device_code"],
       response_types: ["code"],
       scope: "openid profile email"
-    }
-  });
+    });
   assert.equal(deviceOnlyRegister.statusCode, 201);
   const deviceOnly = deviceOnlyRegister.json() as { client_id: string; client_secret: string };
 
@@ -240,26 +230,24 @@ test("OAuth endpoint supports hybrid, jwt-bearer, saml2-bearer, and ciba grants"
   assert.equal(loginResponse.statusCode, 200);
   const sid = extractCookie(loginResponse.headers["set-cookie"], "sid");
 
-  const advancedRegister = await app.inject({
-    method: "POST",
-    url: "/connect/register",
-    payload: {
+  const advancedRegister = await registerClientAsAdmin(app, admin, {
       client_name: "Advanced Grants Client",
       redirect_uris: ["http://localhost:3000/callback"],
       grant_types: ["authorization_code", "jwt_bearer", "saml2_bearer", "ciba"],
       response_types: ["code", "token", "code token", "code id_token", "id_token token", "code id_token token"],
       scope: "openid profile email"
-    }
-  });
+    });
   assert.equal(advancedRegister.statusCode, 201);
   const advancedClient = advancedRegister.json() as { client_id: string; client_secret: string };
 
   const codeVerifier = "hybrid-flow-verifier";
   const codeChallenge = createHash("sha256").update(codeVerifier).digest("base64url");
 
+  const hybridAuthorizeUrl = `/oauth/authorize?response_type=${encodeURIComponent("code token")}&response_mode=fragment&client_id=${encodeURIComponent(advancedClient.client_id)}&redirect_uri=${encodeURIComponent("http://localhost:3000/callback")}&scope=${encodeURIComponent("openid profile email")}&state=hybrid-state&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`;
+  await approveConsent(app, sid, hybridAuthorizeUrl);
   const hybridAuthorize = await app.inject({
     method: "GET",
-    url: `/oauth/authorize?response_type=${encodeURIComponent("code token")}&response_mode=fragment&client_id=${encodeURIComponent(advancedClient.client_id)}&redirect_uri=${encodeURIComponent("http://localhost:3000/callback")}&scope=${encodeURIComponent("openid profile email")}&state=hybrid-state&consent=approve&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`,
+    url: hybridAuthorizeUrl,
     headers: { cookie: sid }
   });
   assert.equal(hybridAuthorize.statusCode, 302);
@@ -320,7 +308,7 @@ test("OAuth endpoint supports hybrid, jwt-bearer, saml2-bearer, and ciba grants"
     url: "/oauth/token",
     payload: {
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion: subjectTokenPayload.access_token,
+      assertion: String(allFragment.get("access_token")),
       client_id: advancedClient.client_id,
       client_secret: advancedClient.client_secret,
       scope: "openid profile"
@@ -329,6 +317,20 @@ test("OAuth endpoint supports hybrid, jwt-bearer, saml2-bearer, and ciba grants"
   assert.equal(jwtBearerResponse.statusCode, 200);
   const jwtBearerPayload = jwtBearerResponse.json() as { access_token?: string };
   assert.ok(jwtBearerPayload.access_token);
+
+  // A token issued to a different client must not be accepted as an assertion.
+  const foreignJwtBearerResponse = await app.inject({
+    method: "POST",
+    url: "/oauth/token",
+    payload: {
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: subjectTokenPayload.access_token,
+      client_id: advancedClient.client_id,
+      client_secret: advancedClient.client_secret,
+      scope: "openid profile"
+    }
+  });
+  assert.equal(foreignJwtBearerResponse.statusCode, 401);
 
   const samlAssertionXml = `<saml:Assertion xmlns:saml=\"urn:oasis:names:tc:SAML:2.0:assertion\"><saml:Subject><saml:NameID>${admin.username}</saml:NameID></saml:Subject></saml:Assertion>`;
   const samlBearerResponse = await app.inject({
@@ -342,9 +344,10 @@ test("OAuth endpoint supports hybrid, jwt-bearer, saml2-bearer, and ciba grants"
       scope: "openid profile"
     }
   });
-  assert.equal(samlBearerResponse.statusCode, 200);
+  // Unsigned/unverified SAML assertions must never be exchanged for tokens.
+  assert.equal(samlBearerResponse.statusCode, 401);
   const samlBearerPayload = samlBearerResponse.json() as { access_token?: string };
-  assert.ok(samlBearerPayload.access_token);
+  assert.equal(samlBearerPayload.access_token, undefined);
 
   const cibaAuthResponse = await app.inject({
     method: "POST",

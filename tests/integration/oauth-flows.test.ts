@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { SignJWT } from "jose";
-import { createTestContext, extractCookie } from "../helpers/test-app.js";
+import { createTestContext, extractCookie, registerClientAsAdmin, approveConsent } from "../helpers/test-app.js";
 
 test("OAuth/OIDC grant flows: authorization_code, refresh, client_credentials, password, implicit, device_code", async (t) => {
   const { app, admin } = await createTestContext("integration-flows");
@@ -10,10 +10,7 @@ test("OAuth/OIDC grant flows: authorization_code, refresh, client_credentials, p
     await app.close();
   });
 
-  const registerResponse = await app.inject({
-    method: "POST",
-    url: "/connect/register",
-    payload: {
+  const registerResponse = await registerClientAsAdmin(app, admin, {
       client_name: "Integration Client",
       redirect_uris: ["http://localhost:3000/callback"],
       grant_types: [
@@ -25,8 +22,7 @@ test("OAuth/OIDC grant flows: authorization_code, refresh, client_credentials, p
       ],
       response_types: ["code", "token"],
       scope: "openid profile email roles groups permissions"
-    }
-  });
+    });
 
   assert.equal(registerResponse.statusCode, 201);
   const registeredClient = registerResponse.json();
@@ -50,9 +46,11 @@ test("OAuth/OIDC grant flows: authorization_code, refresh, client_credentials, p
   const codeVerifier = "code-verifier-for-integration-tests";
   const codeChallenge = createHash("sha256").update(codeVerifier).digest("base64url");
 
+  const authorizeCodeUrl = `/oauth/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent("http://localhost:3000/callback")}&scope=${encodeURIComponent("openid profile email roles groups permissions")}&state=abc123&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`;
+  await approveConsent(app, sid, authorizeCodeUrl);
   const authorizeCodeResponse = await app.inject({
     method: "GET",
-    url: `/oauth/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent("http://localhost:3000/callback")}&scope=${encodeURIComponent("openid profile email roles groups permissions")}&state=abc123&consent=approve&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`,
+    url: authorizeCodeUrl,
     headers: {
       cookie: sid
     }
@@ -188,7 +186,7 @@ test("OAuth/OIDC grant flows: authorization_code, refresh, client_credentials, p
 
   const implicitResponse = await app.inject({
     method: "GET",
-    url: `/oauth/authorize?response_type=token&response_mode=fragment&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent("http://localhost:3000/callback")}&scope=${encodeURIComponent("openid profile")}&state=state-implicit&consent=approve`,
+    url: `/oauth/authorize?response_type=token&response_mode=fragment&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent("http://localhost:3000/callback")}&scope=${encodeURIComponent("openid profile")}&state=state-implicit`,
     headers: {
       cookie: sid
     }

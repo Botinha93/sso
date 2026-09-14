@@ -129,7 +129,6 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'GET', path: '/oauth/logout', auth: 'session', description: 'OIDC RP-initiated logout endpoint.' },
   { method: 'GET', path: '/oauth/frontchannel-logout', auth: 'session', description: 'Front-channel logout endpoint for sid/sub scoped revocation.' },
   { method: 'POST', path: '/oauth/backchannel-logout', auth: 'client', description: 'Back-channel logout endpoint for sid/sub scoped revocation.' },
-  { method: 'POST', path: '/oauth/revoke', auth: 'session+csrf', description: 'Legacy local token revocation helper endpoint.' },
 
   { method: 'GET', path: '/scim/v2/ServiceProviderConfig', auth: 'bearer', description: 'SCIM service provider capabilities document.' },
   { method: 'GET', path: '/scim/v2/Schemas', auth: 'bearer', description: 'Lists supported SCIM schemas for User and Group resources.' },
@@ -343,18 +342,8 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'DELETE', path: '/api/admin/plugins/:id', auth: 'session+csrf', description: 'Removes an uploaded plugin bundle and metadata record.' },
 
   // Token Exchange
-  { method: 'POST', path: '/oauth/token/exchange', auth: 'token', description: 'RFC 8693 Token Exchange: validates a subject_token and issues a new scoped access token. Supports access_token and JWT subject token types.' },
-
-  { method: 'GET', path: '/users', auth: 'public', description: 'Legacy helper endpoint listing users.' },
-  { method: 'GET', path: '/clients', auth: 'public', description: 'Legacy helper endpoint listing clients.' },
-  { method: 'GET', path: '/roles', auth: 'public', description: 'Legacy helper endpoint listing roles.' },
-  { method: 'GET', path: '/groups', auth: 'public', description: 'Legacy helper endpoint listing groups.' },
-  { method: 'GET', path: '/tenants', auth: 'public', description: 'Legacy helper endpoint listing tenants.' },
-  { method: 'POST', path: '/users', auth: 'public', description: 'Legacy helper endpoint creating users.' },
-  { method: 'POST', path: '/roles', auth: 'public', description: 'Legacy helper endpoint creating roles.' },
-  { method: 'POST', path: '/role-assignments', auth: 'public', description: 'Legacy helper endpoint assigning user roles.' },
-  { method: 'POST', path: '/groups', auth: 'public', description: 'Legacy helper endpoint creating groups.' },
-  { method: 'POST', path: '/tenants', auth: 'public', description: 'Legacy helper endpoint creating tenants.' }
+  { method: 'POST', path: '/oauth/token/exchange', auth: 'client', description: 'RFC 8693 Token Exchange: an authenticated client or service identity presents a subject_token and receives a new access token with equal or narrower scope. Supports access_token and JWT subject token types.' },
+  { method: 'POST', path: '/oauth/consent', auth: 'session+csrf', description: 'Records the signed-in user\'s consent decision for a client before /oauth/authorize issues a response.' }
 ]
 
 const OIDC_OAUTH_CONCEPTS = [

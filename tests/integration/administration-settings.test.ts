@@ -103,7 +103,11 @@ test("administration settings update security thresholds immediately", async (t)
 
   const createUserResponse = await app.inject({
     method: "POST",
-    url: "/users",
+    url: "/api/admin/users",
+    headers: {
+      cookie: `${sid}; ${csrfCookie}`,
+      "x-csrf-token": csrfToken
+    },
     payload: {
       email: "threshold@example.com",
       username: "threshold-user",

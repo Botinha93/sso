@@ -8,6 +8,23 @@ import {
   issueServiceIdentityCredentialSchema
 } from "../schemas.js";
 
+// These metadata flags grant a service identity unrestricted admin access
+// (see isBootstrapAdminServiceIdentityMetadata). They may only be set by the
+// bootstrap process, never through the management API, otherwise any role
+// with service_identities:add could escalate to *:*.
+const PRIVILEGED_METADATA_KEYS = ["bootstrap_admin", "ungated_admin"];
+
+const stripPrivilegedMetadata = <T extends { metadata?: Record<string, unknown> }>(input: T): T => {
+  if (!input.metadata) {
+    return input;
+  }
+  const metadata = { ...input.metadata };
+  for (const key of PRIVILEGED_METADATA_KEYS) {
+    delete metadata[key];
+  }
+  return { ...input, metadata };
+};
+
 export function registerServiceIdentityRoutes(
   app: FastifyInstance,
   serviceIdentityService: ServiceIdentityService,
@@ -78,7 +95,7 @@ export function registerServiceIdentityRoutes(
     if (!parsed.success) {
       return reply.status(400).send({ error: "validation_error", issues: parsed.error.issues });
     }
-    const { roleIds, groupIds, ...serviceIdentityInput } = parsed.data;
+    const { roleIds, groupIds, ...serviceIdentityInput } = stripPrivilegedMetadata(parsed.data);
     const identity = await serviceIdentityService.createServiceIdentity(serviceIdentityInput);
 
     await syncRoleAssignments(identity.id, roleIds);
@@ -99,7 +116,16 @@ export function registerServiceIdentityRoutes(
     if (!parsed.success) {
       return reply.status(400).send({ error: "validation_error", issues: parsed.error.issues });
     }
-    const { roleIds, groupIds, ...serviceIdentityInput } = parsed.data;
+    const { roleIds, groupIds, ...serviceIdentityInput } = stripPrivilegedMetadata(parsed.data);
+    const existingIdentity = await serviceIdentityService.getServiceIdentity(request.params.id);
+    if (existingIdentity?.metadata && serviceIdentityInput.metadata) {
+      // Preserve flags set by the bootstrap process when an admin edits other metadata.
+      for (const key of PRIVILEGED_METADATA_KEYS) {
+        if (existingIdentity.metadata[key] !== undefined) {
+          serviceIdentityInput.metadata[key] = existingIdentity.metadata[key];
+        }
+      }
+    }
     const updated = await serviceIdentityService.updateServiceIdentity(request.params.id, serviceIdentityInput);
     if (!updated) return reply.status(404).send({ error: "not_found" });
 

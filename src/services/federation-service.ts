@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import { AuthenticationError, ValidationError } from "../core/errors.js";
 import type { AppConfig, FederationProviderConfig } from "../core/config.js";
 import { hashPassword } from "../security/password.js";
+import { assertSafeOutboundUrl } from "../http/safe-url.js";
 import { AuthenticationFlowService } from "./authentication-flow-service.js";
 import type {
   FederationProviderRepository,
@@ -84,6 +85,8 @@ export class FederationService {
       throw new ValidationError("Provider id already exists");
     }
 
+    await this.assertSafeProviderEndpoints(input);
+
     return this.federationProviderRepository.create(input);
   }
 
@@ -106,6 +109,8 @@ export class FederationService {
       throw new ValidationError("Federation provider not found");
     }
 
+    await this.assertSafeProviderEndpoints(input);
+
     const updated = await this.federationProviderRepository.update(id, {
       label: input.label,
       authorizationEndpoint: input.authorizationEndpoint,
@@ -122,6 +127,28 @@ export class FederationService {
     }
 
     return updated;
+  }
+
+  /**
+   * Provider endpoints are contacted server-side with the provider's client
+   * secret. They must be public HTTPS endpoints so an operator with
+   * federation_providers:add cannot point the IdP at internal services.
+   */
+  private async assertSafeProviderEndpoints(input: {
+    authorizationEndpoint?: string;
+    tokenEndpoint?: string;
+    userInfoEndpoint?: string;
+  }) {
+    const requireHttps = process.env.NODE_ENV !== "test";
+    if (input.authorizationEndpoint !== undefined) {
+      await assertSafeOutboundUrl(input.authorizationEndpoint, { label: "Authorization endpoint", requireHttps });
+    }
+    if (input.tokenEndpoint !== undefined) {
+      await assertSafeOutboundUrl(input.tokenEndpoint, { label: "Token endpoint", requireHttps });
+    }
+    if (input.userInfoEndpoint !== undefined) {
+      await assertSafeOutboundUrl(input.userInfoEndpoint, { label: "UserInfo endpoint", requireHttps });
+    }
   }
 
   async deleteProvider(id: string) {
@@ -232,7 +259,16 @@ export class FederationService {
       };
     }
 
-    let user = email ? await this.userRepository.findByEmail(email) : undefined;
+    // Linking a foreign identity to an existing local account by email is only
+    // safe when the provider asserts the address is verified. Otherwise anyone
+    // who can register an arbitrary email at the upstream IdP could take over
+    // the matching local account.
+    const emailVerified = userInfo.email_verified === true || userInfo.email_verified === "true";
+    let user = email && emailVerified ? await this.userRepository.findByEmail(email) : undefined;
+
+    if (!user && email && !emailVerified && await this.userRepository.findByEmail(email)) {
+      throw new AuthenticationError("An account with this email already exists; the identity provider did not verify the address");
+    }
 
     if (!user) {
       const baseUsername = (email?.split("@")[0] ?? `federated_${provider.id}`).replace(/[^a-zA-Z0-9_.-]/g, "_").slice(0, 24);

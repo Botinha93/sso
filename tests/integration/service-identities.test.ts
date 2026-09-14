@@ -434,7 +434,7 @@ test("service identity usage telemetry updates on token exchange and rejects rev
   assert.equal(exchangeExpired.statusCode, 401);
 });
 
-test("bootstrap service identity bearer bypasses admin permission gating", async (t) => {
+test("bootstrap_admin metadata cannot be granted through the management API", async (t) => {
   const { app, admin } = await createTestContext("integration-service-identities-bootstrap-admin");
 
   t.after(async () => {
@@ -503,12 +503,23 @@ test("bootstrap service identity bearer bypasses admin permission gating", async
   const accessToken = String((tokenResp.json() as { access_token?: string }).access_token ?? "");
   assert.ok(accessToken.length > 0);
 
+  // The identity was created with metadata.bootstrap_admin=true through the
+  // API. That flag must be stripped: otherwise any role holding
+  // service_identities:add could mint an all-powerful identity.
+  const identityAfterCreate = await app.inject({
+    method: "GET",
+    url: `/api/admin/service-identities/${identity.id}`,
+    headers: authHeaders
+  });
+  assert.equal(identityAfterCreate.statusCode, 200);
+  assert.equal((identityAfterCreate.json() as { metadata?: Record<string, unknown> }).metadata?.bootstrap_admin, undefined);
+
   const adminListResp = await app.inject({
     method: "GET",
     url: "/api/admin/service-identities",
     headers: { authorization: `Bearer ${accessToken}` }
   });
-  assert.equal(adminListResp.statusCode, 200);
+  assert.equal(adminListResp.statusCode, 403);
 
   const createChildResp = await app.inject({
     method: "POST",

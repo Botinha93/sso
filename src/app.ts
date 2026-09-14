@@ -10,24 +10,6 @@ import { MAX_IMAGE_UPLOAD_BYTES } from "./http/upload-limits.js";
 import { bootstrap } from "./bootstrap.js";
 import { hasSqlInjectionPayload } from "./http/sql-injection-guard.js";
 
-const parseBasicAuthClient = (authorization: string | string[] | undefined): string | undefined => {
-  const header = Array.isArray(authorization) ? authorization[0] : authorization;
-  if (!header || !header.toLowerCase().startsWith("basic ")) {
-    return undefined;
-  }
-  try {
-    const decoded = Buffer.from(header.slice("basic ".length).trim(), "base64").toString("utf8");
-    const separator = decoded.indexOf(":");
-    if (separator <= 0) {
-      return undefined;
-    }
-    const clientId = decoded.slice(0, separator);
-    return clientId.length > 0 ? clientId : undefined;
-  } catch {
-    return undefined;
-  }
-};
-
 export const emitStartupConfigWarnings = async (
   app: Pick<ReturnType<typeof Fastify>, "log">,
   instanceSettingsService: { getSettings: () => Promise<{ allowImplicitFlow: boolean }> }
@@ -84,7 +66,9 @@ export const buildApp = async () => {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
+        // The SPA bundles are external module scripts; the only inline scripts the
+        // server emits (auto-submit forms) carry a per-response nonce instead.
+        scriptSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:"],
         connectSrc: ["'self'"],
@@ -107,14 +91,23 @@ export const buildApp = async () => {
   });
   await app.register(cookie, { secret: config.cookieSecret });
   await app.register(cors, {
-    origin(origin, callback) {
+    delegator: (request, callback) => {
+      const origin = request.headers.origin;
       services.instanceSettingsService
-        .isCorsOriginAllowed(origin)
-        .then((allowed) => callback(null, allowed))
-        .catch((error) => callback(error as Error, false));
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+        .getSettings()
+        .then((settings) => {
+          const explicitlyAllowed = Boolean(origin) && settings.corsAllowedOrigins.includes(origin as string);
+          const allowed = !origin || explicitlyAllowed || settings.allowAnyCorsOrigin;
+          callback(null, {
+            origin: allowed,
+            // Credentialed cross-origin access is only granted to origins the
+            // operator listed explicitly, never to a wildcard.
+            credentials: explicitlyAllowed,
+            methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+          });
+        })
+        .catch((error) => callback(error as Error, {}));
+    }
   });
   await app.register(rateLimit, {
     max: async () => {
@@ -122,36 +115,12 @@ export const buildApp = async () => {
       return Math.max(1, Math.round(100 * rateLimitMultiplier));
     },
     timeWindow: "1 minute",
-    // Run after body parsing so the OAuth client_id is available when keying.
     hook: "preHandler",
-    keyGenerator: (req) => {
-      const ip = req.ip ?? "unknown";
-      const body = (req.body ?? {}) as Record<string, unknown>;
-      const bodyClientId =
-        typeof body.client_id === "string" && body.client_id.length > 0
-          ? body.client_id
-          : typeof body.clientId === "string" && (body.clientId as string).length > 0
-            ? (body.clientId as string)
-            : undefined;
-
-      if (bodyClientId) {
-        // Bucket per OAuth client + IP so one client hitting its limit does
-        // not block other clients sharing the same egress IP (NAT/proxy).
-        return `client:${bodyClientId}|ip:${ip}`;
-      }
-
-      const basic = parseBasicAuthClient(req.headers.authorization);
-      if (basic) {
-        return `client:${basic}|ip:${ip}`;
-      }
-
-      const sid = (req as { cookies?: Record<string, string | undefined> }).cookies?.sid;
-      if (sid) {
-        return `sid:${sid}|ip:${ip}`;
-      }
-
-      return `ip:${ip}`;
-    }
+    // Key strictly on the caller's IP. Body fields such as client_id and the
+    // session cookie are attacker-controlled and would let a caller mint a
+    // fresh bucket per request. Per-client buckets are applied on top of this
+    // limit by the endpoint-specific limiter in routes.ts.
+    keyGenerator: (req) => `ip:${req.ip ?? "unknown"}`
   });
   await app.register(multipart, {
     limits: {
