@@ -1,6 +1,7 @@
 import type { InstanceSettingsService } from "../services/instance-settings-service.js";
 
 export const SESSION_COOKIE_NAME = "sid";
+export const FEDERATION_TXN_COOKIE_NAME = "fed_txn";
 
 export async function sessionCookieAttributes(instanceSettingsService: InstanceSettingsService) {
   return {
@@ -47,6 +48,39 @@ type CookieRequest = {
  */
 export function readSessionIdFromRequest(request: CookieRequest): string | undefined {
   const raw = request.cookies?.[SESSION_COOKIE_NAME];
+  if (!raw || typeof request.unsignCookie !== "function") {
+    return undefined;
+  }
+
+  const unsigned = request.unsignCookie(raw);
+  if (!unsigned.valid || !unsigned.value) {
+    return undefined;
+  }
+
+  return unsigned.value;
+}
+
+export async function setFederationTxnCookie(
+  reply: { setCookie: (name: string, value: string, options: Record<string, unknown>) => void },
+  instanceSettingsService: InstanceSettingsService,
+  state: string
+) {
+  reply.setCookie(FEDERATION_TXN_COOKIE_NAME, state, {
+    ...(await sessionCookieAttributes(instanceSettingsService)),
+    maxAge: 60 * 10,
+    signed: true
+  });
+}
+
+export async function clearFederationTxnCookie(
+  reply: { clearCookie: (name: string, options: Record<string, unknown>) => void },
+  instanceSettingsService: InstanceSettingsService
+) {
+  reply.clearCookie(FEDERATION_TXN_COOKIE_NAME, await sessionCookieAttributes(instanceSettingsService));
+}
+
+export function readFederationTxnFromRequest(request: CookieRequest): string | undefined {
+  const raw = request.cookies?.[FEDERATION_TXN_COOKIE_NAME];
   if (!raw || typeof request.unsignCookie !== "function") {
     return undefined;
   }

@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 
 const PLUGIN_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{2,63}$/;
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/;
-const ENTRYPOINT_PATTERN = /^[A-Za-z0-9._/-]{1,160}$/;
+const ENTRYPOINT_PATTERN = /^[A-Za-z0-9._/][A-Za-z0-9._/-]{0,159}$/;
 const execFileAsync = promisify(execFile);
 
 export interface PluginManifest {
@@ -168,7 +168,7 @@ export class PluginService {
 
     const bundlePath = join(this.packagesDir, pluginId, "bundle.zip");
     try {
-      const { stdout } = await execFileAsync("unzip", ["-p", bundlePath, plugin.entrypoint], { maxBuffer: 2 * 1024 * 1024 });
+      const { stdout } = await execFileAsync("unzip", ["-p", bundlePath, "--", plugin.entrypoint], { maxBuffer: 2 * 1024 * 1024 });
       if (!stdout || stdout.trim().length === 0) {
         throw new Error("Plugin entrypoint source is empty");
       }
@@ -188,7 +188,12 @@ export class PluginService {
       errors.push("manifest.version must use semantic versioning, for example 1.0.0");
     }
 
-    if (!ENTRYPOINT_PATTERN.test(manifest.entrypoint) || manifest.entrypoint.includes("..")) {
+    if (
+      !ENTRYPOINT_PATTERN.test(manifest.entrypoint)
+      || manifest.entrypoint.includes("..")
+      || manifest.entrypoint.startsWith("-")
+      || manifest.entrypoint.startsWith("/")
+    ) {
       errors.push("manifest.entrypoint contains unsupported path characters");
     }
 

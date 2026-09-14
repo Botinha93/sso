@@ -15,6 +15,21 @@ type EventEmitterLike = {
   emit: (eventType: string, payload: Record<string, unknown>) => Promise<void>;
 };
 
+const SECRET_CONFIG_KEY = /password|secret|token|credential|bindpass|private.?key|api.?key/i;
+
+export const redactConnectorConfig = (config: Record<string, unknown>) =>
+  Object.fromEntries(Object.entries(config).map(([key, value]) => {
+    if (SECRET_CONFIG_KEY.test(key) && value != null && value !== "") {
+      return [key, "********"];
+    }
+    return [key, value];
+  }));
+
+export const toPublicConnector = (connector: Connector): Connector => ({
+  ...connector,
+  config: redactConnectorConfig(connector.config)
+});
+
 export class ConnectorService {
   constructor(
     private readonly connectorRepository: ConnectorRepository,

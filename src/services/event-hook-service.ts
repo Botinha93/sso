@@ -1,4 +1,5 @@
 import { nanoid } from "nanoid";
+import { createHmac } from "node:crypto";
 import { ValidationError } from "../core/errors.js";
 import { assertSafeOutboundUrl } from "../http/safe-url.js";
 import type { EventHook } from "../domain/models.js";
@@ -41,6 +42,9 @@ const DEFAULT_DELIVERY_TIMEOUT_MS = 5_000;
 const DEFAULT_MAX_QUEUE_SIZE = 1_000;
 const DEFAULT_MAX_CONCURRENT_EVENTS = 4;
 const MAX_RESPONSE_BODY_CHARS = 4_096;
+const SIGNING_SECRET_HEADER = "_ssoSigningSecret";
+const HOOK_FAILURE_THRESHOLD = 5;
+const HOOK_FAILURE_COOLDOWN_MS = 5 * 60_000;
 
 type PluginRuntimeLike = {
   dispatch: (eventType: string, payload: Record<string, unknown>) => Promise<void>;
@@ -65,6 +69,7 @@ export class EventHookService {
   private readonly deliveryQueue: EventDeliveryJob[] = [];
   private processingQueue = false;
   private drainScheduled = false;
+  private readonly hookFailures = new Map<string, { count: number; disabledUntil?: number }>();
 
   constructor(
     private readonly eventHookRepository: EventHookRepository,
@@ -81,7 +86,8 @@ export class EventHookService {
   }
 
   async listHooks() {
-    return this.eventHookRepository.list();
+    const hooks = await this.eventHookRepository.list();
+    return hooks.map((hook) => this.toPublicHook(hook));
   }
 
   async listNotifications(limit = 100) {
@@ -102,14 +108,18 @@ export class EventHookService {
     this.assertValidEventType(input.eventType);
     await assertSafeOutboundUrl(input.targetUrl, { label: "Event hook target URL" });
     this.assertSafeHeaders(input.headers);
-    return this.eventHookRepository.create({
+    const created = await this.eventHookRepository.create({
       id: nanoid(),
       eventType: input.eventType.trim(),
       targetUrl: input.targetUrl,
       method: input.method,
-      headers: input.headers ?? {},
+      headers: {
+        ...this.withoutSigningSecret(input.headers ?? {}),
+        [SIGNING_SECRET_HEADER]: nanoid(40)
+      },
       enabled: input.enabled ?? true
     });
+    return this.toPublicHook(created, { includeSigningSecret: true });
   }
 
   async updateHook(id: string, input: {
@@ -127,11 +137,23 @@ export class EventHookService {
     }
     this.assertSafeHeaders(input.headers);
 
+    const existing = await this.eventHookRepository.findById(id);
+    if (!existing) {
+      throw new ValidationError("Event hook not found");
+    }
+
+    const nextHeaders = input.headers === undefined
+      ? undefined
+      : {
+          ...this.withoutSigningSecret(input.headers),
+          [SIGNING_SECRET_HEADER]: existing.headers[SIGNING_SECRET_HEADER] ?? nanoid(40)
+        };
+
     const updated = await this.eventHookRepository.update(id, {
       eventType: input.eventType?.trim(),
       targetUrl: input.targetUrl,
       method: input.method,
-      headers: input.headers,
+      headers: nextHeaders,
       enabled: input.enabled
     });
 
@@ -139,7 +161,7 @@ export class EventHookService {
       throw new ValidationError("Event hook not found");
     }
 
-    return updated;
+    return this.toPublicHook(updated);
   }
 
   async deleteHook(id: string) {
@@ -236,6 +258,10 @@ export class EventHookService {
       throw new ValidationError("Event hook not found");
     }
 
+    if (!hook.enabled) {
+      throw new ValidationError("Event hook is disabled");
+    }
+
     const eventType = input?.eventType?.trim() || "events.hook.test";
     this.assertValidEventType(eventType);
     const payload = input?.payload ?? {
@@ -258,7 +284,7 @@ export class EventHookService {
     if (!headers) {
       return;
     }
-    const forbidden = new Set(["host", "cookie", "content-length", "transfer-encoding", "connection"]);
+    const forbidden = new Set(["host", "cookie", "content-length", "transfer-encoding", "connection", SIGNING_SECRET_HEADER.toLowerCase()]);
     for (const name of Object.keys(headers)) {
       if (forbidden.has(name.trim().toLowerCase())) {
         throw new ValidationError(`Event hook header not allowed: ${name}`);
@@ -278,10 +304,18 @@ export class EventHookService {
     eventType: string,
     payload: Record<string, unknown>
   ) {
-    const headers = {
-      "content-type": "application/json",
-      ...hook.headers
-    };
+    if (this.isHookCircuitOpen(hook.id)) {
+      await this.recordNotificationFailure(
+        eventType,
+        payload,
+        "Hook temporarily disabled after repeated failures",
+        hook.id
+      );
+      return;
+    }
+
+    const body = JSON.stringify({ eventType, payload, sentAt: new Date().toISOString() });
+    const headers = this.buildDeliveryHeaders(hook.headers, body);
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.deliveryTimeoutMs);
@@ -294,7 +328,7 @@ export class EventHookService {
       const response = await fetch(hook.targetUrl, {
         method: hook.method,
         headers,
-        body: JSON.stringify({ eventType, payload, sentAt: new Date().toISOString() }),
+        body,
         signal: controller.signal,
         // Following redirects would let a public hostname bounce the request
         // to an internal service.
@@ -302,6 +336,11 @@ export class EventHookService {
       });
 
       const responseBody = (await response.text()).slice(0, MAX_RESPONSE_BODY_CHARS);
+      if (response.ok) {
+        this.recordHookSuccess(hook.id);
+      } else {
+        this.recordHookFailure(hook.id);
+      }
       await this.eventNotificationRepository.create({
         eventType,
         hookId: hook.id,
@@ -312,6 +351,7 @@ export class EventHookService {
         error: response.ok ? undefined : `Hook returned HTTP ${response.status}`
       });
     } catch (error) {
+      this.recordHookFailure(hook.id);
       await this.recordNotificationFailure(
         eventType,
         payload,
@@ -321,6 +361,62 @@ export class EventHookService {
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  private buildDeliveryHeaders(hookHeaders: Record<string, string>, body: string) {
+    const headers: Record<string, string> = {
+      "content-type": "application/json"
+    };
+    for (const [name, value] of Object.entries(hookHeaders)) {
+      if (name === SIGNING_SECRET_HEADER) {
+        continue;
+      }
+      headers[name] = value;
+    }
+
+    const secret = hookHeaders[SIGNING_SECRET_HEADER];
+    if (secret) {
+      const ts = Math.floor(Date.now() / 1000).toString();
+      const signature = createHmac("sha256", secret).update(`${ts}.${body}`).digest("hex");
+      headers["x-sso-signature"] = `t=${ts},v1=${signature}`;
+    }
+
+    return headers;
+  }
+
+  private toPublicHook(hook: EventHook, options: { includeSigningSecret?: boolean } = {}) {
+    const signingSecret = hook.headers[SIGNING_SECRET_HEADER];
+    const headers = this.withoutSigningSecret(hook.headers);
+    return {
+      ...hook,
+      headers,
+      hasSigningSecret: Boolean(signingSecret),
+      signingSecret: options.includeSigningSecret ? signingSecret : undefined
+    };
+  }
+
+  private withoutSigningSecret(headers: Record<string, string>) {
+    const next = { ...headers };
+    delete next[SIGNING_SECRET_HEADER];
+    return next;
+  }
+
+  private isHookCircuitOpen(hookId: string) {
+    const state = this.hookFailures.get(hookId);
+    return Boolean(state?.disabledUntil && state.disabledUntil > Date.now());
+  }
+
+  private recordHookSuccess(hookId: string) {
+    this.hookFailures.delete(hookId);
+  }
+
+  private recordHookFailure(hookId: string) {
+    const current = this.hookFailures.get(hookId) ?? { count: 0 };
+    const count = current.count + 1;
+    this.hookFailures.set(hookId, {
+      count,
+      disabledUntil: count >= HOOK_FAILURE_THRESHOLD ? Date.now() + HOOK_FAILURE_COOLDOWN_MS : current.disabledUntil
+    });
   }
 
   private deliveryErrorMessage(error: unknown) {

@@ -247,7 +247,18 @@ test("federation start rejects protocol-relative and backslash redirect targets"
   assert.equal(list.statusCode, 200);
   for (const provider of list.json() as Array<Record<string, unknown>>) {
     assert.equal(provider.clientSecret, undefined);
+    assert.equal(provider.secretPreview, undefined);
+    assert.equal(provider.hasSecret, true);
   }
+
+  const start = await app.inject({
+    method: "GET",
+    url: "/auth/federation/test-idp/start?redirect=/admin"
+  });
+  assert.equal(start.statusCode, 302);
+  const setCookie = start.headers["set-cookie"];
+  const cookies = Array.isArray(setCookie) ? setCookie : [String(setCookie ?? "")];
+  assert.ok(cookies.some((value) => value.startsWith("fed_txn=")));
 });
 
 test("dynamic client registration requires administrator credentials by default", async (t) => {

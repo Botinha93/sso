@@ -1,4 +1,5 @@
 import type { ProvisioningMapping } from "../domain/models.js";
+import { isSystemManagedUserAttributeKey } from "../domain/user-attribute-keys.js";
 
 const CUSTOM_ATTRIBUTES_PREFIX = "customAttributes.";
 
@@ -47,11 +48,18 @@ const resolveSourceAttributeValue = (attributes: Record<string, string>, sourceA
   return undefined;
 };
 
-const normalizeTargetAttribute = (targetAttribute: string): string => {
-  if (targetAttribute.startsWith(CUSTOM_ATTRIBUTES_PREFIX)) {
-    return targetAttribute.slice(CUSTOM_ATTRIBUTES_PREFIX.length);
+const normalizeTargetAttribute = (targetAttribute: string): string | undefined => {
+  const raw = targetAttribute.startsWith(CUSTOM_ATTRIBUTES_PREFIX)
+    ? targetAttribute.slice(CUSTOM_ATTRIBUTES_PREFIX.length)
+    : targetAttribute;
+  const trimmed = raw.trim();
+  if (!trimmed || !/^[A-Za-z][A-Za-z0-9_.-]*$/.test(trimmed)) {
+    return undefined;
   }
-  return targetAttribute;
+  if (trimmed === "constructor" || trimmed === "prototype" || isSystemManagedUserAttributeKey(trimmed)) {
+    return undefined;
+  }
+  return trimmed;
 };
 
 export interface ProvisioningMappingDrift {
@@ -85,6 +93,9 @@ export const evaluateProvisioningMappings = (input: {
 
     const expectedValue = applyTransformExpression(sourceValue, mapping.transformExpression);
     const targetAttribute = normalizeTargetAttribute(mapping.targetAttribute);
+    if (!targetAttribute) {
+      continue;
+    }
     const currentValue = nextCustomAttributes[targetAttribute];
 
     if (currentValue !== expectedValue) {

@@ -1,5 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { ConnectorService, AuthMetricsService } from "../../services/connector-service.js";
+import { toPublicConnector } from "../../services/connector-service.js";
+import { clampLimit } from "../query-limits.js";
 import {
   createConnectorSchema,
   updateConnectorSchema,
@@ -15,7 +17,7 @@ export function registerConnectorRoutes(
 
   app.get("/api/admin/connectors", async (_request, _reply) => {
     const connectors = await connectorService.listConnectors();
-    return { data: connectors };
+    return { data: connectors.map(toPublicConnector) };
   });
 
   app.post("/api/admin/connectors", async (request, reply) => {
@@ -24,13 +26,13 @@ export function registerConnectorRoutes(
       return reply.status(400).send({ error: "validation_error", issues: parsed.error.issues });
     }
     const connector = await connectorService.createConnector(parsed.data);
-    return reply.status(201).send(connector);
+    return reply.status(201).send(toPublicConnector(connector));
   });
 
   app.get("/api/admin/connectors/:id", async (request: any, reply) => {
     const connector = await connectorService.getConnector(request.params.id);
     if (!connector) return reply.status(404).send({ error: "not_found" });
-    return connector;
+    return toPublicConnector(connector);
   });
 
   app.patch("/api/admin/connectors/:id", async (request: any, reply) => {
@@ -40,7 +42,7 @@ export function registerConnectorRoutes(
     }
     const updated = await connectorService.updateConnector(request.params.id, parsed.data);
     if (!updated) return reply.status(404).send({ error: "not_found" });
-    return updated;
+    return toPublicConnector(updated);
   });
 
   app.delete("/api/admin/connectors/:id", async (request: any, reply) => {
@@ -66,7 +68,7 @@ export function registerConnectorRoutes(
   app.get("/api/admin/connectors/:id/runs", async (request: any, reply) => {
     const connector = await connectorService.getConnector(request.params.id);
     if (!connector) return reply.status(404).send({ error: "not_found" });
-    const limit = request.query?.limit ? Number(request.query.limit) : 50;
+    const limit = clampLimit(request.query?.limit, 50);
     const runs = await connectorService.listRuns(request.params.id, limit);
     return { data: runs };
   });

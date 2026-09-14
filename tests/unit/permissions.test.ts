@@ -10,6 +10,8 @@ test("isPlatformPermission recognizes portal and admin resource keys", () => {
   assert.equal(isPlatformPermission("users:view"), true);
   assert.equal(isPlatformPermission("portal:read"), true);
   assert.equal(isPlatformPermission("suggestions:view"), true);
+  assert.equal(isPlatformPermission("plugins:view"), true);
+  assert.equal(isPlatformPermission("connectors:view"), true);
   assert.equal(isPlatformPermission("*:*"), true);
   assert.equal(isPlatformPermission("billing-app:invoices:view"), false);
   assert.equal(isPlatformPermission("invoices:view"), false);

@@ -152,7 +152,7 @@ export class TranslationService {
   }
 
   isValidLanguage(lang: string): lang is Language {
-    return lang in SUPPORTED_LANGUAGES;
+    return Object.hasOwn(SUPPORTED_LANGUAGES, lang);
   }
 
   getDefaultLanguage(): Language {

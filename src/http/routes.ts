@@ -13,9 +13,11 @@ import { hasAdminPermission, isBootstrapAdminServiceIdentityMetadata, isUngatedA
 import { registerScimRoutes } from "./scim-routes.js";
 import { registerSamlAdminRoutes } from "./saml-routes.js";
 import { registerSamlProtocolRoutes } from "./saml-protocol-routes.js";
-import { clearSessionCookie, readSessionIdFromRequest, setSessionCookie } from "./session-cookie.js";
+import { clearFederationTxnCookie, clearSessionCookie, readFederationTxnFromRequest, readSessionIdFromRequest, setFederationTxnCookie, setSessionCookie } from "./session-cookie.js";
 import { assertSafeDatabaseUrl, assertSafeOutboundUrl, escapeHtml, isSafeLocalRedirect } from "./safe-url.js";
 import { hashOpaqueToken } from "../security/token-hash.js";
+import { toSessionRef } from "../security/session-ref.js";
+import { clampLimit } from "./query-limits.js";
 import { registerAccessGovernanceRoutes } from "./routes/access-governance.js";
 import { registerProvisioningRoutes } from "./routes/provisioning.js";
 import { registerElevationRoutes } from "./routes/elevations.js";
@@ -2201,7 +2203,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         await deps.eventHookService.emit("auth.login.succeeded", {
           userId: loginResult.session.userId,
           clientId: loginResult.session.clientId,
-          sessionId: loginResult.session.id,
+          sessionRef: toSessionRef(loginResult.session.id),
           ip: request.ip
         });
       });
@@ -2286,7 +2288,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         await deps.eventHookService.emit("auth.login.succeeded", {
           userId: loginResult.session.userId,
           clientId: loginResult.session.clientId,
-          sessionId: loginResult.session.id,
+          sessionRef: toSessionRef(loginResult.session.id),
           ip: request.ip,
           mfa: "totp"
         });
@@ -2345,7 +2347,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         await deps.eventHookService.emit("auth.login.succeeded", {
           userId: loginResult.session.userId,
           clientId: loginResult.session.clientId,
-          sessionId: loginResult.session.id,
+          sessionRef: toSessionRef(loginResult.session.id),
           ip: request.ip,
           passwordChanged: true
         });
@@ -2415,7 +2417,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         await deps.eventHookService.emit("auth.login.succeeded", {
           userId: loginResult.session.userId,
           clientId: loginResult.session.clientId,
-          sessionId: loginResult.session.id,
+          sessionRef: toSessionRef(loginResult.session.id),
           ip: request.ip,
           mfa: "webauthn"
         });
@@ -2946,8 +2948,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return result;
   });
   app.get("/api/admin/policies/decisions", async (request) => {
-    const { limit } = request.query as { limit?: string };
-    return deps.policyDecisionLogRepository.list(limit ? Number(limit) : 100);
+    return deps.policyDecisionLogRepository.list(clampLimit((request.query as { limit?: string } | undefined)?.limit, 100));
   });
 
   app.get("/api/admin/events/hooks", async (request) => {
@@ -2981,8 +2982,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return reply.status(204).send();
   });
   app.get("/api/admin/events/notifications", async (request) => {
-    const { limit } = request.query as { limit?: string };
-    return deps.eventHookService.listNotifications(limit ? Number(limit) : 100);
+    return deps.eventHookService.listNotifications(clampLimit((request.query as { limit?: string } | undefined)?.limit, 100));
   });
 
   app.post("/api/admin/federation/providers", async (request, reply) => {
@@ -2992,8 +2992,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return {
       ...provider,
       clientSecret: undefined,
-      hasSecret: true,
-      secretPreview: `${provider.clientSecret.slice(0, 4)}...${provider.clientSecret.slice(-4)}`
+      hasSecret: true
     };
   });
   app.put("/api/admin/federation/providers/:id", async (request, reply) => {
@@ -3003,8 +3002,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return {
       ...provider,
       clientSecret: undefined,
-      hasSecret: true,
-      secretPreview: `${provider.clientSecret.slice(0, 4)}...${provider.clientSecret.slice(-4)}`
+      hasSecret: true
     };
   });
   app.delete("/api/admin/federation/providers/:id", async (request, reply) => {
@@ -3016,8 +3014,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.get("/auth/federation/:providerId/start", async (request, reply) => {
     const { providerId } = request.params as { providerId: string };
     const redirectAfterLogin = asSafeRedirect((request.query as { redirect?: string }).redirect);
-    const destination = await deps.federationService.getAuthorizationRedirect(providerId, redirectAfterLogin);
-    return reply.redirect(destination);
+    const started = await deps.federationService.getAuthorizationRedirect(providerId, redirectAfterLogin);
+    await setFederationTxnCookie(reply, deps.instanceSettingsService, started.state);
+    return reply.redirect(started.url);
   });
 
   app.get("/auth/federation/:providerId/callback", async (request, reply) => {
@@ -3028,7 +3027,12 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       return reply.status(400).send({ error: "invalid_request", message: "Missing code or state" });
     }
 
-    const completed = await deps.federationService.completeLogin({ providerId, code, state });
+    const completed = await deps.federationService.completeLogin({
+      providerId,
+      code,
+      state,
+      binding: readFederationTxnFromRequest(request)
+    });
     await deps.policyService.enforceStagePolicies({
       stage: "federation",
       user: completed.user,
@@ -3062,10 +3066,11 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       actorId: completed.user.id,
       actorType: "user",
       clientId: "sso-admin-ui",
-      metadata: { method: "federation", providerId, sessionId: session.id }
+      metadata: { method: "federation", providerId, sessionRef: toSessionRef(session.id) }
     });
 
     await setSessionCookie(reply, deps.instanceSettingsService, session.id);
+    await clearFederationTxnCookie(reply, deps.instanceSettingsService);
 
     return reply.redirect(asSafeRedirect(completed.redirectAfterLogin));
   });
@@ -3079,11 +3084,11 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         type: "logout",
         actorId: session.userId,
         actorType: "user",
-        metadata: { sessionId: session.id }
+        metadata: { sessionRef: toSessionRef(session.id) }
       });
       await deps.eventHookService.emit("auth.logout", {
         userId: session.userId,
-        sessionId: session.id,
+        sessionRef: toSessionRef(session.id),
         ip: request.ip
       });
     }
@@ -3806,9 +3811,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const { id } = request.params as { id: string };
     deps.securityService.revokeSessionObservation(id);
     await deps.authService.sessionRepository.revoke(id, new Date());
-    await deps.auditRepository.log({ type: "session_revoked", actorType: "system", metadata: { sessionId: id } });
+    await deps.auditRepository.log({ type: "session_revoked", actorType: "system", metadata: { sessionRef: toSessionRef(id) } });
     await deps.eventHookService.emit("session.revoked", {
-      sessionId: id,
+      sessionRef: toSessionRef(id),
       source: "admin"
     });
     return reply.status(204).send();
@@ -3879,10 +3884,10 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     await deps.auditRepository.log({
       type: "session_revoked",
       actorType: "system",
-      metadata: { sessionId: id, kind: "device_session" }
+      metadata: { sessionRef: toSessionRef(id), kind: "device_session" }
     });
     await deps.eventHookService.emit("device.session.revoked", {
-      sessionId: id,
+      sessionRef: toSessionRef(id),
       source: "admin"
     });
     return reply.status(204).send();

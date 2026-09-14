@@ -34,7 +34,7 @@ test("recovery uses one-time ticket and verification code", async (t) => {
       recoveryTicket: requestPayload.recoveryTicket,
       verificationCode: requestPayload.verificationCode,
       promptAcknowledged: true,
-      newPassword: "changed-password-123",
+      newPassword: "Changed-Password-123",
       clientId: "sso-admin-ui"
     }
   });
@@ -55,7 +55,7 @@ test("recovery uses one-time ticket and verification code", async (t) => {
       recoveryTicket: requestPayload.recoveryTicket,
       verificationCode: requestPayload.verificationCode,
       promptAcknowledged: true,
-      newPassword: "another-password-123",
+      newPassword: "Another-Password-123",
       clientId: "sso-admin-ui"
     }
   });
@@ -67,7 +67,7 @@ test("recovery uses one-time ticket and verification code", async (t) => {
     url: "/auth/login",
     payload: {
       email: admin.email,
-      password: "changed-password-123",
+      password: "Changed-Password-123",
       clientId: "sso-admin-ui",
       scope: ["openid", "profile", "email"]
     }

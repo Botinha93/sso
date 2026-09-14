@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { nanoid } from "nanoid";
 import { AuthenticationError, ValidationError } from "../core/errors.js";
 import type { AppConfig, FederationProviderConfig } from "../core/config.js";
@@ -46,22 +46,24 @@ export class FederationService {
     const dbProviders = await this.federationProviderRepository.list();
     const envIds = new Set(envProviders.map((provider) => provider.id));
 
-    const fromEnv = envProviders.map((provider) => ({
-      ...provider,
-      enabled: true,
-      source: "env" as const,
-      hasSecret: Boolean(provider.clientSecret),
-      secretPreview: provider.clientSecret ? `${provider.clientSecret.slice(0, 4)}...${provider.clientSecret.slice(-4)}` : ""
-    }));
+    const toPublicProvider = <T extends FederationProviderConfig & { enabled?: boolean }>(
+      provider: T,
+      source: "env" | "db"
+    ) => {
+      const { clientSecret, ...safe } = provider;
+      return {
+        ...safe,
+        enabled: provider.enabled ?? true,
+        source,
+        hasSecret: Boolean(clientSecret)
+      };
+    };
+
+    const fromEnv = envProviders.map((provider) => toPublicProvider({ ...provider, enabled: true }, "env"));
 
     const fromDb = dbProviders
       .filter((provider) => !envIds.has(provider.id))
-      .map((provider) => ({
-        ...provider,
-        source: "db" as const,
-        hasSecret: Boolean(provider.clientSecret),
-        secretPreview: provider.clientSecret ? `${provider.clientSecret.slice(0, 4)}...${provider.clientSecret.slice(-4)}` : ""
-      }));
+      .map((provider) => toPublicProvider(provider, "db"));
 
     return [...fromEnv, ...fromDb];
   }
@@ -166,6 +168,7 @@ export class FederationService {
     await this.federationTransactionRepository.purgeExpired(new Date());
 
     const state = nanoid(48);
+    const nonce = createHash("sha256").update(state).digest("base64url");
     const codeVerifier = asBase64Url(randomBytes(48));
     const codeChallenge = createHash("sha256").update(codeVerifier).digest("base64url");
 
@@ -179,20 +182,27 @@ export class FederationService {
       expiresAt: new Date(Date.now() + 1000 * 60 * 10)
     });
 
+    const scopes = provider.scopes.includes("openid") ? provider.scopes : ["openid", ...provider.scopes];
     const authorizeUrl = new URL(provider.authorizationEndpoint);
     authorizeUrl.searchParams.set("response_type", "code");
     authorizeUrl.searchParams.set("client_id", provider.clientId);
     authorizeUrl.searchParams.set("redirect_uri", callbackUri);
-    authorizeUrl.searchParams.set("scope", provider.scopes.join(" "));
+    authorizeUrl.searchParams.set("scope", scopes.join(" "));
     authorizeUrl.searchParams.set("state", state);
+    authorizeUrl.searchParams.set("nonce", nonce);
     authorizeUrl.searchParams.set("code_challenge", codeChallenge);
     authorizeUrl.searchParams.set("code_challenge_method", "S256");
 
-    return authorizeUrl.toString();
+    return { url: authorizeUrl.toString(), state };
   }
 
-  async completeLogin(input: { providerId: string; code: string; state: string }) {
+  async completeLogin(input: { providerId: string; code: string; state: string; binding?: string }) {
     const provider = await this.requireProvider(input.providerId);
+
+    if (!this.bindingsMatch(input.binding, input.state)) {
+      throw new AuthenticationError("Invalid federation transaction binding");
+    }
+
     const transaction = await this.federationTransactionRepository.consume(input.state);
 
     if (!transaction || transaction.providerId !== provider.id) {
@@ -204,6 +214,9 @@ export class FederationService {
     }
 
     const callbackUri = `${this.appConfig.issuer}/auth/federation/${provider.id}/callback`;
+    const requireHttps = process.env.NODE_ENV !== "test";
+    await assertSafeOutboundUrl(provider.tokenEndpoint, { label: "Token endpoint", requireHttps });
+    await assertSafeOutboundUrl(provider.userInfoEndpoint, { label: "UserInfo endpoint", requireHttps });
 
     const tokenResponse = await fetch(provider.tokenEndpoint, {
       method: "POST",
@@ -215,22 +228,28 @@ export class FederationService {
         client_secret: provider.clientSecret,
         redirect_uri: callbackUri,
         code_verifier: transaction.codeVerifier
-      })
+      }),
+      redirect: "manual"
     });
 
     if (!tokenResponse.ok) {
       throw new AuthenticationError("Failed to exchange federation authorization code");
     }
 
-    const tokenJson = await tokenResponse.json() as { access_token?: string };
+    const tokenJson = await tokenResponse.json() as { access_token?: string; token_type?: string };
     const accessToken = tokenJson.access_token;
+    const tokenType = tokenJson.token_type?.toLowerCase();
 
     if (!accessToken) {
       throw new AuthenticationError("Federation token response missing access_token");
     }
+    if (tokenType && tokenType !== "bearer") {
+      throw new AuthenticationError("Federation token response used an unsupported token type");
+    }
 
     const userInfoResponse = await fetch(provider.userInfoEndpoint, {
-      headers: { authorization: `Bearer ${accessToken}` }
+      headers: { authorization: `Bearer ${accessToken}` },
+      redirect: "manual"
     });
 
     if (!userInfoResponse.ok) {
@@ -259,48 +278,57 @@ export class FederationService {
       };
     }
 
-    // Linking a foreign identity to an existing local account by email is only
-    // safe when the provider asserts the address is verified. Otherwise anyone
-    // who can register an arbitrary email at the upstream IdP could take over
-    // the matching local account.
+    // Never attach a foreign subject to an existing local user by email.
+    // userinfo.email_verified is not a signed assertion unless an ID token is
+    // validated, and several public IdPs let callers pick an unverified address.
     const emailVerified = userInfo.email_verified === true || userInfo.email_verified === "true";
-    let user = email && emailVerified ? await this.userRepository.findByEmail(email) : undefined;
-
-    if (!user && email && !emailVerified && await this.userRepository.findByEmail(email)) {
-      throw new AuthenticationError("An account with this email already exists; the identity provider did not verify the address");
+    if (email && await this.userRepository.findByEmail(email)) {
+      throw new AuthenticationError("An account with this email already exists; link it from an authenticated session");
     }
 
-    if (!user) {
-      const baseUsername = (email?.split("@")[0] ?? `federated_${provider.id}`).replace(/[^a-zA-Z0-9_.-]/g, "_").slice(0, 24);
-      const preferredUsername = typeof userInfo.preferred_username === "string" ? userInfo.preferred_username : undefined;
-      const nameSeed = preferredUsername ?? baseUsername ?? "federated_user";
-      const username = `${nameSeed.slice(0, 24)}_${nanoid(6)}`;
-      const givenName = typeof userInfo.given_name === "string" ? userInfo.given_name : "Federated";
-      const familyName = typeof userInfo.family_name === "string" ? userInfo.family_name : "User";
-
-      user = await this.userRepository.create({
-        email: email ?? `${username}@federated.local`,
-        username,
-        isServiceUser: false,
-        passwordHash: hashPassword(asBase64Url(randomBytes(32))),
-        givenName,
-        familyName,
-        customAttributes: {},
-        active: true
-      });
+    const allowJit = process.env.FEDERATION_JIT_PROVISIONING !== "false";
+    if (!allowJit) {
+      throw new AuthenticationError("No linked account");
     }
+
+    const baseUsername = (email?.split("@")[0] ?? `federated_${provider.id}`).replace(/[^a-zA-Z0-9_.-]/g, "_").slice(0, 24);
+    const preferredUsername = typeof userInfo.preferred_username === "string" ? userInfo.preferred_username : undefined;
+    const nameSeed = preferredUsername ?? baseUsername ?? "federated_user";
+    const username = `${nameSeed.slice(0, 24)}_${nanoid(6)}`;
+    const givenName = typeof userInfo.given_name === "string" ? userInfo.given_name : "Federated";
+    const familyName = typeof userInfo.family_name === "string" ? userInfo.family_name : "User";
+
+    const user = await this.userRepository.create({
+      email: email && emailVerified ? email : `${username}@federated.local`,
+      username,
+      isServiceUser: false,
+      passwordHash: hashPassword(asBase64Url(randomBytes(32))),
+      givenName,
+      familyName,
+      customAttributes: {},
+      active: true
+    });
 
     await this.federatedIdentityRepository.create({
       providerId: provider.id,
       providerSubject: subject,
       userId: user.id,
-      email
+      email: email && emailVerified ? email : undefined
     });
 
     return {
       user,
       redirectAfterLogin: transaction.redirectAfterLogin
     };
+  }
+
+  private bindingsMatch(binding: string | undefined, state: string) {
+    if (!binding) {
+      return false;
+    }
+    const left = Buffer.from(binding);
+    const right = Buffer.from(state);
+    return left.length === right.length && left.length > 0 && timingSafeEqual(left, right);
   }
 
   private async requireProvider(providerId: string): Promise<FederationProviderConfig> {

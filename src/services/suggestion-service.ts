@@ -36,6 +36,20 @@ const isSuggestionKind = (value: string): value is SuggestionKind =>
 const isSuggestionStatus = (value: string): value is SuggestionStatus =>
   (SUGGESTION_STATUSES as readonly string[]).includes(value);
 
+const SUGGESTION_IMAGE_PREFIX = "/media/uploads/suggestions/";
+
+const isOwnedSuggestionImageUrl = (url: string, ownerId: string) => {
+  if (!url.startsWith(SUGGESTION_IMAGE_PREFIX)) {
+    return false;
+  }
+  if (url.includes("..") || url.includes("\\") || url.includes("%") || url.includes("?") || url.includes("#")) {
+    return false;
+  }
+  const rest = url.slice(SUGGESTION_IMAGE_PREFIX.length);
+  const parts = rest.split("/").filter(Boolean);
+  return parts.length === 2 && parts[0] === ownerId && /^[A-Za-z0-9._-]+$/.test(parts[1] ?? "");
+};
+
 const authorFromUser = (user: User): SuggestionAuthorDto => ({
   id: user.id,
   email: user.email,
@@ -126,7 +140,9 @@ export class SuggestionService {
       throw new ValidationError("Title and body are required");
     }
 
-    const imageUrls = (input.imageUrls ?? []).filter((url) => typeof url === "string" && url.startsWith("/media/uploads/suggestions/"));
+    const imageUrls = (input.imageUrls ?? []).filter((url) =>
+      typeof url === "string" && isOwnedSuggestionImageUrl(url, input.authorUserId)
+    );
 
     if (input.kind === "existing_app") {
       if (!input.appId) {

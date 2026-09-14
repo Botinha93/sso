@@ -25,7 +25,10 @@ const ALL_RESOURCES = [
   "events",
   "scopes",
   "administration",
-  "suggestions"
+  "suggestions",
+  "plugins",
+  "connectors",
+  "service_identities"
 ] as const;
 
 const ACTIONS = ["view", "add", "change", "delete", "disable"] as const;

@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type { ProvisioningService } from "../../services/provisioning-service.js";
 import type { DeprovisioningService } from "../../services/deprovisioning-service.js";
 import type { ScimTokenService } from "../../services/scim-token-service.js";
+import { clampLimit } from "../query-limits.js";
 import {
   createProvisioningMappingSchema,
   createScimTokenSchema,
@@ -48,13 +49,11 @@ export const registerProvisioningRoutes = async (app: FastifyInstance, deps: Pro
   });
 
   app.get("/api/admin/provisioning/jobs", async (request) => {
-    const limit = Number((request.query as { limit?: string } | undefined)?.limit ?? "20");
-    return deps.provisioningService.listJobs(Number.isFinite(limit) ? limit : 20);
+    return deps.provisioningService.listJobs(clampLimit((request.query as { limit?: string } | undefined)?.limit, 20));
   });
 
   app.get("/api/admin/provisioning/deprovisioning-queue", async (request) => {
-    const limit = Number((request.query as { limit?: string } | undefined)?.limit ?? "100");
-    return deps.deprovisioningService.listQueue(Number.isFinite(limit) ? limit : 100);
+    return deps.deprovisioningService.listQueue(clampLimit((request.query as { limit?: string } | undefined)?.limit, 100));
   });
 
   app.post("/api/admin/provisioning/jobs/reconcile", async (request, reply) => {
