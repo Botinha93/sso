@@ -607,6 +607,7 @@ export const bootstrap = async (config: AppConfig) => {
     dispose: async () => {
       await eventHookService.waitForIdle();
       await pluginRuntimeService.dispose();
+      await policyService.dispose();
       await (repositories.dispose ?? (async () => undefined))();
     }
   };

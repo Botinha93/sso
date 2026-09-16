@@ -1,4 +1,4 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyServerOptions } from "fastify";
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
@@ -29,7 +29,13 @@ export const emitStartupConfigWarnings = async (
 
 export const buildApp = async () => {
   const config = loadConfig();
-  const app = Fastify({ logger: process.env.NODE_ENV !== "test", trustProxy: config.trustProxy });
+  const serverOptions: FastifyServerOptions = {
+    logger: process.env.NODE_ENV !== "test",
+    // Fastify accepts a numeric hop count at runtime (proxy-addr); the type
+    // definitions only list the other shapes.
+    trustProxy: config.trustProxy as FastifyServerOptions["trustProxy"]
+  };
+  const app = Fastify(serverOptions);
   const services = await bootstrap(config);
   await emitStartupConfigWarnings(app, services.instanceSettingsService);
 
@@ -122,6 +128,19 @@ export const buildApp = async () => {
     // limit by the endpoint-specific limiter in routes.ts.
     keyGenerator: (req) => `ip:${req.ip ?? "unknown"}`
   });
+  // SCIM clients send application/scim+json (RFC 7644 §3.1); parse it as JSON.
+  app.addContentTypeParser(
+    ["application/scim+json", "application/scim+json; charset=utf-8"],
+    { parseAs: "string" },
+    (_request, body, done) => {
+      try {
+        done(null, body.length > 0 ? JSON.parse(String(body)) : {});
+      } catch (error) {
+        done(error as Error, undefined);
+      }
+    }
+  );
+
   await app.register(multipart, {
     limits: {
       files: 1,

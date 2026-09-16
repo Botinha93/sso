@@ -165,9 +165,9 @@ export class ScimService {
       password: input.password ?? randomBytes(16).toString("hex"),
       givenName: input.name?.givenName ?? "SCIM",
       familyName: input.name?.familyName ?? "User",
-      customAttributes: {
-        scim_managed: "true"
-      },
+      // externalSource "scim" is the SCIM-managed marker; custom attributes are
+      // validated against operator-defined attribute definitions and must not
+      // be used for internal bookkeeping.
       roleIds: [],
       groupIds: [],
       active: input.active ?? true
@@ -452,7 +452,8 @@ export class ScimService {
       const expected = matchEmail[1].toLowerCase();
       return users.filter((user) => user.email.toLowerCase() === expected);
     }
-    return users;
+    // An unsupported filter must not silently degrade into a full directory dump.
+    throw new ValidationError("Unsupported SCIM filter");
   }
 
   private filterGroups<T extends { name: string }>(
@@ -467,7 +468,7 @@ export class ScimService {
       const expected = matchDisplayName[1].toLowerCase();
       return groups.filter((group) => group.name.toLowerCase() === expected);
     }
-    return groups;
+    throw new ValidationError("Unsupported SCIM filter");
   }
 
   private syntheticEmailFromUserName(userName: string) {

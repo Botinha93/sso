@@ -1,24 +1,29 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { createTestContext, getCsrf, loginAsAdmin } from "../helpers/test-app.js";
 
 test("SCIM metadata endpoints expose service provider and schema documents", async (t) => {
-  const tempDir = mkdtempSync(join(tmpdir(), "sso-scim-metadata-"));
-  process.env.NODE_ENV = "test";
-  process.env.ISSUER = "http://localhost:4000";
-  process.env.DATABASE_PATH = join(tempDir, "sso.sqlite");
-
-  const { buildApp } = await import("../../src/app.js");
-  const app = await buildApp();
+  const { app, admin } = await createTestContext("integration-scim-metadata");
   t.after(async () => {
     await app.close();
   });
 
+  // Every /scim/v2 path, including discovery, requires a provisioning token.
+  const sid = await loginAsAdmin(app, admin);
+  const csrf = await getCsrf(app, sid);
+  const tokenResponse = await app.inject({
+    method: "POST",
+    url: "/api/admin/provisioning/tokens",
+    headers: csrf.headers,
+    payload: { label: "metadata-test" }
+  });
+  assert.equal(tokenResponse.statusCode, 201, tokenResponse.body);
+  const scimHeaders = { authorization: `Bearer ${(tokenResponse.json() as { token: string }).token}` };
+
   const serviceProviderConfigResponse = await app.inject({
     method: "GET",
-    url: "/scim/v2/ServiceProviderConfig"
+    url: "/scim/v2/ServiceProviderConfig",
+    headers: scimHeaders
   });
   assert.equal(serviceProviderConfigResponse.statusCode, 200);
   const serviceProviderConfig = serviceProviderConfigResponse.json() as {
@@ -32,7 +37,8 @@ test("SCIM metadata endpoints expose service provider and schema documents", asy
 
   const schemasResponse = await app.inject({
     method: "GET",
-    url: "/scim/v2/Schemas"
+    url: "/scim/v2/Schemas",
+    headers: scimHeaders
   });
   assert.equal(schemasResponse.statusCode, 200);
   const schemasBody = schemasResponse.json() as {
@@ -47,7 +53,8 @@ test("SCIM metadata endpoints expose service provider and schema documents", asy
 
   const resourceTypesResponse = await app.inject({
     method: "GET",
-    url: "/scim/v2/ResourceTypes"
+    url: "/scim/v2/ResourceTypes",
+    headers: scimHeaders
   });
   assert.equal(resourceTypesResponse.statusCode, 200);
   const resourceTypesBody = resourceTypesResponse.json() as {
@@ -59,4 +66,8 @@ test("SCIM metadata endpoints expose service provider and schema documents", asy
   assert.equal(resourceTypesBody.totalResults, 2);
   assert.ok(resourceTypesBody.Resources.some((resource) => resource.id === "User" && resource.endpoint === "/Users"));
   assert.ok(resourceTypesBody.Resources.some((resource) => resource.id === "Group" && resource.endpoint === "/Groups"));
+
+  // Discovery documents are not public.
+  const anonymous = await app.inject({ method: "GET", url: "/scim/v2/ServiceProviderConfig" });
+  assert.equal(anonymous.statusCode, 401);
 });

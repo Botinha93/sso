@@ -317,13 +317,21 @@ test("security hardening: frontend assets block path traversal", async (t) => {
     await app.close();
   });
 
+  // Dot segments are normalised by the router, so this lands on the SPA shell.
   const traversalRequest = await app.inject({
     method: "GET",
     url: "/portal/assets/../../../etc/passwd"
   });
-
-  assert.equal(traversalRequest.statusCode, 500);
-  assert.equal(traversalRequest.json().error, "InternalServerError");
-  assert.equal(traversalRequest.json().message, "Unexpected server error");
+  assert.equal(traversalRequest.statusCode, 200);
+  assert.match(String(traversalRequest.headers["content-type"]), /text\/html/);
   assert.doesNotMatch(traversalRequest.body, /root:/i);
+
+  // Encoded traversal reaches the asset handler and must be a plain 404.
+  const encodedTraversal = await app.inject({
+    method: "GET",
+    url: "/portal/assets/..%2F..%2F..%2Fetc%2Fpasswd"
+  });
+  assert.equal(encodedTraversal.statusCode, 404);
+  assert.equal(encodedTraversal.json().error, "not_found");
+  assert.doesNotMatch(encodedTraversal.body, /root:/i);
 });

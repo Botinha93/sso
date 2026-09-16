@@ -197,8 +197,10 @@ describe("SAML Protocol Routes", () => {
       }
     });
 
+    // The ACS masks the failure reason (the detailed cause is audit-logged).
     assert.equal(replayedAcs.statusCode, 422);
-    assert.match(JSON.parse(replayedAcs.body).error, /replay/i);
+    assert.equal(JSON.parse(replayedAcs.body).error, "SAML request could not be completed");
+    assert.doesNotMatch(replayedAcs.body, /samlResponse/);
   });
 
   it("rejects tampered signed ACS payloads", async () => {
@@ -226,7 +228,7 @@ describe("SAML Protocol Routes", () => {
     });
 
     assert.equal(res.statusCode, 422);
-    assert.match(JSON.parse(res.body).error, /signature/i);
+    assert.equal(JSON.parse(res.body).error, "SAML request could not be completed");
   });
 
   it("rejects signed responses when posted to a different service provider ACS", async () => {
@@ -251,7 +253,7 @@ describe("SAML Protocol Routes", () => {
     });
 
     assert.equal(res.statusCode, 422);
-    assert.match(JSON.parse(res.body).error, /(audience|destination)/i);
+    assert.equal(JSON.parse(res.body).error, "SAML request could not be completed");
   });
 
   it("revokes current session through SLO", async () => {

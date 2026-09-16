@@ -123,9 +123,9 @@ type PrismaClientLike = {
   elevationSession: any;
   eventHook: any;
   eventNotification: any;
-  saml_service_providers: any;
-  saml_name_id_mappings: any;
-  saml_assertion_audits: any;
+  samlServiceProvider: any;
+  samlNameIdMapping: any;
+  samlAssertionAudit: any;
   $queryRaw<T = PrismaRow[]>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>;
 };
 
@@ -719,24 +719,24 @@ class PrismaSamlServiceProviderRepository {
   constructor(private readonly prisma: PrismaClientLike) {}
 
   async list(): Promise<SamlServiceProvider[]> {
-    const rows = await this.prisma.saml_service_providers.findMany({ orderBy: { createdAt: "asc" } });
+    const rows = await this.prisma.samlServiceProvider.findMany({ orderBy: { createdAt: "asc" } });
     return rows.map((row: PrismaRow) => mapSamlServiceProvider(row));
   }
 
   async findById(id: string): Promise<SamlServiceProvider | undefined> {
-    const row = await this.prisma.saml_service_providers.findUnique({ where: { id } });
+    const row = await this.prisma.samlServiceProvider.findUnique({ where: { id } });
     return row ? mapSamlServiceProvider(row as PrismaRow) : undefined;
   }
 
   async findByEntityId(entityId: string): Promise<SamlServiceProvider | undefined> {
-    const row = await this.prisma.saml_service_providers.findFirst({ where: { entityId } });
+    const row = await this.prisma.samlServiceProvider.findFirst({ where: { entityId } });
     return row ? mapSamlServiceProvider(row as PrismaRow) : undefined;
   }
 
   async create(input: Omit<SamlServiceProvider, "id" | "createdAt" | "updatedAt">): Promise<SamlServiceProvider> {
     const now = new Date();
     const sp: SamlServiceProvider = { ...input, id: nanoid(), createdAt: now, updatedAt: now };
-    await this.prisma.saml_service_providers.create({
+    await this.prisma.samlServiceProvider.create({
       data: {
         id: sp.id,
         appId: sp.appId ?? null,
@@ -747,7 +747,7 @@ class PrismaSamlServiceProviderRepository {
         signingCertificate: sp.signingCertificate,
         encryptionCertificate: sp.encryptionCertificate ?? null,
         nameIdFormat: sp.nameIdFormat,
-        enabled: asBooleanInt(sp.enabled),
+        enabled: Boolean(sp.enabled),
         createdAt: sp.createdAt.toISOString(),
         updatedAt: sp.updatedAt.toISOString()
       }
@@ -760,7 +760,7 @@ class PrismaSamlServiceProviderRepository {
     if (!existing) return undefined;
     
     const updated: SamlServiceProvider = { ...existing, ...input, updatedAt: new Date() };
-    await this.prisma.saml_service_providers.update({
+    await this.prisma.samlServiceProvider.update({
       where: { id },
       data: {
         appId: updated.appId ?? null,
@@ -771,7 +771,7 @@ class PrismaSamlServiceProviderRepository {
         signingCertificate: updated.signingCertificate,
         encryptionCertificate: updated.encryptionCertificate ?? null,
         nameIdFormat: updated.nameIdFormat,
-        enabled: asBooleanInt(updated.enabled),
+        enabled: Boolean(updated.enabled),
         updatedAt: updated.updatedAt.toISOString()
       }
     });
@@ -779,7 +779,7 @@ class PrismaSamlServiceProviderRepository {
   }
 
   async delete(id: string): Promise<void> {
-    await this.prisma.saml_service_providers.delete({ where: { id } }).catch(() => undefined);
+    await this.prisma.samlServiceProvider.delete({ where: { id } }).catch(() => undefined);
   }
 }
 
@@ -787,13 +787,13 @@ class PrismaSamlNameIdMappingRepository {
   constructor(private readonly prisma: PrismaClientLike) {}
 
   async findBySpId(spId: string): Promise<SamlNameIdMapping[]> {
-    const rows = await this.prisma.saml_name_id_mappings.findMany({ where: { spId }, orderBy: { createdAt: "asc" } });
+    const rows = await this.prisma.samlNameIdMapping.findMany({ where: { spId }, orderBy: { createdAt: "asc" } });
     return rows.map((row: PrismaRow) => mapSamlNameIdMapping(row));
   }
 
   async create(input: Omit<SamlNameIdMapping, "id" | "createdAt">): Promise<SamlNameIdMapping> {
     const mapping: SamlNameIdMapping = { ...input, id: nanoid(), createdAt: new Date() };
-    await this.prisma.saml_name_id_mappings.create({
+    await this.prisma.samlNameIdMapping.create({
       data: {
         id: mapping.id,
         spId: mapping.spId,
@@ -806,7 +806,7 @@ class PrismaSamlNameIdMappingRepository {
   }
 
   async deleteBySpId(spId: string): Promise<number> {
-    const result = await this.prisma.saml_name_id_mappings.deleteMany({ where: { spId } });
+    const result = await this.prisma.samlNameIdMapping.deleteMany({ where: { spId } });
     return Number(result.count ?? 0);
   }
 }
@@ -815,18 +815,18 @@ class PrismaSamlAssertionAuditRepository {
   constructor(private readonly prisma: PrismaClientLike) {}
 
   async list(): Promise<SamlAssertionAudit[]> {
-    const rows = await this.prisma.saml_assertion_audits.findMany({ orderBy: { createdAt: "desc" } });
+    const rows = await this.prisma.samlAssertionAudit.findMany({ orderBy: { createdAt: "desc" } });
     return rows.map((row: PrismaRow) => mapSamlAssertionAudit(row));
   }
 
   async findById(id: string): Promise<SamlAssertionAudit | undefined> {
-    const row = await this.prisma.saml_assertion_audits.findUnique({ where: { id } });
+    const row = await this.prisma.samlAssertionAudit.findUnique({ where: { id } });
     return row ? mapSamlAssertionAudit(row as PrismaRow) : undefined;
   }
 
   async create(input: Omit<SamlAssertionAudit, "id" | "createdAt">): Promise<SamlAssertionAudit> {
     const audit: SamlAssertionAudit = { ...input, id: nanoid(), createdAt: new Date() };
-    await this.prisma.saml_assertion_audits.create({
+    await this.prisma.samlAssertionAudit.create({
       data: {
         id: audit.id,
         spId: audit.spId,
@@ -836,7 +836,7 @@ class PrismaSamlAssertionAuditRepository {
         audience: audit.audience,
         assertionId: audit.assertionId,
         issueInstant: audit.issueInstant.toISOString(),
-        notOnOrAfter: audit.notOnOrAfter,
+        notOnOrAfter: audit.notOnOrAfter.toISOString(),
         destinationUrl: audit.destinationUrl,
         statusCode: audit.statusCode,
         createdAt: audit.createdAt.toISOString()

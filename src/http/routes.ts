@@ -404,7 +404,14 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   };
 
   const sendFrontendFile = async (reply: any, frontend: "admin" | "portal", relativePath: string) => {
-    const file = await readFrontendAsset(frontend, relativePath);
+    let file: Buffer;
+    try {
+      file = await readFrontendAsset(frontend, relativePath);
+    } catch {
+      // Unknown or out-of-root asset paths (including traversal attempts) are
+      // plain 404s; nothing about the filesystem is disclosed.
+      return reply.status(404).send({ error: "not_found" });
+    }
     return reply.type(getAssetContentType(relativePath)).send(file);
   };
 
@@ -3126,7 +3133,11 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     }
     await clearSessionCookie(reply, deps.instanceSettingsService);
     if (post_logout_redirect_uri) {
-      const redirectClientId = session?.clientId ?? hintedClientId ?? client_id;
+      // RP-initiated logout: the relying party identifies itself via
+      // id_token_hint or client_id; the browser session's original client is
+      // only a fallback. Redirects are still restricted to that client's
+      // registered URIs.
+      const redirectClientId = hintedClientId ?? client_id ?? session?.clientId;
       if (!redirectClientId) {
         return reply.status(401).send({ error: "unauthorized" });
       }

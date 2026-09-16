@@ -11,7 +11,7 @@ test("E2E: login -> authorization code -> token -> userinfo -> logout", async (t
 
   const registerResponse = await registerClientAsAdmin(app, admin, {
       client_name: "E2E Client",
-      redirect_uris: ["http://localhost:3000/callback"],
+      redirect_uris: ["http://localhost:3000/callback", "http://localhost:3000/logged-out"],
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
       scope: "openid profile email roles groups permissions"
@@ -86,7 +86,9 @@ test("E2E: login -> authorization code -> token -> userinfo -> logout", async (t
 
   const logoutResponse = await app.inject({
     method: "GET",
-    url: "/oauth/logout?post_logout_redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Flogged-out&state=e2e-logout",
+    // RP-initiated logout identifies the relying party; the redirect must be
+    // one of that client's registered URIs.
+    url: `/oauth/logout?client_id=${encodeURIComponent(clientId)}&post_logout_redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Flogged-out&state=e2e-logout`,
     headers: {
       cookie: sid
     }

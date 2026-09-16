@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import { runInNewContext } from "node:vm";
+import { PolicyScriptRunner } from "./policy-script-runner.js";
 import { AuthenticationError, ValidationError } from "../core/errors.js";
 import type {
   PolicyAssignmentRepository,
@@ -408,8 +408,17 @@ export class PolicyService {
     private readonly policyAssignmentRepository: PolicyAssignmentRepository,
     private readonly userGroupAssignmentRepository: UserGroupAssignmentRepository,
     private readonly totpCredentialRepository?: TotpCredentialRepository,
-    private readonly userService?: Pick<UserService, "ensurePasswordChangedAt">
-  ) {}
+    private readonly userService?: Pick<UserService, "ensurePasswordChangedAt">,
+    scriptRunner?: PolicyScriptRunner
+  ) {
+    this.scriptRunner = scriptRunner ?? new PolicyScriptRunner();
+  }
+
+  private readonly scriptRunner: PolicyScriptRunner;
+
+  async dispose() {
+    await this.scriptRunner.dispose();
+  }
 
   async ensureBuiltIns() {
     for (const policy of BUILT_IN_POLICIES) {
@@ -673,7 +682,7 @@ export class PolicyService {
 
       const javascriptCode = this.resolveEffectiveJavascriptCode(definition);
       if (javascriptCode) {
-        this.executeCustomJavascriptPolicy({
+        await this.executeCustomJavascriptPolicy({
           definition: { ...definition, javascriptCode },
           assignment: effective.assignment,
           stage: input.stage,
@@ -769,7 +778,7 @@ export class PolicyService {
       }
 
       const evaluation = javascriptCode
-        ? this.evaluateCustomJavascriptPolicy({
+        ? await this.evaluateCustomJavascriptPolicy({
           definition,
           assignment: entry.effective.assignment,
           user: input.user,
@@ -844,7 +853,7 @@ export class PolicyService {
     };
   }
 
-  private evaluateCustomJavascriptPolicy(input: {
+  private async evaluateCustomJavascriptPolicy(input: {
     definition: PolicyDefinition;
     assignment: { enabled: boolean; config: Record<string, unknown> };
     stage?: AuthenticationStageType;
@@ -856,13 +865,10 @@ export class PolicyService {
     action?: string;
     pendingPassword?: string;
     context?: Record<string, unknown>;
-  }): { allow: boolean; message?: string; runtimeError?: boolean } {
-    const sandbox: {
-      policy: Record<string, unknown>;
-      result: unknown;
-      now: () => string;
-    } = {
-      policy: {
+  }): Promise<{ allow: boolean; message?: string; runtimeError?: boolean }> {
+    // Only plain data is handed to the sandbox worker; scripts never see
+    // repositories, services or process state.
+    const policy: Record<string, unknown> = {
         key: input.definition.key,
         name: input.definition.name,
         stage: input.stage,
@@ -889,44 +895,26 @@ export class PolicyService {
           pendingPassword: input.pendingPassword,
           context: input.context ?? {}
         }
-      },
-      result: true,
-      now: () => new Date().toISOString()
     };
 
-    const wrappedScript = `
-      "use strict";
-      result = (function(policy, now) {
-${input.definition.javascriptCode ?? ""}
-      })(policy, now);
-    `;
+    const evaluation = await this.scriptRunner.evaluate({
+      code: input.definition.javascriptCode ?? "",
+      policy: JSON.parse(JSON.stringify(policy)) as Record<string, unknown>
+    });
 
-    try {
-      runInNewContext(wrappedScript, sandbox, { timeout: 75 });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Policy script execution failed";
+    if (evaluation.runtimeError) {
       return {
         allow: false,
-        message: `Policy ${input.definition.key} rejected request: ${message}`,
+        message: `Policy ${input.definition.key} rejected request: ${evaluation.message ?? "Policy script execution failed"}`,
         runtimeError: true
       };
     }
 
-    if (sandbox.result === false) {
-      return { allow: false, message: `Policy ${input.definition.key} rejected request` };
-    }
-    if (typeof sandbox.result === "string") {
-      return { allow: false, message: sandbox.result };
-    }
-    if (typeof sandbox.result === "object" && sandbox.result !== null && "allow" in sandbox.result) {
-      const allow = Boolean((sandbox.result as { allow?: unknown }).allow);
-      const message = typeof (sandbox.result as { message?: unknown }).message === "string"
-        ? String((sandbox.result as { message?: unknown }).message)
-        : allow ? undefined : `Policy ${input.definition.key} rejected request`;
-      return { allow, message };
+    if (!evaluation.allow) {
+      return { allow: false, message: evaluation.message ?? `Policy ${input.definition.key} rejected request` };
     }
 
-    return { allow: true };
+    return evaluation.message ? { allow: true, message: evaluation.message } : { allow: true };
   }
 
   private async executeBuiltInPolicy(input: {
@@ -950,7 +938,7 @@ ${input.definition.javascriptCode ?? ""}
     }
   }
 
-  private executeCustomJavascriptPolicy(input: {
+  private async executeCustomJavascriptPolicy(input: {
     definition: PolicyDefinition;
     assignment: { enabled: boolean; config: Record<string, unknown> };
     stage?: AuthenticationStageType;
@@ -963,7 +951,7 @@ ${input.definition.javascriptCode ?? ""}
     pendingPassword?: string;
     context?: Record<string, unknown>;
   }) {
-    const evaluation = this.evaluateCustomJavascriptPolicy(input);
+    const evaluation = await this.evaluateCustomJavascriptPolicy(input);
     if (!evaluation.allow) {
       throw new AuthenticationError(evaluation.message ?? `Policy ${input.definition.key} rejected login`);
     }
