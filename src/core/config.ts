@@ -144,7 +144,9 @@ export const loadConfig = (): AppConfig => applyRuntimeDatabaseConfig({
   databaseProvider: "sqlite",
   databasePath: process.env.DATABASE_PATH ?? "./data/sso.sqlite",
   externalDatabaseUrl: undefined,
-  issuer: required("ISSUER", "http://localhost:4000"),
+  // A trailing slash would make discovery advertise "//oauth/..." endpoints
+  // and produce an `iss` value strict clients reject.
+  issuer: required("ISSUER", "http://localhost:4000").replace(/\/+$/, ""),
   admin: {
     email: required("ADMIN_EMAIL", "admin@example.com"),
     password: required("ADMIN_PASSWORD", "change-me-now")

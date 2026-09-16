@@ -1,4 +1,4 @@
-import { createHmac, randomBytes } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 const BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 const TIME_STEP_SECONDS = 30;
@@ -71,21 +71,34 @@ export function generateTotpToken(secret: string, timestampMs = Date.now()): str
   return String(binary % 10 ** TOKEN_DIGITS).padStart(TOKEN_DIGITS, "0");
 }
 
-export function verifyTotpToken(secret: string, token: string, window = 1): boolean {
+/**
+ * Returns the time-step counter that produced `token`, or undefined when the
+ * token does not match any step inside the window. Callers that need replay
+ * protection store the accepted counter and refuse anything at or below it.
+ */
+export function findTotpTokenStep(secret: string, token: string, window = 1, timestampMs = Date.now()): number | undefined {
   const normalized = token.replace(/\s+/g, "");
   if (!/^\d{6}$/.test(normalized)) {
-    return false;
+    return undefined;
   }
 
-  const now = Date.now();
-  for (let step = -window; step <= window; step += 1) {
-    const candidate = generateTotpToken(secret, now + step * TIME_STEP_SECONDS * 1000);
-    if (candidate === normalized) {
-      return true;
+  const currentStep = Math.floor(timestampMs / 1000 / TIME_STEP_SECONDS);
+  const provided = Buffer.from(normalized);
+  let matched: number | undefined;
+  for (let offset = -window; offset <= window; offset += 1) {
+    const stepTimestamp = timestampMs + offset * TIME_STEP_SECONDS * 1000;
+    const candidate = Buffer.from(generateTotpToken(secret, stepTimestamp));
+    // Compare every candidate so timing does not reveal which step matched.
+    if (candidate.length === provided.length && timingSafeEqual(candidate, provided) && matched === undefined) {
+      matched = currentStep + offset;
     }
   }
 
-  return false;
+  return matched;
+}
+
+export function verifyTotpToken(secret: string, token: string, window = 1): boolean {
+  return findTotpTokenStep(secret, token, window) !== undefined;
 }
 
 export function buildOtpAuthUri(input: { issuer: string; accountName: string; secret: string }): string {

@@ -107,7 +107,9 @@ const cibaTokenBody = (input: CibaTokenInput) => ({
 
 const revokeTokenBody = (input: RevokeTokenInput) => ({
   token: input.token,
-  token_type_hint: input.tokenTypeHint
+  token_type_hint: input.tokenTypeHint,
+  client_id: input.clientId,
+  client_secret: input.clientSecret
 });
 
 const tokenExchangeBody = (input: TokenExchangeInput) => ({

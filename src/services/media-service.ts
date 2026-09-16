@@ -1,4 +1,4 @@
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { dirname, extname, join, resolve, sep } from "node:path";
 import { nanoid } from "nanoid";
 
@@ -22,6 +22,13 @@ const EXTENSION_TO_MIME: Record<string, string> = {
 export interface UploadedMedia {
   url: string;
   relativePath: string;
+}
+
+export interface StoredUpload {
+  url: string;
+  relativePath: string;
+  size: number;
+  modifiedAt: Date;
 }
 
 export interface DefaultMediaOption {
@@ -84,6 +91,41 @@ export class MediaService {
       url: `/media/uploads/${relativePath}`,
       relativePath
     };
+  }
+
+  /**
+   * Lists the files an owner has uploaded into a bucket, with size and
+   * modification time, so callers can enforce quotas and clean up orphans.
+   */
+  async listUploads(bucket: "users" | "apps" | "suggestions", ownerId: string): Promise<StoredUpload[]> {
+    const relativeDir = join(bucket, ownerId).replaceAll("\\", "/");
+    const directory = this.resolveUploadPath(relativeDir);
+    let entries: Array<{ name: string; isFile: () => boolean }>;
+    try {
+      entries = await readdir(directory, { withFileTypes: true });
+    } catch {
+      return [];
+    }
+
+    const uploads: StoredUpload[] = [];
+    for (const entry of entries) {
+      if (!entry.isFile()) {
+        continue;
+      }
+      const relativePath = `${relativeDir}/${entry.name}`;
+      try {
+        const info = await stat(join(directory, entry.name));
+        uploads.push({
+          url: `/media/uploads/${relativePath}`,
+          relativePath,
+          size: info.size,
+          modifiedAt: info.mtime
+        });
+      } catch {
+        // File disappeared between readdir and stat.
+      }
+    }
+    return uploads;
   }
 
   async deleteByUrl(url?: string | null) {

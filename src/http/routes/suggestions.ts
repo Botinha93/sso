@@ -15,6 +15,12 @@ export interface SuggestionRouteDeps {
   readImageUpload: (request: any, reply: any) => Promise<{ bytes: Buffer; mimeType: string } | null>;
 }
 
+// Per-user storage budget for suggestion attachments. Files that were uploaded
+// but never attached to a suggestion are removed after the orphan TTL.
+const SUGGESTION_IMAGE_MAX_FILES = 20;
+const SUGGESTION_IMAGE_MAX_TOTAL_BYTES = 40 * 1024 * 1024;
+const SUGGESTION_IMAGE_ORPHAN_TTL_MS = 24 * 60 * 60 * 1000;
+
 export const registerSuggestionRoutes = async (app: FastifyInstance, deps: SuggestionRouteDeps) => {
   app.get("/api/portal/suggestions", async (request, reply) => {
     const userId = await deps.getPortalUserId(request);
@@ -42,9 +48,40 @@ export const registerSuggestionRoutes = async (app: FastifyInstance, deps: Sugge
     const userId = await deps.getPortalUserId(request);
     if (!userId) return reply.status(401).send({ error: "unauthorized" });
 
+    // Garbage-collect this user's orphaned uploads, then enforce the budget.
+    const [existing, ownSuggestions] = await Promise.all([
+      deps.mediaService.listUploads("suggestions", userId),
+      deps.suggestionService.listForUser(userId)
+    ]);
+    const referenced = new Set(ownSuggestions.flatMap((suggestion) => suggestion.imageUrls));
+    const now = Date.now();
+    const retained: typeof existing = [];
+    for (const file of existing) {
+      if (!referenced.has(file.url) && now - file.modifiedAt.getTime() > SUGGESTION_IMAGE_ORPHAN_TTL_MS) {
+        await deps.mediaService.deleteByUrl(file.url);
+        continue;
+      }
+      retained.push(file);
+    }
+
+    if (retained.length >= SUGGESTION_IMAGE_MAX_FILES) {
+      return reply.status(429).send({
+        error: "upload_quota_exceeded",
+        message: `You can keep at most ${SUGGESTION_IMAGE_MAX_FILES} suggestion images. Attach or wait for unused uploads to expire.`
+      });
+    }
+
     const uploaded = await deps.readImageUpload(request, reply);
     if (!uploaded) {
       return;
+    }
+
+    const usedBytes = retained.reduce((total, file) => total + file.size, 0);
+    if (usedBytes + uploaded.bytes.length > SUGGESTION_IMAGE_MAX_TOTAL_BYTES) {
+      return reply.status(413).send({
+        error: "upload_quota_exceeded",
+        message: "Your suggestion image storage budget is exhausted."
+      });
     }
 
     const saved = await deps.mediaService.saveUploadedImage({

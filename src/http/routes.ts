@@ -716,6 +716,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     if (path === "/oauth/consent") {
       configs.push({ endpointKey: "oauth_consent", limit: scaleLimit(30), windowMs: 60_000, actorKey: ipActorKey });
     }
+    if (path === "/api/portal/suggestions/images" || path === "/api/portal/avatar") {
+      configs.push({ endpointKey: "portal_media_upload", limit: scaleLimit(10), windowMs: 60_000, actorKey: ipActorKey });
+    }
     if (path === "/oauth/device/verify") {
       pushForAllActors("oauth_device_verify", scaleLimit(10), 60_000, baseMetadata);
     }
@@ -2108,9 +2111,31 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   });
 
   app.post("/oauth/token/revoke", async (request, reply) => {
-    const { token } = oidcRevokeSchema.parse(request.body);
+    const { token, client_id, client_secret } = oidcRevokeSchema.parse(request.body);
+
+    // RFC 7009 §2.1: the client authenticates, and may only revoke tokens
+    // that were issued to it.
+    if (!client_id || !client_secret) {
+      return reply.status(401).send({ error: "invalid_client", error_description: "Client authentication is required" });
+    }
+    let callerClientId: string;
+    try {
+      callerClientId = (await deps.authService.authenticateClient({ clientId: client_id, clientSecret: client_secret })).id;
+    } catch {
+      const serviceIdentity = await deps.serviceIdentityService.verifyCredential(client_id, client_secret);
+      if (!serviceIdentity) {
+        return reply.status(401).send({ error: "invalid_client" });
+      }
+      callerClientId = client_id;
+    }
+
     try {
       const payload = await deps.authService.jwtService.verifyAccessToken(token);
+      if (payload.client_id !== callerClientId) {
+        // RFC 7009 §2.2: a token the client does not own is treated as invalid
+        // and acknowledged without action.
+        return reply.status(200).send({});
+      }
       if (payload.type === "refresh" && payload.jti) {
         await deps.authService.revokeRefreshToken(String(payload.jti));
       } else if (payload.jti) {

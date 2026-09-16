@@ -102,6 +102,9 @@ export interface CibaTokenInput {
 export interface RevokeTokenInput {
   token: string;
   tokenTypeHint?: OAuthTokenTypeHint;
+  /** Client credentials are required by the server (RFC 7009 §2.1). */
+  clientId?: string;
+  clientSecret?: string;
 }
 
 export interface OAuthUserInfo {

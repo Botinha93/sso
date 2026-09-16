@@ -148,9 +148,20 @@ export const buildApp = async () => {
     }
   });
 
+  // The data layer is fully parameterised; this heuristic guard is defence in
+  // depth. Natural-language text ("select the users from the list") trips it,
+  // so operators can switch it to log-only with SQLI_GUARD_MODE=log.
+  const resolveSqlInjectionGuardMode = (): "block" | "log" | "off" => {
+    if (process.env.SQLI_GUARD_ENABLED === "false") {
+      return "off";
+    }
+    const mode = (process.env.SQLI_GUARD_MODE ?? "block").trim().toLowerCase();
+    return mode === "log" || mode === "off" ? mode : "block";
+  };
+
   app.addHook("preValidation", async (request, reply) => {
-    const guardEnabled = process.env.SQLI_GUARD_ENABLED !== "false";
-    if (!guardEnabled) {
+    const guardMode = resolveSqlInjectionGuardMode();
+    if (guardMode === "off") {
       return;
     }
 
@@ -192,8 +203,17 @@ export const buildApp = async () => {
       method: request.method,
       url: request.url,
       ip: request.ip,
-      userAgent: request.headers["user-agent"]
+      userAgent: request.headers["user-agent"],
+      mode: guardMode
     });
+
+    if (guardMode === "log") {
+      request.log.warn(
+        { event: "security.sql_injection_suspected", method: request.method, url: request.url, ip: request.ip },
+        "Suspicious SQL-like payload recorded (log-only mode)"
+      );
+      return;
+    }
 
     return reply.status(400).send({
       error: "invalid_request",

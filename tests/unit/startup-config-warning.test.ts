@@ -43,3 +43,18 @@ test("emitStartupConfigWarnings stays quiet when implicit flow is disabled", asy
 
   assert.equal(warnings.length, 0);
 });
+
+test("ISSUER trailing slashes are normalised so discovery URLs and iss claims are canonical", async () => {
+  const previous = process.env.ISSUER;
+  process.env.ISSUER = "https://auth.example.com/";
+  try {
+    const { loadConfig } = await import("../../src/core/config.js");
+    assert.equal(loadConfig().issuer, "https://auth.example.com");
+  } finally {
+    if (previous === undefined) {
+      delete process.env.ISSUER;
+    } else {
+      process.env.ISSUER = previous;
+    }
+  }
+});

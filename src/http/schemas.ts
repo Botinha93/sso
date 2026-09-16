@@ -363,7 +363,11 @@ export const revokeTokenSchema = z.object({
 
 export const oidcRevokeSchema = z.object({
   token: z.string().min(2),
-  token_type_hint: z.enum(["access_token", "refresh_token"]).optional()
+  token_type_hint: z.enum(["access_token", "refresh_token"]).optional(),
+  // RFC 7009 §2.1: the client must authenticate. Kept optional in the schema so
+  // the endpoint can answer with invalid_client instead of a validation error.
+  client_id: z.string().min(2).optional(),
+  client_secret: z.string().min(8).optional()
 });
 
 const accessTokenTtlSchema = z.number().int().min(60).max(86_400);

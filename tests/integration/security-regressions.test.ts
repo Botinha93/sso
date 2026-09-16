@@ -430,3 +430,104 @@ test("password grant with bad client credentials does not count against the user
   });
   assert.equal(legit.statusCode, 200, legit.body);
 });
+
+test("token revocation requires client authentication and only revokes the caller's own tokens", async (t) => {
+  const { app, admin } = await createTestContext("sec-revoke-auth");
+  t.after(async () => {
+    await app.close();
+  });
+
+  const clientA = (await registerClientAsAdmin(app, admin, {
+    client_name: "Revoke A",
+    redirect_uris: ["http://localhost:3000/callback"],
+    grant_types: ["password", "refresh_token"],
+    scope: "openid profile"
+  })).json() as { client_id: string; client_secret: string };
+  const clientB = (await registerClientAsAdmin(app, admin, {
+    client_name: "Revoke B",
+    redirect_uris: ["http://localhost:3000/callback"],
+    grant_types: ["client_credentials"],
+    scope: "openid"
+  })).json() as { client_id: string; client_secret: string };
+
+  const tokens = await app.inject({
+    method: "POST",
+    url: "/oauth/token",
+    payload: {
+      grant_type: "password",
+      username: admin.username,
+      password: admin.password,
+      client_id: clientA.client_id,
+      client_secret: clientA.client_secret,
+      scope: "openid profile"
+    }
+  });
+  assert.equal(tokens.statusCode, 200, tokens.body);
+  const accessToken = String((tokens.json() as { access_token: string }).access_token);
+
+  // Anonymous revocation is refused.
+  const anonymous = await app.inject({ method: "POST", url: "/oauth/token/revoke", payload: { token: accessToken } });
+  assert.equal(anonymous.statusCode, 401);
+
+  // Another client cannot revoke a token it does not own (acknowledged, no effect).
+  const foreign = await app.inject({
+    method: "POST",
+    url: "/oauth/token/revoke",
+    payload: { token: accessToken, client_id: clientB.client_id, client_secret: clientB.client_secret }
+  });
+  assert.equal(foreign.statusCode, 200);
+  const stillValid = await app.inject({ method: "GET", url: "/oauth/userinfo", headers: { authorization: `Bearer ${accessToken}` } });
+  assert.equal(stillValid.statusCode, 200);
+
+  // The owning client revokes successfully.
+  const owner = await app.inject({
+    method: "POST",
+    url: "/oauth/token/revoke",
+    payload: { token: accessToken, client_id: clientA.client_id, client_secret: clientA.client_secret }
+  });
+  assert.equal(owner.statusCode, 200);
+  const revoked = await app.inject({ method: "GET", url: "/oauth/userinfo", headers: { authorization: `Bearer ${accessToken}` } });
+  assert.equal(revoked.statusCode, 401);
+});
+
+test("suggestion image uploads are capped per user", async (t) => {
+  const { app, admin } = await createTestContext("sec-upload-quota");
+  t.after(async () => {
+    await app.close();
+  });
+  const sid = await loginAsAdmin(app, admin);
+  const csrf = await getCsrf(app, sid);
+  // Lift the per-IP upload rate limit so the storage quota is what trips.
+  const settings = await app.inject({
+    method: "PUT",
+    url: "/api/admin/settings",
+    headers: csrf.headers,
+    payload: { rateLimitMultiplier: 10 }
+  });
+  assert.equal(settings.statusCode, 200, settings.body);
+  // 1x1 transparent PNG
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+  const boundary = "----quota-boundary";
+  const body = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="a.png"\r\nContent-Type: image/png\r\n\r\n`),
+    png,
+    Buffer.from(`\r\n--${boundary}--\r\n`)
+  ]);
+
+  let lastStatus = 0;
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/portal/suggestions/images",
+      headers: { ...csrf.headers, "content-type": `multipart/form-data; boundary=${boundary}` },
+      payload: body
+    });
+    lastStatus = response.statusCode;
+    if (response.statusCode !== 200) {
+      assert.equal(response.json().error, "upload_quota_exceeded");
+      assert.ok(attempt >= 20, `quota tripped too early at attempt ${attempt}`);
+      break;
+    }
+  }
+  assert.equal(lastStatus, 429, "the per-user file cap must eventually reject uploads");
+});

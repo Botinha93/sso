@@ -3,7 +3,7 @@ import { ValidationError } from "../core/errors.js";
 import type { AppConfig } from "../core/config.js";
 import type { TotpCredentialRepository } from "../repositories/contracts.js";
 import type { User } from "../domain/models.js";
-import { buildOtpAuthUri, generateTotpSecret, verifyTotpToken } from "../security/totp.js";
+import { buildOtpAuthUri, findTotpTokenStep, generateTotpSecret } from "../security/totp.js";
 
 interface PendingEnrollment {
   id: string;
@@ -25,6 +25,10 @@ interface LoginChallenge {
 export class TotpService {
   private readonly pendingEnrollments = new Map<string, PendingEnrollment>();
   private readonly loginChallenges = new Map<string, LoginChallenge>();
+  // RFC 6238 §5.2: a code must not be accepted twice. The highest accepted
+  // time step per user is remembered so a captured code cannot be replayed
+  // inside the validity window.
+  private readonly lastAcceptedStep = new Map<string, number>();
 
   constructor(
     private readonly appConfig: AppConfig,
@@ -74,7 +78,8 @@ export class TotpService {
       throw new ValidationError("Invalid enrollment transaction");
     }
 
-    if (!verifyTotpToken(enrollment.secret, input.code)) {
+    const step = findTotpTokenStep(enrollment.secret, input.code);
+    if (step === undefined) {
       throw new ValidationError("Invalid TOTP code");
     }
 
@@ -83,6 +88,7 @@ export class TotpService {
       secret: enrollment.secret,
       enabled: true
     });
+    this.lastAcceptedStep.set(input.userId, step);
 
     this.pendingEnrollments.delete(input.enrollmentId);
     return { enabled: true };
@@ -90,6 +96,7 @@ export class TotpService {
 
   async disable(userId: string) {
     await this.totpCredentialRepository.delete(userId);
+    this.lastAcceptedStep.delete(userId);
   }
 
   async requiresTotp(userId: string): Promise<boolean> {
@@ -103,7 +110,18 @@ export class TotpService {
       return false;
     }
 
-    return verifyTotpToken(credential.secret, input.code);
+    const step = findTotpTokenStep(credential.secret, input.code);
+    if (step === undefined) {
+      return false;
+    }
+
+    const lastAccepted = this.lastAcceptedStep.get(input.userId);
+    if (lastAccepted !== undefined && step <= lastAccepted) {
+      return false;
+    }
+
+    this.lastAcceptedStep.set(input.userId, step);
+    return true;
   }
 
   createLoginChallenge(input: {

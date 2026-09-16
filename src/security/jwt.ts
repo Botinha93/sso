@@ -244,7 +244,8 @@ export class JwtService {
 
   async verifyAccessToken(token: string) {
     const { payload } = await jwtVerify(token, this.keys.publicKey, {
-      issuer: this.appConfig.issuer,
+      // Tokens minted before the issuer was normalised carry a trailing slash.
+      issuer: [this.appConfig.issuer, `${this.appConfig.issuer}/`],
       algorithms: ["RS256"]
     });
 
