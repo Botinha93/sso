@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
+import { SignJWT, importPKCS8 } from "jose";
 import {
   approveConsent,
   createTestContext,
@@ -530,4 +531,83 @@ test("suggestion image uploads are capped per user", async (t) => {
     }
   }
   assert.equal(lastStatus, 429, "the per-user file cap must eventually reject uploads");
+});
+
+test("an expired token is answered with 401, not the 500 that made clients retry forever", async (t) => {
+  // Pin the signing keys so the test can mint a token the server accepts as its
+  // own, with an `exp` already in the past.
+  const { publicKey, privateKey } = generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: "spki", format: "pem" },
+    privateKeyEncoding: { type: "pkcs8", format: "pem" }
+  });
+  const previousPrivateKey = process.env.JWT_PRIVATE_KEY_PEM;
+  const previousPublicKey = process.env.JWT_PUBLIC_KEY_PEM;
+  process.env.JWT_PRIVATE_KEY_PEM = privateKey;
+  process.env.JWT_PUBLIC_KEY_PEM = publicKey;
+
+  const { app, admin } = await createTestContext("sec-expired-token");
+  t.after(async () => {
+    await app.close();
+    if (previousPrivateKey === undefined) {
+      delete process.env.JWT_PRIVATE_KEY_PEM;
+    } else {
+      process.env.JWT_PRIVATE_KEY_PEM = previousPrivateKey;
+    }
+    if (previousPublicKey === undefined) {
+      delete process.env.JWT_PUBLIC_KEY_PEM;
+    } else {
+      process.env.JWT_PUBLIC_KEY_PEM = previousPublicKey;
+    }
+  });
+
+  const registerResponse = await registerClientAsAdmin(app, admin, {
+    client_name: "Expired Token Client",
+    redirect_uris: ["http://localhost:3000/callback"],
+    grant_types: ["authorization_code", "refresh_token"],
+    response_types: ["code"],
+    scope: "openid profile email"
+  });
+  assert.equal(registerResponse.statusCode, 201, registerResponse.body);
+  const client = registerResponse.json();
+  const clientId = String(client.client_id);
+  const clientSecret = String(client.client_secret);
+
+  const now = Math.floor(Date.now() / 1000);
+  const signingKey = await importPKCS8(privateKey, "RS256");
+  const expiredRefreshToken = await new SignJWT({ type: "refresh", client_id: clientId, scope: "openid" })
+    .setProtectedHeader({ alg: "RS256" })
+    .setIssuer("http://localhost:4000")
+    .setAudience(clientId)
+    .setSubject(randomUUID())
+    .setJti(randomUUID())
+    .setIssuedAt(now - 7200)
+    .setExpirationTime(now - 3600)
+    .sign(signingKey);
+
+  const refreshResponse = await app.inject({
+    method: "POST",
+    url: "/oauth/token",
+    payload: {
+      grant_type: "refresh_token",
+      refresh_token: expiredRefreshToken,
+      client_id: clientId,
+      client_secret: clientSecret
+    }
+  });
+
+  // A 500 here tells the client nothing is wrong with its token, so it retries
+  // the same expired token until the rate limiter starts returning 429s.
+  assert.equal(refreshResponse.statusCode, 401, refreshResponse.body);
+  assert.equal(refreshResponse.json().error, "invalid_grant");
+
+  // Introspection reports the same token as inactive (RFC 7662 §2.2) instead of
+  // failing the request.
+  const introspectResponse = await app.inject({
+    method: "POST",
+    url: "/oauth/introspect",
+    payload: { token: expiredRefreshToken, client_id: clientId, client_secret: clientSecret }
+  });
+  assert.equal(introspectResponse.statusCode, 200, introspectResponse.body);
+  assert.equal(introspectResponse.json().active, false);
 });

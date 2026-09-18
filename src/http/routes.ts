@@ -4252,12 +4252,30 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     }
     if (isJwtVerificationError(error)) {
       const path = request.url.split("?")[0];
+      // A token we refuse to verify is a client-side problem, not a server fault:
+      // every route answers 401 so the caller re-authenticates. Falling through to
+      // 500 here left clients retrying the same expired token until the rate
+      // limiter cut them off.
+      request.log.warn({ err: error, path }, "rejected an invalid or expired token");
       if (path === "/oauth/userinfo" || path === "/oauth/introspect") {
         return reply.status(401).send({
           error: "invalid_token",
           error_description: "Access token is invalid or expired"
         });
       }
+      if (isSensitiveProtocolPath(path)) {
+        // RFC 6749 §5.2 calls a rejected grant `invalid_grant`; bearer-token
+        // endpoints use `invalid_token` (RFC 6750 §3.1).
+        const isGrantExchange = path === "/oauth/token" || path === "/oauth/token/exchange";
+        return reply.status(401).send({
+          error: isGrantExchange ? "invalid_grant" : "invalid_token",
+          error_description: "Token is invalid or expired"
+        });
+      }
+      return reply.status(401).send({
+        error: "AuthenticationError",
+        message: "Token is invalid or expired"
+      });
     }
     request.log.error(error);
     return reply.status(500).send({ error: "InternalServerError", message: "Unexpected server error" });
