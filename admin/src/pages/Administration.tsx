@@ -2,7 +2,7 @@ import Card from '../components/ui/Card'
 import Textarea from '../components/ui/Textarea'
 import Select from '../components/ui/Select'
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, ArrowRight, Lock, Mail, Network, RefreshCw, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Lock, Mail, Network, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import StatusBadge from '../components/ui/StatusBadge'
 import { PageHeader, PageHeaderSkeleton } from '../components/PageHeader'
@@ -14,6 +14,7 @@ import {
   useAdminRiskEvents,
   useApps,
   useInstanceSettings,
+  useRetentionStatus,
   useMigrateDatabaseFromSqlite,
   useTestExternalDatabaseConnection,
   useTestInstanceEmail,
@@ -46,6 +47,8 @@ interface SettingsForm {
   smtpPass: string
   testEmailTo: string
   uiCustomizationsText: string
+  retentionEnabled: boolean
+  retentionDays: Record<string, number>
 }
 
 const checkboxCls = 'h-4 w-4 rounded border-border text-foreground accent-sky-600'
@@ -92,12 +95,15 @@ const defaultForm: SettingsForm = {
     byClientId: {},
     byAppId: {}
   }, null, 2),
+  retentionEnabled: true,
+  retentionDays: {},
 }
 
 export default function Administration() {
   const { data: adminMe } = useAdminMe()
   const { data, isLoading, isFetching: isSettingsRefreshing, refetch } = useInstanceSettings()
   const { data: apps = [] } = useApps()
+  const { data: retentionStatus, isLoading: isRetentionLoading } = useRetentionStatus(true)
   const { data: riskEvents, isFetching: isRiskEventsRefreshing, refetch: refetchRiskEvents } = useAdminRiskEvents(15)
   const updateSettings = useUpdateInstanceSettings()
   const testEmail = useTestInstanceEmail()
@@ -184,6 +190,8 @@ export default function Administration() {
         byClientId: {},
         byAppId: {}
       }, null, 2),
+      retentionEnabled: (data as any).retention?.enabled !== false,
+      retentionDays: { ...((data as any).retention?.policies ?? {}) },
     })
   }, [data])
 
@@ -224,6 +232,10 @@ export default function Administration() {
         smtpUser: form.smtpUser || undefined,
         smtpPass: form.smtpPass || undefined,
         uiCustomizations,
+        retention: {
+          enabled: form.retentionEnabled,
+          policies: form.retentionDays,
+        },
       })
       setSaveMessage('Instance settings saved. Some changes affect the next request immediately.')
     } catch (error) {
@@ -632,6 +644,103 @@ export default function Administration() {
           <div className="mt-4 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
             <p className="font-medium text-foreground">What these controls affect</p>
             <p className="mt-2 text-muted-foreground">These values are applied immediately to login lockout tracking, session anomaly detection, and rate limiting without restarting the server.</p>
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <div className="flex items-center gap-2">
+            <div className={sectionIconCls}><Trash2 size={14} /></div>
+            <h2 className="text-base font-semibold text-foreground">Data Retention</h2>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Expired tokens, closed sessions and log rows are deleted in small batches by a background sweep that runs
+            continuously while the server is up. Set each window in days. <span className="font-medium text-foreground">0 keeps rows forever.</span>
+          </p>
+
+          <label className="mt-4 flex items-center gap-2 text-sm text-foreground">
+            <input
+              type="checkbox"
+              className={checkboxCls}
+              checked={form.retentionEnabled}
+              onChange={(e) => setForm((v) => ({ ...v, retentionEnabled: e.target.checked }))}
+            />
+            <span>Run the background retention sweep</span>
+          </label>
+
+          {retentionStatus ? (
+            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <StatusBadge tone={retentionStatus.running && retentionStatus.enabled ? 'success' : 'neutral'}>
+                {retentionStatus.running && retentionStatus.enabled ? 'Sweeping' : 'Idle'}
+              </StatusBadge>
+              <span>
+                Up to {retentionStatus.batchSize} rows every {Math.round(retentionStatus.intervalMs / 1000)}s
+              </span>
+              <span aria-hidden>·</span>
+              <span>{retentionStatus.deletedSinceStart.toLocaleString()} rows deleted since this server started</span>
+              {retentionStatus.lastTickAt ? (
+                <>
+                  <span aria-hidden>·</span>
+                  <span>Last pass {new Date(retentionStatus.lastTickAt).toLocaleString()}</span>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+
+          {isRetentionLoading ? (
+            <p className="mt-4 text-sm text-muted-foreground">Loading retention policies…</p>
+          ) : !retentionStatus ? (
+            <p className="mt-4 text-sm text-muted-foreground">Retention status is unavailable.</p>
+          ) : (
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              {retentionStatus.policies.map((policy) => {
+                const value = form.retentionDays[policy.key] ?? policy.days
+                return (
+                  <div key={policy.key}>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                      {policy.label}
+                    </label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={policy.maxDays}
+                      value={value}
+                      disabled={!policy.supported}
+                      onChange={(e) => {
+                        const next = Number(e.target.value)
+                        setForm((v) => ({
+                          ...v,
+                          retentionDays: { ...v.retentionDays, [policy.key]: Number.isFinite(next) ? Math.max(0, Math.trunc(next)) : 0 },
+                        }))
+                      }}
+                    />
+                    <p className="mt-2 text-xs text-muted-foreground">{policy.description}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {policy.basis === 'expiry' ? 'Counted from expiry.' : 'Counted from creation.'}{' '}
+                      Minimum {policy.minDays} days, or 0 to keep forever. Default {policy.defaultDays}.
+                    </p>
+                    {!policy.supported ? (
+                      <p className="mt-1 text-xs text-amber-600">Not available on this database.</p>
+                    ) : value > 0 && (policy.expired ?? 0) > 0 ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {(policy.expired ?? 0).toLocaleString()} rows currently past this window.
+                      </p>
+                    ) : null}
+                    {policy.lastError ? (
+                      <p className="mt-1 text-xs text-red-600">Last sweep failed: {policy.lastError}</p>
+                    ) : null}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          <div className="mt-4 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
+            <p className="font-medium text-foreground">Before you shorten a window</p>
+            <p className="mt-2 text-muted-foreground">
+              Deletion is permanent and is not replicated to an archive. Audit events and SAML assertion audits are
+              frequently subject to a retention obligation — confirm yours before lowering them, and use 0 to keep
+              them indefinitely.
+            </p>
           </div>
         </Card>
 

@@ -1508,12 +1508,54 @@ export function useUpdateInstanceSettings() {
           backgroundCss?: string
         }>>
       }
+      retention?: {
+        enabled?: boolean
+        policies?: Record<string, number>
+      }
     }) => jsonFetch(`${API_BASE}/settings`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(settings)
     }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['instance-settings'] })
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['instance-settings'] })
+      queryClient.invalidateQueries({ queryKey: ['retention-status'] })
+    }
+  })
+}
+
+export interface RetentionPolicyStatus {
+  key: string
+  label: string
+  description: string
+  basis: 'expiry' | 'creation'
+  days: number
+  minDays: number
+  maxDays: number
+  defaultDays: number
+  active: boolean
+  supported: boolean
+  deletedSinceStart: number
+  lastSweptAt?: string
+  lastError?: string
+  expired?: number
+}
+
+export interface RetentionStatus {
+  enabled: boolean
+  running: boolean
+  intervalMs: number
+  batchSize: number
+  startedAt?: string
+  lastTickAt?: string
+  deletedSinceStart: number
+  policies: RetentionPolicyStatus[]
+}
+
+export function useRetentionStatus(withBacklog = false) {
+  return useQuery<RetentionStatus>({
+    queryKey: ['retention-status', withBacklog],
+    queryFn: () => jsonFetch(`${API_BASE}/retention${withBacklog ? '?backlog=true' : ''}`)
   })
 }
 

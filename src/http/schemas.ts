@@ -688,6 +688,13 @@ const uiCustomizationSettingsSchema = z.object({
   byAppId: z.record(z.string().min(1), z.record(uiSurfaceSchema, uiSurfaceCustomizationSchema)).default({})
 });
 
+export const retentionSettingsSchema = z.object({
+  enabled: z.boolean().optional(),
+  // Unknown keys are dropped and out-of-range days are rejected by
+  // InstanceSettingsService, which owns the per-policy floors.
+  policies: z.record(z.string(), z.number().int().min(0).max(3650)).optional()
+});
+
 export const updateInstanceSettingsSchema = z.object({
   databaseProvider: z.enum(["sqlite", "postgresql", "mysql"]).optional(),
   databasePath: z.string().min(1).optional(),
@@ -711,7 +718,8 @@ export const updateInstanceSettingsSchema = z.object({
   smtpSecure: z.boolean().optional(),
   smtpUser: z.string().optional(),
   smtpPass: z.string().optional(),
-  uiCustomizations: uiCustomizationSettingsSchema.optional()
+  uiCustomizations: uiCustomizationSettingsSchema.optional(),
+  retention: retentionSettingsSchema.optional()
 });
 
 export const sendTestEmailSchema = z.object({

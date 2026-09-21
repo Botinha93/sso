@@ -1,6 +1,13 @@
 import { ValidationError } from "../core/errors.js";
 import type { InstanceSettings, UiCustomizationSettings, UiSurface, UiSurfaceCustomization } from "../domain/models.js";
 import type { InstanceSettingsRepository } from "../repositories/contracts.js";
+import {
+  RETENTION_POLICIES,
+  defaultRetentionSettings,
+  normalizeRetentionSettings,
+  type RetentionSettings,
+  type RetentionSettingsInput
+} from "../domain/retention.js";
 
 const parseCorsOrigins = (raw: string | undefined): string[] => {
   if (!raw || raw.trim().length === 0) {
@@ -143,6 +150,7 @@ export class InstanceSettingsService {
       smtpUser: process.env.SMTP_USER,
       smtpPass: process.env.SMTP_PASS,
       uiCustomizations: this.defaultUiCustomizations(),
+      retention: defaultRetentionSettings(),
       tokenSigningAlgorithm: "RS256",
       updatedAt: new Date()
     };
@@ -166,11 +174,53 @@ export class InstanceSettingsService {
 
     return {
       ...existing,
-      uiCustomizations: this.normalizeUiCustomizations(existing.uiCustomizations)
+      uiCustomizations: this.normalizeUiCustomizations(existing.uiCustomizations),
+      retention: normalizeRetentionSettings(existing.retention)
     };
   }
 
-  async updateSettings(input: Partial<Pick<InstanceSettings, "databaseProvider" | "databasePath" | "externalDatabaseUrl" | "requireHttps" | "secureCookies" | "allowAnyCorsOrigin" | "corsAllowedOrigins" | "requireHttpsRedirectUris" | "requireS256Pkce" | "allowImplicitFlow" | "loginFailureWindowMs" | "loginLockoutThreshold" | "loginLockoutDurationMs" | "sessionAnomalyConcurrencyThreshold" | "rateLimitMultiplier" | "emailTransport" | "emailFrom" | "smtpHost" | "smtpPort" | "smtpSecure" | "smtpUser" | "smtpPass" | "uiCustomizations">>) {
+  /**
+   * Admin-supplied retention windows are rejected rather than silently clamped,
+   * so a console that asks for 3 days of audit history is told no instead of
+   * quietly being given 90. Persisted values still go through
+   * `normalizeRetentionSettings`, which tolerates legacy and partial records.
+   */
+  private validateRetention(input: RetentionSettingsInput): RetentionSettings {
+    const raw = (input?.policies ?? {}) as Record<string, unknown>;
+
+    for (const policy of RETENTION_POLICIES) {
+      const value = raw[policy.key];
+      if (value === undefined) {
+        continue;
+      }
+
+      if (typeof value !== "number" || !Number.isFinite(value) || !Number.isInteger(value)) {
+        throw new ValidationError(`Retention for ${policy.label} must be a whole number of days`);
+      }
+
+      if (value === 0) {
+        continue;
+      }
+
+      if (value < policy.minDays) {
+        throw new ValidationError(
+          `Retention for ${policy.label} must be at least ${policy.minDays} days, or 0 to keep rows forever`
+        );
+      }
+
+      if (value > policy.maxDays) {
+        throw new ValidationError(`Retention for ${policy.label} must be at most ${policy.maxDays} days`);
+      }
+    }
+
+    return normalizeRetentionSettings(input);
+  }
+
+  async getRetentionSettings(): Promise<RetentionSettings> {
+    return normalizeRetentionSettings((await this.getSettings()).retention);
+  }
+
+  async updateSettings(input: Partial<Pick<InstanceSettings, "databaseProvider" | "databasePath" | "externalDatabaseUrl" | "requireHttps" | "secureCookies" | "allowAnyCorsOrigin" | "corsAllowedOrigins" | "requireHttpsRedirectUris" | "requireS256Pkce" | "allowImplicitFlow" | "loginFailureWindowMs" | "loginLockoutThreshold" | "loginLockoutDurationMs" | "sessionAnomalyConcurrencyThreshold" | "rateLimitMultiplier" | "emailTransport" | "emailFrom" | "smtpHost" | "smtpPort" | "smtpSecure" | "smtpUser" | "smtpPass" | "uiCustomizations">> & { retention?: RetentionSettingsInput }) {
     const current = await this.getSettings();
 
     const next: Omit<InstanceSettings, "updatedAt"> = {
@@ -198,6 +248,7 @@ export class InstanceSettingsService {
       smtpUser: input.smtpUser ?? current.smtpUser,
       smtpPass: input.smtpPass ?? current.smtpPass,
       uiCustomizations: input.uiCustomizations ? this.normalizeUiCustomizations(input.uiCustomizations) : current.uiCustomizations,
+      retention: input.retention ? this.validateRetention(input.retention) : normalizeRetentionSettings(current.retention),
       tokenSigningAlgorithm: "RS256"
     };
 

@@ -1,3 +1,7 @@
+import type { RetentionSettings } from "./retention.js";
+
+export type { RetentionSettings } from "./retention.js";
+
 export type Language = "en" | "es" | "fr" | "de" | "it" | "pt" | "ja" | "zh" | "ko" | "ru";
 export type RoleScope = "platform" | "tenant";
 export type GrantType = "authorization_code" | "client_credentials" | "refresh_token" | "password" | "device_code" | "token_exchange" | "jwt_bearer" | "saml2_bearer" | "ciba";
@@ -206,6 +210,7 @@ export interface InstanceSettings {
   smtpUser?: string;
   smtpPass?: string;
   uiCustomizations: UiCustomizationSettings;
+  retention: RetentionSettings;
   tokenSigningAlgorithm: "RS256";
   updatedAt: Date;
 }

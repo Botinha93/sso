@@ -22,6 +22,7 @@ import { EventHookService } from "./services/event-hook-service.js";
 import { EmailService } from "./services/email-service.js";
 import { InstanceSettingsService } from "./services/instance-settings-service.js";
 import { RecoveryService } from "./services/recovery-service.js";
+import { RetentionService } from "./services/retention-service.js";
 import { RoleService } from "./services/role-service.js";
 import { SecurityService } from "./services/security-service.js";
 import { ScopeService } from "./services/scope-service.js";
@@ -555,6 +556,15 @@ export const bootstrap = async (config: AppConfig) => {
   );
   const oidcService = new OidcService(config, jwtService, scopeService);
 
+  // Retention sweeps run passively for the life of the process: one small batch
+  // per tick, on an unref'd timer so they never hold the process open.
+  const retentionService = new RetentionService(repositories.retentionRepository, () =>
+    instanceSettingsService.getRetentionSettings()
+  );
+  if (process.env.NODE_ENV !== "test") {
+    retentionService.start();
+  }
+
   return {
     config,
     roleService,
@@ -570,6 +580,7 @@ export const bootstrap = async (config: AppConfig) => {
     databaseMigrationService,
     recoveryService,
     instanceSettingsService,
+    retentionService,
     tenantService,
     userService,
     scimService,
@@ -605,6 +616,7 @@ export const bootstrap = async (config: AppConfig) => {
     auditRepository,
     policyDecisionLogRepository,
     dispose: async () => {
+      retentionService.stop();
       await eventHookService.waitForIdle();
       await pluginRuntimeService.dispose();
       await policyService.dispose();

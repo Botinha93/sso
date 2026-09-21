@@ -132,6 +132,58 @@ const ensureSuggestionsTable = async (prisma: PrismaClientLike & Record<string, 
   `;
 };
 
+/**
+ * Indexes backing the retention sweep.
+ *
+ * Every sweep filters and orders on one timestamp column, and the same columns
+ * back the `ORDER BY created_at DESC` list queries the console already issues.
+ * Without these, both full-scan.
+ *
+ * Statements are built from this fixed list only — nothing here is caller
+ * supplied. Failures are non-fatal: an index is an optimisation, and a table
+ * that does not exist on a given provider should not block startup.
+ */
+const RETENTION_INDEXES: ReadonlyArray<{ table: string; column: string }> = [
+  { table: "authorization_codes", column: "expires_at" },
+  { table: "access_tokens", column: "expires_at" },
+  { table: "refresh_tokens", column: "expires_at" },
+  { table: "sessions", column: "expires_at" },
+  { table: "federation_transactions", column: "expires_at" },
+  { table: "elevation_requests", column: "created_at" },
+  { table: "elevation_sessions", column: "expires_at" },
+  { table: "audit_events", column: "created_at" },
+  { table: "saml_assertion_audits", column: "created_at" },
+  { table: "policy_decision_logs", column: "created_at" },
+  { table: "risk_events", column: "created_at" },
+  { table: "event_notifications", column: "created_at" },
+  { table: "connector_runs", column: "created_at" },
+  { table: "provisioning_jobs", column: "created_at" },
+  { table: "deprovisioning_queue", column: "created_at" }
+];
+
+const ensureRetentionIndexes = async (prisma: PrismaClientLike & Record<string, unknown>, provider: AppConfig["databaseProvider"]) => {
+  const execute = (prisma as any).$executeRawUnsafe?.bind(prisma) ?? (prisma as any).$queryRawUnsafe?.bind(prisma);
+  if (typeof execute !== "function") {
+    return;
+  }
+
+  for (const { table, column } of RETENTION_INDEXES) {
+    const name = `idx_${table}_${column}`;
+    // MySQL has no CREATE INDEX ... IF NOT EXISTS; a duplicate there simply
+    // errors and is swallowed below.
+    const sql =
+      provider === "mysql"
+        ? `CREATE INDEX ${name} ON ${table} (${column})`
+        : `CREATE INDEX IF NOT EXISTS ${name} ON ${table} (${column})`;
+
+    try {
+      await execute(sql);
+    } catch {
+      // Index already present, or the table does not exist on this deployment.
+    }
+  }
+};
+
 type PrismaRepositoryClient = PrismaClientLike & Record<string, unknown>;
 
 type PrismaClientModule = {
@@ -199,6 +251,7 @@ export async function getPrismaClient(config: AppConfig): Promise<PrismaClientLi
   const prisma = new module.PrismaClient() as PrismaClientLike & Record<string, unknown>;
   await ensureAppAssignmentTables(prisma, config.databaseProvider);
   await ensureSuggestionsTable(prisma, config.databaseProvider);
+  await ensureRetentionIndexes(prisma, config.databaseProvider);
   return prisma;
 }
 

@@ -47,6 +47,8 @@ import type {
   UserGroupAssignment,
   UserRoleAssignment
 } from "../domain/models.js";
+import { RETENTION_POLICY_KEYS, normalizeRetentionSettings, type RetentionPolicyKey } from "../domain/retention.js";
+import type { RetentionRepository } from "./contracts.js";
 import type { RepositoryBundle } from "./factory.js";
 import type { RiskEvent, RiskDecision, RiskReason, ServiceIdentity, ServiceIdentityCredential, ServiceIdentityStatus, Connector, ConnectorRun, ConnectorMapping, AuthMetricRollup, Suggestion } from "../domain/models.js";
 import type { GroupAppAssignmentRepository, RiskEventRepository, ServiceIdentityRepository, ServiceIdentityCredentialRepository, UserAppAssignmentRepository, ConnectorRepository, ConnectorRunRepository, ConnectorMappingRepository, AuthMetricRepository, SuggestionRepository } from "./contracts.js";
@@ -126,6 +128,8 @@ type PrismaClientLike = {
   samlServiceProvider: any;
   samlNameIdMapping: any;
   samlAssertionAudit: any;
+  riskEvent: any;
+  connectorRun: any;
   $queryRaw<T = PrismaRow[]>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>;
 };
 
@@ -360,6 +364,7 @@ const mapInstanceSettings = (row: PrismaRow): InstanceSettings => {
     uiCustomizations: typeof parsed.uiCustomizations === "object" && parsed.uiCustomizations
       ? (parsed.uiCustomizations as InstanceSettings["uiCustomizations"])
       : { defaultBySurface: {}, byClientId: {}, byAppId: {} },
+    retention: normalizeRetentionSettings(parsed.retention),
     tokenSigningAlgorithm: "RS256",
     updatedAt: asDate(row.updatedAt)
   };
@@ -1458,6 +1463,7 @@ class PrismaInstanceSettingsRepository {
       smtpUser: input.smtpUser,
       smtpPass: input.smtpPass,
       uiCustomizations: input.uiCustomizations,
+      retention: input.retention,
       tokenSigningAlgorithm: input.tokenSigningAlgorithm
     });
     await this.prisma.instanceSetting.upsert({ where: { id: input.id }, create: { id: input.id, settingsJson, updatedAt: updatedAt.toISOString() }, update: { settingsJson, updatedAt: updatedAt.toISOString() } });
@@ -3286,6 +3292,97 @@ class PrismaSuggestionRepository implements SuggestionRepository {
   }
 }
 
+
+/**
+ * Where each retention policy lives: the Prisma delegate, the timestamp column
+ * the sweep ages rows by, and the primary key it deletes by (not always `id`).
+ * Declaring it as a total record over `RetentionPolicyKey` makes the compiler
+ * reject a policy added to the catalog without a table behind it.
+ *
+ * Timestamp columns hold ISO-8601 UTC strings written by `Date#toISOString`, a
+ * fixed-width format whose lexicographic order matches chronological order, so
+ * a string `lt` comparison is a valid date comparison.
+ */
+const RETENTION_TARGETS: Record<RetentionPolicyKey, { delegate: string; column: string; key: string }> = {
+  authorizationCodes: { delegate: "authorizationCode", column: "expiresAt", key: "id" },
+  accessTokens: { delegate: "accessToken", column: "expiresAt", key: "id" },
+  refreshTokens: { delegate: "refreshToken", column: "expiresAt", key: "id" },
+  sessions: { delegate: "session", column: "expiresAt", key: "id" },
+  // Federation transactions are keyed by `state`, not `id`.
+  federationTransactions: { delegate: "federationTransaction", column: "expiresAt", key: "state" },
+  elevationRequests: { delegate: "elevationRequest", column: "createdAt", key: "id" },
+  elevationSessions: { delegate: "elevationSession", column: "expiresAt", key: "id" },
+  auditEvents: { delegate: "auditLog", column: "createdAt", key: "id" },
+  samlAssertionAudits: { delegate: "samlAssertionAudit", column: "createdAt", key: "id" },
+  policyDecisionLogs: { delegate: "policyDecisionLog", column: "createdAt", key: "id" },
+  riskEvents: { delegate: "riskEvent", column: "createdAt", key: "id" },
+  eventNotifications: { delegate: "eventNotification", column: "createdAt", key: "id" },
+  connectorRuns: { delegate: "connectorRun", column: "createdAt", key: "id" },
+  provisioningJobs: { delegate: "provisioningJob", column: "createdAt", key: "id" },
+  deprovisioningQueue: { delegate: "deprovisioningQueue", column: "createdAt", key: "id" }
+};
+
+class PrismaRetentionRepository implements RetentionRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+
+  private resolve(policy: RetentionPolicyKey) {
+    const target = RETENTION_TARGETS[policy];
+    if (!target) {
+      return undefined;
+    }
+
+    const delegate = (this.prisma as unknown as Record<string, any>)[target.delegate];
+    if (!delegate || typeof delegate.findMany !== "function" || typeof delegate.deleteMany !== "function") {
+      return undefined;
+    }
+
+    return { delegate, column: target.column, key: target.key };
+  }
+
+  supportedPolicies(): RetentionPolicyKey[] {
+    return RETENTION_POLICY_KEYS.filter((key) => Boolean(this.resolve(key)));
+  }
+
+  async collectExpired(policy: RetentionPolicyKey, cutoff: Date, limit: number): Promise<string[]> {
+    const target = this.resolve(policy);
+    if (!target || limit <= 0) {
+      return [];
+    }
+
+    // Oldest first, so an instance with a large backlog drains it in order and
+    // each tick makes the same bounded amount of progress.
+    const rows = await target.delegate.findMany({
+      where: { [target.column]: { lt: cutoff.toISOString() } },
+      select: { [target.key]: true },
+      orderBy: { [target.column]: "asc" },
+      take: limit
+    });
+
+    return (rows as Array<Record<string, unknown>>)
+      .map((row) => String(row[target.key] ?? ""))
+      .filter((id) => id.length > 0);
+  }
+
+  async deleteByIds(policy: RetentionPolicyKey, ids: string[]): Promise<number> {
+    const target = this.resolve(policy);
+    if (!target || ids.length === 0) {
+      return 0;
+    }
+
+    const result = await target.delegate.deleteMany({ where: { [target.key]: { in: ids } } });
+    return Number(result?.count ?? 0);
+  }
+
+  async countExpired(policy: RetentionPolicyKey, cutoff: Date): Promise<number> {
+    const target = this.resolve(policy);
+    if (!target || typeof target.delegate.count !== "function") {
+      return 0;
+    }
+
+    return Number(await target.delegate.count({ where: { [target.column]: { lt: cutoff.toISOString() } } }));
+  }
+}
+
 export const createPrismaRepositories = (prisma: PrismaClientLike): RepositoryBundle => ({
   roleRepository: new PrismaRoleRepository(prisma),
   tenantRepository: new PrismaTenantRepository(prisma),
@@ -3339,5 +3436,6 @@ export const createPrismaRepositories = (prisma: PrismaClientLike): RepositoryBu
   connectorRunRepository: new PrismaConnectorRunRepository(prisma),
   connectorMappingRepository: new PrismaConnectorMappingRepository(prisma),
   authMetricRepository: new PrismaAuthMetricRepository(prisma),
-  suggestionRepository: new PrismaSuggestionRepository(prisma)
+  suggestionRepository: new PrismaSuggestionRepository(prisma),
+  retentionRepository: new PrismaRetentionRepository(prisma)
 });

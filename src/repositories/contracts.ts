@@ -57,6 +57,7 @@ import type {
   AuthMetricRollup,
   Suggestion
 } from "../domain/models.js";
+import type { RetentionPolicyKey } from "../domain/retention.js";
 
 type Awaitable<T> = T | Promise<T>;
 
@@ -445,4 +446,17 @@ export interface SuggestionRepository {
   listByAuthor(authorUserId: string): Awaitable<Suggestion[]>;
   findById(id: string): Awaitable<Suggestion | undefined>;
   update(id: string, input: Partial<Omit<Suggestion, "id" | "createdAt" | "authorUserId">>): Awaitable<Suggestion | undefined>;
+}
+
+/**
+ * Batched deletion used by the retention runner. `collectExpired` and
+ * `deleteByIds` are split so a sweep never holds a long-running DELETE open:
+ * each tick reads a bounded set of ids, deletes exactly those, and returns.
+ */
+export interface RetentionRepository {
+  /** Policy keys this deployment's database can actually sweep. */
+  supportedPolicies(): RetentionPolicyKey[];
+  collectExpired(policy: RetentionPolicyKey, cutoff: Date, limit: number): Awaitable<string[]>;
+  deleteByIds(policy: RetentionPolicyKey, ids: string[]): Awaitable<number>;
+  countExpired(policy: RetentionPolicyKey, cutoff: Date): Awaitable<number>;
 }

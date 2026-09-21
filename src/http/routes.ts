@@ -124,6 +124,7 @@ import { EventHookService } from "../services/event-hook-service.js";
 import { EmailService } from "../services/email-service.js";
 import { DatabaseMigrationService } from "../services/database-migration-service.js";
 import { InstanceSettingsService } from "../services/instance-settings-service.js";
+import { RetentionService } from "../services/retention-service.js";
 import { RecoveryService } from "../services/recovery-service.js";
 import { SecurityService } from "../services/security-service.js";
 import { AuthorizationService } from "../services/authorization-service.js";
@@ -194,6 +195,7 @@ interface RouteDeps {
   samlNameIdMappingRepository: SamlNameIdMappingRepository;
   samlAssertionAuditRepository: SamlAssertionAuditRepository;
   instanceSettingsService: InstanceSettingsService;
+  retentionService: RetentionService;
   auditRepository: AuditRepository;
   policyDecisionLogRepository: PolicyDecisionLogRepository;
 }
@@ -2701,6 +2703,25 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.put("/api/admin/settings", async (request) => {
     const input = updateInstanceSettingsSchema.parse(request.body);
     return deps.instanceSettingsService.updateSettings(input);
+  });
+
+  // Read-only view of the background retention sweep: what each policy is set
+  // to, what it has deleted since this process started, and how much is still
+  // waiting. `?backlog=true` adds a count per policy, which scans the tables and
+  // is therefore opt-in rather than part of the default payload.
+  app.get("/api/admin/retention", async (request) => {
+    const { backlog } = request.query as { backlog?: string };
+    const status = await deps.retentionService.getStatus();
+
+    if (backlog !== "true") {
+      return status;
+    }
+
+    const counts = new Map((await deps.retentionService.getBacklog()).map((entry) => [entry.key, entry.expired]));
+    return {
+      ...status,
+      policies: status.policies.map((policy) => ({ ...policy, expired: counts.get(policy.key) ?? 0 }))
+    };
   });
   app.post("/api/admin/settings/test-email", async (request, reply) => {
     const input = sendTestEmailSchema.parse(request.body);
