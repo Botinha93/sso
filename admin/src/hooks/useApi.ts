@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { extractErrorMessage } from '../lib/errors'
 
 const API_BASE = '/api/admin'
@@ -259,17 +259,63 @@ export function useRevokeConsent() {
 }
 
 // --- Audit ---
-export function useAuditLog(limit = 100, search?: string) {
-  return useQuery({
-    queryKey: ['audit', limit, search ?? ''],
-    queryFn: () => {
+export interface AuditEventDto {
+  id: string
+  type: string
+  actorId?: string
+  actorType: string
+  clientId?: string
+  ip?: string
+  metadata?: Record<string, unknown>
+  createdAt: string
+}
+
+export interface AuditFilters {
+  search?: string
+  type?: string
+  from?: string
+  to?: string
+}
+
+const AUDIT_PAGE_SIZE = 100
+
+// Filtering happens server-side over the whole audit history; pages are
+// fetched with a (createdAt, id) cursor so new events never shift the offset.
+export function useAuditSearch(filters: AuditFilters) {
+  return useInfiniteQuery({
+    queryKey: ['audit', 'search', filters],
+    initialPageParam: null as AuditEventDto | null,
+    queryFn: ({ pageParam }) => {
       const params = new URLSearchParams()
-      params.set('limit', String(limit))
-      if (search?.trim()) {
-        params.set('search', search.trim())
+      params.set('limit', String(AUDIT_PAGE_SIZE))
+      for (const [key, value] of Object.entries(filters)) {
+        if (value?.trim()) params.set(key, value.trim())
       }
-      return jsonFetch(`${API_BASE}/audit?${params.toString()}`)
+      if (pageParam) {
+        params.set('before', pageParam.createdAt)
+        params.set('beforeId', pageParam.id)
+      }
+      return jsonFetch(`${API_BASE}/audit?${params.toString()}`) as Promise<AuditEventDto[]>
     },
+    getNextPageParam: (lastPage) =>
+      lastPage.length < AUDIT_PAGE_SIZE ? undefined : lastPage[lastPage.length - 1]
+  })
+}
+
+export interface AuditStatsDto {
+  from: string
+  to: string
+  days: number
+  total: number
+  byType: Array<{ type: string; count: number }>
+  byHour: Array<{ hour: string; count: number }>
+  riskBySeverity: { medium: number; high: number; critical: number }
+}
+
+export function useAuditStats(days = 14) {
+  return useQuery({
+    queryKey: ['audit', 'stats', days],
+    queryFn: () => jsonFetch(`${API_BASE}/audit/stats?days=${days}`) as Promise<AuditStatsDto>,
     refetchInterval: 30_000
   })
 }

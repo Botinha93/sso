@@ -864,7 +864,20 @@ export interface SDKAuditEvent {
 }
 
 export interface AuditListQuery {
+  /** Page size, 1-500 (default 200). */
   limit?: number;
+  /** Case-insensitive match on id, type, actor, client, IP and metadata, across the full history. */
+  search?: string;
+  type?: string;
+  actorId?: string;
+  clientId?: string;
+  /** ISO-8601 lower bound (inclusive). */
+  from?: string;
+  /** ISO-8601 upper bound (inclusive). */
+  to?: string;
+  /** Cursor: pass the last event's createdAt (and id as beforeId) to fetch the next, older page. */
+  before?: string;
+  beforeId?: string;
 }
 
 export interface AuditAPI {

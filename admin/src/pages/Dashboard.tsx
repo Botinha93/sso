@@ -15,14 +15,14 @@ import React from 'react';
 import { Link } from 'react-router-dom'
 import {
   useAccessRequests,
-  useAuditLog,
+  useAuditStats,
   useAdminMe,
-  useAdminRiskEvents,
   useClients,
   useConnectors,
   useConsents,
   useElevationRequests,
   useElevationSessions,
+  useEventHooks,
   useEventNotifications,
   useGroups,
   useRoles,
@@ -47,6 +47,7 @@ interface ClientItem {
 
 interface SessionItem {
   id: string
+  userId: string
   clientId: string
   createdAt: string
   expiresAt: string
@@ -57,12 +58,6 @@ interface ConsentItem {
   id: string
   clientId: string
   scope: string[]
-}
-
-interface AuditEvent {
-  id: string
-  type: string
-  createdAt: string
 }
 
 interface EventNotification {
@@ -91,11 +86,6 @@ interface ConnectorItem {
   status: 'active' | 'inactive' | 'error'
 }
 
-interface RiskEventItem {
-  id: string
-  severity: 'medium' | 'high' | 'critical'
-}
-
 type SeriesPoint = {
   label: string
   value: number
@@ -114,6 +104,12 @@ const keyForDay = (date: Date) => {
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value))
 
 const formatPct = (value: number) => `${Math.round(value * 100)}%`
+
+// Lists fetched with a row limit only show the most recent slice; say so instead of implying a total.
+const LIST_LIMIT = 200
+const countLabel = (count: number, limit = LIST_LIMIT) => (count >= limit ? `${limit}+` : String(count))
+
+const STATS_DAYS = 14
 
 function LineChart({ data }: { data: SeriesPoint[] }) {
   const width = 760
@@ -155,15 +151,17 @@ function LineChart({ data }: { data: SeriesPoint[] }) {
         <polyline points={line} fill="none" stroke="#0284c7" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
 
         {points.map((p, idx) => (
-          <circle key={`${p.label}-${idx}`} cx={p.x} cy={p.y} r="3.5" fill="#0369a1" />
+          <circle key={`${p.label}-${idx}`} cx={p.x} cy={p.y} r="3.5" fill="#0369a1">
+            <title>{`${p.label}: ${p.value} events`}</title>
+          </circle>
         ))}
-      </svg>
 
-      <div className="mt-2 grid grid-cols-7 gap-2 text-[11px] text-muted-foreground">
-        {data.filter((_, i) => i % 2 === 0).map((d) => (
-          <div key={d.label}>{d.label}</div>
-        ))}
-      </div>
+        {points.map((p, idx) => idx % 2 === 0 ? (
+          <text key={`label-${p.label}`} x={p.x} y={height - 4} textAnchor="middle" fontSize="11" fill="#64748b">
+            {p.label}
+          </text>
+        ) : null)}
+      </svg>
     </div>
   )
 }
@@ -204,13 +202,14 @@ const Dashboard = () => {
   const { data: clients = [], isLoading: loadingClients } = useClients()
   const { data: sessions = [], isLoading: loadingSessions } = useSessions()
   const { data: consents = [], isLoading: loadingConsents } = useConsents()
-  const { data: events = [], isLoading: loadingAudit } = useAuditLog(300)
-  const { data: notifications = [], isLoading: loadingNotifications } = useEventNotifications(200)
-  const { data: accessRequests = [], isLoading: loadingAccessRequests } = useAccessRequests(undefined, 200)
-  const { data: elevationRequests = [], isLoading: loadingElevationRequests } = useElevationRequests()
+  const { data: auditStats, isLoading: loadingAudit, isError: auditError } = useAuditStats(STATS_DAYS)
+  const { data: eventHooks = [], isLoading: loadingEventHooks, isError: eventHooksError } = useEventHooks()
+  const { data: notifications = [], isLoading: loadingNotifications, isError: notificationsError } = useEventNotifications(LIST_LIMIT)
+  const { data: accessRequests = [], isLoading: loadingAccessRequests, isError: accessRequestsError } = useAccessRequests(undefined, LIST_LIMIT)
+  const { data: pendingAccessRequestList = [], isLoading: loadingPendingAccessRequests } = useAccessRequests('pending', LIST_LIMIT)
+  const { data: elevationRequests = [], isLoading: loadingElevationRequests, isError: elevationError } = useElevationRequests()
   const { data: elevationSessions = [], isLoading: loadingElevationSessions } = useElevationSessions()
-  const { data: connectorsData, isLoading: loadingConnectors } = useConnectors()
-  const { data: riskEvents = [], isLoading: loadingRiskEvents } = useAdminRiskEvents(200)
+  const { data: connectorsData, isLoading: loadingConnectors, isError: connectorsError } = useConnectors()
 
   const now = Date.now()
 
@@ -218,13 +217,11 @@ const Dashboard = () => {
   const clientItems = clients as ClientItem[]
   const sessionItems = sessions as SessionItem[]
   const consentItems = consents as ConsentItem[]
-  const auditItems = events as AuditEvent[]
   const notificationItems = notifications as EventNotification[]
   const accessRequestItems = accessRequests as AccessRequestItem[]
   const elevationRequestItems = elevationRequests as ElevationRequestItem[]
   const elevationSessionItems = elevationSessions as ElevationSessionItem[]
   const connectorItems = (connectorsData?.data ?? []) as ConnectorItem[]
-  const riskEventItems = riskEvents as RiskEventItem[]
 
   const activeUsers = userItems.filter((u) => u.active).length
   const inactiveUsers = userItems.length - activeUsers
@@ -232,14 +229,16 @@ const Dashboard = () => {
   const revokedSessions = sessionItems.filter((s) => !!s.revokedAt).length
   const pkceClients = clientItems.filter((c) => c.requirePkce).length
   const clientResourcesCount = clientItems.reduce((sum, c) => sum + (c.resources?.length ?? 0), 0)
-  const pendingAccessRequests = accessRequestItems.filter((r) => r.status === 'pending').length
+  const pendingAccessRequests = (pendingAccessRequestList as AccessRequestItem[]).length
   const approvedAccessRequests = accessRequestItems.filter((r) => r.status === 'approved').length
   const activeElevationSessions = elevationSessionItems.filter((s) => s.status === 'active').length
   const pendingElevationRequests = elevationRequestItems.filter((r) => r.status === 'pending').length
   const failedConnectors = connectorItems.filter((c) => c.status === 'error').length
   const activeConnectors = connectorItems.filter((c) => c.status === 'active').length
-  const criticalRiskEvents = riskEventItems.filter((r) => r.severity === 'critical').length
-  const highRiskEvents = riskEventItems.filter((r) => r.severity === 'high').length
+  const riskBySeverity = auditStats?.riskBySeverity ?? { medium: 0, high: 0, critical: 0 }
+  const totalRiskEvents = riskBySeverity.medium + riskBySeverity.high + riskBySeverity.critical
+  // Render "—" rather than a misleading 0 when a source failed or is not permitted.
+  const show = (failed: boolean, value: React.ReactNode) => (failed ? '—' : value)
 
   const allLoading = [
     loadingUsers,
@@ -250,39 +249,39 @@ const Dashboard = () => {
     loadingSessions,
     loadingConsents,
     loadingAudit,
+    loadingEventHooks,
     loadingNotifications,
     loadingAccessRequests,
+    loadingPendingAccessRequests,
     loadingElevationRequests,
     loadingElevationSessions,
-    loadingConnectors,
-    loadingRiskEvents
-  ].every(Boolean)
+    loadingConnectors
+  ].some(Boolean)
 
-  const timelineDays = 14
-  const timeline: SeriesPoint[] = Array.from({ length: timelineDays }, (_, index) => {
+  // The server returns UTC hour buckets for the whole window; fold them into local calendar days.
+  const countsByDay = new Map<string, number>()
+  for (const bucket of auditStats?.byHour ?? []) {
+    const key = keyForDay(new Date(`${bucket.hour}:00:00Z`))
+    countsByDay.set(key, (countsByDay.get(key) ?? 0) + bucket.count)
+  }
+  const timeline: SeriesPoint[] = Array.from({ length: STATS_DAYS }, (_, index) => {
     const date = new Date()
     date.setHours(0, 0, 0, 0)
-    date.setDate(date.getDate() - (timelineDays - index - 1))
-    const key = keyForDay(date)
-    const value = auditItems.filter((e) => keyForDay(new Date(e.createdAt)) === key).length
+    date.setDate(date.getDate() - (STATS_DAYS - index - 1))
     return {
       label: dayLabel(date),
-      value
+      value: countsByDay.get(keyForDay(date)) ?? 0
     }
   })
+  const timelineTotal = timeline.reduce((sum, p) => sum + p.value, 0)
 
-  const eventDistribution = Object.entries(
-    auditItems.reduce<Record<string, number>>((acc, event) => {
-      acc[event.type] = (acc[event.type] ?? 0) + 1
-      return acc
-    }, {})
-  )
-    .sort((a, b) => b[1] - a[1])
+  const eventDistribution = (auditStats?.byType ?? [])
     .slice(0, 7)
-    .map(([label, value]) => ({ label, value }))
+    .map((row) => ({ label: row.type, value: row.count }))
 
+  const activeSessionItems = sessionItems.filter((s) => !s.revokedAt && new Date(s.expiresAt).getTime() > now)
   const sessionsByClient = Object.entries(
-    sessionItems.reduce<Record<string, number>>((acc, session) => {
+    activeSessionItems.reduce<Record<string, number>>((acc, session) => {
       acc[session.clientId] = (acc[session.clientId] ?? 0) + 1
       return acc
     }, {})
@@ -330,18 +329,16 @@ const Dashboard = () => {
     .sort((a, b) => b[1] - a[1])
     .map(([label, value]) => ({ label: label.toUpperCase(), value }))
 
-  const riskSeverityDistribution = Object.entries(
-    riskEventItems.reduce<Record<string, number>>((acc, item) => {
-      acc[item.severity] = (acc[item.severity] ?? 0) + 1
-      return acc
-    }, {})
-  )
+  const riskSeverityDistribution = Object.entries(riskBySeverity)
+    .filter(([, value]) => value > 0)
     .sort((a, b) => b[1] - a[1])
     .map(([label, value]) => ({ label, value }))
 
-  const notificationSuccessRate = notificationItems.length === 0
+  // Pending deliveries have no outcome yet, so they are excluded from the rate.
+  const settledNotifications = notificationItems.filter((n) => n.status !== 'pending')
+  const notificationSuccessRate = settledNotifications.length === 0
     ? 0
-    : notificationItems.filter((n) => n.status === 'success').length / notificationItems.length
+    : settledNotifications.filter((n) => n.status === 'success').length / settledNotifications.length
 
   const permissions: string[] = (adminMe as any)?.permissions ?? []
   const can = (permission: string) => permissions.includes('*:*') || permissions.includes(permission)
@@ -377,7 +374,9 @@ const Dashboard = () => {
     ? 0
     : (roles as any[]).reduce((sum, role) => sum + ((role.permissions ?? []).length as number), 0) / roles.length
 
-  const sessionCoverage = userItems.length === 0 ? 0 : activeSessions / userItems.length
+  // Share of active users holding at least one live session (a user with several sessions counts once).
+  const usersWithActiveSession = new Set(activeSessionItems.map((s) => s.userId)).size
+  const sessionCoverage = activeUsers === 0 ? 0 : usersWithActiveSession / activeUsers
 
   if (allLoading) {
     return (
@@ -396,7 +395,7 @@ const Dashboard = () => {
       <PageHeroHeader
         eyebrow="Control Center"
         title="Identity Usage Dashboard"
-        description="Live view of account growth, authentication activity, consent behavior, and client-level traffic distribution."
+        description={`Current identity inventory, live sessions, consent behavior, and the last ${STATS_DAYS} days of audit activity.`}
       />
 
       <div className="grid gap-3 md:grid-cols-4">
@@ -436,7 +435,7 @@ const Dashboard = () => {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-50 text-sky-600"><Activity size={15} /></div>
           </div>
           <div className="text-3xl font-bold tracking-tight text-foreground">{activeSessions}</div>
-          <p className="mt-1 text-xs text-muted-foreground">{revokedSessions} revoked · {sessionItems.length} total</p>
+          <p className="mt-1 text-xs text-muted-foreground">active · {revokedSessions} revoked · {sessionItems.length} total</p>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
@@ -462,14 +461,16 @@ const Dashboard = () => {
         <div className="xl:col-span-2 rounded-xl border border-border bg-card p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h3 className="text-base font-semibold text-foreground">Authentication Activity</h3>
-              <p className="text-xs text-muted-foreground">Audit events over the last 14 days</p>
+              <h3 className="text-base font-semibold text-foreground">Audit Activity</h3>
+              <p className="text-xs text-muted-foreground">All audit events per day over the last {STATS_DAYS} days</p>
             </div>
             <span className="rounded-md bg-sky-50 px-2 py-1 text-[11px] font-medium text-sky-700 border border-sky-100">
-              {timeline.reduce((sum, p) => sum + p.value, 0)} events
+              {show(auditError, timelineTotal)} events
             </span>
           </div>
-          <LineChart data={timeline} />
+          {auditError
+            ? <p className="text-sm text-muted-foreground">Audit statistics are unavailable.</p>
+            : <LineChart data={timeline} />}
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
@@ -487,8 +488,10 @@ const Dashboard = () => {
 
             <div>
               <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1"><CheckSquare size={12} /> Webhook Success</span>
-                <span>{formatPct(notificationSuccessRate)}</span>
+                <span className="inline-flex items-center gap-1" title={`Delivered vs failed, across the latest ${LIST_LIMIT} webhook deliveries`}>
+                  <CheckSquare size={12} /> Webhook Success
+                </span>
+                <span>{show(notificationsError, settledNotifications.length ? formatPct(notificationSuccessRate) : 'n/a')}</span>
               </div>
               <div className="h-2 rounded-full bg-muted">
                 <div className="h-2 rounded-full bg-cyan-500" style={{ width: `${notificationSuccessRate * 100}%` }} />
@@ -497,8 +500,10 @@ const Dashboard = () => {
 
             <div>
               <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1"><Users size={12} /> Session Coverage</span>
-                <span>{formatPct(sessionCoverage)}</span>
+                <span className="inline-flex items-center gap-1" title="Active users with at least one live session">
+                  <Users size={12} /> Users With Live Session
+                </span>
+                <span>{formatPct(sessionCoverage)} · {usersWithActiveSession}/{activeUsers}</span>
               </div>
               <div className="h-2 rounded-full bg-muted">
                 <div className="h-2 rounded-full bg-violet-500" style={{ width: `${clamp(sessionCoverage, 0, 1) * 100}%` }} />
@@ -515,14 +520,14 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <h3 className="text-base font-semibold text-foreground">Top Event Types</h3>
-          <p className="mb-4 text-xs text-muted-foreground">Most frequent actions in audit history</p>
-          <HorizontalBars data={eventDistribution} emptyLabel="No audit events yet." />
+          <p className="mb-4 text-xs text-muted-foreground">Most frequent audit event types in the last {STATS_DAYS} days</p>
+          <HorizontalBars data={eventDistribution} emptyLabel={auditError ? 'Audit statistics are unavailable.' : `No audit events in the last ${STATS_DAYS} days.`} />
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <h3 className="text-base font-semibold text-foreground">Session Load by Client</h3>
-          <p className="mb-4 text-xs text-muted-foreground">Where active authentication traffic is concentrated</p>
-          <HorizontalBars data={sessionsByClient} emptyLabel="No sessions recorded yet." />
+          <p className="mb-4 text-xs text-muted-foreground">Live (unexpired, unrevoked) sessions per client</p>
+          <HorizontalBars data={sessionsByClient} emptyLabel="No live sessions right now." />
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
@@ -538,8 +543,10 @@ const Dashboard = () => {
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pending Requests</p>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600"><ShieldAlert size={15} /></div>
           </div>
-          <div className="text-3xl font-bold tracking-tight text-foreground">{pendingAccessRequests}</div>
-          <p className="mt-1 text-xs text-muted-foreground">{approvedAccessRequests} approved · {accessRequestItems.length} total</p>
+          <div className="text-3xl font-bold tracking-tight text-foreground">{show(accessRequestsError, countLabel(pendingAccessRequests))}</div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {show(accessRequestsError, `${approvedAccessRequests} approved of latest ${countLabel(accessRequestItems.length)}`)}
+          </p>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
@@ -547,8 +554,8 @@ const Dashboard = () => {
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Elevation Sessions</p>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 text-rose-600"><Shield size={15} /></div>
           </div>
-          <div className="text-3xl font-bold tracking-tight text-foreground">{activeElevationSessions}</div>
-          <p className="mt-1 text-xs text-muted-foreground">{pendingElevationRequests} pending requests</p>
+          <div className="text-3xl font-bold tracking-tight text-foreground">{show(elevationError, activeElevationSessions)}</div>
+          <p className="mt-1 text-xs text-muted-foreground">{show(elevationError, `active · ${pendingElevationRequests} pending requests`)}</p>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
@@ -556,24 +563,26 @@ const Dashboard = () => {
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Connectors</p>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600"><GitMerge size={15} /></div>
           </div>
-          <div className="text-3xl font-bold tracking-tight text-foreground">{connectorItems.length}</div>
-          <p className="mt-1 text-xs text-muted-foreground">{activeConnectors} active · {failedConnectors} in error</p>
+          <div className="text-3xl font-bold tracking-tight text-foreground">{show(connectorsError, connectorItems.length)}</div>
+          <p className="mt-1 text-xs text-muted-foreground">{show(connectorsError, `${activeConnectors} active · ${failedConnectors} in error`)}</p>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Risk Events</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Risk Events ({STATS_DAYS}d)</p>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 text-rose-600"><AlertTriangle size={15} /></div>
           </div>
-          <div className="text-3xl font-bold tracking-tight text-foreground">{riskEventItems.length}</div>
-          <p className="mt-1 text-xs text-muted-foreground">{criticalRiskEvents} critical · {highRiskEvents} high</p>
+          <div className="text-3xl font-bold tracking-tight text-foreground">{show(auditError, totalRiskEvents)}</div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {show(auditError, `${riskBySeverity.critical} critical · ${riskBySeverity.high} high · ${riskBySeverity.medium} medium`)}
+          </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <h3 className="text-base font-semibold text-foreground">Governance And Elevation Activity</h3>
-          <p className="mb-4 text-xs text-muted-foreground">Operational status of access requests and privileged elevation lifecycle.</p>
+          <p className="mb-4 text-xs text-muted-foreground">Status mix of the latest {LIST_LIMIT} access requests and all elevation requests.</p>
           <div className="grid gap-5 md:grid-cols-2">
             <div>
               <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Access Requests</p>
@@ -588,7 +597,7 @@ const Dashboard = () => {
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <h3 className="text-base font-semibold text-foreground">Connector And Risk Distribution</h3>
-          <p className="mb-4 text-xs text-muted-foreground">Integration footprint and current security event severity mix.</p>
+          <p className="mb-4 text-xs text-muted-foreground">Integration footprint and risk event severity over the last {STATS_DAYS} days.</p>
           <div className="grid gap-5 md:grid-cols-2">
             <div>
               <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Connector Types</p>
@@ -596,7 +605,7 @@ const Dashboard = () => {
             </div>
             <div>
               <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Risk Severity</p>
-              <HorizontalBars data={riskSeverityDistribution} emptyLabel="No risk events recorded yet." />
+              <HorizontalBars data={riskSeverityDistribution} emptyLabel={auditError ? 'Risk statistics are unavailable.' : `No risk events in the last ${STATS_DAYS} days.`} />
             </div>
           </div>
         </div>
@@ -623,10 +632,10 @@ const Dashboard = () => {
           </div>
           <div className="rounded-lg border border-border bg-muted p-3 text-center">
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Event Hooks</p>
-            <p className="mt-1 text-xl font-semibold text-foreground">{notificationItems.length}</p>
+            <p className="mt-1 text-xl font-semibold text-foreground">{show(eventHooksError, (eventHooks as unknown[]).length)}</p>
           </div>
           <div className="rounded-lg border border-border bg-muted p-3 text-center">
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Grants</p>
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground" title="Distinct OAuth grant types enabled across clients">Grant Types</p>
             <p className="mt-1 text-xl font-semibold text-foreground">
               {Array.from(new Set(clientItems.flatMap((c) => c.grants ?? []))).length}
             </p>

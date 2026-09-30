@@ -258,7 +258,8 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'POST', path: '/api/admin/apps/:id/image', auth: 'session+csrf', description: 'Uploads app image (multipart file).' },
   { method: 'DELETE', path: '/api/admin/apps/:id', auth: 'session+csrf', description: 'Deletes app.' },
 
-  { method: 'GET', path: '/api/admin/audit', auth: 'session', description: 'Lists audit events.' },
+  { method: 'GET', path: '/api/admin/audit', auth: 'session', description: 'Lists audit events, newest first. Filters (search, type, actorId, clientId, from, to) run over the full history; page with before/beforeId.' },
+  { method: 'GET', path: '/api/admin/audit/stats', auth: 'session', description: 'Audit event counts by type and UTC hour, plus risk severity totals, for the last N days (days=1-90, default 14).' },
 
   { method: 'GET', path: '/api/admin/federation/providers', auth: 'session', description: 'Lists configured federation providers.' },
   { method: 'POST', path: '/api/admin/federation/providers', auth: 'session+csrf', description: 'Creates federation provider.' },

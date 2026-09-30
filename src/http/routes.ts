@@ -22,7 +22,7 @@ import { registerAccessGovernanceRoutes } from "./routes/access-governance.js";
 import { registerProvisioningRoutes } from "./routes/provisioning.js";
 import { registerElevationRoutes } from "./routes/elevations.js";
 import { registerServiceIdentityRoutes } from "./routes/service-identities.js";
-import { deriveRiskEventsFromAudit } from "./routes/security-risk-events.js";
+import { deriveRiskEventsFromAudit, riskSeverityForAuditType } from "./routes/security-risk-events.js";
 import { registerConnectorRoutes } from "./routes/connectors.js";
 import { registerPluginRoutes } from "./routes/plugins.js";
 import { registerSuggestionRoutes } from "./routes/suggestions.js";
@@ -3969,17 +3969,52 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return reply.status(204).send();
   });
 
-  app.get("/api/admin/audit", async (request) => {
-    const { limit } = request.query as { limit?: string };
-    const events = await deps.auditRepository.list(limit ? Number(limit) : 200);
-    return filterAdminList(events, request.query as Record<string, unknown>, [
-      (event) => event.type,
-      (event) => event.actorId,
-      (event) => event.actorType,
-      (event) => event.clientId,
-      (event) => event.ip,
-      (event) => event.id
-    ]);
+  app.get("/api/admin/audit", async (request, reply) => {
+    const query = request.query as Record<string, unknown>;
+    const parsed = parseAdminListQuery(query);
+    const optionalString = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim() : undefined);
+    const optionalDate = (value: unknown) => {
+      const raw = optionalString(value);
+      if (!raw) return undefined;
+      const date = new Date(raw);
+      return Number.isNaN(date.getTime()) ? null : date;
+    };
+
+    const from = optionalDate(query.from);
+    const to = optionalDate(query.to);
+    const beforeAt = optionalDate(query.before);
+    const beforeId = optionalString(query.beforeId);
+    if (from === null || to === null || beforeAt === null) {
+      return reply.status(400).send({ error: "invalid_request", error_description: "from, to and before must be ISO-8601 timestamps" });
+    }
+
+    // Legacy page/pageSize still works; new callers should page with before/beforeId.
+    const limit = clampLimit(parsed.pageSize ?? query.limit, 200);
+    return deps.auditRepository.search({
+      limit,
+      offset: parsed.page ? (parsed.page - 1) * limit : undefined,
+      search: parsed.search,
+      type: optionalString(query.type),
+      actorId: optionalString(query.actorId),
+      clientId: optionalString(query.clientId),
+      from,
+      to,
+      // No id sorts below "", so a bare `before` means strictly older than that instant.
+      before: beforeAt ? { createdAt: beforeAt, id: beforeId ?? "" } : undefined
+    });
+  });
+
+  app.get("/api/admin/audit/stats", async (request) => {
+    const days = clampLimit((request.query as { days?: string }).days, 14, 1, 90);
+    const to = new Date();
+    const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
+    const stats = await deps.auditRepository.stats(from, to);
+    const riskBySeverity = { medium: 0, high: 0, critical: 0 };
+    for (const row of stats.byType) {
+      const severity = riskSeverityForAuditType(row.type);
+      if (severity) riskBySeverity[severity] += row.count;
+    }
+    return { ...stats, days, riskBySeverity };
   });
 
   app.get("/api/admin/security/risk-events", async (request) => {

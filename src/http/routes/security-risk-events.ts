@@ -21,6 +21,9 @@ const RISK_EVENT_CATALOG: Partial<Record<AuditEventType, { severity: AdminRiskEv
   elevation_break_glass_activated: { severity: "critical", title: "Emergency break-glass elevation activated" }
 };
 
+export const riskSeverityForAuditType = (type: string): AdminRiskEvent["severity"] | undefined =>
+  RISK_EVENT_CATALOG[type as AuditEventType]?.severity;
+
 export const deriveRiskEventsFromAudit = (events: AuditEvent[], limit: number): AdminRiskEvent[] => {
   const normalizedLimit = Math.max(1, Math.min(limit, 200));
 

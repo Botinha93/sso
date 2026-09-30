@@ -48,7 +48,7 @@ import type {
   UserRoleAssignment
 } from "../domain/models.js";
 import { RETENTION_POLICY_KEYS, normalizeRetentionSettings, type RetentionPolicyKey } from "../domain/retention.js";
-import type { RetentionRepository } from "./contracts.js";
+import type { AuditSearchQuery, AuditStats, RetentionRepository } from "./contracts.js";
 import type { RepositoryBundle } from "./factory.js";
 import type { RiskEvent, RiskDecision, RiskReason, ServiceIdentity, ServiceIdentityCredential, ServiceIdentityStatus, Connector, ConnectorRun, ConnectorMapping, AuthMetricRollup, Suggestion } from "../domain/models.js";
 import type { GroupAppAssignmentRepository, RiskEventRepository, ServiceIdentityRepository, ServiceIdentityCredentialRepository, UserAppAssignmentRepository, ConnectorRepository, ConnectorRunRepository, ConnectorMappingRepository, AuthMetricRepository, SuggestionRepository } from "./contracts.js";
@@ -1816,8 +1816,66 @@ class PrismaAuditRepository {
   }
 
   async list(limit = 200): Promise<AuditEvent[]> {
-    const rows = await this.prisma.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: limit });
+    return this.search({ limit });
+  }
+
+  // Filters run in the database so a search covers the whole audit history,
+  // not just the most recent page.
+  async search(query: AuditSearchQuery): Promise<AuditEvent[]> {
+    const and: Record<string, unknown>[] = [];
+    // PostgreSQL LIKE is case-sensitive; SQLite and MySQL collations already ignore case.
+    const text = (value: string) =>
+      process.env.DATABASE_PROVIDER === "postgresql" ? { contains: value, mode: "insensitive" } : { contains: value };
+
+    const needle = query.search?.trim();
+    if (needle) {
+      and.push({
+        OR: ["id", "type", "actorId", "actorType", "clientId", "ip", "metadataJson"].map((field) => ({ [field]: text(needle) }))
+      });
+    }
+    if (query.type) and.push({ type: query.type });
+    if (query.actorId) and.push({ actorId: query.actorId });
+    if (query.clientId) and.push({ clientId: query.clientId });
+    if (query.from) and.push({ createdAt: { gte: query.from.toISOString() } });
+    if (query.to) and.push({ createdAt: { lte: query.to.toISOString() } });
+    if (query.before) {
+      const createdAt = query.before.createdAt.toISOString();
+      and.push({
+        OR: [{ createdAt: { lt: createdAt } }, { createdAt, id: { lt: query.before.id } }]
+      });
+    }
+
+    const rows = await this.prisma.auditLog.findMany({
+      where: and.length > 0 ? { AND: and } : undefined,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: query.limit ?? 200,
+      skip: query.offset || undefined
+    });
     return rows.map((row: PrismaRow) => mapAuditEvent(row));
+  }
+
+  async stats(from: Date, to: Date): Promise<AuditStats> {
+    const fromIso = from.toISOString();
+    const toIso = to.toISOString();
+    const [typeRows, hourRows] = await Promise.all([
+      this.prisma.$queryRaw<PrismaRow[]>`
+        SELECT type, COUNT(*) AS count FROM audit_events
+        WHERE created_at >= ${fromIso} AND created_at <= ${toIso}
+        GROUP BY type
+      `,
+      this.prisma.$queryRaw<PrismaRow[]>`
+        SELECT SUBSTR(created_at, 1, 13) AS hour, COUNT(*) AS count FROM audit_events
+        WHERE created_at >= ${fromIso} AND created_at <= ${toIso}
+        GROUP BY SUBSTR(created_at, 1, 13)
+      `
+    ]);
+    const byType = asRowArray(typeRows)
+      .map((row) => ({ type: String(row.type), count: Number(row.count) }))
+      .sort((a, b) => b.count - a.count);
+    const byHour = asRowArray(hourRows)
+      .map((row) => ({ hour: String(row.hour), count: Number(row.count) }))
+      .sort((a, b) => a.hour.localeCompare(b.hour));
+    return { from, to, total: byType.reduce((sum, row) => sum + row.count, 0), byType, byHour };
   }
 }
 

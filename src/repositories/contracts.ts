@@ -210,9 +210,34 @@ export interface AccessTokenRepository {
   revokeByTokenId(tokenId: string, revokedAt: Date): Awaitable<void>;
 }
 
+export interface AuditSearchQuery {
+  limit?: number;
+  offset?: number;
+  /** Case-insensitive substring match on id, type, actor, client, ip and metadata. */
+  search?: string;
+  type?: string;
+  actorId?: string;
+  clientId?: string;
+  from?: Date;
+  to?: Date;
+  /** Keyset cursor: return events strictly older than this (createdAt, id) pair. */
+  before?: { createdAt: Date; id: string };
+}
+
+export interface AuditStats {
+  from: Date;
+  to: Date;
+  total: number;
+  byType: Array<{ type: string; count: number }>;
+  /** UTC hour buckets keyed as "YYYY-MM-DDTHH". */
+  byHour: Array<{ hour: string; count: number }>;
+}
+
 export interface AuditRepository {
   log(input: Omit<AuditEvent, "id" | "createdAt">): Awaitable<AuditEvent>;
   list(limit?: number): Awaitable<AuditEvent[]>;
+  search(query: AuditSearchQuery): Awaitable<AuditEvent[]>;
+  stats(from: Date, to: Date): Awaitable<AuditStats>;
 }
 
 export interface FederatedIdentityRepository {
