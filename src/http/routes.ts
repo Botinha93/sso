@@ -1521,12 +1521,13 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     }
 
     const session = await getSession(request);
-    // `select_account` is an OIDC interaction request.  A browser can have a
-    // perfectly valid SSO cookie and still need to deliberately choose whether
-    // to use that account or authenticate as somebody else.  Keep
-    // `prompt=none` non-interactive as required by OIDC.
+    // A browser can have a perfectly valid SSO cookie and still need to
+    // deliberately choose whether to use that account or authenticate as
+    // somebody else.  Make that choice the default for interactive requests;
+    // keep prompt=none non-interactive as required by OIDC.
     const accountSelectionComplete = (request.query as { account_selection?: unknown }).account_selection === "continue";
-    if (session && input.prompt === "select_account" && !accountSelectionComplete) {
+    const requiresAccountChoice = input.prompt === "select_account" || prefersHtmlResponse(request);
+    if (session && requiresAccountChoice && input.prompt !== "none" && input.prompt !== "login" && !accountSelectionComplete) {
       const params = new URLSearchParams(request.query as Record<string, string>);
       params.set("account_selection", "1");
       return reply.redirect(`/login?${params.toString()}`);
