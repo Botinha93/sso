@@ -182,7 +182,7 @@ export default function Login() {
       params.set("prompt", "login");
       window.location.href = `/login?${params.toString()}`;
     } catch {
-      setError("Unable to switch accounts. Please try again.");
+      setError(t('login.accountSwitchFailed'));
       setSwitchingAccount(false);
     }
   };
@@ -319,8 +319,8 @@ export default function Login() {
               ) : (
                 <>
                   <div>
-                    <h2 className="text-base font-semibold text-slate-900">Choose an account</h2>
-                    <p className="mt-1 text-sm text-slate-500">Continue with a saved sign-in or use a different account.</p>
+                    <h2 className="text-base font-semibold text-slate-900">{t('login.chooseAccount')}</h2>
+                    <p className="mt-1 text-sm text-slate-500">{t('login.chooseAccountDescription')}</p>
                   </div>
                   <button
                     type="button"
@@ -331,7 +331,7 @@ export default function Login() {
                     <span className="block text-sm text-slate-500">{cachedAccount!.email}</span>
                   </button>
                   <Button type="button" variant="secondary" className="w-full" disabled={switchingAccount} onClick={() => void useAnotherAccount()}>
-                    {switchingAccount ? "Switching account…" : "Use another account"}
+                    {switchingAccount ? t('login.switchingAccount') : t('login.useAnotherAccount')}
                   </Button>
                 </>
               )}
