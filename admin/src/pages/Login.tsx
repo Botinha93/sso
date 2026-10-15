@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { ShieldCheck, AlertCircle } from "lucide-react";
-import Button from "../components/ui/Button";
-import Input from "../components/ui/Input";
-import Card from "../components/ui/Card";
+import { Alert, Box, Button, Divider, Group, Image, PasswordInput, Skeleton, Stack, Text, TextInput, UnstyledButton } from "@mantine/core";
+import { AuthCard, AuthLayout, ColorSchemeToggle, OtpStep, ProviderButtons } from "@nexus/design";
+import { AlertCircle, ArrowLeft, KeyRound, Lock, ShieldCheck, User, UserRound } from "lucide-react";
 import LanguageSelector from "../components/LanguageSelector";
 import { useI18n } from "../i18n";
 import { extractErrorMessage, resolveLoginCredentialError } from "../lib/errors";
@@ -28,38 +27,38 @@ interface CachedAccount {
   familyName?: string;
 }
 
+function AuthBrand({ logoUrl, name }: { logoUrl?: string; name: string }) {
+  return (
+    <Group gap={10}>
+      <Image src={logoUrl ?? "/logo.svg"} alt="NexusID" w={32} h={32} radius="md" fit="contain" />
+      <Text fw={600} fz="lg">
+        {name}
+      </Text>
+    </Group>
+  );
+}
+
 function LoginLoadingSkeleton() {
   return (
-    <Card className="w-full max-w-md overflow-hidden rounded-2xl" aria-hidden>
-      <div className="space-y-0">
-        <div className="px-8 py-7" style={{ background: 'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)' }}>
-          <div className="flex items-center gap-3">
-            <div className="auth-skeleton h-9 w-9 rounded-xl" />
-            <div className="space-y-2">
-              <div className="auth-skeleton h-4 w-28" />
-              <div className="auth-skeleton h-3 w-40" />
-            </div>
-          </div>
-        </div>
-        <div className="space-y-4 px-8 py-7">
-          <div className="auth-skeleton h-16 w-full" />
-          <div className="space-y-2">
-            <div className="auth-skeleton h-3 w-24" />
-            <div className="auth-skeleton h-9 w-full" />
-          </div>
-          <div className="space-y-2">
-            <div className="auth-skeleton h-3 w-16" />
-            <div className="auth-skeleton h-9 w-full" />
-          </div>
-          <div className="auth-skeleton h-9 w-full" />
-          <div className="space-y-2 pt-1">
-            <div className="auth-skeleton h-3 w-28" />
-            <div className="auth-skeleton h-9 w-full" />
-          </div>
-        </div>
-      </div>
-    </Card>
-  )
+    <AuthCard aria-hidden animate={false}>
+      <Stack gap="md">
+        <Stack gap={8} align="center">
+          <Skeleton h={22} w={160} />
+          <Skeleton h={12} w={240} />
+        </Stack>
+        <Skeleton h={56} radius="md" />
+        <Stack gap={6}>
+          <Skeleton h={12} w={96} />
+          <Skeleton h={36} radius="sm" />
+        </Stack>
+        <Stack gap={6}>
+          <Skeleton h={12} w={64} />
+          <Skeleton h={36} radius="sm" />
+        </Stack>
+        <Skeleton h={36} radius="sm" />
+      </Stack>
+    </AuthCard>
+  );
 }
 
 export default function Login() {
@@ -197,8 +196,9 @@ export default function Login() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // `codeOverride` lets the OTP input submit the code it just completed,
+  // before the `mfaCode` state update has been applied.
+  const submitLogin = async (codeOverride?: string) => {
     setLoading(true);
     setError(null);
     setInfoMessage(null);
@@ -211,7 +211,7 @@ export default function Login() {
       const payload = changePasswordTicket
         ? { changePasswordTicket, newPassword, confirmPassword }
         : mfaTicket
-          ? { mfaTicket, code: mfaCode.trim() }
+          ? { mfaTicket, code: (codeOverride ?? mfaCode).trim() }
           : { email: email.trim(), password };
 
       const res = await fetch(endpoint, {
@@ -259,205 +259,216 @@ export default function Login() {
     }
   };
 
-  return (
-    <div
-      className="min-w-screen min-h-screen flex items-center justify-center p-4 font-sans"
-      style={{
-        background: ui?.backgroundCss ?? 'var(--semantic-bg-page)'
-      }}
-    >
-      {uiLoading ? (
-        <LoginLoadingSkeleton />
-      ) : (
-      <div className="w-full max-w-md">
-        <div className="mb-4 flex justify-end">
-          <LanguageSelector />
-        </div>
-      <Card className="overflow-hidden rounded-2xl">
-        {/* Dark header */}
-        <div className="px-8 py-7" style={{ background: `linear-gradient(180deg, ${ui?.primaryColor ?? '#020617'} 0%, ${ui?.accentColor ?? '#0f172a'} 100%)` }}>
-          <div className="flex items-center gap-3 mb-2">
-            <img src={ui?.logoUrl ?? "/logo.svg"} alt="NexusID" className="h-9 w-9 rounded-xl ring-1 ring-sky-400/30" />
-            <div className="text-xl font-semibold text-slate-50 tracking-tight">{ui?.title ?? t('login.brandFallback')}</div>
-          </div>
-          <p className="text-slate-400 text-sm">
-            {ui?.subtitle ?? t('login.subtitle')}
-          </p>
-        </div>
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void submitLogin();
+  };
 
-        {/* Body */}
-        <div className="px-8 py-7 space-y-5">
-          <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-900">
-            <div className="flex items-start gap-3">
-              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{t('login.securityBanner')}</span>
-            </div>
-          </div>
+  const resetToCredentials = () => {
+    setMfaTicket(null)
+    setChangePasswordTicket(null)
+    setMfaCode('')
+    setNewPassword('')
+    setConfirmPassword('')
+    setInfoMessage(null)
+    setError(null)
+  };
 
-          {infoMessage && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{infoMessage}</span>
-              </div>
-            </div>
-          )}
+  const showAccountPicker = accountSelection && (accountLoading || !!cachedAccount);
 
-          {error && (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{error}</span>
-              </div>
-            </div>
-          )}
+  const backFooter = (
+    <Button variant="subtle" color="gray" size="xs" leftSection={<ArrowLeft size={14} />} onClick={resetToCredentials}>
+      {t('login.back')}
+    </Button>
+  );
 
-          {accountSelection && (accountLoading || cachedAccount) ? (
-            <div className="space-y-4">
-              {accountLoading ? (
-                <div className="auth-skeleton h-24 w-full rounded-xl" aria-label="Loading saved account" />
-              ) : (
-                <>
-                  <div>
-                    <h2 className="text-base font-semibold text-slate-900">{t('login.chooseAccount')}</h2>
-                    <p className="mt-1 text-sm text-slate-500">{t('login.chooseAccountDescription')}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={continueWithCachedAccount}
-                    className="w-full rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
-                  >
-                    <span className="block font-medium text-slate-900">{cachedAccount!.givenName || cachedAccount!.familyName ? `${cachedAccount!.givenName ?? ""} ${cachedAccount!.familyName ?? ""}`.trim() : cachedAccount!.username}</span>
-                    <span className="block text-sm text-slate-500">{cachedAccount!.email}</span>
-                  </button>
-                  <Button type="button" variant="secondary" className="w-full" disabled={switchingAccount} onClick={() => void useAnotherAccount()}>
-                    {switchingAccount ? t('login.switchingAccount') : t('login.useAnotherAccount')}
-                  </Button>
-                </>
-              )}
-              {error && <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div>}
-            </div>
-          ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
-                {changePasswordTicket ? t('login.newPassword') : mfaTicket ? t('login.authenticatorCode') : t('login.usernameOrEmail')}
-              </label>
-              {changePasswordTicket ? (
-                <Input
-                  type="password"
-                  value={newPassword}
-                  onChange={e => setNewPassword(e.target.value)}
-                  required
-                  autoFocus
-                  placeholder="••••••••"
-                />
-              ) : mfaTicket ? (
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={mfaCode}
-                  onChange={e => setMfaCode(e.target.value.replace(/\D+/g, '').slice(0, 8))}
-                  required
-                  autoFocus
-                  className="h-9 w-full rounded-lg border border-slate-200 bg-transparent px-3 text-sm tracking-[0.2em] text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20 focus-visible:ring-sky-500/40"
-                  placeholder={t('login.mfaPlaceholder')}
-                />
-              ) : (
-                <Input
-                  type="text"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  required
-                  autoFocus
-                  placeholder={t('login.emailPlaceholder')}
-                />
-              )}
-            </div>
-            {changePasswordTicket && (
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">{t('login.confirmNewPassword')}</label>
-                <Input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
-                  required
-                  placeholder="••••••••"
-                />
-              </div>
+  const infoAlert = infoMessage ? (
+    <Alert color="yellow" icon={<AlertCircle size={16} />}>
+      {infoMessage}
+    </Alert>
+  ) : null;
+
+  const errorAlert = error ? (
+    <Alert color="red" icon={<AlertCircle size={16} />} role="alert">
+      {error}
+    </Alert>
+  ) : null;
+
+  const renderCard = () => {
+    if (showAccountPicker) {
+      return (
+        <AuthCard
+          icon={<UserRound size={22} />}
+          title={t('login.chooseAccount')}
+          subtitle={t('login.chooseAccountDescription')}
+        >
+          <Stack gap="md">
+            {errorAlert}
+            {accountLoading ? (
+              <Skeleton h={72} radius="md" aria-label="Loading saved account" />
+            ) : (
+              <>
+                <UnstyledButton
+                  type="button"
+                  onClick={continueWithCachedAccount}
+                  className="nx-interactive"
+                  p="md"
+                  w="100%"
+                  style={{ border: '1px solid var(--nx-color-border)', borderRadius: 'var(--mantine-radius-md)' }}
+                >
+                  <Group gap="sm" wrap="nowrap">
+                    <User size={16} aria-hidden />
+                    <Box miw={0}>
+                      <Text fw={500} truncate>
+                        {cachedAccount!.givenName || cachedAccount!.familyName ? `${cachedAccount!.givenName ?? ""} ${cachedAccount!.familyName ?? ""}`.trim() : cachedAccount!.username}
+                      </Text>
+                      <Text size="sm" c="dimmed" truncate>{cachedAccount!.email}</Text>
+                    </Box>
+                  </Group>
+                </UnstyledButton>
+                <Button type="button" variant="default" fullWidth loading={switchingAccount} disabled={switchingAccount} onClick={() => void useAnotherAccount()}>
+                  {switchingAccount ? t('login.switchingAccount') : t('login.useAnotherAccount')}
+                </Button>
+              </>
             )}
-            {!mfaTicket && !changePasswordTicket && (
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">{t('login.password')}</label>
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  required
-                  placeholder="••••••••"
-                />
-              </div>
-            )}
-            <Button
-              type="submit"
-              disabled={loading}
-              variant="primary"
-              className="w-full"
-            >
-              {loading
-                ? t('login.signingIn')
-                : changePasswordTicket
-                  ? t('login.updatePassword')
-                  : mfaTicket
-                    ? t('login.verifyCode')
-                    : t('login.signIn')}
-            </Button>
-            {(mfaTicket || changePasswordTicket) && (
-              <Button
-                type="button"
-                onClick={() => {
-                  setMfaTicket(null)
-                  setChangePasswordTicket(null)
-                  setMfaCode('')
-                  setNewPassword('')
-                  setConfirmPassword('')
-                  setInfoMessage(null)
-                  setError(null)
-                }}
-                variant="secondary"
-                className="w-full"
-              >
-                {t('login.back')}
+          </Stack>
+        </AuthCard>
+      );
+    }
+
+    if (mfaTicket) {
+      return (
+        <AuthCard
+          icon={<ShieldCheck size={22} />}
+          title={t('login.authenticatorCode')}
+          subtitle={ui?.subtitle ?? t('login.subtitle')}
+          footer={backFooter}
+        >
+          <OtpStep
+            value={mfaCode}
+            onChange={(value) => setMfaCode(value.replace(/\D+/g, '').slice(0, 8))}
+            onSubmit={(code) => {
+              if (!loading) void submitLogin(code);
+            }}
+            loading={loading}
+            error={error ?? undefined}
+            labels={{ submit: t('login.verifyCode'), input: t('login.authenticatorCode') }}
+          />
+        </AuthCard>
+      );
+    }
+
+    if (changePasswordTicket) {
+      return (
+        <AuthCard
+          icon={<KeyRound size={22} />}
+          iconColor="yellow"
+          title={t('login.updatePassword')}
+          subtitle={ui?.subtitle ?? t('login.subtitle')}
+          footer={backFooter}
+        >
+          <form onSubmit={handleSubmit}>
+            <Stack gap="md">
+              {infoAlert}
+              {errorAlert}
+              <PasswordInput
+                label={t('login.newPassword')}
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                required
+                autoFocus
+                autoComplete="new-password"
+                placeholder="••••••••"
+                leftSection={<Lock size={16} />}
+              />
+              <PasswordInput
+                label={t('login.confirmNewPassword')}
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                required
+                autoComplete="new-password"
+                placeholder="••••••••"
+                leftSection={<Lock size={16} />}
+              />
+              <Button type="submit" fullWidth mt="xs" loading={loading} disabled={loading}>
+                {loading ? t('login.signingIn') : t('login.updatePassword')}
               </Button>
-            )}
+            </Stack>
           </form>
-          )}
+        </AuthCard>
+      );
+    }
 
+    return (
+      <AuthCard title={t('login.signIn')} subtitle={ui?.subtitle ?? t('login.subtitle')}>
+        <Stack gap="md">
+          <Alert color="green" variant="light" icon={<ShieldCheck size={16} />}>
+            {t('login.securityBanner')}
+          </Alert>
+          {infoAlert}
+          {errorAlert}
+          <form onSubmit={handleSubmit}>
+            <Stack gap="sm">
+              <TextInput
+                label={t('login.usernameOrEmail')}
+                type="text"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
+                autoFocus
+                autoComplete="username"
+                placeholder={t('login.emailPlaceholder')}
+                leftSection={<User size={16} />}
+              />
+              <PasswordInput
+                label={t('login.password')}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+                placeholder="••••••••"
+                leftSection={<Lock size={16} />}
+              />
+              <Button type="submit" fullWidth mt="xs" loading={loading} disabled={loading}>
+                {loading ? t('login.signingIn') : t('login.signIn')}
+              </Button>
+            </Stack>
+          </form>
           {!accountSelection && (providersLoading ? (
-            <div className="space-y-2 pt-1" aria-hidden>
-              <div className="auth-skeleton h-3 w-28" />
-              <div className="auth-skeleton h-9 w-full" />
-            </div>
+            <Stack gap="xs" aria-hidden>
+              <Skeleton h={12} w={112} mx="auto" />
+              <Skeleton h={36} radius="sm" />
+            </Stack>
           ) : providers.length > 0 && (
-            <div className="space-y-2 pt-1">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{t('login.orContinueWith')}</p>
-              <div className="space-y-2">
-                {providers.map((provider) => (
-                  <a
-                    key={provider.id}
-                    href={`/auth/federation/${provider.id}/start?redirect=${encodeURIComponent(buildRedirectAfterLogin())}`}
-                    className="h-9 w-full rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 inline-flex items-center justify-center focus-visible:ring-sky-500/40"
-                  >
-                    {provider.label}
-                  </a>
-                ))}
-              </div>
-            </div>
+            <Box>
+              <Divider label={t('login.orContinueWith')} labelPosition="center" mb="sm" />
+              <ProviderButtons
+                providers={providers.map((provider) => ({
+                  id: provider.id,
+                  name: provider.label,
+                  href: `/auth/federation/${provider.id}/start?redirect=${encodeURIComponent(buildRedirectAfterLogin())}`
+                }))}
+                getLabel={(name) => name}
+              />
+            </Box>
           ))}
-        </div>
-      </Card>
-      </div>
-      )}
-    </div>
+        </Stack>
+      </AuthCard>
+    );
+  };
+
+  return (
+    <AuthLayout
+      style={ui?.backgroundCss ? { background: ui.backgroundCss } : undefined}
+      brand={<AuthBrand logoUrl={ui?.logoUrl} name={ui?.title ?? t('login.brandFallback')} />}
+      topRight={
+        <>
+          <LanguageSelector />
+          <ColorSchemeToggle size="md" variant="default" />
+        </>
+      }
+    >
+      {uiLoading ? <LoginLoadingSkeleton /> : renderCard()}
+    </AuthLayout>
   );
 }

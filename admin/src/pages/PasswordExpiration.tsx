@@ -1,9 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AlertCircle, KeyRound, ShieldCheck } from "lucide-react";
-import Button from "../components/ui/Button";
-import Card from "../components/ui/Card";
-import Input from "../components/ui/Input";
+import { Alert, Button, Group, Image, PasswordInput, Stack, Text } from "@mantine/core";
+import { AuthCard, AuthLayout, ColorSchemeToggle } from "@nexus/design";
+import { AlertCircle, ArrowLeft, KeyRound, ShieldCheck } from "lucide-react";
 import LanguageSelector from "../components/LanguageSelector";
 import { useAdminChangePassword } from "../hooks/useApi";
 import { useI18n, formatPasswordExpirationWarning } from "../i18n";
@@ -23,6 +22,17 @@ interface PasswordExpirationStatus {
   daysRemaining?: number;
   expiresAt?: string;
   message?: string;
+}
+
+function AuthBrand({ logoUrl }: { logoUrl?: string }) {
+  return (
+    <Group gap={10}>
+      <Image src={logoUrl ?? "/logo.svg"} alt="NexusID" w={32} h={32} radius="md" fit="contain" />
+      <Text fw={600} fz="lg">
+        NexusID
+      </Text>
+    </Group>
+  );
 }
 
 export default function PasswordExpiration() {
@@ -113,109 +123,95 @@ export default function PasswordExpiration() {
       : t("passwordExpiration.defaultWarning");
 
   return (
-    <div
-      className="min-w-screen min-h-screen flex items-center justify-center p-4 font-sans"
-      style={{
-        background: ui?.backgroundCss ?? "var(--semantic-bg-page)"
-      }}
-    >
-      <div className="w-full max-w-md">
-        <div className="mb-4 flex justify-end">
+    <AuthLayout
+      style={ui?.backgroundCss ? { background: ui.backgroundCss } : undefined}
+      brand={<AuthBrand logoUrl={ui?.logoUrl} />}
+      topRight={
+        <>
           <LanguageSelector />
-        </div>
-        <Card className="overflow-hidden rounded-2xl">
-          <div className="px-8 py-7" style={{ background: `linear-gradient(180deg, ${ui?.primaryColor ?? "#020617"} 0%, ${ui?.accentColor ?? "#0f172a"} 100%)` }}>
-            <div className="flex items-center gap-3 mb-2">
-              <img src={ui?.logoUrl ?? "/logo.svg"} alt="NexusID" className="h-9 w-9 rounded-xl ring-1 ring-sky-400/30" />
-              <div className="text-xl font-semibold text-slate-50 tracking-tight">{ui?.title ?? title}</div>
-            </div>
-            <p className="text-slate-400 text-sm">{ui?.subtitle ?? t("passwordExpiration.subtitle")}</p>
-          </div>
+          <ColorSchemeToggle size="md" variant="default" />
+        </>
+      }
+    >
+      <AuthCard
+        icon={expired ? <AlertCircle size={22} /> : <KeyRound size={22} />}
+        iconColor={expired ? "red" : "yellow"}
+        title={ui?.title ?? title}
+        subtitle={ui?.subtitle ?? t("passwordExpiration.subtitle")}
+        footer={showChangeForm && !expired ? (
+          <Button variant="subtle" color="gray" size="xs" leftSection={<ArrowLeft size={14} />} onClick={() => setShowChangeForm(false)}>
+            {t("login.back")}
+          </Button>
+        ) : undefined}
+      >
+        <Stack gap="md">
+          <Alert
+            color={expired ? "red" : "yellow"}
+            icon={expired ? <AlertCircle size={16} /> : <KeyRound size={16} />}
+          >
+            {message}
+          </Alert>
 
-          <div className="px-8 py-7 space-y-5">
-            <div className={`rounded-xl border p-4 text-sm ${expired ? "border-rose-200 bg-rose-50 text-rose-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
-              <div className="flex items-start gap-3">
-                {expired ? <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> : <KeyRound className="mt-0.5 h-4 w-4 shrink-0" />}
-                <span>{message}</span>
-              </div>
-            </div>
+          {expired ? (
+            <Text size="sm" c="dimmed">{t("passwordExpiration.required")}</Text>
+          ) : null}
 
-            {expired ? (
-              <p className="text-sm text-slate-600">{t("passwordExpiration.required")}</p>
-            ) : null}
+          {error ? (
+            <Alert color="red" icon={<AlertCircle size={16} />} role="alert">
+              {error}
+            </Alert>
+          ) : null}
 
-            {error ? (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>{error}</span>
-                </div>
-              </div>
-            ) : null}
-
-            {showChangeForm ? (
-              <form onSubmit={handleChangePassword} className="space-y-4">
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    {t("password.current")}
-                  </label>
-                  <Input
-                    type="password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    autoComplete="current-password"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    {t("password.new")}
-                  </label>
-                  <Input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    autoComplete="new-password"
-                    minLength={8}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    {t("password.confirm")}
-                  </label>
-                  <Input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    autoComplete="new-password"
-                    minLength={8}
-                    required
-                  />
-                </div>
-                <Button type="submit" variant="primary" className="w-full" disabled={changePassword.isPending}>
-                  <ShieldCheck size={15} />
+          {showChangeForm ? (
+            <form onSubmit={handleChangePassword}>
+              <Stack gap="sm">
+                <PasswordInput
+                  label={t("password.current")}
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+                <PasswordInput
+                  label={t("password.new")}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                />
+                <PasswordInput
+                  label={t("password.confirm")}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                />
+                <Button
+                  type="submit"
+                  fullWidth
+                  mt="xs"
+                  leftSection={<ShieldCheck size={16} />}
+                  disabled={changePassword.isPending}
+                  loading={changePassword.isPending}
+                >
                   {changePassword.isPending ? t("password.updating") : t("password.update")}
                 </Button>
-                {!expired ? (
-                  <Button type="button" variant="secondary" className="w-full" onClick={() => setShowChangeForm(false)}>
-                    {t("login.back")}
-                  </Button>
-                ) : null}
-              </form>
-            ) : (
-              <div className="flex flex-col gap-3">
-                <Button variant="primary" className="w-full" onClick={() => setShowChangeForm(true)}>
-                  {t("password.change")}
-                </Button>
-                <Button variant="secondary" className="w-full" onClick={continueToAuthorize}>
-                  {t("passwordExpiration.continueToApp")}
-                </Button>
-              </div>
-            )}
-          </div>
-        </Card>
-      </div>
-    </div>
+              </Stack>
+            </form>
+          ) : (
+            <Stack gap="sm">
+              <Button fullWidth onClick={() => setShowChangeForm(true)}>
+                {t("password.change")}
+              </Button>
+              <Button variant="default" fullWidth onClick={continueToAuthorize}>
+                {t("passwordExpiration.continueToApp")}
+              </Button>
+            </Stack>
+          )}
+        </Stack>
+      </AuthCard>
+    </AuthLayout>
   );
 }

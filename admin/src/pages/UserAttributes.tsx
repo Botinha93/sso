@@ -1,18 +1,27 @@
-import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
-import Select from '../components/ui/Select'
-import { Pencil, Plus, RefreshCw, ToggleLeft, ToggleRight, Trash2 } from 'lucide-react'
-import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
+import { Pencil, Plus, ToggleLeft, ToggleRight, Trash2, UserCog } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import ListSearch from '../components/ListSearch'
+import {
+  ActionIcon,
+  Alert,
+  Badge,
+  Button,
+  Checkbox,
+  Group,
+  NativeSelect,
+  SimpleGrid,
+  Stack,
+  Switch,
+  Table,
+  Text,
+  TextInput,
+  Tooltip,
+} from '@mantine/core'
+import { PageHeader, RefreshButton, SearchInput, SectionCard, TableSkeleton } from '@nexus/design'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import ConfirmDialog from '../components/ConfirmDialog'
+import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
-import StatusBadge from '../components/ui/StatusBadge'
-import Button from '../components/ui/Button'
-import Input from '../components/ui/Input'
-import Card from '../components/ui/Card'
 import BulkActionsBar, { SelectionCheckbox } from '../components/BulkActionsBar'
-import React from 'react';
 import {
   useCreateUserAttribute,
   useDeleteUserAttribute,
@@ -36,8 +45,6 @@ interface UserAttribute {
 type ToggleField = 'enabled' | 'showOnPortal' | 'userEditable'
 
 const TYPE_OPTIONS: AttributeType[] = ['text', 'number', 'boolean', 'date', 'json']
-
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
 
 const defaultForm = {
   key: '',
@@ -202,169 +209,172 @@ const UserAttributes = () => {
   }
 
   return (
-    <div>
+    <Stack gap="lg">
       <PageHeader
         eyebrow="User Profile Schema"
         title="User Attributes"
-        action={
-          <Button variant="primary" onClick={openCreate}>
-            <Plus size={14} />
+        actions={
+          <Button onClick={openCreate} leftSection={<Plus size={16} />}>
             New Attribute
           </Button>
         }
       />
 
-      <div className="mb-4">
-        <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search attribute definitions…" />
-      </div>
+      <SearchInput maw={360} value={searchInput} onChange={setSearchInput} placeholder="Search attribute definitions…" />
 
-      <Table>
-        <TableHeaderRow>
-          <div className="flex items-center gap-3">
-            <SelectionCheckbox
-              checked={allSelected}
-              indeterminate={someSelected}
-              onChange={toggleSelectAll}
-              disabled={attributes.length === 0}
-              title={allSelected ? 'Deselect all' : 'Select all visible'}
-            />
-            <h4 className="text-sm font-semibold text-foreground">Attribute Definitions</h4>
-          </div>
-          <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
-            <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
-            Refresh
-          </Button>
-        </TableHeaderRow>
-
+      <SectionCard
+        flush
+        title="Attribute Definitions"
+        description="Attribute values are assigned from the Users and Groups pages."
+        actions={
+          <RefreshButton size="xs" onRefresh={() => refetch()} loading={isFetching} lastUpdated={null} />
+        }
+      >
         <BulkActionsBar
           count={selectedIds.length}
           noun="attribute"
           onClear={clearSelection}
         >
-          <Button variant="secondary" size="sm" disabled={bulkPending} onClick={() => void runBulkToggle('enabled', true)}>
-            <ToggleRight size={12} />
+          <Button variant="default" size="xs" disabled={bulkPending} leftSection={<ToggleRight size={14} />} onClick={() => void runBulkToggle('enabled', true)}>
             Global On
           </Button>
-          <Button variant="secondary" size="sm" disabled={bulkPending} onClick={() => void runBulkToggle('enabled', false)}>
-            <ToggleLeft size={12} />
+          <Button variant="default" size="xs" disabled={bulkPending} leftSection={<ToggleLeft size={14} />} onClick={() => void runBulkToggle('enabled', false)}>
             Global Off
           </Button>
-          <Button variant="secondary" size="sm" disabled={bulkPending} onClick={() => void runBulkToggle('showOnPortal', true)}>
-            <ToggleRight size={12} />
+          <Button variant="default" size="xs" disabled={bulkPending} leftSection={<ToggleRight size={14} />} onClick={() => void runBulkToggle('showOnPortal', true)}>
             Portal Visible
           </Button>
-          <Button variant="secondary" size="sm" disabled={bulkPending} onClick={() => void runBulkToggle('showOnPortal', false)}>
-            <ToggleLeft size={12} />
+          <Button variant="default" size="xs" disabled={bulkPending} leftSection={<ToggleLeft size={14} />} onClick={() => void runBulkToggle('showOnPortal', false)}>
             Portal Hidden
           </Button>
-          <Button variant="secondary" size="sm" disabled={bulkPending} onClick={() => void runBulkToggle('userEditable', true)}>
-            <ToggleRight size={12} />
+          <Button variant="default" size="xs" disabled={bulkPending} leftSection={<ToggleRight size={14} />} onClick={() => void runBulkToggle('userEditable', true)}>
             User Editable
           </Button>
-          <Button variant="secondary" size="sm" disabled={bulkPending} onClick={() => void runBulkToggle('userEditable', false)}>
-            <ToggleLeft size={12} />
+          <Button variant="default" size="xs" disabled={bulkPending} leftSection={<ToggleLeft size={14} />} onClick={() => void runBulkToggle('userEditable', false)}>
             Read Only
           </Button>
         </BulkActionsBar>
 
         {bulkError && (
-          <div className="px-5 py-2.5 text-xs text-rose-700 bg-rose-50 border-b border-rose-100">
-            {bulkError}
-          </div>
+          <Alert color="red" variant="light" radius={0} py="xs">
+            <Text size="xs">{bulkError}</Text>
+          </Alert>
         )}
 
         {isLoading ? (
           <TableSkeleton rows={4} />
         ) : attributes.length === 0 ? (
           <EmptyState
+            icon={UserCog}
             title="No custom user attributes defined"
             description="Define custom profile attributes to extend user data."
           />
         ) : (
-          <TableBody>
-            {attributes.map((attribute) => {
-              const isSelected = selectedIds.includes(attribute.id)
-              return (
-                <TableRow
-                  key={attribute.id}
-                  className={`px-5 py-4 hover:bg-muted/50 transition-colors ${isSelected ? 'bg-sky-50/40' : ''}`}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <SelectionCheckbox
-                        className="mt-1"
-                        checked={isSelected}
-                        onChange={() => toggleSelect(attribute.id)}
-                        aria-label={`Select attribute ${attribute.name}`}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <h5 className="text-sm font-medium text-foreground">{attribute.name}</h5>
-                          <StatusBadge tone="neutral" mono>{attribute.key}</StatusBadge>
-                          <StatusBadge tone="accent" mono>{attribute.type}</StatusBadge>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => toggleField(attribute, 'enabled')}
+          <Table.ScrollContainer minWidth={820}>
+            <Table highlightOnHover verticalSpacing="sm">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th w={40}>
+                    <SelectionCheckbox
+                      checked={allSelected}
+                      indeterminate={someSelected}
+                      onChange={toggleSelectAll}
+                      disabled={attributes.length === 0}
+                      title={allSelected ? 'Deselect all' : 'Select all visible'}
+                      aria-label={allSelected ? 'Deselect all' : 'Select all visible'}
+                    />
+                  </Table.Th>
+                  <Table.Th>Attribute</Table.Th>
+                  <Table.Th>Settings</Table.Th>
+                  <Table.Th />
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {attributes.map((attribute) => {
+                  const isSelected = selectedIds.includes(attribute.id)
+                  return (
+                    <Table.Tr
+                      key={attribute.id}
+                      bg={isSelected ? 'var(--nx-color-accent-soft)' : undefined}
+                    >
+                      <Table.Td style={{ verticalAlign: 'top' }}>
+                        <SelectionCheckbox
+                          mt={2}
+                          checked={isSelected}
+                          onChange={() => toggleSelect(attribute.id)}
+                          aria-label={`Select attribute ${attribute.name}`}
+                        />
+                      </Table.Td>
+                      <Table.Td style={{ verticalAlign: 'top' }}>
+                        <Group gap="xs" wrap="wrap" mb={4}>
+                          <Text size="sm" fw={500}>{attribute.name}</Text>
+                          <Badge color="gray" variant="light" size="sm" ff="monospace" tt="none">{attribute.key}</Badge>
+                          <Badge color="blue" variant="light" size="sm" ff="monospace" tt="none">{attribute.type}</Badge>
+                        </Group>
+                        <Text size="xs" c="dimmed">{attribute.description}</Text>
+                      </Table.Td>
+                      <Table.Td style={{ verticalAlign: 'top' }}>
+                        <Stack gap={6}>
+                          <Switch
+                            size="xs"
+                            checked={attribute.enabled}
+                            onChange={() => toggleField(attribute, 'enabled')}
                             title="Toggle globally for all users"
-                          >
-                            {attribute.enabled ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
-                            {attribute.enabled ? 'Global On' : 'Global Off'}
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => toggleField(attribute, 'showOnPortal')}
+                            label={attribute.enabled ? 'Global On' : 'Global Off'}
+                          />
+                          <Switch
+                            size="xs"
+                            checked={attribute.showOnPortal}
+                            onChange={() => toggleField(attribute, 'showOnPortal')}
                             title="Toggle visibility on the user portal"
-                          >
-                            {attribute.showOnPortal ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
-                            {attribute.showOnPortal ? 'Portal Visible' : 'Portal Hidden'}
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => toggleField(attribute, 'userEditable')}
+                            label={attribute.showOnPortal ? 'Portal Visible' : 'Portal Hidden'}
+                          />
+                          <Switch
+                            size="xs"
+                            checked={attribute.userEditable}
+                            onChange={() => toggleField(attribute, 'userEditable')}
                             title="Toggle whether portal users can edit this value"
-                          >
-                            {attribute.userEditable ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
-                            {attribute.userEditable ? 'User Editable' : 'Read Only'}
-                          </Button>
-                        </div>
-                        <p className="text-xs text-muted-foreground">{attribute.description}</p>
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          Attribute values are assigned from the Users and Groups pages.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openEdit(attribute)}
-                        title="Edit attribute"
-                      >
-                        <Pencil size={14} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="hover:bg-rose-50 hover:text-rose-600"
-                        onClick={() => onDelete(attribute)}
-                        disabled={deleteAttribute.isPending}
-                        title="Delete attribute"
-                      >
-                        <Trash2 size={14} />
-                      </Button>
-                    </div>
-                  </div>
-                </TableRow>
-              )
-            })}
-          </TableBody>
+                            label={attribute.userEditable ? 'User Editable' : 'Read Only'}
+                          />
+                        </Stack>
+                      </Table.Td>
+                      <Table.Td style={{ verticalAlign: 'top' }}>
+                        <Group gap={4} justify="flex-end" wrap="nowrap">
+                          <Tooltip label="Edit attribute">
+                            <ActionIcon
+                              variant="subtle"
+                              color="gray"
+                              onClick={() => openEdit(attribute)}
+                              title="Edit attribute"
+                              aria-label="Edit attribute"
+                            >
+                              <Pencil size={14} />
+                            </ActionIcon>
+                          </Tooltip>
+                          <Tooltip label="Delete attribute">
+                            <ActionIcon
+                              variant="subtle"
+                              color="red"
+                              onClick={() => onDelete(attribute)}
+                              disabled={deleteAttribute.isPending}
+                              title="Delete attribute"
+                              aria-label="Delete attribute"
+                            >
+                              <Trash2 size={14} />
+                            </ActionIcon>
+                          </Tooltip>
+                        </Group>
+                      </Table.Td>
+                    </Table.Tr>
+                  )
+                })}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
         )}
-      </Table>
+      </SectionCard>
 
-      <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title="Create User Attribute">
+      <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title="Create User Attribute" size="md">
         <AttributeForm
           form={form}
           setForm={setForm}
@@ -374,7 +384,7 @@ const UserAttributes = () => {
         />
       </Modal>
 
-      <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title="Edit User Attribute">
+      <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title="Edit User Attribute" size="md">
         <AttributeForm
           form={form}
           setForm={setForm}
@@ -389,11 +399,12 @@ const UserAttributes = () => {
         title="Delete User Attribute"
         message={`Delete attribute "${attributeToDelete?.name ?? ''}"?`}
         confirmLabel="Delete Attribute"
+        variant="danger"
         pending={deleteAttribute.isPending}
         onConfirm={confirmDeleteAttribute}
         onCancel={() => setAttributeToDelete(null)}
       />
-    </div>
+    </Stack>
   )
 }
 
@@ -411,47 +422,35 @@ function AttributeForm({
   pending: boolean
 }) {
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div>
-          <label className={labelCls}>Attribute Key</label>
-          <Input className="font-mono" value={form.key} onChange={(e) => setForm((prev) => ({ ...prev, key: e.target.value }))} placeholder="department" />
-        </div>
-        <div>
-          <label className={labelCls}>Type</label>
-          <Select value={form.type} onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value as AttributeType }))}>
-            {TYPE_OPTIONS.map((type) => (
-              <option key={type} value={type}>{type}</option>
-            ))}
-          </Select>
-        </div>
-      </div>
-      <div>
-        <label className={labelCls}>Display Name</label>
-        <Input value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="Department" />
-      </div>
-      <div>
-        <label className={labelCls}>Description</label>
-        <Input value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} placeholder="Business unit for user segmentation" />
-      </div>
-      <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-        <input type="checkbox" className="rounded border-border" checked={form.enabled} onChange={(e) => setForm((prev) => ({ ...prev, enabled: e.target.checked }))} />
-        Enabled for all users
-      </label>
-      <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-        <input type="checkbox" className="rounded border-border" checked={form.showOnPortal} onChange={(e) => setForm((prev) => ({ ...prev, showOnPortal: e.target.checked }))} />
-        Show on portal
-      </label>
-      <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-        <input type="checkbox" className="rounded border-border" checked={form.userEditable} onChange={(e) => setForm((prev) => ({ ...prev, userEditable: e.target.checked }))} />
-        Editable by users
-      </label>
-      <div className="flex justify-end">
-        <Button variant="primary" onClick={onSubmit} disabled={pending || !form.key || !form.name || !form.description}>
+    <Stack gap="md">
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+        <TextInput
+          label="Attribute Key"
+          styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
+          value={form.key}
+          onChange={(e) => setForm((prev) => ({ ...prev, key: e.target.value }))}
+          placeholder="department"
+        />
+        <NativeSelect
+          label="Type"
+          value={form.type}
+          onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value as AttributeType }))}
+          data={TYPE_OPTIONS}
+        />
+      </SimpleGrid>
+      <TextInput label="Display Name" value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="Department" />
+      <TextInput label="Description" value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} placeholder="Business unit for user segmentation" />
+      <Stack gap="xs">
+        <Checkbox label="Enabled for all users" checked={form.enabled} onChange={(e) => setForm((prev) => ({ ...prev, enabled: e.currentTarget.checked }))} />
+        <Checkbox label="Show on portal" checked={form.showOnPortal} onChange={(e) => setForm((prev) => ({ ...prev, showOnPortal: e.currentTarget.checked }))} />
+        <Checkbox label="Editable by users" checked={form.userEditable} onChange={(e) => setForm((prev) => ({ ...prev, userEditable: e.currentTarget.checked }))} />
+      </Stack>
+      <Group justify="flex-end">
+        <Button onClick={onSubmit} loading={pending} disabled={!form.key || !form.name || !form.description}>
           {submitLabel}
         </Button>
-      </div>
-    </div>
+      </Group>
+    </Stack>
   )
 }
 

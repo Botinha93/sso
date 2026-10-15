@@ -1,8 +1,8 @@
-import Card from '../components/ui/Card'
 import React, { useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { Alert, Button, Group, Image, Paper, Stack, Text } from "@mantine/core";
+import { AuthCard, AuthLayout, ColorSchemeToggle } from "@nexus/design";
 import { ShieldCheck, AlertCircle, KeyRound } from "lucide-react";
-import Button from '../components/ui/Button'
 import LanguageSelector from '../components/LanguageSelector'
 import { consentScopeLabel, useI18n } from '../i18n'
 
@@ -22,6 +22,17 @@ async function fetchCsrfToken(): Promise<string> {
   }
   const data = await res.json() as { csrf_token: string };
   return data.csrf_token;
+}
+
+function AuthBrand({ logoUrl }: { logoUrl?: string }) {
+  return (
+    <Group gap={10}>
+      <Image src={logoUrl ?? "/logo.svg"} alt="NexusID" w={32} h={32} radius="md" fit="contain" />
+      <Text fw={600} fz="lg">
+        NexusID
+      </Text>
+    </Group>
+  );
 }
 
 export default function Consent() {
@@ -107,81 +118,61 @@ export default function Consent() {
   };
 
   return (
-    <div
-      className="min-w-screen min-h-screen flex items-center justify-center p-4 font-sans"
-      style={{
-        background: ui?.backgroundCss ?? 'radial-gradient(circle at top left, rgba(14,165,233,0.14), transparent 28%),linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)'
-      }}
-    >
-      <div className="w-full max-w-md">
-        <div className="mb-4 flex justify-end">
+    <AuthLayout
+      style={ui?.backgroundCss ? { background: ui.backgroundCss } : undefined}
+      brand={<AuthBrand logoUrl={ui?.logoUrl} />}
+      topRight={
+        <>
           <LanguageSelector />
-        </div>
-        <Card className="overflow-hidden">
-          <div className="px-8 py-7" style={{ background: `linear-gradient(180deg, ${ui?.primaryColor ?? '#020617'} 0%, ${ui?.accentColor ?? '#0f172a'} 100%)` }}>
-            <div className="flex items-center gap-3 mb-2">
-              {ui?.logoUrl ? (
-                <img src={ui.logoUrl} alt="Logo" className="h-9 w-9 rounded-xl ring-1 ring-sky-400/30" />
-              ) : (
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/20 ring-1 ring-sky-400/30">
-                  <span className="text-xs font-extrabold tracking-widest text-sky-300">NS</span>
-                </div>
-              )}
-              <div className="text-xl font-semibold text-slate-50 tracking-tight">{ui?.title ?? t('consent.title')}</div>
-            </div>
-            <p className="text-muted-foreground text-sm">
-              {ui?.subtitle ?? t('consent.subtitle', { clientId })}
-            </p>
-          </div>
-
-          <div className="px-8 py-7 space-y-5">
-            <div className="rounded-xl border border-border bg-muted/50 p-4 space-y-2">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                <KeyRound size={12} />
+          <ColorSchemeToggle size="md" variant="default" />
+        </>
+      }
+    >
+      <AuthCard
+        icon={<KeyRound size={22} />}
+        title={ui?.title ?? t('consent.title')}
+        subtitle={ui?.subtitle ?? t('consent.subtitle', { clientId })}
+      >
+        <Stack gap="md">
+          <Paper withBorder radius="md" p="md" bg="var(--nx-color-surface-sunken)">
+            <Group gap={6} mb="sm">
+              <KeyRound size={14} aria-hidden />
+              <Text size="xs" fw={600} tt="uppercase" c="dimmed">
                 {t('consent.requestedPermissions')}
-              </div>
+              </Text>
+            </Group>
+            <Stack gap={8}>
               {scopes.map(s => (
-                <div key={s} className="flex items-start gap-2 text-sm text-foreground">
-                  <ShieldCheck size={14} className="mt-0.5 shrink-0 text-emerald-500" />
-                  <span>{consentScopeLabel(t, s)}</span>
-                </div>
+                <Group key={s} gap="xs" wrap="nowrap" align="flex-start">
+                  <Text c="green" lh={1} mt={2} component="span">
+                    <ShieldCheck size={14} aria-hidden />
+                  </Text>
+                  <Text size="sm">{consentScopeLabel(t, s)}</Text>
+                </Group>
               ))}
-            </div>
+            </Stack>
+          </Paper>
 
-            {error && (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>{error}</span>
-                </div>
-              </div>
-            )}
+          {error && (
+            <Alert color="red" icon={<AlertCircle size={16} />} role="alert">
+              {error}
+            </Alert>
+          )}
 
-            <div className="flex gap-3">
-              <Button
-                variant="primary"
-                className="flex-1"
-                onClick={handleApprove}
-                disabled={loading}
-              >
-                {loading ? t('consent.approving') : t('consent.allowAccess')}
-              </Button>
-              <Button
-                variant="secondary"
-                className="flex-1"
-                onClick={handleDeny}
-                disabled={loading}
-              >
-                {t('consent.deny')}
-              </Button>
-            </div>
+          <Group grow gap="sm">
+            <Button onClick={handleApprove} disabled={loading} loading={loading}>
+              {loading ? t('consent.approving') : t('consent.allowAccess')}
+            </Button>
+            <Button variant="default" onClick={handleDeny} disabled={loading}>
+              {t('consent.deny')}
+            </Button>
+          </Group>
 
-            <p className="text-center text-xs text-muted-foreground">
-              {t('consent.redirectNotice', { redirectUri })}
-            </p>
-          </div>
-        </Card>
-      </div>
-    </div>
+          <Text size="xs" c="dimmed" ta="center" style={{ overflowWrap: 'anywhere' }}>
+            {t('consent.redirectNotice', { redirectUri })}
+          </Text>
+        </Stack>
+      </AuthCard>
+    </AuthLayout>
   );
 }

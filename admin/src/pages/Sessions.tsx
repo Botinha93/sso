@@ -1,13 +1,11 @@
-import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
-import { RefreshCw, ShieldOff, MonitorSmartphone } from 'lucide-react'
-import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
+import { ShieldOff, MonitorSmartphone } from 'lucide-react'
 import { useState } from 'react'
+import { ActionIcon, Group, Stack, Table, Text, Tooltip } from '@mantine/core'
+import { PageHeader, RefreshButton, SearchInput, SectionCard, StatusBadge, TableSkeleton } from '@nexus/design'
 import ConfirmDialog from '../components/ConfirmDialog'
-import Button from '../components/ui/Button'
-import ListSearch from '../components/ListSearch'
+import EmptyState from '../components/EmptyState'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { useSessions, useRevokeSession } from '../hooks/useApi'
-import React from 'react';
 
 interface Session {
   id: string
@@ -35,79 +33,102 @@ const Sessions = () => {
   }
 
   return (
-    <div>
+    <>
       <PageHeader eyebrow="Session Management" title="Active Sessions" />
 
-      <div className="mb-4">
-        <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search sessions by user or client…" />
-      </div>
-
-      <Table>
-        <TableHeaderRow>
-          <h4 className="text-sm font-semibold text-foreground">All Sessions</h4>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => refetch()}
-            disabled={isFetching}
-          >
-            <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
-            Refresh
-          </Button>
-        </TableHeaderRow>
-
+      <SectionCard
+        flush
+        title="All Sessions"
+        actions={
+          <Group gap="sm" wrap="nowrap">
+            <SearchInput
+              value={searchInput}
+              onChange={setSearchInput}
+              placeholder="Search sessions by user or client…"
+              w={{ base: '100%', xs: 300 }}
+              maw={360}
+            />
+            <RefreshButton variant="icon" loading={isFetching} onRefresh={() => refetch()} lastUpdated={null} />
+          </Group>
+        }
+      >
         {isLoading ? (
-          <TableSkeleton rows={5} />
+          <TableSkeleton rows={5} columns={['mono', 'mono', 'mono', 'text', 'text', 'pill', 'action']} p="md" />
         ) : !sessions?.length ? (
           <EmptyState
+            icon={MonitorSmartphone}
             title="No sessions found"
             description="Active sessions will appear here once users authenticate."
           />
         ) : (
-          <TableBody>
-            {sessions.map((session: Session) => {
-              const isRevoked = !!session.revokedAt
-              const isExpired = new Date(session.expiresAt) < new Date()
-              return (
-                <TableRow key={session.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-muted/50 transition-colors">
-                  <div className="space-y-0.5">
-                    <p className="text-sm font-medium font-mono text-foreground">{session.id.slice(0, 16)}…</p>
-                    <p className="text-xs text-muted-foreground">
-                      User: <span className="font-mono">{session.userId.slice(0, 8)}…</span>
-                      {' · '}Client: <span className="font-mono">{session.clientId}</span>
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Created {new Date(session.createdAt).toLocaleString()}
-                      {' · '} Expires {new Date(session.expiresAt).toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {isRevoked ? (
-                      <StatusBadge tone="danger">Revoked</StatusBadge>
-                    ) : isExpired ? (
-                      <StatusBadge tone="neutral">Expired</StatusBadge>
-                    ) : (
-                      <StatusBadge tone="success">Active</StatusBadge>
-                    )}
-                    {!isRevoked && !isExpired && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="hover:bg-rose-50 hover:text-rose-600"
-                        onClick={() => handleRevoke(session.id)}
-                        disabled={revokeSession.isPending}
-                        title="Revoke session"
-                      >
-                        <ShieldOff size={14} />
-                      </Button>
-                    )}
-                  </div>
-                </TableRow>
-              )
-            })}
-          </TableBody>
+          <Table.ScrollContainer minWidth={820}>
+            <Table highlightOnHover verticalSpacing="sm">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Session</Table.Th>
+                  <Table.Th>User</Table.Th>
+                  <Table.Th>Client</Table.Th>
+                  <Table.Th>Created</Table.Th>
+                  <Table.Th>Expires</Table.Th>
+                  <Table.Th>Status</Table.Th>
+                  <Table.Th w={56} />
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {sessions.map((session: Session) => {
+                  const isRevoked = !!session.revokedAt
+                  const isExpired = new Date(session.expiresAt) < new Date()
+                  return (
+                    <Table.Tr key={session.id}>
+                      <Table.Td>
+                        <Text size="sm" fw={500} ff="monospace">{session.id.slice(0, 16)}…</Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="xs" ff="monospace" c="dimmed">{session.userId.slice(0, 8)}…</Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="xs" ff="monospace">{session.clientId}</Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="xs" c="dimmed">{new Date(session.createdAt).toLocaleString()}</Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="xs" c="dimmed">{new Date(session.expiresAt).toLocaleString()}</Text>
+                      </Table.Td>
+                      <Table.Td>
+                        {isRevoked ? (
+                          <StatusBadge status="revoked">Revoked</StatusBadge>
+                        ) : isExpired ? (
+                          <StatusBadge status="expired">Expired</StatusBadge>
+                        ) : (
+                          <StatusBadge status="active">Active</StatusBadge>
+                        )}
+                      </Table.Td>
+                      <Table.Td>
+                        {!isRevoked && !isExpired && (
+                          <Stack align="flex-end">
+                            <Tooltip label="Revoke session">
+                              <ActionIcon
+                                variant="subtle"
+                                color="red"
+                                onClick={() => handleRevoke(session.id)}
+                                disabled={revokeSession.isPending}
+                                aria-label="Revoke session"
+                              >
+                                <ShieldOff size={14} />
+                              </ActionIcon>
+                            </Tooltip>
+                          </Stack>
+                        )}
+                      </Table.Td>
+                    </Table.Tr>
+                  )
+                })}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
         )}
-      </Table>
+      </SectionCard>
 
       <ConfirmDialog
         isOpen={!!sessionToRevoke}
@@ -118,9 +139,8 @@ const Sessions = () => {
         onConfirm={confirmRevoke}
         onCancel={() => setSessionToRevoke(null)}
       />
-    </div>
+    </>
   )
 }
 
 export default Sessions
-import StatusBadge from '../components/ui/StatusBadge'

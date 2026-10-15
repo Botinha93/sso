@@ -1,12 +1,9 @@
-import Card from '../components/ui/Card'
-import Textarea from '../components/ui/Textarea'
+import { Alert, Badge, Box, Button, Checkbox, FileInput, Grid, Group, List, Paper, SimpleGrid, Stack, Text, TextInput, Textarea, TagsInput } from '@mantine/core'
 import { useMemo, useState } from 'react'
-import type { ChangeEvent } from 'react'
-import { CheckCircle2, FileArchive, ShieldAlert, Trash2, UploadCloud } from 'lucide-react'
-import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
-import Button from '../components/ui/Button'
-import CodeBlock from '../components/ui/CodeBlock'
-import Input from '../components/ui/Input'
+import { CheckCircle2, FileArchive, ShieldAlert, Trash2, UploadCloud, Info } from 'lucide-react'
+import { CopyField, PageHeader, SectionCard, TableSkeleton } from '@nexus/design'
+import CodeBlock from '../components/CodeBlock'
+import EmptyState from '../components/EmptyState'
 import {
   type PluginManifestDto,
   useDeletePlugin,
@@ -15,7 +12,7 @@ import {
   useValidatePlugin,
 } from '../hooks/useApi'
 
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
+const splitList = (text: string) => text.split(',').map((value) => value.trim()).filter(Boolean)
 
 const emptyManifest: PluginManifestDto = {
   id: '',
@@ -49,8 +46,8 @@ export default function Plugins() {
   const parsedManifest = useMemo(() => {
     return {
       ...manifest,
-      permissions: permissionsText.split(',').map((value) => value.trim()).filter(Boolean),
-      hooks: hooksText.split(',').map((value) => value.trim()).filter(Boolean),
+      permissions: splitList(permissionsText),
+      hooks: splitList(hooksText),
       description: manifest.description?.trim() || undefined,
       homepage: manifest.homepage?.trim() || undefined
     }
@@ -73,8 +70,7 @@ export default function Plugins() {
     })
   }
 
-  const onSelectBundle = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
+  const onSelectBundle = async (file: File | null) => {
     if (!file) return
 
     setError('')
@@ -154,189 +150,182 @@ export default function Plugins() {
   }
 
   return (
-    <div className="space-y-6">
+    <>
       <PageHeader
         eyebrow="Extensibility"
         title="Plugins"
         description="Upload signed plugin bundles and validate manifest contracts before activation."
       />
 
-      <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+      <Alert color="blue" variant="light" icon={<Info size={16} />}>
         Active plugins are executed by the runtime for matching declared hooks. Keep permissions and hooks minimal, and validate every bundle before activation.
-      </div>
+      </Alert>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        <Card className="p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <UploadCloud size={16} className="text-muted-foreground" />
-            <h3 className="text-base font-semibold text-foreground">Upload Plugin Bundle</h3>
-          </div>
+      <Grid gap="lg">
+        <Grid.Col span={{ base: 12, xl: 7 }}>
+          <SectionCard
+            title="Upload Plugin Bundle"
+            icon={<UploadCloud size={16} />}
+            footer={
+              <Group justify="flex-end" gap="xs">
+                <Button variant="default" onClick={handleValidate} loading={validatePlugin.isPending}>
+                  Validate
+                </Button>
+                <Button onClick={handleUpload} loading={uploadPlugin.isPending}>
+                  Upload Plugin
+                </Button>
+              </Group>
+            }
+          >
+            <Stack gap="md">
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                <TextInput label="Plugin ID" ff="monospace" value={manifest.id} onChange={(e) => { const value = e.currentTarget.value; setManifest((prev) => ({ ...prev, id: value })) }} placeholder="acme.audit-enricher" />
+                <TextInput label="Version" value={manifest.version} onChange={(e) => { const value = e.currentTarget.value; setManifest((prev) => ({ ...prev, version: value })) }} placeholder="1.0.0" />
+                <TextInput label="Name" value={manifest.name} onChange={(e) => { const value = e.currentTarget.value; setManifest((prev) => ({ ...prev, name: value })) }} placeholder="ACME Audit Enricher" />
+                <TextInput label="Entrypoint" ff="monospace" value={manifest.entrypoint} onChange={(e) => { const value = e.currentTarget.value; setManifest((prev) => ({ ...prev, entrypoint: value })) }} placeholder="dist/index.js" />
+              </SimpleGrid>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className={labelCls}>Plugin ID</label>
-              <Input value={manifest.id} onChange={(e) => setManifest((prev) => ({ ...prev, id: e.target.value }))} placeholder="acme.audit-enricher" />
-            </div>
-            <div>
-              <label className={labelCls}>Version</label>
-              <Input value={manifest.version} onChange={(e) => setManifest((prev) => ({ ...prev, version: e.target.value }))} placeholder="1.0.0" />
-            </div>
-            <div>
-              <label className={labelCls}>Name</label>
-              <Input value={manifest.name} onChange={(e) => setManifest((prev) => ({ ...prev, name: e.target.value }))} placeholder="ACME Audit Enricher" />
-            </div>
-            <div>
-              <label className={labelCls}>Entrypoint</label>
-              <Input value={manifest.entrypoint} onChange={(e) => setManifest((prev) => ({ ...prev, entrypoint: e.target.value }))} placeholder="dist/index.js" />
-            </div>
-          </div>
+              <Textarea
+                label="Description"
+                autosize
+                minRows={3}
+                value={manifest.description ?? ''}
+                onChange={(e) => { const value = e.currentTarget.value; setManifest((prev) => ({ ...prev, description: value })) }}
+              />
 
-          <div>
-            <label className={labelCls}>Description</label>
-            <Textarea
-              value={manifest.description ?? ''}
-              onChange={(e) => setManifest((prev) => ({ ...prev, description: e.target.value }))}
-              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
-              rows={3}
-            />
-          </div>
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                <TagsInput
+                  label="Permissions"
+                  description="Press Enter or comma to add."
+                  value={splitList(permissionsText)}
+                  onChange={(values) => setPermissionsText(values.join(', '))}
+                  acceptValueOnBlur
+                  placeholder="events:emit, users:read"
+                />
+                <TagsInput
+                  label="Hooks"
+                  description="Press Enter or comma to add."
+                  value={splitList(hooksText)}
+                  onChange={(values) => setHooksText(values.join(', '))}
+                  acceptValueOnBlur
+                  placeholder="user.created, auth.login.success"
+                />
+              </SimpleGrid>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className={labelCls}>Permissions (comma separated)</label>
-              <Input value={permissionsText} onChange={(e) => setPermissionsText(e.target.value)} placeholder="events:emit, users:read" />
-            </div>
-            <div>
-              <label className={labelCls}>Hooks (comma separated)</label>
-              <Input value={hooksText} onChange={(e) => setHooksText(e.target.value)} placeholder="user.created, auth.login.success" />
-            </div>
-          </div>
+              <TextInput label="Homepage (optional)" type="url" value={manifest.homepage ?? ''} onChange={(e) => { const value = e.currentTarget.value; setManifest((prev) => ({ ...prev, homepage: value })) }} placeholder="https://plugins.example.com/acme-audit-enricher" />
 
-          <div>
-            <label className={labelCls}>Homepage (optional)</label>
-            <Input value={manifest.homepage ?? ''} onChange={(e) => setManifest((prev) => ({ ...prev, homepage: e.target.value }))} placeholder="https://plugins.example.com/acme-audit-enricher" />
-          </div>
+              <FileInput
+                label="Bundle ZIP (max 5MB)"
+                description={bundleName ? `Selected: ${bundleName}` : 'No file selected'}
+                inputWrapperOrder={['label', 'input', 'description', 'error']}
+                accept=".zip,application/zip"
+                placeholder="Choose a .zip bundle"
+                leftSection={<FileArchive size={16} />}
+                onChange={onSelectBundle}
+                clearable={false}
+              />
 
-          <div className="rounded-xl border border-border bg-muted/50 p-3">
-            <label className={labelCls}>Bundle ZIP (max 5MB)</label>
-            <input type="file" accept=".zip,application/zip" onChange={onSelectBundle} className="block w-full text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-sky-600 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-sky-500" />
-            <p className="mt-2 text-xs text-muted-foreground">{bundleName ? `Selected: ${bundleName}` : 'No file selected'}</p>
-          </div>
+              <Checkbox
+                checked={activateAfterUpload}
+                onChange={(e) => setActivateAfterUpload(e.currentTarget.checked)}
+                label="Mark plugin as active after upload"
+              />
 
-          <label className="inline-flex items-center gap-2 text-sm text-foreground">
-            <input type="checkbox" checked={activateAfterUpload} onChange={(e) => setActivateAfterUpload(e.target.checked)} className="rounded border-border" />
-            Mark plugin as active after upload
-          </label>
+              {error ? <Alert color="red" variant="light">{error}</Alert> : null}
+              {message ? <Alert color="green" variant="light">{message}</Alert> : null}
+            </Stack>
+          </SectionCard>
+        </Grid.Col>
 
-          {error ? <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
-          {message ? <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p> : null}
+        <Grid.Col span={{ base: 12, xl: 5 }}>
+          <SectionCard title="Validation Results" icon={<CheckCircle2 size={16} />} h="100%">
+            <Stack gap="md">
+              <Box>
+                <Text size="xs" fw={600} tt="uppercase" c="dimmed">Manifest Preview</Text>
+                <CodeBlock code={manifestPreview} language="json" mt="xs" />
+              </Box>
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-            <Button
-              variant="outline"
-              onClick={handleValidate}
-              disabled={validatePlugin.isPending}
-            >
-              {validatePlugin.isPending ? 'Validating...' : 'Validate'}
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleUpload}
-              disabled={uploadPlugin.isPending}
-            >
-              {uploadPlugin.isPending ? 'Uploading...' : 'Upload Plugin'}
-            </Button>
-          </div>
-        </Card>
+              {!validationResult ? (
+                <Text size="sm" c="dimmed">Run validation to review manifest and bundle checks.</Text>
+              ) : (
+                <Stack gap="sm">
+                  <Alert color={validationResult.valid ? 'green' : 'red'} variant="light">
+                    {validationResult.valid ? 'Validation passed' : 'Validation failed'}
+                  </Alert>
 
-        <Card className="p-5 space-y-3">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 size={16} className="text-muted-foreground" />
-            <h3 className="text-base font-semibold text-foreground">Validation Results</h3>
-          </div>
+                  {validationResult.errors.length > 0 ? (
+                    <Box>
+                      <Text size="xs" fw={600} tt="uppercase" c="red">Errors</Text>
+                      <List size="sm" c="red" mt={4} spacing={4}>
+                        {validationResult.errors.map((item) => <List.Item key={item}>{item}</List.Item>)}
+                      </List>
+                    </Box>
+                  ) : null}
 
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Manifest Preview</p>
-            <CodeBlock code={manifestPreview} language="json" className="mt-2" />
-          </div>
+                  {validationResult.warnings.length > 0 ? (
+                    <Box>
+                      <Text size="xs" fw={600} tt="uppercase" c="yellow.7">Warnings</Text>
+                      <List size="sm" c="yellow.7" mt={4} spacing={4}>
+                        {validationResult.warnings.map((item) => <List.Item key={item}>{item}</List.Item>)}
+                      </List>
+                    </Box>
+                  ) : null}
+                </Stack>
+              )}
 
-          {!validationResult ? (
-            <p className="text-sm text-muted-foreground">Run validation to review manifest and bundle checks.</p>
-          ) : (
-            <div className="space-y-3">
-              <p className={`rounded-lg px-3 py-2 text-sm ${validationResult.valid ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : 'border border-rose-200 bg-rose-50 text-rose-700'}`}>
-                {validationResult.valid ? 'Validation passed' : 'Validation failed'}
-              </p>
+              <Alert color="yellow" variant="light" icon={<ShieldAlert size={16} />}>
+                <Text size="xs">
+                  Plugin execution should stay behind a feature flag and security review gate. Keep hooks and permissions minimal.
+                </Text>
+              </Alert>
+            </Stack>
+          </SectionCard>
+        </Grid.Col>
+      </Grid>
 
-              {validationResult.errors.length > 0 ? (
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-rose-600">Errors</p>
-                  <ul className="mt-1 space-y-1 text-sm text-rose-700">
-                    {validationResult.errors.map((item) => <li key={item}>- {item}</li>)}
-                  </ul>
-                </div>
-              ) : null}
-
-              {validationResult.warnings.length > 0 ? (
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">Warnings</p>
-                  <ul className="mt-1 space-y-1 text-sm text-amber-700">
-                    {validationResult.warnings.map((item) => <li key={item}>- {item}</li>)}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-          )}
-
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-            <div className="flex items-start gap-2">
-              <ShieldAlert size={14} className="mt-0.5" />
-              <p>
-                Plugin execution should stay behind a feature flag and security review gate. Keep hooks and permissions minimal.
-              </p>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      <Card className="p-5">
-        <div className="mb-4 flex items-center gap-2">
-          <FileArchive size={16} className="text-muted-foreground" />
-          <h3 className="text-base font-semibold text-foreground">Uploaded Plugins</h3>
-        </div>
-
+      <SectionCard title="Uploaded Plugins" icon={<FileArchive size={16} />}>
         {isLoading ? (
-          <TableSkeleton rows={3} />
+          <TableSkeleton rows={3} withHeader={false} columns={['text', 'mono', 'action']} />
         ) : plugins.length === 0 ? (
           <EmptyState
+            icon={FileArchive}
             title="No plugin bundles uploaded yet"
             description="Upload a plugin bundle to extend platform functionality."
           />
         ) : (
-          <div className="space-y-3">
+          <Stack gap="sm">
             {plugins.map((plugin) => (
-              <div key={plugin.id} className="rounded-xl border border-border bg-muted/50 p-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-foreground">{plugin.name} <span className="font-mono text-xs text-muted-foreground">{plugin.id}</span></p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">Version {plugin.version} • {plugin.status} • {Math.ceil(plugin.bundleBytes / 1024)} KB</p>
-                    <p className="mt-1 text-xs text-muted-foreground break-all">SHA-256: {plugin.bundleChecksum}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Hooks: {plugin.hooks.join(', ') || 'none'} | Permissions: {plugin.permissions.join(', ') || 'none'}</p>
-                  </div>
+              <Paper key={plugin.id} withBorder radius="md" p="sm" bg="var(--nx-color-surface-sunken)">
+                <Group justify="space-between" align="flex-start" gap="sm">
+                  <Stack gap={4} miw={0} flex={1}>
+                    <Group gap="xs">
+                      <Text size="sm" fw={600}>{plugin.name}</Text>
+                      <Text size="xs" ff="monospace" c="dimmed">{plugin.id}</Text>
+                      <Badge size="sm" variant="light" color={plugin.status === 'active' ? 'green' : 'gray'}>{plugin.status}</Badge>
+                    </Group>
+                    <Text size="xs" c="dimmed">Version {plugin.version} • {plugin.status} • {Math.ceil(plugin.bundleBytes / 1024)} KB</Text>
+                    <Group gap={6} wrap="nowrap" miw={0}>
+                      <Text size="xs" c="dimmed">SHA-256:</Text>
+                      <CopyField variant="inline" value={plugin.bundleChecksum} copyLabel="Copy checksum" miw={0} />
+                    </Group>
+                    <Text size="xs" c="dimmed">Hooks: {plugin.hooks.join(', ') || 'none'} | Permissions: {plugin.permissions.join(', ') || 'none'}</Text>
+                  </Stack>
                   <Button
-                    variant="danger"
-                    size="sm"
+                    color="red"
+                    variant="light"
+                    size="xs"
+                    leftSection={<Trash2 size={14} />}
                     onClick={() => handleDelete(plugin.id)}
                     disabled={deletePlugin.isPending}
                   >
-                    <Trash2 size={13} /> Remove
+                    Remove
                   </Button>
-                </div>
-              </div>
+                </Group>
+              </Paper>
             ))}
-          </div>
+          </Stack>
         )}
-      </Card>
-    </div>
+      </SectionCard>
+    </>
   )
 }

@@ -1,6 +1,7 @@
-import Card from './ui/Card'
 import { useMemo, useState } from 'react'
-import { AlertCircle, CheckCircle2, Clock, XCircle } from 'lucide-react'
+import { Alert, Button, Code, Group, Paper, SimpleGrid, Stack, Table, Text, TextInput } from '@mantine/core'
+import { CopyField, SectionCard, StatusBadge } from '@nexus/design'
+import { AlertCircle, AlertTriangle, CheckCircle2, Clock, XCircle } from 'lucide-react'
 import {
   useCreateProvisioningMapping,
   useCreateProvisioningToken,
@@ -40,26 +41,13 @@ export default function ProvisioningAdminPanel() {
   const getStatusIcon = (status: DeprovisioningQueueItemDto['status']) => {
     switch (status) {
       case 'completed':
-        return <CheckCircle2 size={16} className="text-emerald-600" />
+        return <CheckCircle2 size={16} color="var(--mantine-color-green-6)" />
       case 'failed':
-        return <XCircle size={16} className="text-rose-600" />
+        return <XCircle size={16} color="var(--mantine-color-red-6)" />
       case 'in_progress':
-        return <Clock size={16} className="text-blue-600 animate-spin" />
+        return <Clock size={16} color="var(--mantine-color-blue-6)" />
       default:
-        return <AlertCircle size={16} className="text-amber-600" />
-    }
-  }
-
-  const getStatusColor = (status: DeprovisioningQueueItemDto['status']) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-200'
-      case 'failed':
-        return 'bg-rose-50 text-rose-700 border-rose-200'
-      case 'in_progress':
-        return 'bg-blue-50 text-blue-700 border-blue-200'
-      default:
-        return 'bg-amber-50 text-amber-700 border-amber-200'
+        return <AlertCircle size={16} color="var(--mantine-color-yellow-6)" />
     }
   }
 
@@ -94,213 +82,225 @@ export default function ProvisioningAdminPanel() {
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-2">
-      <Card className="p-5">
-        <h2 className="text-base font-semibold text-foreground">SCIM Provisioning Tokens</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Issue one-time display bearer tokens for directory connectors and revoke them when rotating integrations.</p>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <input
-            value={tokenLabel}
-            onChange={(event) => setTokenLabel(event.target.value)}
-            placeholder="okta-prod"
-            className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              type="date"
-              value={tokenExpiryDate}
-              onChange={(event) => setTokenExpiryDate(event.target.value)}
-              className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+    <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="lg">
+      <SectionCard
+        title="SCIM provisioning tokens"
+        description="Issue one-time display bearer tokens for directory connectors and revoke them when rotating integrations."
+      >
+        <Stack gap="md">
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+            <TextInput
+              value={tokenLabel}
+              onChange={(event) => setTokenLabel(event.currentTarget.value)}
+              placeholder="okta-prod"
+              aria-label="Token label"
             />
-            <input
-              type="time"
-              value={tokenExpiryTime}
-              onChange={(event) => setTokenExpiryTime(event.target.value)}
-              step={60}
-              disabled={!tokenExpiryDate}
-              className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:bg-muted/50 disabled:text-muted-foreground"
+            <SimpleGrid cols={2} spacing="xs">
+              <TextInput
+                type="date"
+                value={tokenExpiryDate}
+                onChange={(event) => setTokenExpiryDate(event.currentTarget.value)}
+                aria-label="Expiry date"
+              />
+              <TextInput
+                type="time"
+                value={tokenExpiryTime}
+                onChange={(event) => setTokenExpiryTime(event.currentTarget.value)}
+                step={60}
+                disabled={!tokenExpiryDate}
+                aria-label="Expiry time"
+              />
+            </SimpleGrid>
+          </SimpleGrid>
+          <Text size="xs" c="dimmed">Expiry is optional. Pick a date first, then an end time.</Text>
+          <Group>
+            <Button
+              onClick={createNewToken}
+              disabled={tokenLabel.trim().length < 2}
+              loading={createToken.isPending}
+            >
+              Issue token
+            </Button>
+          </Group>
+
+          {issuedToken ? (
+            <Alert color="yellow" icon={<AlertTriangle size={16} />} title="Copy now, this token is shown once">
+              <CopyField value={issuedToken} />
+            </Alert>
+          ) : null}
+
+          <Stack gap="xs">
+            {tokens.length === 0 ? <Text size="sm" c="dimmed">No provisioning tokens yet.</Text> : null}
+            {tokens.map((token) => (
+              <Paper key={token.id} withBorder radius="md" px="sm" py="xs" bg="var(--nx-color-surface-sunken)">
+                <Group justify="space-between" wrap="nowrap">
+                  <div>
+                    <Text size="sm" fw={500}>{token.label}</Text>
+                    <Text size="xs" c="dimmed">Last used: {token.lastUsedAt ? new Date(token.lastUsedAt).toLocaleString() : 'never'}</Text>
+                  </div>
+                  <Button
+                    size="xs"
+                    variant="default"
+                    c="red"
+                    onClick={() => deleteToken.mutate(token.id)}
+                    disabled={deleteToken.isPending}
+                  >
+                    Revoke
+                  </Button>
+                </Group>
+              </Paper>
+            ))}
+          </Stack>
+        </Stack>
+      </SectionCard>
+
+      <SectionCard
+        title="Provisioning mappings"
+        description="Map external directory attributes into local profile fields for lifecycle sync."
+      >
+        <Stack gap="md">
+          <Stack gap="xs">
+            <TextInput
+              value={mappingName}
+              onChange={(event) => setMappingName(event.currentTarget.value)}
+              placeholder="Workday manager mapping"
+              aria-label="Mapping name"
             />
-          </div>
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">Expiry is optional. Pick a date first, then an end time.</p>
-        <div className="mt-3">
-          <button
-            onClick={createNewToken}
-            disabled={createToken.isPending || tokenLabel.trim().length < 2}
-            className="inline-flex h-9 items-center rounded-lg bg-sky-600 px-3 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-50"
-          >
-            {createToken.isPending ? 'Issuing…' : 'Issue Token'}
-          </button>
-        </div>
-
-        {issuedToken ? (
-          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-            <p className="font-semibold">Copy now, this token is shown once</p>
-            <p className="mt-2 break-all rounded border border-amber-200 bg-card px-2 py-1 font-mono">{issuedToken}</p>
-          </div>
-        ) : null}
-
-        <div className="mt-4 space-y-2">
-          {tokens.length === 0 ? <p className="text-sm text-muted-foreground">No provisioning tokens yet.</p> : null}
-          {tokens.map((token) => (
-            <div key={token.id} className="flex items-center justify-between rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm">
-              <div>
-                <p className="font-medium text-foreground">{token.label}</p>
-                <p className="text-xs text-muted-foreground">Last used: {token.lastUsedAt ? new Date(token.lastUsedAt).toLocaleString() : 'never'}</p>
-              </div>
-              <button
-                onClick={() => deleteToken.mutate(token.id)}
-                disabled={deleteToken.isPending}
-                className="rounded border border-rose-200 bg-card px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
+              <TextInput
+                value={sourceAttribute}
+                onChange={(event) => setSourceAttribute(event.currentTarget.value)}
+                placeholder="urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:manager"
+                aria-label="Source attribute"
+              />
+              <TextInput
+                value={targetAttribute}
+                onChange={(event) => setTargetAttribute(event.currentTarget.value)}
+                placeholder="customAttributes.managerId"
+                aria-label="Target attribute"
+              />
+            </SimpleGrid>
+            <TextInput
+              value={transformExpression}
+              onChange={(event) => setTransformExpression(event.currentTarget.value)}
+              placeholder="value?.toLowerCase()"
+              aria-label="Transform expression"
+            />
+            <Group>
+              <Button
+                onClick={createNewMapping}
+                disabled={mappingName.trim().length < 2 || sourceAttribute.trim().length === 0 || targetAttribute.trim().length === 0}
+                loading={createMapping.isPending}
               >
-                Revoke
-              </button>
-            </div>
-          ))}
-        </div>
-      </Card>
+                Add mapping
+              </Button>
+            </Group>
+          </Stack>
 
-      <Card className="p-5">
-        <h2 className="text-base font-semibold text-foreground">Provisioning Mappings</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Map external directory attributes into local profile fields for lifecycle sync.</p>
+          <Stack gap="xs">
+            {mappings.length === 0 ? <Text size="sm" c="dimmed">No mappings configured.</Text> : null}
+            {mappings.map((mapping) => (
+              <Paper key={mapping.id} withBorder radius="md" p="sm" bg="var(--nx-color-surface-sunken)">
+                <Group justify="space-between" gap="sm" wrap="nowrap">
+                  <Text size="sm" fw={500}>{mapping.name}</Text>
+                  <Button
+                    size="xs"
+                    variant="default"
+                    c="red"
+                    onClick={() => deleteMapping.mutate(mapping.id)}
+                    disabled={deleteMapping.isPending}
+                  >
+                    Delete
+                  </Button>
+                </Group>
+                <Text size="xs" c="dimmed" mt={4} ff="monospace" style={{ wordBreak: 'break-all' }}>
+                  {mapping.sourceAttribute} → {mapping.targetAttribute}
+                </Text>
+                {mapping.transformExpression ? <Text size="xs" c="dimmed" mt={4}>Transform: {mapping.transformExpression}</Text> : null}
+              </Paper>
+            ))}
+          </Stack>
 
-        <div className="mt-4 grid gap-2">
-          <input
-            value={mappingName}
-            onChange={(event) => setMappingName(event.target.value)}
-            placeholder="Workday manager mapping"
-            className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-          />
-          <div className="grid gap-2 sm:grid-cols-2">
-            <input
-              value={sourceAttribute}
-              onChange={(event) => setSourceAttribute(event.target.value)}
-              placeholder="urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:manager"
-              className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-            />
-            <input
-              value={targetAttribute}
-              onChange={(event) => setTargetAttribute(event.target.value)}
-              placeholder="customAttributes.managerId"
-              className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-            />
-          </div>
-          <input
-            value={transformExpression}
-            onChange={(event) => setTransformExpression(event.target.value)}
-            placeholder="value?.toLowerCase()"
-            className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-          />
-          <div>
-            <button
-              onClick={createNewMapping}
-              disabled={createMapping.isPending || mappingName.trim().length < 2 || sourceAttribute.trim().length === 0 || targetAttribute.trim().length === 0}
-              className="inline-flex h-9 items-center rounded-lg bg-sky-600 px-3 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-50"
-            >
-              {createMapping.isPending ? 'Saving…' : 'Add Mapping'}
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-4 space-y-2">
-          {mappings.length === 0 ? <p className="text-sm text-muted-foreground">No mappings configured.</p> : null}
-          {mappings.map((mapping) => (
-            <div key={mapping.id} className="rounded-lg border border-border bg-muted/50 p-3 text-sm">
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-medium text-foreground">{mapping.name}</p>
-                <button
-                  onClick={() => deleteMapping.mutate(mapping.id)}
-                  disabled={deleteMapping.isPending}
-                  className="rounded border border-rose-200 bg-card px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50"
-                >
-                  Delete
-                </button>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">{mapping.sourceAttribute} → {mapping.targetAttribute}</p>
-              {mapping.transformExpression ? <p className="mt-1 text-xs text-muted-foreground">Transform: {mapping.transformExpression}</p> : null}
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-5 rounded-lg border border-border bg-card p-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-medium text-foreground">Run Reconciliation</p>
-            <button
-              onClick={() => runReconcile.mutate({ dryRun: true })}
-              disabled={runReconcile.isPending}
-              className="inline-flex h-8 items-center rounded-lg border border-border bg-muted/50 px-3 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
-            >
-              {runReconcile.isPending ? 'Running…' : 'Run Dry-Run'}
-            </button>
-          </div>
-          {latestJob ? (
-            <p className="mt-2 text-xs text-muted-foreground">
-              Last job: {latestJob.status} at {new Date(latestJob.createdAt).toLocaleString()} ({String((latestJob.summary as Record<string, unknown>).usersEvaluated ?? 0)} users scanned)
-            </p>
-          ) : (
-            <p className="mt-2 text-xs text-muted-foreground">No reconcile jobs yet.</p>
-          )}
-        </div>
-      </Card>
-
-      <Card className="p-5 xl:col-span-2">
-        <h2 className="text-base font-semibold text-foreground">Deprovisioning Queue</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Monitor pending revocation and deactivation tasks from provisioning sync operations.</p>
-
-        {deprovisioningQueue.length === 0 ? (
-          <div className="mt-4 rounded-lg border border-border bg-muted/50 p-4 text-center text-sm text-muted-foreground">
-            No pending deprovisioning tasks.
-          </div>
-        ) : (
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b border-border bg-muted/50">
-                <tr>
-                  <th className="px-3 py-2 text-left font-medium text-foreground">Status</th>
-                  <th className="px-3 py-2 text-left font-medium text-foreground">User</th>
-                  <th className="px-3 py-2 text-left font-medium text-foreground">Action</th>
-                  <th className="px-3 py-2 text-left font-medium text-foreground">Resource</th>
-                  <th className="px-3 py-2 text-left font-medium text-foreground">Reason</th>
-                  <th className="px-3 py-2 text-left font-medium text-foreground">Created</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {deprovisioningQueue.map((item) => (
-                  <tr key={item.id} className="hover:bg-muted/50">
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        {getStatusIcon(item.status)}
-                        <StatusBadge tone={item.status === 'completed' ? 'success' : item.status === 'failed' ? 'danger' : 'warning'}>
-                          {item.status}
-                        </StatusBadge>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{item.userId.slice(0, 12)}…</td>
-                    <td className="px-3 py-2">
-                      <code className="rounded bg-muted px-2 py-1 text-xs text-foreground">{item.action}</code>
-                    </td>
-                    <td className="px-3 py-2 truncate text-foreground">{item.resourceName}</td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">{item.reason || '—'}</td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {deprovisioningQueue.length > 10 && (
-              <p className="mt-2 text-xs text-muted-foreground">Showing {deprovisioningQueue.length} tasks. Older tasks are automatically cleaned after completion.</p>
+          <Paper withBorder radius="md" p="sm">
+            <Group justify="space-between" gap="xs">
+              <Text size="sm" fw={500}>Run reconciliation</Text>
+              <Button
+                size="xs"
+                variant="default"
+                onClick={() => runReconcile.mutate({ dryRun: true })}
+                loading={runReconcile.isPending}
+              >
+                Run dry-run
+              </Button>
+            </Group>
+            {latestJob ? (
+              <Text size="xs" c="dimmed" mt="xs">
+                Last job: {latestJob.status} at {new Date(latestJob.createdAt).toLocaleString()} ({String((latestJob.summary as Record<string, unknown>).usersEvaluated ?? 0)} users scanned)
+              </Text>
+            ) : (
+              <Text size="xs" c="dimmed" mt="xs">No reconcile jobs yet.</Text>
             )}
-          </div>
+          </Paper>
+        </Stack>
+      </SectionCard>
+
+      <SectionCard
+        title="Deprovisioning queue"
+        description="Monitor pending revocation and deactivation tasks from provisioning sync operations."
+        flush
+        style={{ gridColumn: '1 / -1' }}
+      >
+        {deprovisioningQueue.length === 0 ? (
+          <Text size="sm" c="dimmed" ta="center" py="lg">
+            No pending deprovisioning tasks.
+          </Text>
+        ) : (
+          <>
+            <Table.ScrollContainer minWidth={820}>
+              <Table highlightOnHover verticalSpacing="sm">
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Status</Table.Th>
+                    <Table.Th>User</Table.Th>
+                    <Table.Th>Action</Table.Th>
+                    <Table.Th>Resource</Table.Th>
+                    <Table.Th>Reason</Table.Th>
+                    <Table.Th>Created</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {deprovisioningQueue.map((item) => (
+                    <Table.Tr key={item.id}>
+                      <Table.Td>
+                        <Group gap="xs" wrap="nowrap">
+                          {getStatusIcon(item.status)}
+                          <StatusBadge status={item.status === 'completed' ? 'success' : item.status === 'failed' ? 'danger' : 'warning'}>
+                            {item.status}
+                          </StatusBadge>
+                        </Group>
+                      </Table.Td>
+                      <Table.Td><Text size="xs" c="dimmed" ff="monospace">{item.userId.slice(0, 12)}…</Text></Table.Td>
+                      <Table.Td><Code>{item.action}</Code></Table.Td>
+                      <Table.Td><Text size="sm" truncate>{item.resourceName}</Text></Table.Td>
+                      <Table.Td><Text size="xs" c="dimmed">{item.reason || '—'}</Text></Table.Td>
+                      <Table.Td><Text size="xs" c="dimmed">{new Date(item.createdAt).toLocaleString()}</Text></Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Table.ScrollContainer>
+            {deprovisioningQueue.length > 10 && (
+              <Text size="xs" c="dimmed" px="md" py="sm">Showing {deprovisioningQueue.length} tasks. Older tasks are automatically cleaned after completion.</Text>
+            )}
+          </>
         )}
 
         {deprovisioningQueue.some(item => item.status === 'failed') && (
-          <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
-            <p className="font-medium">⚠️ Failed deprovisioning tasks detected</p>
-            <p className="mt-1 text-xs">Some deprovisioning operations have failed and may require manual intervention.</p>
-          </div>
+          <Alert color="red" icon={<AlertTriangle size={16} />} title="Failed deprovisioning tasks detected" m="md">
+            Some deprovisioning operations have failed and may require manual intervention.
+          </Alert>
         )}
-      </Card>
-    </div>
+      </SectionCard>
+    </SimpleGrid>
   )
 }
-import StatusBadge from './ui/StatusBadge'

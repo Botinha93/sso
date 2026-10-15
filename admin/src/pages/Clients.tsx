@@ -1,20 +1,33 @@
-import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
-import Textarea from '../components/ui/Textarea'
-import Select from '../components/ui/Select'
-import { Plus, RefreshCw, Trash2, Shield, ChevronRight, X, Pencil } from 'lucide-react'
-import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
+import {
+  ActionIcon,
+  Alert,
+  Badge,
+  Box,
+  Button,
+  Checkbox,
+  CopyButton,
+  Group,
+  NumberInput,
+  Paper,
+  ScrollArea,
+  Select,
+  SimpleGrid,
+  Stack,
+  Table,
+  TagsInput,
+  Text,
+  TextInput,
+  Tooltip,
+} from '@mantine/core'
+import { Plus, Trash2, Shield, ChevronRight, X, Pencil, Copy, Check, KeyRound } from 'lucide-react'
+import { CopyField, PageHeader, RefreshButton, SearchInput, SectionCard, TableSkeleton } from '@nexus/design'
 import { useState } from 'react'
-import ListSearch from '../components/ListSearch'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import ConfirmDialog from '../components/ConfirmDialog'
+import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
-import Button from '../components/ui/Button'
-import Input from '../components/ui/Input'
-import Card from '../components/ui/Card'
-import StatusBadge from '../components/ui/StatusBadge'
 import { useClients, useCreateClient, useDeleteClient, useUpdateClient, useScopes, useCreateScope, useDeleteScope, useAuthenticationFlows, useApps } from '../hooks/useApi'
 import { DEFAULT_CLIENT_SCOPES, SCOPE_CLAIM_MAP } from '../constants/oidc-scopes'
-import React from 'react';
 
 interface OAuthClient {
   id: string
@@ -79,8 +92,6 @@ const formFromClient = (client: OAuthClient) => ({
   accessTokenTtlSeconds: (client.accessTokenTtlSeconds ?? '') as number | '',
   refreshTokenTtlSeconds: (client.refreshTokenTtlSeconds ?? '') as number | ''
 })
-
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
 
 const Clients = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false)
@@ -259,413 +270,457 @@ const Clients = () => {
     }
   }
 
+  const appOptions = (apps as any[]).map((app: any) => ({ value: String(app.id), label: String(app.name) }))
+  const redirectUriList = formData.redirectUris.split('\n').map(s => s.trim()).filter(Boolean)
+
   return (
-    <div>
+    <>
       <PageHeader
         eyebrow="OAuth Clients"
         title="Registered Applications"
-        action={
+        actions={
           <Button
+            leftSection={<Plus size={16} />}
             onClick={() => { setFormError(''); setFormData(defaultForm()); setCreateModalOpen(true); setEditClient(null) }}
-            variant="primary"
           >
-            <Plus size={14} />
             New Client
           </Button>
         }
       />
 
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search clients by id or name…" />
-        <div className="max-w-sm w-full">
-          <label className={labelCls}>Filter by App</label>
-          <Select value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
-            <option value="all">All Apps</option>
-            <option value="none">Unassigned</option>
-            {(apps as any[]).map((app: any) => (
-              <option key={app.id} value={app.id}>{app.name}</option>
-            ))}
-          </Select>
-        </div>
-      </div>
+      <Group justify="space-between" align="flex-end" gap="sm">
+        <SearchInput value={searchInput} onChange={setSearchInput} placeholder="Search clients by id or name…" maw={360} w="100%" />
+        <Select
+          label="Filter by App"
+          value={appFilterId}
+          onChange={(value) => setAppFilterId(value ?? 'all')}
+          allowDeselect={false}
+          data={[
+            { value: 'all', label: 'All Apps' },
+            { value: 'none', label: 'Unassigned' },
+            ...appOptions,
+          ]}
+          w={280}
+        />
+      </Group>
 
-      <Table>
-        <TableHeaderRow>
-          <h4 className="text-sm font-semibold text-foreground">All Clients</h4>
-          <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
-            <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
-            Refresh
-          </Button>
-        </TableHeaderRow>
-
+      <SectionCard
+        title="All Clients"
+        flush
+        actions={<RefreshButton onRefresh={() => refetch()} loading={isFetching} size="xs" lastUpdated={null} />}
+      >
         {isLoading ? (
-          <TableSkeleton rows={5} />
+          <TableSkeleton rows={5} columns={['text', 'pill', 'mono', 'action']} />
         ) : !filteredClients?.length ? (
           <EmptyState
+            icon={KeyRound}
             title="No clients registered"
             description="Register an OAuth client to start authorizing applications."
           />
         ) : (
-          <TableBody>
-            {filteredClients.map((client: OAuthClient) => (
-              <TableRow key={client.id} className="px-5 py-3.5 flex items-center justify-between gap-4 hover:bg-muted/50 transition-colors group">
-                <div className="space-y-0.5 flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h5 className="text-sm font-medium text-foreground">{client.name}</h5>
-                    <StatusBadge tone="accent">
-                      {client.appId ? appNameById.get(client.appId) ?? 'App' : 'No App'}
-                    </StatusBadge>
-                    {client.requirePkce && (
-                      <StatusBadge tone="info">
-                        <Shield size={9} />PKCE
-                      </StatusBadge>
-                    )}
-                    {(client.resources?.length ?? 0) > 0 && (
-                      <StatusBadge tone="accent">
-                        {client.resources.length} resource{client.resources.length !== 1 ? 's' : ''}
-                      </StatusBadge>
-                    )}
-                    {(client.flowIds?.length ?? 0) > 0 && (
-                      <StatusBadge tone="success">
-                        {client.flowIds.length} flow{client.flowIds.length !== 1 ? 's' : ''}
-                      </StatusBadge>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground font-mono">{client.id}</p>
-                  <div className="flex gap-1 flex-wrap">
-                    {client.grants.map(g => (
-                      <StatusBadge key={g} tone="neutral" mono>{g}</StatusBadge>
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {client.redirectUris.join(', ')}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="opacity-0 group-hover:opacity-100 hover:bg-sky-50 hover:text-sky-600"
-                    onClick={() => handleEdit(client)}
-                    title="Edit client"
-                  >
-                    <Pencil size={14} />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="opacity-0 group-hover:opacity-100 hover:bg-sky-50 hover:text-sky-600"
-                    onClick={() => { setResourcesClient(client); setNewResource('') }}
-                    title="Manage resources"
-                  >
-                    <ChevronRight size={14} />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="hover:bg-rose-50 hover:text-rose-600"
-                    onClick={() => handleDelete(client.id)}
-                    disabled={deleteClient.isPending}
-                    title="Delete client"
-                  >
-                    <Trash2 size={14} />
-                  </Button>
-                </div>
-              </TableRow>
-            ))}
-          </TableBody>
-        )}
-      </Table>
-
-      <Modal isOpen={createModalOpen || !!editClient} onClose={closeClientModal} title={editClient ? `Edit OAuth Client: ${editClient.name}` : 'Create OAuth Client'}>
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className={labelCls}>App</label>
-              <Select value={formData.appId} onChange={e => setFormData(f => ({ ...f, appId: e.target.value }))}>
-                <option value="">No app</option>
-                {(apps as any[]).map((app: any) => (
-                  <option key={app.id} value={app.id}>{app.name}</option>
+          <Table.ScrollContainer minWidth={820}>
+            <Table highlightOnHover verticalSpacing="sm">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Client</Table.Th>
+                  <Table.Th>Grants</Table.Th>
+                  <Table.Th>Redirect URIs</Table.Th>
+                  <Table.Th w={120} />
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {filteredClients.map((client: OAuthClient) => (
+                  <Table.Tr key={client.id}>
+                    <Table.Td>
+                      <Stack gap={4}>
+                        <Group gap={6} wrap="wrap">
+                          <Text size="sm" fw={500}>{client.name}</Text>
+                          <Badge variant="light" color={client.appId ? 'blue' : 'gray'}>
+                            {client.appId ? appNameById.get(client.appId) ?? 'App' : 'No App'}
+                          </Badge>
+                          {client.requirePkce && (
+                            <Badge variant="light" color="cyan" leftSection={<Shield size={10} />}>PKCE</Badge>
+                          )}
+                          {(client.resources?.length ?? 0) > 0 && (
+                            <Badge variant="light" color="violet">
+                              {client.resources.length} resource{client.resources.length !== 1 ? 's' : ''}
+                            </Badge>
+                          )}
+                          {(client.flowIds?.length ?? 0) > 0 && (
+                            <Badge variant="light" color="green">
+                              {client.flowIds.length} flow{client.flowIds.length !== 1 ? 's' : ''}
+                            </Badge>
+                          )}
+                        </Group>
+                        <CopyField variant="inline" value={client.id} copyLabel="Copy client ID" />
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4} wrap="wrap">
+                        {client.grants.map(g => (
+                          <Badge key={g} variant="default" ff="monospace" tt="none" fw={500}>{g}</Badge>
+                        ))}
+                      </Group>
+                    </Table.Td>
+                    <Table.Td maw={280}>
+                      <Text size="xs" c="dimmed" truncate title={client.redirectUris.join(', ')}>
+                        {client.redirectUris.join(', ') || '—'}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4} justify="flex-end" wrap="nowrap">
+                        <Tooltip label="Edit client">
+                          <ActionIcon variant="subtle" color="gray" onClick={() => handleEdit(client)} aria-label="Edit client" title="Edit client">
+                            <Pencil size={14} />
+                          </ActionIcon>
+                        </Tooltip>
+                        <Tooltip label="Manage resources">
+                          <ActionIcon
+                            variant="subtle"
+                            color="gray"
+                            onClick={() => { setResourcesClient(client); setNewResource('') }}
+                            aria-label="Manage resources"
+                            title="Manage resources"
+                          >
+                            <ChevronRight size={14} />
+                          </ActionIcon>
+                        </Tooltip>
+                        <Tooltip label="Delete client">
+                          <ActionIcon
+                            variant="subtle"
+                            color="red"
+                            onClick={() => handleDelete(client.id)}
+                            disabled={deleteClient.isPending}
+                            aria-label="Delete client"
+                            title="Delete client"
+                          >
+                            <Trash2 size={14} />
+                          </ActionIcon>
+                        </Tooltip>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
                 ))}
-              </Select>
-            </div>
-            <div>
-              <label className={labelCls}>Client ID</label>
-              <Input
-                type="text"
-                value={formData.id}
-                onChange={e => setFormData(f => ({ ...f, id: e.target.value }))}
-                disabled={!!editClient}
-                className={`font-mono ${editClient ? 'cursor-not-allowed bg-muted text-muted-foreground' : ''}`}
-                placeholder="my-app"
-              />
-            </div>
-            <div>
-              <label className={labelCls}>{editClient ? 'Rotate Client Secret' : 'Client Secret'}</label>
-              <div className="flex gap-2">
-                <Input
-                  type="text"
-                  value={formData.secret}
-                  onChange={e => setFormData(f => ({ ...f, secret: e.target.value }))}
-                  className="font-mono"
-                  placeholder={editClient ? 'Leave blank to keep current secret' : 'Auto-generated secret'}
-                />
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
+        )}
+      </SectionCard>
+
+      <Modal isOpen={createModalOpen || !!editClient} onClose={closeClientModal} title={editClient ? `Edit OAuth Client: ${editClient.name}` : 'Create OAuth Client'} size="lg">
+        <Stack gap="md">
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+            <Select
+              label="App"
+              value={formData.appId}
+              onChange={(value) => setFormData(f => ({ ...f, appId: value ?? '' }))}
+              allowDeselect={false}
+              data={[{ value: '', label: 'No app' }, ...appOptions]}
+            />
+            <TextInput
+              label="Client ID"
+              value={formData.id}
+              onChange={e => { const value = e.currentTarget.value; setFormData(f => ({ ...f, id: value })) }}
+              disabled={!!editClient}
+              ff="monospace"
+              placeholder="my-app"
+            />
+          </SimpleGrid>
+          <TextInput
+            label={editClient ? 'Rotate Client Secret' : 'Client Secret'}
+            description={!editClient ? 'A strong secret is generated automatically for new confidential clients.' : undefined}
+            value={formData.secret}
+            onChange={e => { const value = e.currentTarget.value; setFormData(f => ({ ...f, secret: value })) }}
+            ff="monospace"
+            placeholder={editClient ? 'Leave blank to keep current secret' : 'Auto-generated secret'}
+            rightSectionWidth={formData.secret ? 36 : undefined}
+            rightSection={formData.secret ? (
+              <CopyButton value={formData.secret} timeout={1500}>
+                {({ copied, copy }) => (
+                  <Tooltip label={copied ? 'Copied' : 'Copy'}>
+                    <ActionIcon variant="subtle" color={copied ? 'green' : 'gray'} onClick={copy} aria-label="Copy client secret">
+                      {copied ? <Check size={14} /> : <Copy size={14} />}
+                    </ActionIcon>
+                  </Tooltip>
+                )}
+              </CopyButton>
+            ) : null}
+            inputContainer={(children) => (
+              <Group gap="xs" wrap="nowrap" align="flex-start">
+                <Box flex={1}>{children}</Box>
                 {!editClient ? (
                   <Button
                     type="button"
+                    variant="default"
                     onClick={() => setFormData((f) => ({ ...f, secret: generateClientSecret() }))}
-                    size="md"
-                    variant="secondary"
-                    className="shrink-0 px-3 text-xs"
                   >
                     Regenerate
                   </Button>
                 ) : null}
-              </div>
-              {!editClient ? (
-                <p className="mt-1 text-xs text-muted-foreground">A strong secret is generated automatically for new confidential clients.</p>
-              ) : null}
-            </div>
-          </div>
-          <div>
-            <label className={labelCls}>Client Name</label>
-            <Input type="text" value={formData.name} onChange={e => setFormData(f => ({ ...f, name: e.target.value }))} placeholder="My Application" />
-          </div>
-          <div>
-            <label className={labelCls}>Redirect URIs (one per line)</label>
-            <Textarea
-              value={formData.redirectUris}
-              onChange={e => setFormData(f => ({ ...f, redirectUris: e.target.value }))}
-              className="w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20 min-h-[72px] font-mono"
-              placeholder="https://app.example.com/callback"
-            />
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className={labelCls}>Allowed Scopes</label>
-              <p className="mb-1.5 text-[11px] text-muted-foreground">
-                Select which scopes this client may request. Known scopes map to specific token claims.
-              </p>
-              <div className="rounded-lg border border-border p-2 max-h-[220px] overflow-auto bg-muted/40 space-y-1.5">
-                {scopes.length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No scopes defined.</p>}
-                {scopes.map((scope: any) => {
-                  const claimHints = SCOPE_CLAIM_MAP[scope.name]
-                  return (
-                    <label key={scope.id} className="flex items-start gap-2 text-xs text-foreground cursor-pointer rounded-md px-1 py-1 hover:bg-card/70">
-                      <input
-                        type="checkbox"
-                        checked={formData.allowedScopes.includes(scope.name)}
-                        onChange={() => toggleScope(scope.name)}
-                        className="mt-0.5 rounded border-border"
+              </Group>
+            )}
+          />
+          <TextInput
+            label="Client Name"
+            value={formData.name}
+            onChange={e => { const value = e.currentTarget.value; setFormData(f => ({ ...f, name: value })) }}
+            placeholder="My Application"
+          />
+          <TagsInput
+            label="Redirect URIs"
+            description="Press Enter after each URI."
+            value={redirectUriList}
+            onChange={(values) => setFormData(f => ({ ...f, redirectUris: values.join('\n') }))}
+            splitChars={[' ', '\n']}
+            acceptValueOnBlur
+            placeholder={redirectUriList.length ? undefined : 'https://app.example.com/callback'}
+            styles={{ pillsList: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
+          />
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+            <Stack gap={6}>
+              <Box>
+                <Text size="sm" fw={500}>Allowed Scopes</Text>
+                <Text size="xs" c="dimmed">
+                  Select which scopes this client may request. Known scopes map to specific token claims.
+                </Text>
+              </Box>
+              <Paper withBorder radius="md" bg="var(--nx-color-surface-sunken)">
+                <ScrollArea.Autosize mah={220} type="auto">
+                  <Stack gap={8} p="sm">
+                    {scopes.length === 0 && <Text size="xs" c="dimmed">No scopes defined.</Text>}
+                    {scopes.map((scope: any) => {
+                      const claimHints = SCOPE_CLAIM_MAP[scope.name]
+                      return (
+                        <Checkbox
+                          key={scope.id}
+                          size="xs"
+                          checked={formData.allowedScopes.includes(scope.name)}
+                          onChange={() => toggleScope(scope.name)}
+                          label={<Text span size="xs" ff="monospace">{scope.name}</Text>}
+                          description={(scope.description || claimHints) ? (
+                            <>
+                              {scope.description && <Text span size="xs" c="dimmed" display="block">{scope.description}</Text>}
+                              {claimHints && (
+                                <Text span size="10px" c="dimmed" ff="monospace" display="block">
+                                  claims: {claimHints.join(', ')}
+                                </Text>
+                              )}
+                            </>
+                          ) : undefined}
+                        />
+                      )
+                    })}
+                  </Stack>
+                </ScrollArea.Autosize>
+              </Paper>
+            </Stack>
+            <Stack gap={6}>
+              <Text size="sm" fw={500}>Grants</Text>
+              <Paper withBorder radius="md" bg="var(--nx-color-surface-sunken)">
+                <ScrollArea.Autosize mah={220} type="auto">
+                  <Stack gap={8} p="sm">
+                    {GRANT_OPTIONS.map((grant) => (
+                      <Checkbox
+                        key={grant.value}
+                        size="xs"
+                        checked={formData.grants.includes(grant.value)}
+                        onChange={() => toggleGrant(grant.value)}
+                        label={
+                          <Group gap={6} wrap="wrap">
+                            <Text span size="xs" ff="monospace">{grant.value}</Text>
+                            <Text span size="xs" c="dimmed">{grant.label}</Text>
+                          </Group>
+                        }
                       />
-                      <span className="min-w-0">
-                        <span className="font-mono text-foreground">{scope.name}</span>
-                        {scope.description && (
-                          <span className="block text-[11px] text-muted-foreground">{scope.description}</span>
-                        )}
-                        {claimHints && (
-                          <span className="block text-[10px] text-muted-foreground font-mono">
-                            claims: {claimHints.join(', ')}
-                          </span>
-                        )}
-                      </span>
-                    </label>
-                  )
-                })}
-              </div>
-            </div>
-            <div>
-              <label className={labelCls}>Grants</label>
-              <div className="rounded-lg border border-border p-2 max-h-[180px] overflow-auto bg-muted/40 space-y-1.5">
-                {GRANT_OPTIONS.map((grant) => (
-                  <label key={grant.value} className="flex items-center gap-2 text-xs text-foreground cursor-pointer rounded-md px-1 py-1 hover:bg-card/70">
-                    <input
-                      type="checkbox"
-                      checked={formData.grants.includes(grant.value)}
-                      onChange={() => toggleGrant(grant.value)}
-                      className="rounded border-border"
+                    ))}
+                  </Stack>
+                </ScrollArea.Autosize>
+              </Paper>
+            </Stack>
+          </SimpleGrid>
+          <Stack gap={6}>
+            <Text size="sm" fw={500}>Allowed Authentication Flows</Text>
+            <Paper withBorder radius="md" bg="var(--nx-color-surface-sunken)">
+              <ScrollArea.Autosize mah={140} type="auto">
+                <Stack gap={8} p="sm">
+                  {(flows as any[]).length === 0 && <Text size="xs" c="dimmed">No flows defined.</Text>}
+                  {(flows as any[]).map((flow: any) => (
+                    <Checkbox
+                      key={flow.id}
+                      size="xs"
+                      checked={formData.flowIds.includes(flow.id)}
+                      onChange={() => toggleFlow(flow.id)}
+                      label={
+                        <Group gap={6}>
+                          <Text span size="xs">{flow.name}</Text>
+                          {flow.enabled && <Badge size="xs" variant="light" color="green">active</Badge>}
+                        </Group>
+                      }
                     />
-                    <span className="font-mono">{grant.value}</span>
-                    <span className="text-muted-foreground">{grant.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div>
-            <label className={labelCls}>Allowed Authentication Flows</label>
-            <div className="rounded-lg border border-border p-2 max-h-[120px] overflow-auto bg-muted/40 space-y-1.5">
-              {(flows as any[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No flows defined.</p>}
-              {(flows as any[]).map((flow: any) => (
-                <label key={flow.id} className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.flowIds.includes(flow.id)}
-                    onChange={() => toggleFlow(flow.id)}
-                    className="rounded border-border"
-                  />
-                  <span>{flow.name}</span>
-                  {flow.enabled && <span className="text-[10px] px-1 py-0.5 rounded bg-emerald-100 text-emerald-700">active</span>}
-                </label>
-              ))}
-            </div>
-          </div>
-          <div className="rounded-lg border border-border p-3 bg-muted/40 space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Scope Catalog</p>
-            <p className="text-[11px] text-muted-foreground">
-              Add custom API scopes here, then enable them for clients above. Built-in scopes unlock standard OIDC claims.
-            </p>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <Input
-                type="text"
-                value={newScopeName}
-                onChange={e => setNewScopeName(e.target.value)}
-                className="font-mono"
-                placeholder="PDV"
-              />
-              <Input
-                type="text"
-                value={newScopeDescription}
-                onChange={e => setNewScopeDescription(e.target.value)}
-                placeholder="Sales point system"
-              />
-            </div>
-            <div className="flex justify-end">
-              <Button
-                onClick={handleCreateScope}
-                disabled={createScope.isPending || !newScopeName.trim()}
-                variant="primary"
-                size="sm"
-              >
-                {createScope.isPending ? 'Adding…' : 'Add Scope'}
-              </Button>
-            </div>
-            <div className="space-y-1.5">
-              {scopes.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No scopes available.</p>
-              ) : (
-                scopes.map((scope: any) => (
-                  <div key={scope.id} className="flex items-center justify-between rounded-md border border-border bg-card px-2.5 py-1.5">
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-mono text-foreground">{scope.name}</p>
-                      <p className="truncate text-[11px] text-muted-foreground">{scope.description || 'No description'}</p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="ml-2 hover:bg-rose-50 hover:text-rose-600"
-                      onClick={() => handleDeleteScope(scope)}
-                      disabled={deleteScope.isPending}
-                      title="Delete scope"
-                    >
-                      <Trash2 size={12} />
-                    </Button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-          <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-            <input
-              type="checkbox"
-              checked={formData.requirePkce}
-              onChange={e => setFormData(f => ({ ...f, requirePkce: e.target.checked }))}
-              className="rounded border-border"
+                  ))}
+                </Stack>
+              </ScrollArea.Autosize>
+            </Paper>
+          </Stack>
+          <Paper withBorder radius="md" p="sm" bg="var(--nx-color-surface-sunken)">
+            <Stack gap="xs">
+              <Box>
+                <Text size="sm" fw={600}>Scope Catalog</Text>
+                <Text size="xs" c="dimmed">
+                  Add custom API scopes here, then enable them for clients above. Built-in scopes unlock standard OIDC claims.
+                </Text>
+              </Box>
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
+                <TextInput
+                  value={newScopeName}
+                  onChange={e => setNewScopeName(e.currentTarget.value)}
+                  ff="monospace"
+                  placeholder="PDV"
+                  aria-label="Scope name"
+                />
+                <TextInput
+                  value={newScopeDescription}
+                  onChange={e => setNewScopeDescription(e.currentTarget.value)}
+                  placeholder="Sales point system"
+                  aria-label="Scope description"
+                />
+              </SimpleGrid>
+              <Group justify="flex-end">
+                <Button
+                  size="xs"
+                  onClick={handleCreateScope}
+                  disabled={!newScopeName.trim()}
+                  loading={createScope.isPending}
+                >
+                  Add Scope
+                </Button>
+              </Group>
+              <Stack gap={6}>
+                {scopes.length === 0 ? (
+                  <Text size="xs" c="dimmed">No scopes available.</Text>
+                ) : (
+                  scopes.map((scope: any) => (
+                    <Paper key={scope.id} withBorder radius="sm" px="sm" py={6}>
+                      <Group justify="space-between" wrap="nowrap" gap="sm">
+                        <Box miw={0}>
+                          <Text size="xs" ff="monospace" truncate>{scope.name}</Text>
+                          <Text size="xs" c="dimmed" truncate>{scope.description || 'No description'}</Text>
+                        </Box>
+                        <ActionIcon
+                          variant="subtle"
+                          color="red"
+                          size="sm"
+                          onClick={() => handleDeleteScope(scope)}
+                          disabled={deleteScope.isPending}
+                          aria-label="Delete scope"
+                          title="Delete scope"
+                        >
+                          <Trash2 size={12} />
+                        </ActionIcon>
+                      </Group>
+                    </Paper>
+                  ))
+                )}
+              </Stack>
+            </Stack>
+          </Paper>
+          <Checkbox
+            checked={formData.requirePkce}
+            onChange={e => { const checked = e.currentTarget.checked; setFormData(f => ({ ...f, requirePkce: checked })) }}
+            label="Require PKCE (recommended for public clients)"
+          />
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+            <NumberInput
+              label="Access token TTL (seconds)"
+              description="Lifetime of issued access tokens. Leave blank to use the default (900 = 15 min). Allowed: 60 – 86,400."
+              min={60}
+              max={86400}
+              allowDecimal={false}
+              value={formData.accessTokenTtlSeconds}
+              onChange={(value) => setFormData(f => ({ ...f, accessTokenTtlSeconds: value === '' ? '' : Number(value) }))}
+              placeholder="900"
             />
-            Require PKCE (recommended for public clients)
-          </label>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className={labelCls}>Access token TTL (seconds)</label>
-              <Input
-                type="number"
-                min={60}
-                max={86400}
-                value={formData.accessTokenTtlSeconds}
-                onChange={(e) => setFormData(f => ({ ...f, accessTokenTtlSeconds: e.target.value === '' ? '' : Number(e.target.value) }))}
-                placeholder="900"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">Lifetime of issued access tokens. Leave blank to use the default (900 = 15 min). Allowed: 60 – 86,400.</p>
-            </div>
-            <div>
-              <label className={labelCls}>Refresh token TTL (seconds)</label>
-              <Input
-                type="number"
-                min={300}
-                max={31536000}
-                value={formData.refreshTokenTtlSeconds}
-                onChange={(e) => setFormData(f => ({ ...f, refreshTokenTtlSeconds: e.target.value === '' ? '' : Number(e.target.value) }))}
-                placeholder="2592000"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">Lifetime of issued refresh tokens. Leave blank to use the default (2,592,000 = 30 days). Allowed: 300 – 31,536,000.</p>
-            </div>
-          </div>
-          {formError && <p className="text-xs text-rose-600">{formError}</p>}
-          <div className="flex gap-2 justify-end pt-2">
-            <Button onClick={closeClientModal} variant="secondary">
+            <NumberInput
+              label="Refresh token TTL (seconds)"
+              description="Lifetime of issued refresh tokens. Leave blank to use the default (2,592,000 = 30 days). Allowed: 300 – 31,536,000."
+              min={300}
+              max={31536000}
+              allowDecimal={false}
+              value={formData.refreshTokenTtlSeconds}
+              onChange={(value) => setFormData(f => ({ ...f, refreshTokenTtlSeconds: value === '' ? '' : Number(value) }))}
+              placeholder="2592000"
+            />
+          </SimpleGrid>
+          {formError && <Alert color="red" variant="light">{formError}</Alert>}
+          <Group justify="flex-end" gap="xs" pt="xs">
+            <Button onClick={closeClientModal} variant="default">
               Cancel
             </Button>
             <Button
               onClick={editClient ? handleUpdate : handleCreate}
+              loading={editClient ? updateClient.isPending : createClient.isPending}
               disabled={
                 editClient
-                  ? updateClient.isPending || !formData.name || formData.allowedScopes.length === 0 || formData.grants.length === 0
-                  : createClient.isPending || !formData.id || !formData.name || !formData.secret || formData.allowedScopes.length === 0 || formData.grants.length === 0
+                  ? !formData.name || formData.allowedScopes.length === 0 || formData.grants.length === 0
+                  : !formData.id || !formData.name || !formData.secret || formData.allowedScopes.length === 0 || formData.grants.length === 0
               }
-              variant="primary"
             >
-              {editClient ? (updateClient.isPending ? 'Saving…' : 'Save Changes') : (createClient.isPending ? 'Creating…' : 'Create Client')}
+              {editClient ? 'Save Changes' : 'Create Client'}
             </Button>
-          </div>
-        </div>
+          </Group>
+        </Stack>
       </Modal>
 
       {/* Resources modal */}
       <Modal isOpen={!!resourcesClient} onClose={() => setResourcesClient(null)} title={`Resources: ${resourcesClient?.name ?? ''}`}>
-        <div className="space-y-4">
-          <p className="text-xs text-muted-foreground">Define the resource identifiers for this client. These appear as selectable resources in the role permission matrix.</p>
-          <div className="flex gap-2">
-            <Input
-              type="text"
+        <Stack gap="md">
+          <Text size="xs" c="dimmed">Define the resource identifiers for this client. These appear as selectable resources in the role permission matrix.</Text>
+          <Group gap="xs" wrap="nowrap">
+            <TextInput
               value={newResource}
-              onChange={e => setNewResource(e.target.value)}
+              onChange={e => setNewResource(e.currentTarget.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleAddResource() }}
-              className="font-mono flex-1"
+              ff="monospace"
               placeholder="invoices"
+              aria-label="Resource identifier"
+              flex={1}
             />
-            <Button
+            <ActionIcon
+              size="lg"
               onClick={handleAddResource}
               disabled={!newResource.trim() || updateClient.isPending}
-              variant="primary"
-              className="shrink-0 px-3"
+              aria-label="Add resource"
             >
-              <Plus size={14} />
-            </Button>
-          </div>
-          <div className="space-y-1.5">
+              <Plus size={16} />
+            </ActionIcon>
+          </Group>
+          <Stack gap={6}>
             {(resourcesClient?.resources ?? []).length === 0 && (
-              <p className="text-xs text-muted-foreground py-2 text-center">No resources defined yet.</p>
+              <Text size="xs" c="dimmed" ta="center" py="xs">No resources defined yet.</Text>
             )}
             {(resourcesClient?.resources ?? []).map(r => (
-              <div key={r} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/50 border border-border">
-                <span className="text-sm font-mono text-foreground">{r}</span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="hover:text-rose-600"
-                  onClick={() => handleRemoveResource(r)}
-                >
-                  <X size={13} />
-                </Button>
-              </div>
+              <Paper key={r} withBorder radius="md" px="sm" py={6} bg="var(--nx-color-surface-sunken)">
+                <Group justify="space-between" wrap="nowrap">
+                  <Text size="sm" ff="monospace" truncate>{r}</Text>
+                  <ActionIcon
+                    variant="subtle"
+                    color="red"
+                    size="sm"
+                    onClick={() => handleRemoveResource(r)}
+                    aria-label={`Remove resource ${r}`}
+                  >
+                    <X size={13} />
+                  </ActionIcon>
+                </Group>
+              </Paper>
             ))}
-          </div>
-          <div className="flex justify-end pt-1">
-            <Button onClick={() => setResourcesClient(null)} variant="secondary">
+          </Stack>
+          <Group justify="flex-end" pt={4}>
+            <Button onClick={() => setResourcesClient(null)} variant="default">
               Done
             </Button>
-          </div>
-        </div>
+          </Group>
+        </Stack>
       </Modal>
 
       <ConfirmDialog
@@ -673,11 +728,12 @@ const Clients = () => {
         title="Delete Client"
         message={`Delete client "${clientToDelete ?? ''}"? This action cannot be undone.`}
         confirmLabel="Delete Client"
+        variant="danger"
         pending={deleteClient.isPending}
         onConfirm={confirmDeleteClient}
         onCancel={() => setClientToDelete(null)}
       />
-    </div>
+    </>
   )
 }
 

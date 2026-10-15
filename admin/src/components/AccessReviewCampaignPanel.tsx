@@ -1,6 +1,6 @@
-import Card from './ui/Card'
-import Textarea from './ui/Textarea'
 import { useMemo, useState } from 'react'
+import { Box, Button, Group, Paper, SimpleGrid, Stack, Text, TextInput, Textarea } from '@mantine/core'
+import { SectionCard, StatusBadge } from '@nexus/design'
 import {
   useAccessReviewCampaign,
   useCreateAccessReviewCampaign,
@@ -75,65 +75,68 @@ export default function AccessReviewCampaignPanel() {
   const payload = reviewCampaign.data
 
   return (
-    <div className="grid gap-6 xl:grid-cols-2">
-      <Card className="p-5">
-        <h2 className="text-base font-semibold text-foreground">Access Review Campaign</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Generate recertification items from current role and group assignments.</p>
-
-        <div className="mt-4 space-y-2">
-          <input
+    <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="lg">
+      <SectionCard
+        title="Access review campaign"
+        description="Generate recertification items from current role and group assignments."
+      >
+        <Stack gap="sm">
+          <TextInput
+            aria-label="Campaign name"
             value={name}
-            onChange={(event) => setName(event.target.value)}
-            className="h-9 w-full rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+            onChange={(event) => setName(event.currentTarget.value)}
             placeholder="Campaign name"
           />
           <Textarea
+            aria-label="Campaign description"
             value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            rows={3}
-            className="w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+            onChange={(event) => setDescription(event.currentTarget.value)}
+            autosize
+            minRows={3}
             placeholder="Campaign scope and reviewer guidance"
           />
-          <div className="grid grid-cols-2 gap-2">
-            <input
+          <SimpleGrid cols={2} spacing="sm">
+            <TextInput
               type="date"
+              aria-label="Due date"
               value={dueAtDate}
-              onChange={(event) => setDueAtDate(event.target.value)}
-              className="h-9 w-full rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+              onChange={(event) => setDueAtDate(event.currentTarget.value)}
             />
-            <input
+            <TextInput
               type="time"
+              aria-label="Due time"
               value={dueAtTime}
-              onChange={(event) => setDueAtTime(event.target.value)}
+              onChange={(event) => setDueAtTime(event.currentTarget.value)}
               step={60}
               disabled={!dueAtDate}
-              className="h-9 w-full rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:bg-muted/50 disabled:text-muted-foreground"
             />
-          </div>
-          <p className="text-xs text-muted-foreground">Due date is optional. Select date first, then time.</p>
-          <button
-            onClick={runCreateCampaign}
-            disabled={createCampaign.isPending || name.trim().length < 3}
-            className="inline-flex h-9 items-center rounded-lg bg-sky-600 px-3 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-50"
-          >
-            {createCampaign.isPending ? 'Generating…' : 'Create Campaign'}
-          </button>
-          {message ? <p className="text-xs text-muted-foreground">{message}</p> : null}
-        </div>
-      </Card>
+          </SimpleGrid>
+          <Text size="xs" c="dimmed">Due date is optional. Select date first, then time.</Text>
+          <Box>
+            <Button
+              onClick={runCreateCampaign}
+              loading={createCampaign.isPending}
+              disabled={name.trim().length < 3}
+            >
+              Create campaign
+            </Button>
+          </Box>
+          {message ? <Text size="xs" c="dimmed">{message}</Text> : null}
+        </Stack>
+      </SectionCard>
 
-      <Card className="p-5">
-        <h2 className="text-base font-semibold text-foreground">Campaign Items</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Certify or revoke each generated entitlement entry.</p>
-
-        {!campaignId ? <p className="mt-4 text-sm text-muted-foreground">Create a campaign to load review items.</p> : null}
-        {reviewCampaign.isLoading ? <p className="mt-4 text-sm text-muted-foreground">Loading campaign…</p> : null}
+      <SectionCard
+        title="Campaign items"
+        description="Certify or revoke each generated entitlement entry."
+        loading={reviewCampaign.isLoading}
+      >
+        {!campaignId ? <Text size="sm" c="dimmed">Create a campaign to load review items.</Text> : null}
         {payload?.campaign ? (
-          <div className="mt-4 space-y-2">
-            <p className="text-xs text-muted-foreground">
+          <Stack gap="sm">
+            <Text size="xs" c="dimmed">
               {payload.campaign.name} • {payload.campaign.status} • {payload.items.length} item(s)
-            </p>
-            {payload.items.length === 0 ? <p className="text-sm text-muted-foreground">No assignments are currently in scope.</p> : null}
+            </Text>
+            {payload.items.length === 0 ? <Text size="sm" c="dimmed">No assignments are currently in scope.</Text> : null}
             {payload.items.map((item) => {
               const subjectLabel = userLabelById.get(item.subjectUserId) ?? item.subjectUserId
               const entitlementLabel = item.entitlementType === 'role'
@@ -141,41 +144,44 @@ export default function AccessReviewCampaignPanel() {
                 : (groupLabelById.get(item.entitlementValue) ?? item.entitlementValue)
 
               return (
-                <div key={item.id} className="rounded-lg border border-border bg-muted/50 p-3 text-sm">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-medium text-foreground">{item.entitlementType}: {entitlementLabel}</p>
-                    <StatusBadge tone={item.decision === 'certified' ? 'success' : item.decision === 'revoked' ? 'danger' : 'warning'}>
+                <Paper key={item.id} withBorder p="sm" radius="md" bg="var(--nx-color-surface-sunken)">
+                  <Group justify="space-between" gap="xs">
+                    <Text size="sm" fw={500}>{item.entitlementType}: {entitlementLabel}</Text>
+                    <StatusBadge status={item.decision === 'certified' ? 'approved' : item.decision === 'revoked' ? 'revoked' : 'pending'}>
                       {item.decision ?? 'pending'}
                     </StatusBadge>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">Subject: {subjectLabel}</p>
+                  </Group>
+                  <Text size="xs" c="dimmed" mt={4}>Subject: {subjectLabel}</Text>
                   {item.decision ? (
-                    <p className="mt-1 text-xs text-muted-foreground">Decision recorded at {new Date(item.updatedAt).toLocaleString()}</p>
+                    <Text size="xs" c="dimmed" mt={4}>Decision recorded at {new Date(item.updatedAt).toLocaleString()}</Text>
                   ) : (
-                    <div className="mt-2 flex gap-2">
-                      <button
+                    <Group gap="xs" mt="xs">
+                      <Button
+                        size="xs"
+                        variant="light"
+                        color="green"
                         onClick={() => runDecision(item.id, 'certified')}
                         disabled={decideItem.isPending}
-                        className="rounded border border-emerald-200 bg-card px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
                       >
                         Certify
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        color="red"
                         onClick={() => runDecision(item.id, 'revoked')}
                         disabled={decideItem.isPending}
-                        className="rounded border border-rose-200 bg-card px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50"
                       >
                         Revoke
-                      </button>
-                    </div>
+                      </Button>
+                    </Group>
                   )}
-                </div>
+                </Paper>
               )
             })}
-          </div>
+          </Stack>
         ) : null}
-      </Card>
-    </div>
+      </SectionCard>
+    </SimpleGrid>
   )
 }
-import StatusBadge from './ui/StatusBadge'

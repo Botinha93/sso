@@ -1,14 +1,51 @@
-import Card from '../components/ui/Card'
-import Textarea from '../components/ui/Textarea'
-import Select from '../components/ui/Select'
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, ArrowRight, Lock, Mail, Network, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
+import {
+  Alert,
+  Anchor,
+  Badge,
+  Box,
+  Button,
+  Code,
+  Group,
+  List,
+  NativeSelect,
+  NumberInput,
+  Paper,
+  PasswordInput,
+  SimpleGrid,
+  Stack,
+  Switch,
+  Tabs,
+  Text,
+  Textarea,
+  TextInput
+} from '@mantine/core'
+import {
+  PageHeader,
+  PageHeaderSkeleton,
+  RefreshButton,
+  SectionCard,
+  SettingRow,
+  SettingsList,
+  StatusBadge
+} from '@nexus/design'
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  Database,
+  Info,
+  LayoutDashboard,
+  Lock,
+  Mail,
+  Network,
+  Palette,
+  ShieldCheck,
+  Trash2,
+  Users,
+  XCircle
+} from 'lucide-react'
 import { Link } from 'react-router-dom'
-import StatusBadge from '../components/ui/StatusBadge'
-import { PageHeader, PageHeaderSkeleton } from '../components/PageHeader'
-import Button from '../components/ui/Button'
-import Input from '../components/ui/Input'
-import React from 'react';
 import {
   useAdminMe,
   useAdminRiskEvents,
@@ -51,8 +88,6 @@ interface SettingsForm {
   retentionDays: Record<string, number>
 }
 
-const checkboxCls = 'h-4 w-4 rounded border-border text-foreground accent-sky-600'
-const sectionIconCls = 'flex h-7 w-7 items-center justify-center rounded-lg bg-muted text-muted-foreground'
 const parseOrigins = (value: string) => value.split('\n').map((item) => item.trim()).filter(Boolean)
 
 const parseHttpOrigin = (value: unknown) => {
@@ -112,6 +147,7 @@ export default function Administration() {
   const [form, setForm] = useState<SettingsForm>(defaultForm)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [tab, setTab] = useState<string | null>('overview')
   const permissions: string[] = (adminMe as any)?.permissions ?? []
   const can = (permission: string) => permissions.includes('*:*') || permissions.includes(permission)
   const appCorsOrigins = useMemo(() => {
@@ -300,607 +336,590 @@ export default function Administration() {
   }
 
   if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <PageHeaderSkeleton blocks={3} />
-      </div>
-    )
+    return <PageHeaderSkeleton blocks={3} />
   }
 
+  const smtpDisabled = form.emailTransport !== 'smtp'
+  const isSettingsTab = tab === 'security' || tab === 'data' || tab === 'email'
+
   return (
-    <div className="space-y-6">
+    <Stack gap="lg">
       <PageHeader
-        eyebrow="Instance Controls"
+        eyebrow="Instance controls"
         title="Administration"
         description="Configure instance-wide transport, browser, OAuth, and runtime attack controls. These settings affect how the server accepts requests, issues tokens, and reacts to suspicious authentication behavior."
-        action={
-          <Button variant="secondary" onClick={() => refetch()} disabled={isSettingsRefreshing}>
-            <RefreshCw size={14} className={isSettingsRefreshing ? 'animate-spin' : ''} />
-            Refresh
-          </Button>
-        }
+        actions={<RefreshButton onRefresh={() => refetch()} loading={isSettingsRefreshing} withLastUpdated={false} />}
       />
 
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-sm">
-        <div className="flex items-start gap-3">
-          <AlertTriangle size={18} className="mt-0.5 shrink-0" />
-          <div>
-            <p className="font-semibold">Operational warning</p>
-            <p className="mt-1 text-amber-800">
-              Enabling HTTPS or secure cookies while you are still using plain HTTP in development can immediately block login or future admin requests.
-            </p>
-          </div>
-        </div>
-      </div>
+      <Alert color="yellow" icon={<AlertTriangle size={16} />} title="Operational warning">
+        Enabling HTTPS or secure cookies while you are still using plain HTTP in development can immediately block login or future admin requests.
+      </Alert>
 
-      <Card className="p-5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className={sectionIconCls}><ShieldCheck size={14} /></div>
-            <h2 className="text-base font-semibold text-foreground">Recent Security Risk Events</h2>
-          </div>
-          <Button variant="ghost" size="sm" onClick={() => refetchRiskEvents()} disabled={isRiskEventsRefreshing}>
-            <RefreshCw size={12} className={isRiskEventsRefreshing ? 'animate-spin' : ''} />
-            Refresh
-          </Button>
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">Normalized risk telemetry derived from audit activity (login failures, lockouts, anomaly detections, protocol guardrails).</p>
-        <div className="mt-4 divide-y divide-border rounded-lg border border-border bg-card">
-          {(riskEvents ?? []).length === 0 ? (
-            <div className="px-3 py-3 text-sm text-muted-foreground">No risk events recorded yet.</div>
-          ) : (
-            (riskEvents ?? []).map((event) => (
-              <div key={event.id} className="flex items-center justify-between px-3 py-2.5">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-foreground">{event.title}</p>
-                  <p className="text-xs text-muted-foreground">{event.sourceType} {event.ip ? `• ${event.ip}` : ''}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <StatusBadge tone={event.severity === 'critical' ? 'danger' : event.severity === 'high' ? 'warning' : 'neutral'} className="uppercase">
-                    {event.severity}
-                  </StatusBadge>
-                  <span className="text-xs text-muted-foreground">{new Date(event.createdAt).toLocaleString()}</span>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </Card>
+      <Tabs value={tab} onChange={setTab}>
+        <Tabs.List mb="lg">
+          <Tabs.Tab value="overview" leftSection={<LayoutDashboard size={16} />}>Overview</Tabs.Tab>
+          <Tabs.Tab value="security" leftSection={<ShieldCheck size={16} />}>Security</Tabs.Tab>
+          <Tabs.Tab value="data" leftSection={<Database size={16} />}>Data</Tabs.Tab>
+          <Tabs.Tab value="email" leftSection={<Mail size={16} />}>Email</Tabs.Tab>
+          <Tabs.Tab value="provisioning" leftSection={<Users size={16} />}>Provisioning</Tabs.Tab>
+        </Tabs.List>
 
-      <ProvisioningAdminPanel />
-
-      <Card className="p-5">
-        <div className="flex items-center gap-2">
-          <div className={sectionIconCls}><ShieldCheck size={14} /></div>
-          <h2 className="text-base font-semibold text-foreground">Dedicated Operations Views</h2>
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Governance, elevation tracking, and auth metrics now have dedicated pages for focused workflows.
-        </p>
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
-          {operationLinks.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              className="group rounded-lg border border-border bg-card p-4 text-sm transition-colors hover:border-border hover:bg-muted/50"
+        {/* ── Overview ─────────────────────────────────────────────── */}
+        <Tabs.Panel value="overview">
+          <Stack gap="lg">
+            <SectionCard
+              title="Recent security risk events"
+              description="Normalized risk telemetry derived from audit activity (login failures, lockouts, anomaly detections, protocol guardrails)."
+              icon={<ShieldCheck size={16} />}
+              actions={
+                <RefreshButton
+                  size="xs"
+                  onRefresh={() => refetchRiskEvents()}
+                  loading={isRiskEventsRefreshing}
+                  withLastUpdated={false}
+                />
+              }
+              flush
             >
-              <p className="font-semibold text-foreground">{item.title}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{item.description}</p>
-              <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-foreground">
-                Open view <ArrowRight size={12} className="transition-transform group-hover:translate-x-0.5" />
-              </span>
-            </Link>
-          ))}
-          {operationLinks.length === 0 ? (
-            <p className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-              You do not currently have permission to access these dedicated operations views.
-            </p>
-          ) : null}
-        </div>
-      </Card>
+              {(riskEvents ?? []).length === 0 ? (
+                <Text size="sm" c="dimmed" px="lg" py="md">No risk events recorded yet.</Text>
+              ) : (
+                <Stack gap={0}>
+                  {(riskEvents ?? []).map((event, index) => (
+                    <Group
+                      key={event.id}
+                      justify="space-between"
+                      wrap="nowrap"
+                      gap="md"
+                      px="lg"
+                      py="sm"
+                      style={index > 0 ? { borderTop: '1px solid var(--nx-color-border)' } : undefined}
+                    >
+                      <Box miw={0}>
+                        <Text size="sm" fw={500} truncate>{event.title}</Text>
+                        <Text size="xs" c="dimmed">{event.sourceType} {event.ip ? `• ${event.ip}` : ''}</Text>
+                      </Box>
+                      <Group gap="sm" wrap="nowrap">
+                        <Badge
+                          color={event.severity === 'critical' ? 'red' : event.severity === 'high' ? 'yellow' : 'gray'}
+                          variant="light"
+                        >
+                          {event.severity}
+                        </Badge>
+                        <Text size="xs" c="dimmed" visibleFrom="sm">{new Date(event.createdAt).toLocaleString()}</Text>
+                      </Group>
+                    </Group>
+                  ))}
+                </Stack>
+              )}
+            </SectionCard>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card className="p-5">
-          <div className="flex items-center gap-2">
-            <div className={sectionIconCls}><Network size={14} /></div>
-            <h2 className="text-base font-semibold text-foreground">Database Provider</h2>
-          </div>
-          <div className="mt-4 space-y-4">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Provider</label>
-              <Select
-                value={form.databaseProvider}
-                onChange={(e) => setForm((v) => ({ ...v, databaseProvider: e.target.value as SettingsForm['databaseProvider'] }))}
-                className="h-9 w-full rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/20"
+            <SectionCard
+              title="Dedicated operations views"
+              description="Governance, elevation tracking, and auth metrics now have dedicated pages for focused workflows."
+              icon={<ShieldCheck size={16} />}
+            >
+              {operationLinks.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  You do not currently have permission to access these dedicated operations views.
+                </Text>
+              ) : (
+                <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="sm">
+                  {operationLinks.map((item) => (
+                    <Paper
+                      key={item.to}
+                      component={Link}
+                      to={item.to}
+                      withBorder
+                      radius="md"
+                      p="md"
+                      className="nx-interactive"
+                      style={{ textDecoration: 'none', color: 'inherit' }}
+                    >
+                      <Text size="sm" fw={600}>{item.title}</Text>
+                      <Text size="xs" c="dimmed" mt={4}>{item.description}</Text>
+                      <Group gap={4} mt="sm">
+                        <Text size="xs" fw={500}>Open view</Text>
+                        <ArrowRight size={12} />
+                      </Group>
+                    </Paper>
+                  ))}
+                </SimpleGrid>
+              )}
+            </SectionCard>
+
+            <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg">
+              <SectionCard
+                title="Experience customization"
+                description="Manage login, consent, and portal branding in the dedicated Experience Customization workspace."
+                icon={<Palette size={16} />}
               >
-                <option value="sqlite">SQLite</option>
-                <option value="postgresql">PostgreSQL</option>
-                <option value="mysql">MySQL</option>
-              </Select>
-            </div>
+                <Stack gap="md" align="flex-start">
+                  <Text size="sm" c="dimmed">
+                    The dedicated editor supports default, client, and app scopes with guided fields and preview.
+                  </Text>
+                  <Button component={Link} to="/experience-customization" variant="default" rightSection={<ArrowRight size={16} />}>
+                    Open Experience Customization
+                  </Button>
+                </Stack>
+              </SectionCard>
 
-            {form.databaseProvider === 'sqlite' ? (
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">SQLite Database Path</label>
-                <Input
-                  value={form.databasePath}
-                  onChange={(e) => setForm((v) => ({ ...v, databasePath: e.target.value }))}
-                  placeholder="./data/sso.sqlite"
+              <SectionCard title="What changes immediately" icon={<Info size={16} />}>
+                <List size="sm" spacing="xs">
+                  <List.Item>HTTPS requirement is applied on the next incoming request.</List.Item>
+                  <List.Item>CORS origin policy is checked on the next browser preflight or cross-origin request.</List.Item>
+                  <List.Item>Cookie security changes affect the next issued CSRF or session cookie.</List.Item>
+                  <List.Item>Redirect URI and PKCE enforcement apply to subsequent client changes and authorize requests.</List.Item>
+                  <List.Item>Disabling implicit flow immediately blocks new authorize requests that return front-channel tokens, including <Code>response_type=token</Code>, <Code>id_token token</Code>, and <Code>code id_token token</Code>.</List.Item>
+                  <List.Item>Lockout and anomaly thresholds are applied immediately to new authentication and session observation events.</List.Item>
+                  <List.Item>Database provider settings are persisted immediately and take effect once the backend storage rewrite path is activated.</List.Item>
+                  <List.Item>Email transport settings are used immediately for recovery and other email-driven flows.</List.Item>
+                </List>
+              </SectionCard>
+            </SimpleGrid>
+          </Stack>
+        </Tabs.Panel>
+
+        {/* ── Security ─────────────────────────────────────────────── */}
+        <Tabs.Panel value="security">
+          <Stack gap="lg">
+            <SettingsList
+              title="Transport security"
+              description="How the server treats plain-HTTP requests, cookies and client callbacks."
+            >
+              <SettingRow
+                label="Require HTTPS"
+                description="Reject non-HTTPS requests at the server edge unless they arrive through a forwarded HTTPS proxy."
+                htmlFor="admin-require-https"
+              >
+                <Switch id="admin-require-https" checked={form.requireHttps} onChange={(e) => { const checked = e.currentTarget.checked; setForm((v) => ({ ...v, requireHttps: checked })) }} />
+              </SettingRow>
+              <SettingRow
+                label="Use secure cookies"
+                description="Marks admin session and CSRF cookies as secure so browsers only send them over HTTPS."
+                htmlFor="admin-secure-cookies"
+              >
+                <Switch id="admin-secure-cookies" checked={form.secureCookies} onChange={(e) => { const checked = e.currentTarget.checked; setForm((v) => ({ ...v, secureCookies: checked })) }} />
+              </SettingRow>
+              <SettingRow
+                label="Require HTTPS redirect URIs"
+                description="Enforces HTTPS for newly created or updated client redirect URIs, except localhost development callbacks."
+                htmlFor="admin-https-redirects"
+              >
+                <Switch id="admin-https-redirects" checked={form.requireHttpsRedirectUris} onChange={(e) => { const checked = e.currentTarget.checked; setForm((v) => ({ ...v, requireHttpsRedirectUris: checked })) }} />
+              </SettingRow>
+            </SettingsList>
+
+            <SettingsList
+              title="OAuth and token security"
+              description="Authorization request hardening for every OAuth client."
+            >
+              <SettingRow
+                label="Require S256 PKCE"
+                description="Rejects plain PKCE and requires the stronger S256 code challenge method for authorization requests."
+                htmlFor="admin-s256-pkce"
+              >
+                <Switch id="admin-s256-pkce" checked={form.requireS256Pkce} onChange={(e) => { const checked = e.currentTarget.checked; setForm((v) => ({ ...v, requireS256Pkce: checked })) }} />
+              </SettingRow>
+              <SettingRow
+                label="Allow implicit flow"
+                description={<>Keeps front-channel token responses available, including <Code>response_type=token</Code>, <Code>id_token token</Code>, and <Code>code id_token token</Code>. Disable this to remove weaker implicit and hybrid front-channel paths.</>}
+                htmlFor="admin-implicit-flow"
+              >
+                <Switch id="admin-implicit-flow" checked={form.allowImplicitFlow} onChange={(e) => { const checked = e.currentTarget.checked; setForm((v) => ({ ...v, allowImplicitFlow: checked })) }} />
+              </SettingRow>
+              <SettingRow
+                label="Token signing algorithm"
+                description={<>Tokens are currently signed using RS256. This implementation remains enforced server-side. Access and refresh token lifetimes are configured per OAuth client on the <Anchor component={Link} to="/clients" size="xs">Clients</Anchor> page.</>}
+              >
+                <StatusBadge status="success" ff="monospace">RS256</StatusBadge>
+              </SettingRow>
+            </SettingsList>
+
+            <SectionCard
+              title="CORS policy"
+              description="Which browser origins may call the API cross-origin."
+              icon={<Network size={16} />}
+            >
+              <Stack gap="lg">
+                <SettingsList>
+                  <SettingRow
+                    label="Allow any origin"
+                    description="Permits cross-origin requests from any browser origin. Disable this for production-grade isolation."
+                    htmlFor="admin-any-origin"
+                  >
+                    <Switch id="admin-any-origin" checked={form.allowAnyCorsOrigin} onChange={(e) => { const checked = e.currentTarget.checked; setForm((v) => ({ ...v, allowAnyCorsOrigin: checked })) }} />
+                  </SettingRow>
+                </SettingsList>
+
+                <Stack gap={6}>
+                  <Text size="sm" fw={500}>Auto-added app origins</Text>
+                  <Paper withBorder radius="md" px="sm" py="xs" mih={44} bg="var(--nx-color-surface-sunken)">
+                    {appCorsOrigins.length === 0 ? (
+                      <Text size="xs" c="dimmed">No app URLs or resource URLs found to auto-allow.</Text>
+                    ) : (
+                      <Group gap={6}>
+                        {appCorsOrigins.map((origin) => (
+                          <Badge key={origin} variant="default" tt="none" ff="monospace" fw={400}>
+                            {origin}
+                          </Badge>
+                        ))}
+                      </Group>
+                    )}
+                  </Paper>
+                  <Text size="xs" c="dimmed">These origins are synced from app URL and app resource URLs and are included automatically when saving.</Text>
+                </Stack>
+
+                <Textarea
+                  label="Allowed origins"
+                  description={<>One origin per line. Include scheme and host, for example <Code>https://admin.example.com</Code>. Manual values here are merged with the auto-added app origins.</>}
+                  inputWrapperOrder={['label', 'input', 'description']}
+                  value={form.corsAllowedOriginsText}
+                  onChange={(e) => { const value = e.currentTarget.value; setForm((v) => ({ ...v, corsAllowedOriginsText: value })) }}
+                  disabled={form.allowAnyCorsOrigin}
+                  autosize
+                  minRows={5}
+                  ff="monospace"
+                  styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
+                  placeholder={'https://admin.example.com\nhttps://portal.example.com'}
                 />
-              </div>
-            ) : (
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">External Database URL</label>
-                <Input
-                  value={form.externalDatabaseUrl}
-                  onChange={(e) => setForm((v) => ({ ...v, externalDatabaseUrl: e.target.value }))}
-                  placeholder={form.databaseProvider === 'postgresql' ? 'postgresql://user:pass@host:5432/sso' : 'mysql://user:pass@host:3306/sso'}
+              </Stack>
+            </SectionCard>
+
+            <SectionCard
+              title="Runtime attack controls"
+              description="These values are applied immediately to login lockout tracking, session anomaly detection, and rate limiting without restarting the server."
+              icon={<Lock size={16} />}
+            >
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" verticalSpacing="md">
+                <NumberInput
+                  label="Login failure window"
+                  description="How long failed logins are counted before the counter resets, in minutes."
+                  inputWrapperOrder={['label', 'input', 'description']}
+                  min={1}
+                  max={1440}
+                  suffix=" min"
+                  value={form.loginFailureWindowMinutes}
+                  onChange={(value) => setForm((v) => ({ ...v, loginFailureWindowMinutes: Number(value || 1) }))}
                 />
-              </div>
-            )}
+                <NumberInput
+                  label="Lockout threshold"
+                  description="Number of failed logins allowed before the account is temporarily locked."
+                  inputWrapperOrder={['label', 'input', 'description']}
+                  min={1}
+                  max={100}
+                  value={form.loginLockoutThreshold}
+                  onChange={(value) => setForm((v) => ({ ...v, loginLockoutThreshold: Number(value || 1) }))}
+                />
+                <NumberInput
+                  label="Lockout duration"
+                  description="How long the lockout remains active after the threshold is reached, in minutes."
+                  inputWrapperOrder={['label', 'input', 'description']}
+                  min={1}
+                  max={1440}
+                  suffix=" min"
+                  value={form.loginLockoutDurationMinutes}
+                  onChange={(value) => setForm((v) => ({ ...v, loginLockoutDurationMinutes: Number(value || 1) }))}
+                />
+                <NumberInput
+                  label="Session anomaly concurrency"
+                  description="Raises a session anomaly event when a user exceeds this many concurrent active sessions."
+                  inputWrapperOrder={['label', 'input', 'description']}
+                  min={1}
+                  max={100}
+                  value={form.sessionAnomalyConcurrencyThreshold}
+                  onChange={(value) => setForm((v) => ({ ...v, sessionAnomalyConcurrencyThreshold: Number(value || 1) }))}
+                />
+                <NumberInput
+                  label="Rate limit multiplier"
+                  description="Scales global and endpoint rate limits. 1 is the base limit; 10 allows 10x more requests per window."
+                  inputWrapperOrder={['label', 'input', 'description']}
+                  min={0.1}
+                  max={100}
+                  step={0.1}
+                  decimalScale={2}
+                  suffix="×"
+                  value={form.rateLimitMultiplier}
+                  onChange={(value) => setForm((v) => ({ ...v, rateLimitMultiplier: Number(value || 1) }))}
+                />
+              </SimpleGrid>
+            </SectionCard>
+          </Stack>
+        </Tabs.Panel>
 
-            <p className="text-xs text-muted-foreground">
-              Provider settings are persisted now; full PostgreSQL/MySQL runtime persistence is part of the ongoing repository rewrite.
-            </p>
-
-            {form.databaseProvider !== 'sqlite' ? (
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  onClick={testDatabaseConnection}
-                  disabled={testExternalDb.isPending || !form.externalDatabaseUrl}
-                >
-                  {testExternalDb.isPending ? 'Testing…' : 'Test Connection'}
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={migrateFromSqlite}
-                  disabled={migrateDatabase.isPending || !form.externalDatabaseUrl}
-                >
-                  {migrateDatabase.isPending ? 'Migrating…' : 'Migrate From SQLite'}
-                </Button>
-              </div>
-            ) : null}
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center gap-2">
-            <div className={sectionIconCls}><Lock size={14} /></div>
-            <h2 className="text-base font-semibold text-foreground">Transport Security</h2>
-          </div>
-          <div className="mt-4 space-y-4">
-            <label className="flex items-start gap-3 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
-              <input type="checkbox" checked={form.requireHttps} onChange={(e) => setForm((v) => ({ ...v, requireHttps: e.target.checked }))} className={checkboxCls} />
-              <div>
-                <p className="font-medium text-foreground">Require HTTPS</p>
-                <p className="mt-1 text-muted-foreground">Reject non-HTTPS requests at the server edge unless they arrive through a forwarded HTTPS proxy.</p>
-              </div>
-            </label>
-
-            <label className="flex items-start gap-3 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
-              <input type="checkbox" checked={form.secureCookies} onChange={(e) => setForm((v) => ({ ...v, secureCookies: e.target.checked }))} className={checkboxCls} />
-              <div>
-                <p className="font-medium text-foreground">Use secure cookies</p>
-                <p className="mt-1 text-muted-foreground">Marks admin session and CSRF cookies as secure so browsers only send them over HTTPS.</p>
-              </div>
-            </label>
-
-            <label className="flex items-start gap-3 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
-              <input type="checkbox" checked={form.requireHttpsRedirectUris} onChange={(e) => setForm((v) => ({ ...v, requireHttpsRedirectUris: e.target.checked }))} className={checkboxCls} />
-              <div>
-                <p className="font-medium text-foreground">Require HTTPS redirect URIs</p>
-                <p className="mt-1 text-muted-foreground">Enforces HTTPS for newly created or updated client redirect URIs, except localhost development callbacks.</p>
-              </div>
-            </label>
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center gap-2">
-            <div className={sectionIconCls}><Network size={14} /></div>
-            <h2 className="text-base font-semibold text-foreground">CORS Policy</h2>
-          </div>
-          <div className="mt-4 space-y-4">
-            <label className="flex items-start gap-3 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
-              <input type="checkbox" checked={form.allowAnyCorsOrigin} onChange={(e) => setForm((v) => ({ ...v, allowAnyCorsOrigin: e.target.checked }))} className={checkboxCls} />
-              <div>
-                <p className="font-medium text-foreground">Allow any origin</p>
-                <p className="mt-1 text-muted-foreground">Permits cross-origin requests from any browser origin. Disable this for production-grade isolation.</p>
-              </div>
-            </label>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Auto-Added App Origins</label>
-              <div className="min-h-[48px] w-full rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-foreground">
-                {appCorsOrigins.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No app URLs or resource URLs found to auto-allow.</p>
-                ) : (
-                  <div className="flex flex-wrap gap-1.5">
-                    {appCorsOrigins.map((origin) => (
-                      <span key={origin} className="rounded border border-border bg-card px-2 py-0.5 text-xs font-mono text-foreground">
-                        {origin}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">These origins are synced from app URL and app resource URLs and are included automatically when saving.</p>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Allowed Origins</label>
-              <Textarea
-                value={form.corsAllowedOriginsText}
-                onChange={(e) => setForm((v) => ({ ...v, corsAllowedOriginsText: e.target.value }))}
-                disabled={form.allowAnyCorsOrigin}
-                className="min-h-[140px] w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:bg-muted/50 disabled:text-muted-foreground font-mono"
-                placeholder={'https://admin.example.com\nhttps://portal.example.com'}
-              />
-              <p className="mt-2 text-xs text-muted-foreground">One origin per line. Include scheme and host, for example <span className="font-mono">https://admin.example.com</span>. Manual values here are merged with the auto-added app origins.</p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center gap-2">
-            <div className={sectionIconCls}><ShieldCheck size={14} /></div>
-            <h2 className="text-base font-semibold text-foreground">OAuth And Token Security</h2>
-          </div>
-          <div className="mt-4 space-y-4">
-            <label className="flex items-start gap-3 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
-              <input type="checkbox" checked={form.requireS256Pkce} onChange={(e) => setForm((v) => ({ ...v, requireS256Pkce: e.target.checked }))} className={checkboxCls} />
-              <div>
-                <p className="font-medium text-foreground">Require S256 PKCE</p>
-                <p className="mt-1 text-muted-foreground">Rejects plain PKCE and requires the stronger S256 code challenge method for authorization requests.</p>
-              </div>
-            </label>
-
-            <label className="flex items-start gap-3 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
-              <input type="checkbox" checked={form.allowImplicitFlow} onChange={(e) => setForm((v) => ({ ...v, allowImplicitFlow: e.target.checked }))} className={checkboxCls} />
-              <div>
-                <p className="font-medium text-foreground">Allow implicit flow</p>
-                <p className="mt-1 text-muted-foreground">Keeps front-channel token responses available, including <span className="font-mono">response_type=token</span>, <span className="font-mono">id_token token</span>, and <span className="font-mono">code id_token token</span>. Disable this to remove weaker implicit and hybrid front-channel paths.</p>
-              </div>
-            </label>
-
-            <div className="rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
-              <p className="font-medium text-foreground">Token signing algorithm</p>
-              <div className="mt-2"><StatusBadge tone="success" mono>RS256</StatusBadge></div>
-              <p className="mt-2 text-muted-foreground">Tokens are currently signed using RS256. This implementation remains enforced server-side.</p>
-              <p className="mt-1 text-muted-foreground">Access and refresh token lifetimes are configured per OAuth client on the <Link to="/clients" className="text-sky-600 hover:underline">Clients</Link> page.</p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center gap-2">
-            <div className={sectionIconCls}><ShieldCheck size={14} /></div>
-            <h2 className="text-base font-semibold text-foreground">Runtime Attack Controls</h2>
-          </div>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Login Failure Window</label>
-              <Input
-                type="number"
-                min={1}
-                max={1440}
-                value={form.loginFailureWindowMinutes}
-                onChange={(e) => setForm((v) => ({ ...v, loginFailureWindowMinutes: Number(e.target.value || 1) }))}
-              />
-              <p className="mt-2 text-xs text-muted-foreground">How long failed logins are counted before the counter resets, in minutes.</p>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Lockout Threshold</label>
-              <Input
-                type="number"
-                min={1}
-                max={100}
-                value={form.loginLockoutThreshold}
-                onChange={(e) => setForm((v) => ({ ...v, loginLockoutThreshold: Number(e.target.value || 1) }))}
-              />
-              <p className="mt-2 text-xs text-muted-foreground">Number of failed logins allowed before the account is temporarily locked.</p>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Lockout Duration</label>
-              <Input
-                type="number"
-                min={1}
-                max={1440}
-                value={form.loginLockoutDurationMinutes}
-                onChange={(e) => setForm((v) => ({ ...v, loginLockoutDurationMinutes: Number(e.target.value || 1) }))}
-              />
-              <p className="mt-2 text-xs text-muted-foreground">How long the lockout remains active after the threshold is reached, in minutes.</p>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Session Anomaly Concurrency</label>
-              <Input
-                type="number"
-                min={1}
-                max={100}
-                value={form.sessionAnomalyConcurrencyThreshold}
-                onChange={(e) => setForm((v) => ({ ...v, sessionAnomalyConcurrencyThreshold: Number(e.target.value || 1) }))}
-              />
-              <p className="mt-2 text-xs text-muted-foreground">Raises a session anomaly event when a user exceeds this many concurrent active sessions.</p>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Rate Limit Multiplier</label>
-              <Input
-                type="number"
-                min={0.1}
-                max={100}
-                step={0.1}
-                value={form.rateLimitMultiplier}
-                onChange={(e) => setForm((v) => ({ ...v, rateLimitMultiplier: Number(e.target.value || 1) }))}
-              />
-              <p className="mt-2 text-xs text-muted-foreground">Scales global and endpoint rate limits. 1 is the base limit; 10 allows 10x more requests per window.</p>
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
-            <p className="font-medium text-foreground">What these controls affect</p>
-            <p className="mt-2 text-muted-foreground">These values are applied immediately to login lockout tracking, session anomaly detection, and rate limiting without restarting the server.</p>
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center gap-2">
-            <div className={sectionIconCls}><Trash2 size={14} /></div>
-            <h2 className="text-base font-semibold text-foreground">Data Retention</h2>
-          </div>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Expired tokens, closed sessions and log rows are deleted in small batches by a background sweep that runs
-            continuously while the server is up. Set each window in days. <span className="font-medium text-foreground">0 keeps rows forever.</span>
-          </p>
-
-          <label className="mt-4 flex items-center gap-2 text-sm text-foreground">
-            <input
-              type="checkbox"
-              className={checkboxCls}
-              checked={form.retentionEnabled}
-              onChange={(e) => setForm((v) => ({ ...v, retentionEnabled: e.target.checked }))}
-            />
-            <span>Run the background retention sweep</span>
-          </label>
-
-          {retentionStatus ? (
-            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <StatusBadge tone={retentionStatus.running && retentionStatus.enabled ? 'success' : 'neutral'}>
-                {retentionStatus.running && retentionStatus.enabled ? 'Sweeping' : 'Idle'}
-              </StatusBadge>
-              <span>
-                Up to {retentionStatus.batchSize} rows every {Math.round(retentionStatus.intervalMs / 1000)}s
-              </span>
-              <span aria-hidden>·</span>
-              <span>{retentionStatus.deletedSinceStart.toLocaleString()} rows deleted since this server started</span>
-              {retentionStatus.lastTickAt ? (
+        {/* ── Data ─────────────────────────────────────────────────── */}
+        <Tabs.Panel value="data">
+          <Stack gap="lg">
+            <SectionCard
+              title="Database provider"
+              description="Provider settings are persisted now; full PostgreSQL/MySQL runtime persistence is part of the ongoing repository rewrite."
+              icon={<Database size={16} />}
+              footer={form.databaseProvider !== 'sqlite' ? (
                 <>
-                  <span aria-hidden>·</span>
-                  <span>Last pass {new Date(retentionStatus.lastTickAt).toLocaleString()}</span>
+                  <Button
+                    variant="default"
+                    onClick={testDatabaseConnection}
+                    disabled={!form.externalDatabaseUrl}
+                    loading={testExternalDb.isPending}
+                  >
+                    Test connection
+                  </Button>
+                  <Button
+                    onClick={migrateFromSqlite}
+                    disabled={!form.externalDatabaseUrl}
+                    loading={migrateDatabase.isPending}
+                  >
+                    Migrate from SQLite
+                  </Button>
                 </>
-              ) : null}
-            </div>
-          ) : null}
+              ) : undefined}
+            >
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" maw={720}>
+                <NativeSelect
+                  label="Provider"
+                  value={form.databaseProvider}
+                  onChange={(e) => { const value = e.currentTarget.value as SettingsForm['databaseProvider']; setForm((v) => ({ ...v, databaseProvider: value })) }}
+                  data={[
+                    { value: 'sqlite', label: 'SQLite' },
+                    { value: 'postgresql', label: 'PostgreSQL' },
+                    { value: 'mysql', label: 'MySQL' }
+                  ]}
+                />
+                {form.databaseProvider === 'sqlite' ? (
+                  <TextInput
+                    label="SQLite database path"
+                    value={form.databasePath}
+                    onChange={(e) => { const value = e.currentTarget.value; setForm((v) => ({ ...v, databasePath: value })) }}
+                    placeholder="./data/sso.sqlite"
+                    ff="monospace"
+                  />
+                ) : (
+                  <TextInput
+                    label="External database URL"
+                    value={form.externalDatabaseUrl}
+                    onChange={(e) => { const value = e.currentTarget.value; setForm((v) => ({ ...v, externalDatabaseUrl: value })) }}
+                    placeholder={form.databaseProvider === 'postgresql' ? 'postgresql://user:pass@host:5432/sso' : 'mysql://user:pass@host:3306/sso'}
+                  />
+                )}
+              </SimpleGrid>
+            </SectionCard>
 
-          {isRetentionLoading ? (
-            <p className="mt-4 text-sm text-muted-foreground">Loading retention policies…</p>
-          ) : !retentionStatus ? (
-            <p className="mt-4 text-sm text-muted-foreground">Retention status is unavailable.</p>
-          ) : (
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              {retentionStatus.policies.map((policy) => {
-                const value = form.retentionDays[policy.key] ?? policy.days
-                return (
-                  <div key={policy.key}>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                      {policy.label}
-                    </label>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={policy.maxDays}
-                      value={value}
-                      disabled={!policy.supported}
-                      onChange={(e) => {
-                        const next = Number(e.target.value)
-                        setForm((v) => ({
-                          ...v,
-                          retentionDays: { ...v.retentionDays, [policy.key]: Number.isFinite(next) ? Math.max(0, Math.trunc(next)) : 0 },
-                        }))
-                      }}
+            <SectionCard
+              title="Data retention"
+              description={<>Expired tokens, closed sessions and log rows are deleted in small batches by a background sweep that runs continuously while the server is up. Set each window in days. <Text span inherit fw={500} c="var(--mantine-color-text)">0 keeps rows forever.</Text></>}
+              icon={<Trash2 size={16} />}
+            >
+              <Stack gap="lg">
+                <SettingsList>
+                  <SettingRow
+                    label="Run the background retention sweep"
+                    htmlFor="admin-retention-enabled"
+                  >
+                    <Switch
+                      id="admin-retention-enabled"
+                      checked={form.retentionEnabled}
+                      onChange={(e) => { const checked = e.currentTarget.checked; setForm((v) => ({ ...v, retentionEnabled: checked })) }}
                     />
-                    <p className="mt-2 text-xs text-muted-foreground">{policy.description}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {policy.basis === 'expiry' ? 'Counted from expiry.' : 'Counted from creation.'}{' '}
-                      Minimum {policy.minDays} days, or 0 to keep forever. Default {policy.defaultDays}.
-                    </p>
-                    {!policy.supported ? (
-                      <p className="mt-1 text-xs text-amber-600">Not available on this database.</p>
-                    ) : value > 0 && (policy.expired ?? 0) > 0 ? (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {(policy.expired ?? 0).toLocaleString()} rows currently past this window.
-                      </p>
+                  </SettingRow>
+                </SettingsList>
+
+                {retentionStatus ? (
+                  <Group gap={6} wrap="wrap">
+                    <StatusBadge status={retentionStatus.running && retentionStatus.enabled ? 'success' : 'neutral'} size="sm">
+                      {retentionStatus.running && retentionStatus.enabled ? 'Sweeping' : 'Idle'}
+                    </StatusBadge>
+                    <Text span size="xs" c="dimmed">Up to {retentionStatus.batchSize} rows every {Math.round(retentionStatus.intervalMs / 1000)}s</Text>
+                    <Text span size="xs" c="dimmed" aria-hidden>·</Text>
+                    <Text span size="xs" c="dimmed">{retentionStatus.deletedSinceStart.toLocaleString()} rows deleted since this server started</Text>
+                    {retentionStatus.lastTickAt ? (
+                      <>
+                        <Text span size="xs" c="dimmed" aria-hidden>·</Text>
+                        <Text span size="xs" c="dimmed">Last pass {new Date(retentionStatus.lastTickAt).toLocaleString()}</Text>
+                      </>
                     ) : null}
-                    {policy.lastError ? (
-                      <p className="mt-1 text-xs text-red-600">Last sweep failed: {policy.lastError}</p>
-                    ) : null}
-                  </div>
-                )
-              })}
-            </div>
-          )}
+                  </Group>
+                ) : null}
 
-          <div className="mt-4 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
-            <p className="font-medium text-foreground">Before you shorten a window</p>
-            <p className="mt-2 text-muted-foreground">
-              Deletion is permanent and is not replicated to an archive. Audit events and SAML assertion audits are
-              frequently subject to a retention obligation — confirm yours before lowering them, and use 0 to keep
-              them indefinitely.
-            </p>
-          </div>
-        </Card>
+                {isRetentionLoading ? (
+                  <Text size="sm" c="dimmed">Loading retention policies…</Text>
+                ) : !retentionStatus ? (
+                  <Text size="sm" c="dimmed">Retention status is unavailable.</Text>
+                ) : (
+                  <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" verticalSpacing="lg">
+                    {retentionStatus.policies.map((policy) => {
+                      const value = form.retentionDays[policy.key] ?? policy.days
+                      return (
+                        <Stack key={policy.key} gap={4}>
+                          <NumberInput
+                            label={policy.label}
+                            description={policy.description}
+                            inputWrapperOrder={['label', 'input', 'description']}
+                            min={0}
+                            max={policy.maxDays}
+                            allowDecimal={false}
+                            suffix=" days"
+                            value={value}
+                            disabled={!policy.supported}
+                            onChange={(raw) => {
+                              const next = Number(raw)
+                              setForm((v) => ({
+                                ...v,
+                                retentionDays: { ...v.retentionDays, [policy.key]: Number.isFinite(next) ? Math.max(0, Math.trunc(next)) : 0 },
+                              }))
+                            }}
+                          />
+                          <Text size="xs" c="dimmed">
+                            {policy.basis === 'expiry' ? 'Counted from expiry.' : 'Counted from creation.'}{' '}
+                            Minimum {policy.minDays} days, or 0 to keep forever. Default {policy.defaultDays}.
+                          </Text>
+                          {!policy.supported ? (
+                            <Text size="xs" c="yellow">Not available on this database.</Text>
+                          ) : value > 0 && (policy.expired ?? 0) > 0 ? (
+                            <Text size="xs" c="dimmed">
+                              {(policy.expired ?? 0).toLocaleString()} rows currently past this window.
+                            </Text>
+                          ) : null}
+                          {policy.lastError ? (
+                            <Text size="xs" c="red">Last sweep failed: {policy.lastError}</Text>
+                          ) : null}
+                        </Stack>
+                      )
+                    })}
+                  </SimpleGrid>
+                )}
 
-        <Card className="p-5">
-          <div className="flex items-center gap-2">
-            <div className={sectionIconCls}><Mail size={14} /></div>
-            <h2 className="text-base font-semibold text-foreground">Email Delivery</h2>
-          </div>
-          <div className="mt-4 space-y-4">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Transport</label>
-              <Select
-                value={form.emailTransport}
-                onChange={(e) => setForm((v) => ({ ...v, emailTransport: e.target.value as SettingsForm['emailTransport'] }))}
-                className="h-9 w-full rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/20"
-              >
-                <option value="disabled">Disabled</option>
-                <option value="log">Log only (development)</option>
-                <option value="smtp">SMTP</option>
-              </Select>
-            </div>
+                <Alert color="yellow" variant="light" icon={<AlertTriangle size={16} />} title="Before you shorten a window">
+                  Deletion is permanent and is not replicated to an archive. Audit events and SAML assertion audits are
+                  frequently subject to a retention obligation — confirm yours before lowering them, and use 0 to keep
+                  them indefinitely.
+                </Alert>
+              </Stack>
+            </SectionCard>
+          </Stack>
+        </Tabs.Panel>
 
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">From Address</label>
-              <Input
-                type="email"
-                value={form.emailFrom}
-                onChange={(e) => setForm((v) => ({ ...v, emailFrom: e.target.value }))}
-                placeholder="no-reply@example.com"
-              />
-            </div>
+        {/* ── Email ────────────────────────────────────────────────── */}
+        <Tabs.Panel value="email">
+          <Stack gap="lg">
+            <SectionCard
+              title="Email delivery"
+              description="Used for recovery and other email-driven flows."
+              icon={<Mail size={16} />}
+            >
+              <Stack gap="lg">
+                <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" verticalSpacing="md">
+                  <NativeSelect
+                    label="Transport"
+                    value={form.emailTransport}
+                    onChange={(e) => { const value = e.currentTarget.value as SettingsForm['emailTransport']; setForm((v) => ({ ...v, emailTransport: value })) }}
+                    data={[
+                      { value: 'disabled', label: 'Disabled' },
+                      { value: 'log', label: 'Log only (development)' },
+                      { value: 'smtp', label: 'SMTP' }
+                    ]}
+                  />
+                  <TextInput
+                    label="From address"
+                    type="email"
+                    value={form.emailFrom}
+                    onChange={(e) => { const value = e.currentTarget.value; setForm((v) => ({ ...v, emailFrom: value })) }}
+                    placeholder="no-reply@example.com"
+                  />
+                  <TextInput
+                    label="SMTP host"
+                    value={form.smtpHost}
+                    onChange={(e) => { const value = e.currentTarget.value; setForm((v) => ({ ...v, smtpHost: value })) }}
+                    disabled={smtpDisabled}
+                    placeholder="smtp.example.com"
+                  />
+                  <NumberInput
+                    label="SMTP port"
+                    value={form.smtpPort}
+                    onChange={(value) => setForm((v) => ({ ...v, smtpPort: Number(value || 587) }))}
+                    disabled={smtpDisabled}
+                    allowDecimal={false}
+                    thousandSeparator={false}
+                  />
+                  <TextInput
+                    label="SMTP username"
+                    value={form.smtpUser}
+                    onChange={(e) => { const value = e.currentTarget.value; setForm((v) => ({ ...v, smtpUser: value })) }}
+                    disabled={smtpDisabled}
+                  />
+                  <PasswordInput
+                    label="SMTP password"
+                    value={form.smtpPass}
+                    onChange={(e) => { const value = e.currentTarget.value; setForm((v) => ({ ...v, smtpPass: value })) }}
+                    disabled={smtpDisabled}
+                  />
+                </SimpleGrid>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">SMTP Host</label>
-                <Input
-                  value={form.smtpHost}
-                  onChange={(e) => setForm((v) => ({ ...v, smtpHost: e.target.value }))}
-                  disabled={form.emailTransport !== 'smtp'}
-                  placeholder="smtp.example.com"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">SMTP Port</label>
-                <Input
-                  type="number"
-                  value={form.smtpPort}
-                  onChange={(e) => setForm((v) => ({ ...v, smtpPort: Number(e.target.value || 587) }))}
-                  disabled={form.emailTransport !== 'smtp'}
-                />
-              </div>
-            </div>
+                <SettingsList>
+                  <SettingRow
+                    label="Use TLS (secure)"
+                    description="Enable for SMTPS transports, usually port 465."
+                    htmlFor="admin-smtp-secure"
+                  >
+                    <Switch
+                      id="admin-smtp-secure"
+                      checked={form.smtpSecure}
+                      onChange={(e) => { const checked = e.currentTarget.checked; setForm((v) => ({ ...v, smtpSecure: checked })) }}
+                      disabled={smtpDisabled}
+                    />
+                  </SettingRow>
+                </SettingsList>
+              </Stack>
+            </SectionCard>
 
-            <label className="flex items-start gap-3 rounded-lg border border-border bg-muted/50 p-3 text-sm text-foreground">
-              <input
-                type="checkbox"
-                checked={form.smtpSecure}
-                onChange={(e) => setForm((v) => ({ ...v, smtpSecure: e.target.checked }))}
-                disabled={form.emailTransport !== 'smtp'}
-                className={checkboxCls}
-              />
-              <div>
-                <p className="font-medium text-foreground">Use TLS (secure)</p>
-                <p className="mt-1 text-muted-foreground">Enable for SMTPS transports, usually port 465.</p>
-              </div>
-            </label>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">SMTP Username</label>
-                <Input
-                  value={form.smtpUser}
-                  onChange={(e) => setForm((v) => ({ ...v, smtpUser: e.target.value }))}
-                  disabled={form.emailTransport !== 'smtp'}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">SMTP Password</label>
-                <Input
-                  type="password"
-                  value={form.smtpPass}
-                  onChange={(e) => setForm((v) => ({ ...v, smtpPass: e.target.value }))}
-                  disabled={form.emailTransport !== 'smtp'}
-                />
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-border bg-muted/50 p-3">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Send Test Email</label>
-              <div className="flex flex-wrap gap-2">
-                <Input
+            <SectionCard title="Send test email" description="Sends a message with the transport configured on the server.">
+              <Group gap="sm" align="flex-end">
+                <TextInput
                   type="email"
+                  aria-label="Send test email to"
                   value={form.testEmailTo}
-                  onChange={(e) => setForm((v) => ({ ...v, testEmailTo: e.target.value }))}
-                  className="min-w-[240px] flex-1"
+                  onChange={(e) => { const value = e.currentTarget.value; setForm((v) => ({ ...v, testEmailTo: value })) }}
+                  miw={240}
+                  style={{ flex: 1 }}
+                  maw={420}
                   placeholder="you@example.com"
                 />
                 <Button
-                  variant="outline"
+                  variant="default"
                   onClick={sendTestEmail}
-                  disabled={testEmail.isPending || !form.testEmailTo}
+                  disabled={!form.testEmailTo}
+                  loading={testEmail.isPending}
                 >
-                  {testEmail.isPending ? 'Sending…' : 'Send Test'}
+                  Send test
                 </Button>
-              </div>
-            </div>
-          </div>
-        </Card>
+              </Group>
+            </SectionCard>
+          </Stack>
+        </Tabs.Panel>
 
-        <Card className="p-5">
-          <div className="flex items-center gap-2">
-            <div className={sectionIconCls}><ShieldCheck size={14} /></div>
-            <h2 className="text-base font-semibold text-foreground">Experience Customization</h2>
-          </div>
-          <div className="mt-4 space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Manage login, consent, and portal branding in the dedicated Experience Customization workspace.
-            </p>
-            <p className="text-xs text-muted-foreground">
-              The dedicated editor supports default, client, and app scopes with guided fields and preview.
-            </p>
-            <Link
-              to="/experience-customization"
-              className="inline-flex h-9 items-center rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted/50"
-            >
-              Open Experience Customization
-            </Link>
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <h2 className="text-base font-semibold text-foreground">What Changes Immediately</h2>
-          <ul className="mt-4 space-y-2 text-sm text-foreground">
-            <li>HTTPS requirement is applied on the next incoming request.</li>
-            <li>CORS origin policy is checked on the next browser preflight or cross-origin request.</li>
-            <li>Cookie security changes affect the next issued CSRF or session cookie.</li>
-            <li>Redirect URI and PKCE enforcement apply to subsequent client changes and authorize requests.</li>
-            <li>Disabling implicit flow immediately blocks new authorize requests that return front-channel tokens, including <span className="font-mono">response_type=token</span>, <span className="font-mono">id_token token</span>, and <span className="font-mono">code id_token token</span>.</li>
-            <li>Lockout and anomaly thresholds are applied immediately to new authentication and session observation events.</li>
-            <li>Database provider settings are persisted immediately and take effect once the backend storage rewrite path is activated.</li>
-            <li>Email transport settings are used immediately for recovery and other email-driven flows.</li>
-          </ul>
-        </Card>
-      </div>
+        {/* ── Provisioning ─────────────────────────────────────────── */}
+        <Tabs.Panel value="provisioning">
+          <ProvisioningAdminPanel />
+        </Tabs.Panel>
+      </Tabs>
 
       {(saveMessage || saveError) ? (
-        <div className={`rounded-xl border p-4 text-sm shadow-sm ${saveError ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
+        <Alert
+          color={saveError ? 'red' : 'green'}
+          icon={saveError ? <XCircle size={16} /> : <CheckCircle2 size={16} />}
+          withCloseButton
+          onClose={() => { setSaveMessage(null); setSaveError(null) }}
+        >
           {saveError ?? saveMessage}
-        </div>
+        </Alert>
       ) : null}
 
-      <div className="flex justify-end">
-        <Button
-          variant="primary"
-          onClick={save}
-          disabled={updateSettings.isPending}
-        >
-          {updateSettings.isPending ? 'Saving…' : 'Save Instance Settings'}
-        </Button>
-      </div>
-    </div>
+      {isSettingsTab ? (
+        <Group justify="flex-end">
+          <Button onClick={save} loading={updateSettings.isPending}>
+            Save instance settings
+          </Button>
+        </Group>
+      ) : null}
+    </Stack>
   )
 }

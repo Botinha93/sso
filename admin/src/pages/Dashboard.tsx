@@ -3,7 +3,6 @@ import {
   AlertTriangle,
   AppWindow,
   ArrowRight,
-  Building2,
   CheckSquare,
   Fingerprint,
   GitMerge,
@@ -12,6 +11,9 @@ import {
   Users
 } from 'lucide-react'
 import React from 'react';
+import { Badge, Box, Card, Grid, Group, Paper, SimpleGrid, Skeleton, Stack, Text, Tooltip } from '@mantine/core'
+import { AreaChart } from '@mantine/charts'
+import { MeterBar, MetricRow, PageHeader, PageHeaderSkeleton, SectionCard, StatCard, StatGroup } from '@nexus/design'
 import { Link } from 'react-router-dom'
 import {
   useAccessRequests,
@@ -30,7 +32,6 @@ import {
   useTenants,
   useUsers
 } from '../hooks/useApi'
-import { PageHeaderSkeleton, PageHeroHeader } from '../components/PageHeader'
 
 interface UserItem {
   id: string
@@ -110,86 +111,55 @@ const LIST_LIMIT = 200
 const countLabel = (count: number, limit = LIST_LIMIT) => (count >= limit ? `${limit}+` : String(count))
 
 const STATS_DAYS = 14
-
-function LineChart({ data }: { data: SeriesPoint[] }) {
-  const width = 760
-  const height = 220
-  const padX = 28
-  const padY = 24
-  const maxValue = Math.max(1, ...data.map((d) => d.value))
-  const stepX = data.length > 1 ? (width - padX * 2) / (data.length - 1) : 0
-
-  const points = data.map((d, i) => {
-    const x = padX + i * stepX
-    const y = height - padY - ((d.value / maxValue) * (height - padY * 2))
-    return { ...d, x, y }
-  })
-
-  const line = points.map((p) => `${p.x},${p.y}`).join(' ')
-  const area = [
-    `${padX},${height - padY}`,
-    ...points.map((p) => `${p.x},${p.y}`),
-    `${padX + stepX * (data.length - 1)},${height - padY}`
-  ].join(' ')
-
+function ActivityChart({ data }: { data: SeriesPoint[] }) {
   return (
-    <div className="w-full overflow-x-auto">
-      <svg viewBox={`0 0 ${width} ${height}`} className="min-w-[700px] w-full h-[220px]">
-        <defs>
-          <linearGradient id="activityFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-
-        {[0, 0.25, 0.5, 0.75, 1].map((r) => {
-          const y = padY + r * (height - padY * 2)
-          return <line key={r} x1={padX} y1={y} x2={width - padX} y2={y} stroke="#e2e8f0" strokeWidth="1" />
-        })}
-
-        <polygon points={area} fill="url(#activityFill)" />
-        <polyline points={line} fill="none" stroke="#0284c7" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-
-        {points.map((p, idx) => (
-          <circle key={`${p.label}-${idx}`} cx={p.x} cy={p.y} r="3.5" fill="#0369a1">
-            <title>{`${p.label}: ${p.value} events`}</title>
-          </circle>
-        ))}
-
-        {points.map((p, idx) => idx % 2 === 0 ? (
-          <text key={`label-${p.label}`} x={p.x} y={height - 4} textAnchor="middle" fontSize="11" fill="#64748b">
-            {p.label}
-          </text>
-        ) : null)}
-      </svg>
-    </div>
+    <AreaChart
+      h={240}
+      data={data}
+      dataKey="label"
+      series={[{ name: 'value', label: 'Events', color: 'blue.6' }]}
+      curveType="monotone"
+      gridAxis="y"
+      tickLine="none"
+      strokeWidth={1.75}
+      fillOpacity={0.18}
+      withDots={false}
+      unit=" events"
+      yAxisProps={{ width: 48, allowDecimals: false }}
+      xAxisProps={{ minTickGap: 16 }}
+    />
   )
 }
 
 function HorizontalBars({ data, emptyLabel }: { data: SeriesPoint[]; emptyLabel: string }) {
   if (data.length === 0) {
-    return <p className="text-sm text-muted-foreground">{emptyLabel}</p>
+    return <Text size="sm" c="dimmed">{emptyLabel}</Text>
   }
 
   const maxValue = Math.max(...data.map((d) => d.value), 1)
 
   return (
-    <div className="space-y-2.5">
-      {data.map((item) => {
-        const ratio = clamp(item.value / maxValue, 0, 1)
-        return (
-          <div key={item.label}>
-            <div className="mb-1 flex items-center justify-between text-xs">
-              <span className="font-medium text-foreground truncate pr-2">{item.label}</span>
-              <span className="text-muted-foreground">{item.value}</span>
-            </div>
-            <div className="h-2 rounded-full bg-muted overflow-hidden">
-              <div className="h-full rounded-full bg-[linear-gradient(90deg,#0ea5e9,#22d3ee)]" style={{ width: `${ratio * 100}%` }} />
-            </div>
-          </div>
-        )
-      })}
-    </div>
+    <Stack gap="sm">
+      {data.map((item) => (
+        <MeterBar
+          key={item.label}
+          label={item.label}
+          value={clamp(item.value, 0, maxValue)}
+          max={maxValue}
+          valueLabel={item.value}
+          color="blue"
+          size="sm"
+        />
+      ))}
+    </Stack>
+  )
+}
+
+function SubHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <Text size="xs" fw={500} tt="uppercase" c="dimmed" mb="xs" style={{ letterSpacing: '0.04em' }}>
+      {children}
+    </Text>
   )
 }
 
@@ -380,269 +350,223 @@ const Dashboard = () => {
 
   if (allLoading) {
     return (
-      <div className="space-y-6">
+      <Stack gap="lg">
         <PageHeaderSkeleton blocks={1} />
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-muted" />)}
-        </div>
-        <div className="h-72 animate-pulse rounded-xl bg-muted" />
-      </div>
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
+          {[...Array(4)].map((_, i) => <Skeleton key={i} h={112} radius="md" />)}
+        </SimpleGrid>
+        <Skeleton h={288} radius="md" />
+      </Stack>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <PageHeroHeader
+    <Stack gap="lg">
+      <PageHeader
+        variant="hero"
         eyebrow="Control Center"
         title="Identity Usage Dashboard"
         description={`Current identity inventory, live sessions, consent behavior, and the last ${STATS_DAYS} days of audit activity.`}
       />
 
-      <div className="grid gap-3 md:grid-cols-4">
-        {operationLinks.map((item) => (
-          <Link
-            key={item.to}
-            to={item.to}
-            className="group rounded-xl border border-border bg-white p-4 text-sm shadow-sm transition-all hover:border-sky-200 hover:shadow-md"
-          >
-            <p className="font-semibold text-foreground">{item.title}</p>
-            <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{item.description}</p>
-            <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-sky-600">
-              Open <ArrowRight size={11} className="transition-transform group-hover:translate-x-1" />
-            </span>
-          </Link>
-        ))}
-        {operationLinks.length === 0 ? (
-          <p className="rounded-xl border border-border bg-muted px-3 py-2 text-xs text-muted-foreground">
+      {operationLinks.length === 0 ? (
+        <Paper withBorder radius="md" px="md" py="sm" bg="var(--nx-color-surface-sunken)">
+          <Text size="xs" c="dimmed">
             You do not currently have permission to access the operations views.
-          </p>
-        ) : null}
-      </div>
+          </Text>
+        </Paper>
+      ) : (
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
+          {operationLinks.map((item) => (
+            <Card key={item.to} component={Link} to={item.to} withBorder radius="md" padding="md" className="nx-interactive">
+              <Text size="sm" fw={600}>{item.title}</Text>
+              <Text size="xs" c="dimmed" mt={4} lh={1.5} style={{ flex: 1 }}>{item.description}</Text>
+              <Group gap={4} mt="sm" c="blue">
+                <Text size="xs" fw={500} c="blue">Open</Text>
+                <ArrowRight size={12} />
+              </Group>
+            </Card>
+          ))}
+        </SimpleGrid>
+      )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Users</p>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600"><Users size={15} /></div>
-          </div>
-          <div className="text-3xl font-bold tracking-tight text-foreground">{userItems.length}</div>
-          <p className="mt-1 text-xs text-muted-foreground">{activeUsers} active · {inactiveUsers} inactive</p>
-        </div>
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
+        <StatCard
+          label="Users"
+          value={userItems.length}
+          icon={<Users size={16} />}
+          iconColor="indigo"
+          caption={`${activeUsers} active · ${inactiveUsers} inactive`}
+        />
+        <StatCard
+          label="Sessions"
+          value={activeSessions}
+          icon={<Activity size={16} />}
+          iconColor="blue"
+          caption={`active · ${revokedSessions} revoked · ${sessionItems.length} total`}
+        />
+        <StatCard
+          label="Clients"
+          value={clientItems.length}
+          icon={<AppWindow size={16} />}
+          iconColor="violet"
+          caption={`${pkceClients} with PKCE · ${clientResourcesCount} resources`}
+        />
+        <StatCard
+          label="Access model"
+          value={roles.length}
+          icon={<Shield size={16} />}
+          iconColor="teal"
+          caption={`roles · ${groups.length} groups · ${tenants.length} tenants`}
+        />
+      </SimpleGrid>
 
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Sessions</p>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-50 text-sky-600"><Activity size={15} /></div>
-          </div>
-          <div className="text-3xl font-bold tracking-tight text-foreground">{activeSessions}</div>
-          <p className="mt-1 text-xs text-muted-foreground">active · {revokedSessions} revoked · {sessionItems.length} total</p>
-        </div>
+      <Grid gap="md">
+        <Grid.Col span={{ base: 12, lg: 8 }}>
+          <SectionCard
+            h="100%"
+            title="Audit activity"
+            description={`All audit events per day over the last ${STATS_DAYS} days`}
+            actions={<Badge variant="light" color="blue">{show(auditError, timelineTotal)} events</Badge>}
+          >
+            {auditError
+              ? <Text size="sm" c="dimmed">Audit statistics are unavailable.</Text>
+              : <ActivityChart data={timeline} />}
+          </SectionCard>
+        </Grid.Col>
 
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Clients</p>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-600"><AppWindow size={15} /></div>
-          </div>
-          <div className="text-3xl font-bold tracking-tight text-foreground">{clientItems.length}</div>
-          <p className="mt-1 text-xs text-muted-foreground">{pkceClients} with PKCE · {clientResourcesCount} resources</p>
-        </div>
+        <Grid.Col span={{ base: 12, lg: 4 }}>
+          <SectionCard h="100%" title="Security posture">
+            <Stack gap="md">
+              <MeterBar
+                aria-label="PKCE coverage"
+                label={<Group component="span" gap={6} wrap="nowrap"><Fingerprint size={14} /> PKCE coverage</Group>}
+                value={clientItems.length ? pkceClients / clientItems.length : 0}
+                max={1}
+                valueLabel={clientItems.length ? formatPct(pkceClients / clientItems.length) : '0%'}
+                color="green"
+              />
+              <MeterBar
+                aria-label="Webhook success"
+                label={
+                  <Tooltip label={`Delivered vs failed, across the latest ${LIST_LIMIT} webhook deliveries`} openDelay={300}>
+                    <Group component="span" gap={6} wrap="nowrap"><CheckSquare size={14} /> Webhook success</Group>
+                  </Tooltip>
+                }
+                value={notificationSuccessRate}
+                max={1}
+                valueLabel={show(notificationsError, settledNotifications.length ? formatPct(notificationSuccessRate) : 'n/a')}
+                color="cyan"
+              />
+              <MeterBar
+                aria-label="Users with live session"
+                label={
+                  <Tooltip label="Active users with at least one live session" openDelay={300}>
+                    <Group component="span" gap={6} wrap="nowrap"><Users size={14} /> Users with live session</Group>
+                  </Tooltip>
+                }
+                value={clamp(sessionCoverage, 0, 1)}
+                max={1}
+                valueLabel={`${formatPct(sessionCoverage)} · ${usersWithActiveSession}/${activeUsers}`}
+                color="violet"
+              />
+              <MetricRow label="Avg permissions per role" value={permissionDensity.toFixed(1)} size="sm" />
+            </Stack>
+          </SectionCard>
+        </Grid.Col>
+      </Grid>
 
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Access Model</p>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><Shield size={15} /></div>
-          </div>
-          <div className="text-3xl font-bold tracking-tight text-foreground">{roles.length}</div>
-          <p className="mt-1 text-xs text-muted-foreground">roles · {groups.length} groups · {tenants.length} tenants</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2 rounded-xl border border-border bg-card p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-base font-semibold text-foreground">Audit Activity</h3>
-              <p className="text-xs text-muted-foreground">All audit events per day over the last {STATS_DAYS} days</p>
-            </div>
-            <span className="rounded-md bg-sky-50 px-2 py-1 text-[11px] font-medium text-sky-700 border border-sky-100">
-              {show(auditError, timelineTotal)} events
-            </span>
-          </div>
-          {auditError
-            ? <p className="text-sm text-muted-foreground">Audit statistics are unavailable.</p>
-            : <LineChart data={timeline} />}
-        </div>
-
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="text-base font-semibold text-foreground">Security Posture</h3>
-          <div className="mt-4 space-y-4">
-            <div>
-              <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1"><Fingerprint size={12} /> PKCE Coverage</span>
-                <span>{clientItems.length ? formatPct(pkceClients / clientItems.length) : '0%'}</span>
-              </div>
-              <div className="h-2 rounded-full bg-muted">
-                <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${clientItems.length ? (pkceClients / clientItems.length) * 100 : 0}%` }} />
-              </div>
-            </div>
-
-            <div>
-              <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1" title={`Delivered vs failed, across the latest ${LIST_LIMIT} webhook deliveries`}>
-                  <CheckSquare size={12} /> Webhook Success
-                </span>
-                <span>{show(notificationsError, settledNotifications.length ? formatPct(notificationSuccessRate) : 'n/a')}</span>
-              </div>
-              <div className="h-2 rounded-full bg-muted">
-                <div className="h-2 rounded-full bg-cyan-500" style={{ width: `${notificationSuccessRate * 100}%` }} />
-              </div>
-            </div>
-
-            <div>
-              <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1" title="Active users with at least one live session">
-                  <Users size={12} /> Users With Live Session
-                </span>
-                <span>{formatPct(sessionCoverage)} · {usersWithActiveSession}/{activeUsers}</span>
-              </div>
-              <div className="h-2 rounded-full bg-muted">
-                <div className="h-2 rounded-full bg-violet-500" style={{ width: `${clamp(sessionCoverage, 0, 1) * 100}%` }} />
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-border bg-muted p-3 text-xs text-muted-foreground">
-              Avg permissions per role: <span className="font-semibold text-foreground">{permissionDensity.toFixed(1)}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="text-base font-semibold text-foreground">Top Event Types</h3>
-          <p className="mb-4 text-xs text-muted-foreground">Most frequent audit event types in the last {STATS_DAYS} days</p>
+      <SimpleGrid cols={{ base: 1, lg: 3 }} spacing="md">
+        <SectionCard title="Top event types" description={`Most frequent audit event types in the last ${STATS_DAYS} days`}>
           <HorizontalBars data={eventDistribution} emptyLabel={auditError ? 'Audit statistics are unavailable.' : `No audit events in the last ${STATS_DAYS} days.`} />
-        </div>
-
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="text-base font-semibold text-foreground">Session Load by Client</h3>
-          <p className="mb-4 text-xs text-muted-foreground">Live (unexpired, unrevoked) sessions per client</p>
+        </SectionCard>
+        <SectionCard title="Session load by client" description="Live (unexpired, unrevoked) sessions per client">
           <HorizontalBars data={sessionsByClient} emptyLabel="No live sessions right now." />
-        </div>
-
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="text-base font-semibold text-foreground">Most Requested Scopes</h3>
-          <p className="mb-4 text-xs text-muted-foreground">Popularity derived from consent grants</p>
+        </SectionCard>
+        <SectionCard title="Most requested scopes" description="Popularity derived from consent grants">
           <HorizontalBars data={scopePopularity} emptyLabel="No consent scopes recorded yet." />
-        </div>
-      </div>
+        </SectionCard>
+      </SimpleGrid>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pending Requests</p>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600"><ShieldAlert size={15} /></div>
-          </div>
-          <div className="text-3xl font-bold tracking-tight text-foreground">{show(accessRequestsError, countLabel(pendingAccessRequests))}</div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {show(accessRequestsError, `${approvedAccessRequests} approved of latest ${countLabel(accessRequestItems.length)}`)}
-          </p>
-        </div>
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
+        <StatCard
+          label="Pending requests"
+          value={show(accessRequestsError, countLabel(pendingAccessRequests))}
+          icon={<ShieldAlert size={16} />}
+          iconColor="yellow"
+          caption={show(accessRequestsError, `${approvedAccessRequests} approved of latest ${countLabel(accessRequestItems.length)}`)}
+        />
+        <StatCard
+          label="Elevation sessions"
+          value={show(elevationError, activeElevationSessions)}
+          icon={<Shield size={16} />}
+          iconColor="red"
+          caption={show(elevationError, `active · ${pendingElevationRequests} pending requests`)}
+        />
+        <StatCard
+          label="Connectors"
+          value={show(connectorsError, connectorItems.length)}
+          icon={<GitMerge size={16} />}
+          iconColor="cyan"
+          caption={show(connectorsError, `${activeConnectors} active · ${failedConnectors} in error`)}
+        />
+        <StatCard
+          label={`Risk events (${STATS_DAYS}d)`}
+          value={show(auditError, totalRiskEvents)}
+          icon={<AlertTriangle size={16} />}
+          iconColor="red"
+          caption={show(auditError, `${riskBySeverity.critical} critical · ${riskBySeverity.high} high · ${riskBySeverity.medium} medium`)}
+        />
+      </SimpleGrid>
 
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Elevation Sessions</p>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 text-rose-600"><Shield size={15} /></div>
-          </div>
-          <div className="text-3xl font-bold tracking-tight text-foreground">{show(elevationError, activeElevationSessions)}</div>
-          <p className="mt-1 text-xs text-muted-foreground">{show(elevationError, `active · ${pendingElevationRequests} pending requests`)}</p>
-        </div>
-
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Connectors</p>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600"><GitMerge size={15} /></div>
-          </div>
-          <div className="text-3xl font-bold tracking-tight text-foreground">{show(connectorsError, connectorItems.length)}</div>
-          <p className="mt-1 text-xs text-muted-foreground">{show(connectorsError, `${activeConnectors} active · ${failedConnectors} in error`)}</p>
-        </div>
-
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Risk Events ({STATS_DAYS}d)</p>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 text-rose-600"><AlertTriangle size={15} /></div>
-          </div>
-          <div className="text-3xl font-bold tracking-tight text-foreground">{show(auditError, totalRiskEvents)}</div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {show(auditError, `${riskBySeverity.critical} critical · ${riskBySeverity.high} high · ${riskBySeverity.medium} medium`)}
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="text-base font-semibold text-foreground">Governance And Elevation Activity</h3>
-          <p className="mb-4 text-xs text-muted-foreground">Status mix of the latest {LIST_LIMIT} access requests and all elevation requests.</p>
-          <div className="grid gap-5 md:grid-cols-2">
-            <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Access Requests</p>
+      <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md">
+        <SectionCard
+          title="Governance and elevation activity"
+          description={`Status mix of the latest ${LIST_LIMIT} access requests and all elevation requests.`}
+        >
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
+            <Box>
+              <SubHeading>Access requests</SubHeading>
               <HorizontalBars data={accessRequestStatusDistribution} emptyLabel="No access request data available yet." />
-            </div>
-            <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Elevation Requests</p>
+            </Box>
+            <Box>
+              <SubHeading>Elevation requests</SubHeading>
               <HorizontalBars data={elevationRequestStatusDistribution} emptyLabel="No elevation request data available yet." />
-            </div>
-          </div>
-        </div>
+            </Box>
+          </SimpleGrid>
+        </SectionCard>
 
-        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="text-base font-semibold text-foreground">Connector And Risk Distribution</h3>
-          <p className="mb-4 text-xs text-muted-foreground">Integration footprint and risk event severity over the last {STATS_DAYS} days.</p>
-          <div className="grid gap-5 md:grid-cols-2">
-            <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Connector Types</p>
+        <SectionCard
+          title="Connector and risk distribution"
+          description={`Integration footprint and risk event severity over the last ${STATS_DAYS} days.`}
+        >
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="lg">
+            <Box>
+              <SubHeading>Connector types</SubHeading>
               <HorizontalBars data={connectorTypeDistribution} emptyLabel="No connector data available yet." />
-            </div>
-            <div>
-              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Risk Severity</p>
+            </Box>
+            <Box>
+              <SubHeading>Risk severity</SubHeading>
               <HorizontalBars data={riskSeverityDistribution} emptyLabel={auditError ? 'Risk statistics are unavailable.' : `No risk events in the last ${STATS_DAYS} days.`} />
-            </div>
-          </div>
-        </div>
-      </div>
+            </Box>
+          </SimpleGrid>
+        </SectionCard>
+      </SimpleGrid>
 
-      <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-        <h3 className="text-base font-semibold text-foreground">Platform Inventory</h3>
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-          <div className="rounded-lg border border-border bg-muted p-3 text-center">
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Tenants</p>
-            <p className="mt-1 text-xl font-semibold text-foreground">{tenants.length}</p>
-          </div>
-          <div className="rounded-lg border border-border bg-muted p-3 text-center">
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Groups</p>
-            <p className="mt-1 text-xl font-semibold text-foreground">{groups.length}</p>
-          </div>
-          <div className="rounded-lg border border-border bg-muted p-3 text-center">
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Roles</p>
-            <p className="mt-1 text-xl font-semibold text-foreground">{roles.length}</p>
-          </div>
-          <div className="rounded-lg border border-border bg-muted p-3 text-center">
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Consents</p>
-            <p className="mt-1 text-xl font-semibold text-foreground">{consentItems.length}</p>
-          </div>
-          <div className="rounded-lg border border-border bg-muted p-3 text-center">
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Event Hooks</p>
-            <p className="mt-1 text-xl font-semibold text-foreground">{show(eventHooksError, (eventHooks as unknown[]).length)}</p>
-          </div>
-          <div className="rounded-lg border border-border bg-muted p-3 text-center">
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground" title="Distinct OAuth grant types enabled across clients">Grant Types</p>
-            <p className="mt-1 text-xl font-semibold text-foreground">
-              {Array.from(new Set(clientItems.flatMap((c) => c.grants ?? []))).length}
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
+      <SectionCard title="Platform inventory">
+        <StatGroup minItemWidth={130}>
+          <StatGroup.Item label="Tenants" value={tenants.length} />
+          <StatGroup.Item label="Groups" value={groups.length} />
+          <StatGroup.Item label="Roles" value={roles.length} />
+          <StatGroup.Item label="Consents" value={consentItems.length} />
+          <StatGroup.Item label="Event hooks" value={show(eventHooksError, (eventHooks as unknown[]).length)} />
+          <StatGroup.Item
+            label={<span title="Distinct OAuth grant types enabled across clients">Grant types</span>}
+            value={Array.from(new Set(clientItems.flatMap((c) => c.grants ?? []))).length}
+          />
+        </StatGroup>
+      </SectionCard>
+    </Stack>
   )
 }
 

@@ -1,12 +1,9 @@
-import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
-import Card from '../components/ui/Card'
-import { MonitorSmartphone, RefreshCw, ShieldOff } from 'lucide-react'
-import { PageHeader } from '../components/PageHeader'
+import { Clock, Layers, MonitorSmartphone, ShieldOff, Smartphone } from 'lucide-react'
 import { useState } from 'react'
+import { ActionIcon, Badge, Box, Group, SimpleGrid, Stack, Table, Text, Tooltip } from '@mantine/core'
+import { PageHeader, RefreshButton, SectionCard, StatCard, StatusBadge, TableSkeleton } from '@nexus/design'
 import ConfirmDialog from '../components/ConfirmDialog'
-import StatusBadge from '../components/ui/StatusBadge'
-import Button from '../components/ui/Button'
-import React from 'react';
+import EmptyState from '../components/EmptyState'
 
 import { useDevices, useRevokeDeviceRequest, useRevokeDeviceSession } from '../hooks/useApi'
 
@@ -34,15 +31,6 @@ interface DeviceSession {
   status: 'active' | 'expired' | 'revoked'
 }
 
-const statusTone = {
-  pending: 'warning',
-  approved: 'success',
-  denied: 'danger',
-  active: 'success',
-  expired: 'neutral',
-  revoked: 'danger'
-} as const
-
 const formatDate = (value?: string) => value ? new Date(value).toLocaleString() : 'Never'
 
 export default function Devices() {
@@ -66,148 +54,192 @@ export default function Devices() {
   }
 
   return (
-    <div className="space-y-6">
+    <>
       <PageHeader
         eyebrow="Device Access"
         title="Devices"
         description="Monitor pending device authorization requests and revoke device-issued sessions from one place."
-        action={
-          <Button
-            variant="secondary"
-            onClick={() => refetch()}
-            disabled={isFetching}
-          >
-            <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
-            Refresh
-          </Button>
+        actions={
+          <RefreshButton loading={isFetching} onRefresh={() => refetch()} lastUpdated={null} />
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="p-5">
-          <p className="text-sm text-muted-foreground">Pending Requests</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
-            {requests.filter((item) => item.status === 'pending').length}
-          </p>
-        </Card>
-        <Card className="p-5">
-          <p className="text-sm text-muted-foreground">Active Device Sessions</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
-            {sessions.filter((item) => item.status === 'active').length}
-          </p>
-        </Card>
-        <Card className="p-5">
-          <p className="text-sm text-muted-foreground">Managed Clients</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
-            {new Set([...requests.map((item) => item.clientId), ...sessions.map((item) => item.clientId)]).size}
-          </p>
-        </Card>
-      </div>
+      <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
+        <StatCard
+          label="Pending Requests"
+          value={requests.filter((item) => item.status === 'pending').length}
+          icon={<Clock size={16} />}
+          iconColor="yellow"
+          loading={isLoading}
+        />
+        <StatCard
+          label="Active Device Sessions"
+          value={sessions.filter((item) => item.status === 'active').length}
+          icon={<Smartphone size={16} />}
+          iconColor="green"
+          loading={isLoading}
+        />
+        <StatCard
+          label="Managed Clients"
+          value={new Set([...requests.map((item) => item.clientId), ...sessions.map((item) => item.clientId)]).size}
+          icon={<Layers size={16} />}
+          loading={isLoading}
+        />
+      </SimpleGrid>
 
-      <Table>
-        <TableHeaderRow>
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Pending Device Requests</h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">Requests waiting for approval, already approved, or denied before token exchange.</p>
-          </div>
-        </TableHeaderRow>
-
+      <SectionCard
+        flush
+        title="Pending Device Requests"
+        description="Requests waiting for approval, already approved, or denied before token exchange."
+      >
         {isLoading ? (
-          <div className="p-10 text-center text-sm text-muted-foreground">Loading device requests…</div>
+          <TableSkeleton rows={4} columns={['text', 'mono', 'mono', 'pill', 'text', 'action']} p="md" label="Loading device requests…" />
         ) : !requests.length ? (
-          <div className="p-10 text-center text-sm text-muted-foreground">No device requests found</div>
+          <EmptyState icon={MonitorSmartphone} title="No device requests found" />
         ) : (
-          <TableBody>
-            {requests.map((request) => (
-              <TableRow key={request.deviceCode} className="flex items-start justify-between gap-4 px-5 py-4 hover:bg-muted/50 transition-colors">
-                <div className="min-w-0 space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-medium text-foreground">{request.clientName}</p>
-                    <StatusBadge tone={statusTone[request.status]}>{request.status}</StatusBadge>
-                  </div>
-                  <p className="text-xs text-muted-foreground font-mono">User code {request.userCode} · Device {request.deviceCode.slice(0, 16)}…</p>
-                  <p className="text-xs text-muted-foreground">
-                    Client <span className="font-mono">{request.clientId}</span>
-                    {request.userId ? <> {' · '}User <span className="font-mono">{request.userId.slice(0, 12)}…</span></> : null}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Created {formatDate(request.createdAt)} {' · '}Expires {formatDate(request.expiresAt)} {' · '}Last poll {formatDate(request.lastPolledAt)}
-                  </p>
-                  <div className="flex flex-wrap gap-1 pt-1">
-                    {request.scope.map((scope) => (
-                      <StatusBadge key={scope} tone="neutral" mono>{scope}</StatusBadge>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="hover:bg-rose-50 hover:text-rose-600"
-                    onClick={() => setRequestToRevoke(request.deviceCode)}
-                    disabled={revokeRequest.isPending}
-                    title="Revoke device request"
-                  >
-                    <ShieldOff size={14} />
-                  </Button>
-                </div>
-              </TableRow>
-            ))}
-          </TableBody>
+          <Table.ScrollContainer minWidth={900}>
+            <Table highlightOnHover verticalSpacing="sm">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Client</Table.Th>
+                  <Table.Th>Codes</Table.Th>
+                  <Table.Th>User</Table.Th>
+                  <Table.Th>Scopes</Table.Th>
+                  <Table.Th>Timing</Table.Th>
+                  <Table.Th w={56} />
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {requests.map((request) => (
+                  <Table.Tr key={request.deviceCode}>
+                    <Table.Td>
+                      <Stack gap={4}>
+                        <Group gap="xs" wrap="nowrap">
+                          <Text size="sm" fw={500}>{request.clientName}</Text>
+                          <StatusBadge status={request.status}>{request.status}</StatusBadge>
+                        </Group>
+                        <Text size="xs" c="dimmed" ff="monospace">{request.clientId}</Text>
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs" ff="monospace">User code {request.userCode}</Text>
+                      <Text size="xs" c="dimmed" ff="monospace">Device {request.deviceCode.slice(0, 16)}…</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      {request.userId ? (
+                        <Text size="xs" ff="monospace" c="dimmed">{request.userId.slice(0, 12)}…</Text>
+                      ) : (
+                        <Text size="xs" c="dimmed">—</Text>
+                      )}
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4}>
+                        {request.scope.map((scope) => (
+                          <Badge key={scope} color="gray" variant="light" ff="monospace" tt="none">{scope}</Badge>
+                        ))}
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs" c="dimmed">Created {formatDate(request.createdAt)}</Text>
+                      <Text size="xs" c="dimmed">Expires {formatDate(request.expiresAt)}</Text>
+                      <Text size="xs" c="dimmed">Last poll {formatDate(request.lastPolledAt)}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group justify="flex-end">
+                        <Tooltip label="Revoke device request">
+                          <ActionIcon
+                            variant="subtle"
+                            color="red"
+                            onClick={() => setRequestToRevoke(request.deviceCode)}
+                            disabled={revokeRequest.isPending}
+                            aria-label="Revoke device request"
+                          >
+                            <ShieldOff size={14} />
+                          </ActionIcon>
+                        </Tooltip>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
         )}
-      </Table>
+      </SectionCard>
 
-      <Table>
-        <TableHeaderRow>
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Device Sessions</h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">Sessions issued through clients that support the device_code grant.</p>
-          </div>
-        </TableHeaderRow>
-
+      <SectionCard
+        flush
+        title="Device Sessions"
+        description="Sessions issued through clients that support the device_code grant."
+      >
         {isLoading ? (
-          <div className="p-10 text-center text-sm text-muted-foreground">Loading device sessions…</div>
+          <TableSkeleton rows={4} columns={['text', 'mono', 'mono', 'text', 'action']} p="md" label="Loading device sessions…" />
         ) : !sessions.length ? (
-          <div className="p-10 text-center text-sm text-muted-foreground">No device sessions found</div>
+          <EmptyState icon={MonitorSmartphone} title="No device sessions found" />
         ) : (
-          <TableBody>
-            {sessions.map((session) => (
-              <TableRow key={session.id} className="flex items-start justify-between gap-4 px-5 py-4 hover:bg-muted/50 transition-colors">
-                <div className="min-w-0 space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <MonitorSmartphone size={16} className="text-muted-foreground" />
-                    <p className="text-sm font-medium text-foreground">{session.clientName}</p>
-                    <StatusBadge tone={statusTone[session.status]}>{session.status}</StatusBadge>
-                  </div>
-                  <p className="text-xs text-muted-foreground font-mono">Session {session.id.slice(0, 16)}…</p>
-                  <p className="text-xs text-muted-foreground">
-                    User <span className="font-mono">{session.userId.slice(0, 12)}…</span>
-                    {' · '}Client <span className="font-mono">{session.clientId}</span>
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Created {formatDate(session.createdAt)} {' · '}Expires {formatDate(session.expiresAt)}
-                    {session.revokedAt ? <> {' · '}Revoked {formatDate(session.revokedAt)}</> : null}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  {session.status === 'active' ? (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="hover:bg-rose-50 hover:text-rose-600"
-                      onClick={() => setSessionToRevoke(session.id)}
-                      disabled={revokeSession.isPending}
-                      title="Revoke device session"
-                    >
-                      <ShieldOff size={14} />
-                    </Button>
-                  ) : null}
-                </div>
-              </TableRow>
-            ))}
-          </TableBody>
+          <Table.ScrollContainer minWidth={820}>
+            <Table highlightOnHover verticalSpacing="sm">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Client</Table.Th>
+                  <Table.Th>Session</Table.Th>
+                  <Table.Th>User</Table.Th>
+                  <Table.Th>Timing</Table.Th>
+                  <Table.Th w={56} />
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {sessions.map((session) => (
+                  <Table.Tr key={session.id}>
+                    <Table.Td>
+                      <Group gap="sm" wrap="nowrap">
+                        <Box c="dimmed" style={{ display: 'flex' }}>
+                          <MonitorSmartphone size={16} />
+                        </Box>
+                        <Stack gap={4}>
+                          <Group gap="xs" wrap="nowrap">
+                            <Text size="sm" fw={500}>{session.clientName}</Text>
+                            <StatusBadge status={session.status}>{session.status}</StatusBadge>
+                          </Group>
+                          <Text size="xs" c="dimmed" ff="monospace">{session.clientId}</Text>
+                        </Stack>
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs" ff="monospace">{session.id.slice(0, 16)}…</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs" ff="monospace" c="dimmed">{session.userId.slice(0, 12)}…</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs" c="dimmed">Created {formatDate(session.createdAt)}</Text>
+                      <Text size="xs" c="dimmed">Expires {formatDate(session.expiresAt)}</Text>
+                      {session.revokedAt ? <Text size="xs" c="dimmed">Revoked {formatDate(session.revokedAt)}</Text> : null}
+                    </Table.Td>
+                    <Table.Td>
+                      {session.status === 'active' ? (
+                        <Group justify="flex-end">
+                          <Tooltip label="Revoke device session">
+                            <ActionIcon
+                              variant="subtle"
+                              color="red"
+                              onClick={() => setSessionToRevoke(session.id)}
+                              disabled={revokeSession.isPending}
+                              aria-label="Revoke device session"
+                            >
+                              <ShieldOff size={14} />
+                            </ActionIcon>
+                          </Tooltip>
+                        </Group>
+                      ) : null}
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
         )}
-      </Table>
+      </SectionCard>
 
       <ConfirmDialog
         isOpen={!!requestToRevoke}
@@ -228,6 +260,6 @@ export default function Devices() {
         onConfirm={confirmSessionRevoke}
         onCancel={() => setSessionToRevoke(null)}
       />
-    </div>
+    </>
   )
 }

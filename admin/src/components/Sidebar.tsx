@@ -1,12 +1,12 @@
-import { NavLink } from 'react-router-dom'
-import { logout } from '../hooks/useApi'
+import { Link, useLocation } from 'react-router-dom'
+import { Box, Group, Image, Text } from '@mantine/core'
+import { SidebarNav, UserMenu, hasPermission, type SidebarNavGroup } from '@nexus/design'
 import {
   LayoutDashboard,
   AppWindow,
   Users,
   UsersRound,
   Shield,
-  MonitorSmartphone,
   FileText,
   CheckSquare,
   Building2,
@@ -26,162 +26,122 @@ import {
   Lightbulb,
   Settings2,
   BookText,
-  KeyRound,
-  LogOut,
   Bot,
   GitMerge,
   Puzzle,
   Sparkles
 } from 'lucide-react'
+import { logout } from '../hooks/useApi'
 
-const navGroups = [
+const icon = (Icon: typeof Users) => <Icon size={16} strokeWidth={2} />
+
+const navGroups: SidebarNavGroup[] = [
   {
     label: 'Overview',
     items: [
-      { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'users:view' },
+      { href: '/dashboard', label: 'Dashboard', icon: icon(LayoutDashboard), permission: 'users:view' },
     ]
   },
   {
     label: 'Operations',
     items: [
-      { path: '/access-governance', label: 'Access Governance', icon: CheckCircle2, permission: 'administration:view' },
-      { path: '/elevations', label: 'Elevation Operations', icon: ShieldAlert, permission: 'administration:view' },
-      { path: '/elevation-sessions', label: 'Elevation Sessions', icon: History, permission: 'administration:view' },
-      { path: '/sessions', label: 'Sessions', icon: ShieldCheck, permission: 'sessions:view' },
-      { path: '/devices', label: 'Devices', icon: Tablet, permission: 'sessions:view' },
-      { path: '/events', label: 'Events', icon: BellRing, permission: 'events:view' },
-      { path: '/suggestions', label: 'Suggestions', icon: Lightbulb, permission: 'suggestions:view' },
-      { path: '/audit', label: 'Audit Log', icon: FileText, permission: 'audit_log:view' },
+      { href: '/access-governance', label: 'Access Governance', icon: icon(CheckCircle2), permission: 'administration:view' },
+      { href: '/elevations', label: 'Elevation Operations', icon: icon(ShieldAlert), permission: 'administration:view' },
+      { href: '/elevation-sessions', label: 'Elevation Sessions', icon: icon(History), permission: 'administration:view' },
+      { href: '/sessions', label: 'Sessions', icon: icon(ShieldCheck), permission: 'sessions:view' },
+      { href: '/devices', label: 'Devices', icon: icon(Tablet), permission: 'sessions:view' },
+      { href: '/events', label: 'Events', icon: icon(BellRing), permission: 'events:view' },
+      { href: '/suggestions', label: 'Suggestions', icon: icon(Lightbulb), permission: 'suggestions:view' },
+      { href: '/audit', label: 'Audit Log', icon: icon(FileText), permission: 'audit_log:view' },
     ]
   },
   {
     label: 'Identity & Access',
     items: [
-      { path: '/users', label: 'Users', icon: Users, permission: 'users:view' },
-      { path: '/service-identities', label: 'Service Identities', icon: Bot, permission: 'service_identities:view' },
-      { path: '/groups', label: 'Groups', icon: UsersRound, permission: 'groups:view' },
-      { path: '/roles', label: 'Roles', icon: Shield, permission: 'roles:view' },
-      { path: '/clients', label: 'Clients', icon: AppWindow, permission: 'clients:view' },
-      { path: '/apps', label: 'Apps', icon: Boxes, permission: 'apps:view' },
-      { path: '/consents', label: 'Consents', icon: CheckSquare, permission: 'consents:view' },
+      { href: '/users', label: 'Users', icon: icon(Users), permission: 'users:view' },
+      { href: '/service-identities', label: 'Service Identities', icon: icon(Bot), permission: 'service_identities:view' },
+      { href: '/groups', label: 'Groups', icon: icon(UsersRound), permission: 'groups:view' },
+      { href: '/roles', label: 'Roles', icon: icon(Shield), permission: 'roles:view' },
+      { href: '/clients', label: 'Clients', icon: icon(AppWindow), permission: 'clients:view' },
+      { href: '/apps', label: 'Apps', icon: icon(Boxes), permission: 'apps:view' },
+      { href: '/consents', label: 'Consents', icon: icon(CheckSquare), permission: 'consents:view' },
     ]
   },
   {
     label: 'Authentication',
     items: [
-      { path: '/federation', label: 'Federation', icon: Network, permission: 'federation_providers:view' },
-      { path: '/authentication', label: 'Auth Flows', icon: Route, permission: 'authentication_flows:view' },
-      { path: '/interaction-views', label: 'Interaction Views', icon: ScanFace, permission: 'authentication_flows:view' },
-      { path: '/policies', label: 'Policies', icon: Gavel, permission: 'policies:view' },
-      { path: '/user-attributes', label: 'User Attributes', icon: Fingerprint, permission: 'user_attributes:view' },
+      { href: '/federation', label: 'Federation', icon: icon(Network), permission: 'federation_providers:view' },
+      { href: '/authentication', label: 'Auth Flows', icon: icon(Route), permission: 'authentication_flows:view' },
+      { href: '/interaction-views', label: 'Interaction Views', icon: icon(ScanFace), permission: 'authentication_flows:view' },
+      { href: '/policies', label: 'Policies', icon: icon(Gavel), permission: 'policies:view' },
+      { href: '/user-attributes', label: 'User Attributes', icon: icon(Fingerprint), permission: 'user_attributes:view' },
     ]
   },
   {
     label: 'Platform',
     items: [
-      { path: '/connectors', label: 'Connectors', icon: GitMerge, permission: 'connectors:view' },
-      { path: '/plugins', label: 'Plugins', icon: Puzzle, permission: 'plugins:view' },
-      { path: '/experience-customization', label: 'Experience Customization', icon: Sparkles, permission: 'administration:view' },
-      { path: '/metrics', label: 'Auth Metrics', icon: BarChart3, permission: 'connectors:view' },
-      { path: '/tenants', label: 'Tenants', icon: Building2, permission: 'tenants:view' },
-      { path: '/administration', label: 'Administration', icon: Settings2, permission: 'administration:view' },
-      { path: '/documentation', label: 'Documentation', icon: BookText, permission: 'users:view' },
+      { href: '/connectors', label: 'Connectors', icon: icon(GitMerge), permission: 'connectors:view' },
+      { href: '/plugins', label: 'Plugins', icon: icon(Puzzle), permission: 'plugins:view' },
+      { href: '/experience-customization', label: 'Experience Customization', icon: icon(Sparkles), permission: 'administration:view' },
+      { href: '/metrics', label: 'Auth Metrics', icon: icon(BarChart3), permission: 'connectors:view' },
+      { href: '/tenants', label: 'Tenants', icon: icon(Building2), permission: 'tenants:view' },
+      { href: '/administration', label: 'Administration', icon: icon(Settings2), permission: 'administration:view' },
+      { href: '/documentation', label: 'Documentation', icon: icon(BookText), permission: 'users:view' },
     ]
   },
 ]
 
-const Sidebar = ({
-  permissions = [],
-  onNavigate,
-  onChangePassword,
-}: {
-  permissions?: string[]
-  onNavigate?: () => void
-  onChangePassword?: () => void
-}) => {
-  const can = (permission: string) => permissions.includes('*:*') || permissions.includes(permission)
-
-  const handleLogout = async () => {
-    await logout();
-    window.location.href = '/login';
-  };
-
+export function AdminBrand() {
   return (
-    <aside className="flex h-full w-[280px] shrink-0 flex-col overflow-hidden border-r border-slate-800 bg-[linear-gradient(180deg,_#020617_0%,_#0f172a_100%)] text-slate-400 sm:w-[300px] md:w-[260px]">
-      {/* Header */}
-      <div className="border-b border-slate-800/80 px-6 py-5">
-        <div className="flex items-center gap-3 text-slate-50">
-          <img src="/logo.svg" alt="NexusID" className="h-9 w-9 shrink-0 rounded-xl" />
-          <div className="min-w-0">
-            <div className="text-sm font-semibold tracking-tight text-slate-50">NexusID</div>
-            <div className="text-[10px] text-slate-500">Identity Control</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Nav */}
-      <div className="flex flex-1 min-h-0 flex-col overflow-y-auto px-3 py-4">
-        <nav className="space-y-5">
-          {navGroups.map((group) => {
-            const visibleItems = group.items.filter(item => can(item.permission))
-            if (visibleItems.length === 0) return null
-
-            return (
-              <div key={group.label}>
-                <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500/90">
-                  {group.label}
-                </p>
-                <div className="space-y-0.5">
-                  {visibleItems.map((item) => (
-                    <NavLink
-                      key={item.path}
-                      to={item.path}
-                      onClick={onNavigate}
-                      className={({ isActive }) =>
-                        `group flex items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-sm transition-colors ${
-                          isActive
-                            ? 'border-slate-700/80 bg-slate-800 text-slate-100'
-                            : 'text-slate-400 hover:border-slate-700/70 hover:bg-slate-800/80 hover:text-slate-100'
-                        }`
-                      }
-                    >
-                      <item.icon size={15} strokeWidth={2} className="opacity-70 transition-transform group-hover:scale-110" />
-                      {item.label}
-                    </NavLink>
-                  ))}
-                </div>
-              </div>
-            )
-          })}
-        </nav>
-      </div>
-
-      {/* Footer */}
-      <div className="border-t border-slate-800/80 px-3 py-4 space-y-0.5">
-        {onChangePassword ? (
-          <button
-            type="button"
-            onClick={() => {
-              onChangePassword()
-              onNavigate?.()
-            }}
-            className="group flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-sm text-slate-400 transition-colors hover:border-slate-700/70 hover:bg-slate-800/80 hover:text-slate-100"
-          >
-            <KeyRound size={15} strokeWidth={2} className="opacity-70 transition-transform group-hover:scale-110" />
-            Change password
-          </button>
-        ) : null}
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="group flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-sm text-slate-400 transition-colors hover:border-slate-700/70 hover:bg-slate-800/80 hover:text-slate-100"
-        >
-          <LogOut size={15} strokeWidth={2} className="opacity-70 transition-transform group-hover:scale-110" />
-          Sign out
-        </button>
-      </div>
-    </aside>
+    <Group gap={10} wrap="nowrap">
+      <Image src="/logo.svg" alt="" w={32} h={32} radius="md" />
+      <Box style={{ minWidth: 0 }}>
+        <Text size="sm" fw={600} lh={1.2}>NexusID</Text>
+        <Text size="xs" c="dimmed" lh={1.3}>Identity Control</Text>
+      </Box>
+    </Group>
   )
 }
 
-export default Sidebar
+interface SidebarProps {
+  permissions?: string[]
+  user?: { name?: string; email?: string }
+  onNavigate?: () => void
+  onChangePassword?: () => void
+}
+
+export default function Sidebar({ permissions = [], user, onNavigate, onChangePassword }: SidebarProps) {
+  const location = useLocation()
+  const activeHref = location.pathname === '/' ? '/dashboard' : location.pathname
+
+  const handleLogout = async () => {
+    await logout()
+    window.location.href = '/login'
+  }
+
+  const name = user?.name || user?.email || 'Administrator'
+
+  return (
+    <SidebarNav
+      groups={navGroups}
+      activeHref={activeHref}
+      canAccess={(permission) => hasPermission(permissions, permission)}
+      linkComponent={Link}
+      getLinkProps={(item) => ({ to: item.href })}
+      onNavigate={() => onNavigate?.()}
+      footer={
+        <UserMenu
+          fullWidth
+          chevron="updown"
+          name={name}
+          subtitle={user?.email}
+          menuProps={{ position: 'top-start', width: 'target' }}
+          onSecurity={onChangePassword}
+          labels={{ security: 'Change password' }}
+          onSignOut={handleLogout}
+        />
+      }
+    />
+  )
+}
+

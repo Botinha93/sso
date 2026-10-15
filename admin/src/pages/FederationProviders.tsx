@@ -1,19 +1,38 @@
-import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
-import Textarea from '../components/ui/Textarea'
-import Select from '../components/ui/Select'
-import { AppWindow, ChevronDown, ChevronUp, Pencil, Plus, RefreshCw, Shield, Trash2, Upload } from 'lucide-react'
-import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
 import type { Dispatch, SetStateAction } from 'react'
 import { useMemo, useState } from 'react'
-import ListSearch from '../components/ListSearch'
+import {
+  ActionIcon,
+  Alert,
+  Badge,
+  Box,
+  Button,
+  Checkbox,
+  Code,
+  Collapse,
+  Group,
+  Image,
+  Menu,
+  NativeSelect,
+  Paper,
+  PasswordInput,
+  SimpleGrid,
+  Stack,
+  Switch,
+  Table,
+  Text,
+  Textarea,
+  TextInput,
+  ThemeIcon,
+  Tooltip,
+  UnstyledButton,
+  VisuallyHidden
+} from '@mantine/core'
+import { PageHeader, RefreshButton, SearchInput, SectionCard, StatusBadge, TableSkeleton } from '@nexus/design'
+import { AppWindow, CheckCircle2, ChevronDown, ChevronUp, MoreHorizontal, Pencil, Plus, Shield, Trash2, Upload } from 'lucide-react'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import ConfirmDialog from '../components/ConfirmDialog'
+import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
-import StatusBadge from '../components/ui/StatusBadge'
-import Button from '../components/ui/Button'
-import Card from '../components/ui/Card'
-import Input from '../components/ui/Input'
-import React from 'react';
 
 import {
   useCreateFederationProvider,
@@ -43,8 +62,6 @@ interface FederationProvider {
   source: 'env' | 'db'
   secretPreview?: string
 }
-
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
 
 // ─── Provider templates ────────────────────────────────────────────────────────
 
@@ -187,49 +204,61 @@ const PROVIDER_TEMPLATES: ProviderTemplate[] = [
 function TemplatePicker({ onSelect }: { onSelect: (t: ProviderTemplate) => void }) {
   const [open, setOpen] = useState(true)
   return (
-    <div className="rounded-xl border border-border overflow-hidden mb-5">
-      <Button
+    <Paper withBorder radius="md" mb="lg" style={{ overflow: 'hidden' }}>
+      <UnstyledButton
         type="button"
         onClick={() => setOpen(p => !p)}
-        variant="ghost"
-        className="h-auto w-full justify-between rounded-none bg-muted/50 px-4 py-2.5 text-sm font-semibold text-foreground hover:bg-muted"
+        w="100%"
+        px="md"
+        py="sm"
+        bg="var(--nx-color-surface-sunken)"
+        aria-expanded={open}
       >
-        <span>Start from a template</span>
-        {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-      </Button>
-      {open && (
-        <div className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Group justify="space-between" wrap="nowrap">
+          <Text size="sm" fw={600}>Start from a template</Text>
+          {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </Group>
+      </UnstyledButton>
+      <Collapse expanded={open}>
+        <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }} spacing="xs" p="sm">
           {PROVIDER_TEMPLATES.map((t) => (
-            <Button
+            <UnstyledButton
               key={t.id}
               type="button"
               onClick={() => onSelect(t)}
-              variant="ghost"
-              className="h-auto flex-col gap-1.5 rounded-lg border border-border p-2.5 hover:border-ring hover:bg-muted/50 group"
               title={`Use ${t.label} template`}
             >
-              <img
-                src={t.logo}
-                alt={t.label}
-                className="w-6 h-6 rounded object-contain"
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-              />
-              <span className="text-xs text-muted-foreground group-hover:text-foreground font-medium text-center leading-tight">{t.label}</span>
-            </Button>
+              <Paper withBorder radius="md" p="sm" className="nx-interactive" h="100%">
+                <Stack gap={6} align="center">
+                  <Image
+                    src={t.logo}
+                    alt={t.label}
+                    w={24}
+                    h={24}
+                    fit="contain"
+                    radius="sm"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                  />
+                  <Text size="xs" fw={500} c="dimmed" ta="center" lh={1.2}>{t.label}</Text>
+                </Stack>
+              </Paper>
+            </UnstyledButton>
           ))}
-          <Button
+          <UnstyledButton
             type="button"
             onClick={() => setOpen(false)}
-            variant="ghost"
-            className="h-auto flex-col gap-1.5 rounded-lg border border-dashed border-border p-2.5 hover:border-ring hover:bg-muted/50 group"
             title="Start blank"
           >
-            <Plus size={18} className="text-muted-foreground group-hover:text-foreground" />
-            <span className="text-xs text-muted-foreground group-hover:text-foreground font-medium text-center leading-tight">Custom</span>
-          </Button>
-        </div>
-      )}
-    </div>
+            <Paper withBorder radius="md" p="sm" className="nx-interactive" h="100%" style={{ borderStyle: 'dashed' }}>
+              <Stack gap={6} align="center">
+                <Plus size={18} color="var(--nx-color-text-muted)" />
+                <Text size="xs" fw={500} c="dimmed" ta="center" lh={1.2}>Custom</Text>
+              </Stack>
+            </Paper>
+          </UnstyledButton>
+        </SimpleGrid>
+      </Collapse>
+    </Paper>
   )
 }
 
@@ -482,273 +511,281 @@ const FederationProviders = () => {
   }
 
   return (
-    <div>
+    <Stack gap="lg">
       <PageHeader
-        eyebrow="User Federation"
+        eyebrow="User federation"
         title="Federation Providers"
-        action={
-          <Button
-            onClick={openCreate}
-            variant="primary"
-            className="h-9 rounded-lg"
-          >
-            <Plus size={14} />
-            New Provider
+        actions={
+          <Button onClick={openCreate} leftSection={<Plus size={16} />}>
+            New provider
           </Button>
         }
       />
 
-      <div className="mb-4">
-        <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search federation providers…" />
-      </div>
+      <SearchInput value={searchInput} onChange={setSearchInput} placeholder="Search federation providers…" maw={360} />
 
-      <Table>
-        <TableHeaderRow>
-          <h4 className="text-sm font-semibold text-foreground">Configured Providers</h4>
-          <Button onClick={() => refetch()} disabled={isProvidersRefreshing} variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
-            <RefreshCw size={12} className={isProvidersRefreshing ? 'animate-spin' : ''} />
-            Refresh
-          </Button>
-        </TableHeaderRow>
-
+      <SectionCard
+        title="Configured providers"
+        badge={!isLoading ? <Badge variant="light" color="gray">{providers.length}</Badge> : undefined}
+        actions={<RefreshButton size="xs" onRefresh={() => refetch()} loading={isProvidersRefreshing} withLastUpdated={false} />}
+        flush
+      >
         {isLoading ? (
           <TableSkeleton rows={4} />
         ) : providers.length === 0 ? (
           <EmptyState
+            icon={AppWindow}
             title="No federation providers configured"
             description="Configure LDAP or SAML to sync users from external directories."
           />
         ) : (
-          <TableBody>
-            {providers.map((provider) => (
-              <TableRow key={provider.id} className="px-5 py-3.5 hover:bg-muted/50 transition-colors flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center">
-                      <AppWindow size={14} className="text-muted-foreground" />
-                    </div>
-                    <h5 className="text-sm font-medium text-foreground">{provider.label}</h5>
-                    <StatusBadge tone={provider.enabled ? 'success' : 'neutral'}>
-                      {provider.enabled ? 'Enabled' : 'Disabled'}
-                    </StatusBadge>
-                    <StatusBadge tone={provider.source === 'env' ? 'info' : 'accent'}>
-                      {provider.source.toUpperCase()}
-                    </StatusBadge>
-                  </div>
-                  <p className="text-xs text-muted-foreground font-mono">{provider.id}</p>
-                  <p className="text-xs text-muted-foreground truncate">auth: {provider.authorizationEndpoint}</p>
-                  <p className="text-xs text-muted-foreground truncate">token: {provider.tokenEndpoint}</p>
-                  <p className="text-xs text-muted-foreground truncate">userinfo: {provider.userInfoEndpoint}</p>
-                  <div className="flex gap-1 flex-wrap mt-1">
-                    {provider.scopes.map((scope) => (
-                      <StatusBadge key={scope} tone="neutral" mono>{scope}</StatusBadge>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    onClick={() => openEdit(provider)}
-                    disabled={provider.source === 'env'}
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
-                    title={provider.source === 'env' ? 'Environment providers are read-only' : 'Edit provider'}
-                  >
-                    <Pencil size={14} />
-                  </Button>
-                  <Button
-                    onClick={() => onDelete(provider)}
-                    disabled={provider.source === 'env' || deleteProvider.isPending}
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
-                    title={provider.source === 'env' ? 'Environment providers are read-only' : 'Delete provider'}
-                  >
-                    <Trash2 size={14} />
-                  </Button>
-                </div>
-              </TableRow>
-            ))}
-          </TableBody>
+          <Table.ScrollContainer minWidth={820}>
+            <Table highlightOnHover verticalSpacing="sm">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Provider</Table.Th>
+                  <Table.Th>Endpoints</Table.Th>
+                  <Table.Th>Scopes</Table.Th>
+                  <Table.Th>Status</Table.Th>
+                  <Table.Th w={88} />
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {providers.map((provider) => (
+                  <Table.Tr key={provider.id}>
+                    <Table.Td>
+                      <Group gap="sm" wrap="nowrap">
+                        <ThemeIcon variant="light" color="gray" size="md" radius="md">
+                          <AppWindow size={14} />
+                        </ThemeIcon>
+                        <Box miw={0}>
+                          <Text size="sm" fw={500}>{provider.label}</Text>
+                          <Text size="xs" c="dimmed" ff="monospace">{provider.id}</Text>
+                        </Box>
+                      </Group>
+                    </Table.Td>
+                    <Table.Td maw={360}>
+                      <Text size="xs" c="dimmed" truncate>auth: {provider.authorizationEndpoint}</Text>
+                      <Text size="xs" c="dimmed" truncate>token: {provider.tokenEndpoint}</Text>
+                      <Text size="xs" c="dimmed" truncate>userinfo: {provider.userInfoEndpoint}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4}>
+                        {provider.scopes.map((scope) => (
+                          <Badge key={scope} variant="default" tt="none" fw={400} ff="monospace">{scope}</Badge>
+                        ))}
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4} wrap="nowrap">
+                        <StatusBadge status={provider.enabled ? 'success' : 'neutral'}>
+                          {provider.enabled ? 'Enabled' : 'Disabled'}
+                        </StatusBadge>
+                        <Badge variant="light" color={provider.source === 'env' ? 'cyan' : 'violet'}>
+                          {provider.source.toUpperCase()}
+                        </Badge>
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4} justify="flex-end" wrap="nowrap">
+                        <Tooltip label={provider.source === 'env' ? 'Environment providers are read-only' : 'Edit provider'}>
+                          <ActionIcon
+                            variant="subtle"
+                            color="gray"
+                            onClick={() => openEdit(provider)}
+                            disabled={provider.source === 'env'}
+                            aria-label={provider.source === 'env' ? 'Environment providers are read-only' : 'Edit provider'}
+                          >
+                            <Pencil size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                        <Tooltip label={provider.source === 'env' ? 'Environment providers are read-only' : 'Delete provider'}>
+                          <ActionIcon
+                            variant="subtle"
+                            color="red"
+                            onClick={() => onDelete(provider)}
+                            disabled={provider.source === 'env' || deleteProvider.isPending}
+                            aria-label={provider.source === 'env' ? 'Environment providers are read-only' : 'Delete provider'}
+                          >
+                            <Trash2 size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
         )}
-      </Table>
+      </SectionCard>
 
-      <Table className="mt-8">
-        <TableHeaderRow>
-          <div>
-            <h4 className="text-sm font-semibold text-foreground">SAML Service Providers</h4>
-            <p className="text-xs text-muted-foreground mt-0.5">Manage SAML 2.0 service provider registrations, metadata, and certificates.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={() => refetchSamlProviders()} disabled={isSamlProvidersRefreshing} variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
-              <RefreshCw size={12} className={isSamlProvidersRefreshing ? 'animate-spin' : ''} />
-              Refresh
-            </Button>
-            <Button onClick={openSamlSpCreate} variant="primary" size="sm" className="h-8 rounded-lg text-xs">
-              <Plus size={12} />
+      {samlActionMessage ? (
+        <Alert color="green" icon={<CheckCircle2 size={16} />} withCloseButton onClose={() => setSamlActionMessage(null)}>
+          {samlActionMessage}
+        </Alert>
+      ) : null}
+
+      <SectionCard
+        title="SAML service providers"
+        description="Manage SAML 2.0 service provider registrations, metadata, and certificates."
+        actions={
+          <Group gap="xs" wrap="nowrap">
+            <RefreshButton size="xs" onRefresh={() => refetchSamlProviders()} loading={isSamlProvidersRefreshing} withLastUpdated={false} />
+            <Button size="xs" onClick={openSamlSpCreate} leftSection={<Plus size={14} />}>
               Add SP
             </Button>
-          </div>
-        </TableHeaderRow>
-
-        {samlActionMessage ? (
-          <div className="mx-5 mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{samlActionMessage}</div>
-        ) : null}
-
+          </Group>
+        }
+        flush
+      >
         {samlLoading ? (
           <TableSkeleton rows={3} />
         ) : samlProviders.length === 0 ? (
           <EmptyState
+            icon={Shield}
             title="No SAML service providers configured"
             description="Register a SAML service provider to enable SSO federation."
           />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-sm">
-              <thead className="border-b border-border bg-muted/50">
-                <tr>
-                  {['Entity ID', 'ACS URL', 'Status', 'Updated', 'Actions'].map((header) => (
-                    <th key={header} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{header}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
+          <Table.ScrollContainer minWidth={760}>
+            <Table highlightOnHover verticalSpacing="sm">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Entity ID</Table.Th>
+                  <Table.Th>ACS URL</Table.Th>
+                  <Table.Th>Status</Table.Th>
+                  <Table.Th>Updated</Table.Th>
+                  <Table.Th w={88}><VisuallyHidden>Actions</VisuallyHidden></Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
                 {samlProviders.map((provider) => (
-                  <tr key={provider.id} className="hover:bg-muted/40">
-                    <td className="px-4 py-3">
-                      <p className="font-mono text-xs text-foreground break-all">{provider.entityId}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-mono text-xs text-muted-foreground break-all">{provider.acsUrl}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge tone={provider.enabled ? 'success' : 'neutral'}>
+                  <Table.Tr key={provider.id}>
+                    <Table.Td>
+                      <Text size="xs" ff="monospace" style={{ wordBreak: 'break-all' }}>{provider.entityId}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs" c="dimmed" ff="monospace" style={{ wordBreak: 'break-all' }}>{provider.acsUrl}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <StatusBadge status={provider.enabled ? 'success' : 'neutral'}>
                         {provider.enabled ? 'enabled' : 'disabled'}
                       </StatusBadge>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">{new Date(provider.updatedAt).toLocaleString()}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1.5">
-                        <Button
-                          onClick={() => openMetadataUpload(provider)}
-                          variant="secondary"
-                          size="sm"
-                          className="h-7 rounded-md px-2 text-xs text-muted-foreground"
-                        >
-                          <Upload size={12} /> Metadata
-                        </Button>
-                        <Button
-                          onClick={() => openCertificateRotate(provider, 'signing')}
-                          variant="secondary"
-                          size="sm"
-                          className="h-7 rounded-md px-2 text-xs text-muted-foreground"
-                        >
-                          <Shield size={12} /> Rotate Signing
-                        </Button>
-                        <Button
-                          onClick={() => openCertificateRotate(provider, 'encryption')}
-                          variant="secondary"
-                          size="sm"
-                          className="h-7 rounded-md px-2 text-xs text-muted-foreground"
-                        >
-                          <Shield size={12} /> Rotate Encryption
-                        </Button>
-                        <Button
-                          onClick={() => openSamlSpEdit(provider)}
-                          variant="secondary"
-                          size="sm"
-                          className="h-7 rounded-md px-2 text-xs text-muted-foreground"
-                        >
-                          <Pencil size={12} /> Edit
-                        </Button>
-                        <Button
-                          onClick={() => setSamlSpDeleteTarget(provider)}
-                          variant="danger"
-                          size="sm"
-                          className="h-7 rounded-md border border-rose-200 bg-card px-2 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-                        >
-                          <Trash2 size={12} /> Delete
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs" c="dimmed">{new Date(provider.updatedAt).toLocaleString()}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4} justify="flex-end" wrap="nowrap">
+                        <Tooltip label="Edit">
+                          <ActionIcon variant="subtle" color="gray" onClick={() => openSamlSpEdit(provider)} aria-label={`Edit ${provider.entityId}`}>
+                            <Pencil size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                        <Menu position="bottom-end" withinPortal>
+                          <Menu.Target>
+                            <ActionIcon variant="subtle" color="gray" aria-label={`More actions for ${provider.entityId}`}>
+                              <MoreHorizontal size={16} />
+                            </ActionIcon>
+                          </Menu.Target>
+                          <Menu.Dropdown>
+                            <Menu.Item leftSection={<Upload size={14} />} onClick={() => openMetadataUpload(provider)}>
+                              Metadata
+                            </Menu.Item>
+                            <Menu.Item leftSection={<Shield size={14} />} onClick={() => openCertificateRotate(provider, 'signing')}>
+                              Rotate signing
+                            </Menu.Item>
+                            <Menu.Item leftSection={<Shield size={14} />} onClick={() => openCertificateRotate(provider, 'encryption')}>
+                              Rotate encryption
+                            </Menu.Item>
+                            <Menu.Divider />
+                            <Menu.Item color="red" leftSection={<Trash2 size={14} />} onClick={() => setSamlSpDeleteTarget(provider)}>
+                              Delete
+                            </Menu.Item>
+                          </Menu.Dropdown>
+                        </Menu>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
         )}
-      </Table>
+      </SectionCard>
 
       {/* SAML Assertions Audit Log */}
-      <Table className="mt-8">
-        <TableHeaderRow>
-          <div>
-            <h4 className="text-sm font-semibold text-foreground">SAML Assertion Audit Log</h4>
-            <p className="text-xs text-muted-foreground mt-0.5">Recent assertion activity across all service providers.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Select
+      <SectionCard
+        title="SAML assertion audit log"
+        description="Recent assertion activity across all service providers."
+        actions={
+          <Group gap="xs" wrap="nowrap">
+            <NativeSelect
+              size="xs"
+              aria-label="Filter by service provider"
               value={assertionsSpFilter}
-              onChange={e => setAssertionsSpFilter(e.target.value)}
-              className="h-7 rounded-md border border-border bg-card px-2 text-xs text-foreground outline-none"
-            >
-              <option value="">All SPs</option>
-              {samlProviders.map(sp => (
-                <option key={sp.id} value={sp.id}>{sp.entityId}</option>
-              ))}
-            </Select>
-            <Button onClick={() => refetchAssertions()} disabled={isAssertionsRefreshing} variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
-              <RefreshCw size={12} className={isAssertionsRefreshing ? 'animate-spin' : ''} /> Refresh
-            </Button>
-          </div>
-        </TableHeaderRow>
+              onChange={e => setAssertionsSpFilter(e.currentTarget.value)}
+              data={[
+                { value: '', label: 'All SPs' },
+                ...samlProviders.map(sp => ({ value: sp.id, label: sp.entityId }))
+              ]}
+              maw={240}
+            />
+            <RefreshButton size="xs" onRefresh={() => refetchAssertions()} loading={isAssertionsRefreshing} withLastUpdated={false} />
+          </Group>
+        }
+        flush
+      >
         {assertionsLoading ? (
-          <div className="p-8 text-center text-muted-foreground text-sm">Loading assertions…</div>
+          <Text size="sm" c="dimmed" ta="center" p="xl">Loading assertions…</Text>
         ) : assertions.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground text-sm">No assertion records found</div>
+          <Text size="sm" c="dimmed" ta="center" p="xl">No assertion records found</Text>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
-              <thead className="border-b border-border bg-muted/50">
-                <tr>
-                  {['SP', 'Subject', 'Assertion ID', 'Session Index', 'Time'].map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
+          <Table.ScrollContainer minWidth={640}>
+            <Table highlightOnHover verticalSpacing="sm">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>SP</Table.Th>
+                  <Table.Th>Subject</Table.Th>
+                  <Table.Th>Assertion ID</Table.Th>
+                  <Table.Th>Session index</Table.Th>
+                  <Table.Th>Time</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
                 {assertions.map(a => (
-                  <tr key={a.id} className="hover:bg-muted/40">
-                    <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground break-all max-w-[160px] truncate">{samlProviders.find(sp => sp.id === a.spId)?.entityId ?? a.spId}</td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-foreground break-all max-w-[160px] truncate">{a.subject ?? '—'}</td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground break-all max-w-[160px] truncate">{a.assertionId}</td>
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground">{a.sessionIndex ?? '—'}</td>
-                    <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{new Date(a.createdAt).toLocaleString()}</td>
-                  </tr>
+                  <Table.Tr key={a.id}>
+                    <Table.Td maw={160}><Text size="xs" c="dimmed" ff="monospace" truncate>{samlProviders.find(sp => sp.id === a.spId)?.entityId ?? a.spId}</Text></Table.Td>
+                    <Table.Td maw={160}><Text size="xs" ff="monospace" truncate>{a.subject ?? '—'}</Text></Table.Td>
+                    <Table.Td maw={160}><Text size="xs" c="dimmed" ff="monospace" truncate>{a.assertionId}</Text></Table.Td>
+                    <Table.Td><Text size="xs" c="dimmed">{a.sessionIndex ?? '—'}</Text></Table.Td>
+                    <Table.Td><Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>{new Date(a.createdAt).toLocaleString()}</Text></Table.Td>
+                  </Table.Tr>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
         )}
-      </Table>
+      </SectionCard>
 
-      <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title="Create Federation Provider">
+      <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title="Create federation provider" size="lg">
         <TemplatePicker onSelect={applyTemplate} />
-        <ProviderForm form={form} setForm={setForm} showId onSubmit={onCreate} submitLabel={createProvider.isPending ? 'Creating…' : 'Create Provider'} pending={createProvider.isPending} />
+        <ProviderForm form={form} setForm={setForm} showId onSubmit={onCreate} submitLabel="Create provider" pending={createProvider.isPending} />
       </Modal>
 
-      <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title="Edit Federation Provider">
-        <ProviderForm form={form} setForm={setForm} onSubmit={onEdit} submitLabel={updateProvider.isPending ? 'Saving…' : 'Save Changes'} pending={updateProvider.isPending} />
+      <Modal isOpen={editOpen} onClose={() => setEditOpen(false)} title="Edit federation provider" size="lg">
+        <ProviderForm form={form} setForm={setForm} onSubmit={onEdit} submitLabel="Save changes" pending={updateProvider.isPending} />
       </Modal>
 
       {/* SAML SP Create Modal */}
-      <Modal isOpen={samlSpCreateOpen} onClose={() => setSamlSpCreateOpen(false)} title="Add SAML Service Provider">
-        <SamlSpForm form={samlSpForm} setForm={setSamlSpForm} error={samlSpError} onSubmit={submitSamlSpCreate} submitLabel={createSamlSp.isPending ? 'Creating…' : 'Create SP'} pending={createSamlSp.isPending} />
+      <Modal isOpen={samlSpCreateOpen} onClose={() => setSamlSpCreateOpen(false)} title="Add SAML service provider">
+        <SamlSpForm form={samlSpForm} setForm={setSamlSpForm} error={samlSpError} onSubmit={submitSamlSpCreate} submitLabel="Create SP" pending={createSamlSp.isPending} />
       </Modal>
 
       {/* SAML SP Edit Modal */}
-      <Modal isOpen={!!samlSpEditTarget} onClose={() => setSamlSpEditTarget(null)} title="Edit SAML Service Provider">
-        <SamlSpForm form={samlSpForm} setForm={setSamlSpForm} error={samlSpError} onSubmit={submitSamlSpEdit} submitLabel={updateSamlSp.isPending ? 'Saving…' : 'Save Changes'} pending={updateSamlSp.isPending} />
+      <Modal isOpen={!!samlSpEditTarget} onClose={() => setSamlSpEditTarget(null)} title="Edit SAML service provider">
+        <SamlSpForm form={samlSpForm} setForm={setSamlSpForm} error={samlSpError} onSubmit={submitSamlSpEdit} submitLabel="Save changes" pending={updateSamlSp.isPending} />
       </Modal>
 
       <ConfirmDialog
@@ -756,80 +793,76 @@ const FederationProviders = () => {
         title="Delete SAML Service Provider"
         message={`Delete service provider "${samlSpDeleteTarget?.entityId ?? ''}"? This cannot be undone.`}
         confirmLabel="Delete SP"
+        variant="danger"
         pending={deleteSamlSp.isPending}
         onConfirm={confirmSamlSpDelete}
         onCancel={() => setSamlSpDeleteTarget(null)}
       />
 
-      <Modal isOpen={!!metadataTarget} onClose={() => setMetadataTarget(null)} title="Upload SAML Metadata">
-        <div className="space-y-3">
-          {metadataTarget ? <p className="text-xs text-muted-foreground">Target: <span className="font-mono">{metadataTarget.entityId}</span></p> : null}
-          <div>
-            <label className={labelCls}>Metadata XML</label>
-            <Textarea
-              className="w-full rounded-lg border border-border bg-transparent px-3 py-2 font-mono text-xs text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-              rows={10}
-              placeholder="<EntityDescriptor ...>...</EntityDescriptor>"
-              value={metadataXml}
-              onChange={(e) => setMetadataXml(e.target.value)}
-            />
-          </div>
-          <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-            <input
-              type="checkbox"
-              className="rounded border-border"
-              checked={overwriteManualFields}
-              onChange={(e) => setOverwriteManualFields(e.target.checked)}
-            />
-            Overwrite manually configured SAML fields with parsed metadata values
-          </label>
-          <div className="flex justify-end">
+      <Modal isOpen={!!metadataTarget} onClose={() => setMetadataTarget(null)} title="Upload SAML metadata" size="lg">
+        <Stack gap="md">
+          {metadataTarget ? <Text size="xs" c="dimmed">Target: <Code>{metadataTarget.entityId}</Code></Text> : null}
+          <Textarea
+            label="Metadata XML"
+            autosize
+            minRows={10}
+            maxRows={20}
+            styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)', fontSize: 'var(--mantine-font-size-xs)' } }}
+            placeholder="<EntityDescriptor ...>...</EntityDescriptor>"
+            value={metadataXml}
+            onChange={(e) => setMetadataXml(e.currentTarget.value)}
+          />
+          <Checkbox
+            label="Overwrite manually configured SAML fields with parsed metadata values"
+            checked={overwriteManualFields}
+            onChange={(e) => setOverwriteManualFields(e.currentTarget.checked)}
+          />
+          <Group justify="flex-end">
             <Button
               onClick={submitMetadataUpload}
-              disabled={uploadSamlMetadata.isPending || !metadataXml.trim()}
-              variant="primary"
-              className="h-9 rounded-lg"
+              disabled={!metadataXml.trim()}
+              loading={uploadSamlMetadata.isPending}
+              leftSection={<Upload size={16} />}
             >
-              {uploadSamlMetadata.isPending ? 'Uploading…' : 'Upload Metadata'}
+              Upload metadata
             </Button>
-          </div>
-        </div>
+          </Group>
+        </Stack>
       </Modal>
 
-      <Modal isOpen={!!rotateTarget} onClose={() => setRotateTarget(null)} title="Rotate SAML Certificate">
-        <div className="space-y-3">
-          {rotateTarget ? <p className="text-xs text-muted-foreground">Target: <span className="font-mono">{rotateTarget.entityId}</span></p> : null}
-          <div>
-            <label className={labelCls}>Certificate Type</label>
-            <Select
-              value={certificateType}
-              onChange={(e) => setCertificateType(e.target.value as 'signing' | 'encryption')}
-            >
-              <option value="signing">Signing</option>
-              <option value="encryption">Encryption</option>
-            </Select>
-          </div>
-          <div>
-            <label className={labelCls}>Certificate (PEM)</label>
-            <Textarea
-              className="w-full rounded-lg border border-border bg-transparent px-3 py-2 font-mono text-xs text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-              rows={10}
-              placeholder="-----BEGIN CERTIFICATE-----"
-              value={certificatePem}
-              onChange={(e) => setCertificatePem(e.target.value)}
-            />
-          </div>
-          <div className="flex justify-end">
+      <Modal isOpen={!!rotateTarget} onClose={() => setRotateTarget(null)} title="Rotate SAML certificate" size="lg">
+        <Stack gap="md">
+          {rotateTarget ? <Text size="xs" c="dimmed">Target: <Code>{rotateTarget.entityId}</Code></Text> : null}
+          <NativeSelect
+            label="Certificate type"
+            value={certificateType}
+            onChange={(e) => setCertificateType(e.currentTarget.value as 'signing' | 'encryption')}
+            data={[
+              { value: 'signing', label: 'Signing' },
+              { value: 'encryption', label: 'Encryption' }
+            ]}
+          />
+          <Textarea
+            label="Certificate (PEM)"
+            autosize
+            minRows={10}
+            maxRows={20}
+            styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)', fontSize: 'var(--mantine-font-size-xs)' } }}
+            placeholder="-----BEGIN CERTIFICATE-----"
+            value={certificatePem}
+            onChange={(e) => setCertificatePem(e.currentTarget.value)}
+          />
+          <Group justify="flex-end">
             <Button
               onClick={submitCertificateRotation}
-              disabled={rotateSamlCertificate.isPending || !certificatePem.trim()}
-              variant="primary"
-              className="h-9 rounded-lg"
+              disabled={!certificatePem.trim()}
+              loading={rotateSamlCertificate.isPending}
+              leftSection={<Shield size={16} />}
             >
-              {rotateSamlCertificate.isPending ? 'Rotating…' : 'Rotate Certificate'}
+              Rotate certificate
             </Button>
-          </div>
-        </div>
+          </Group>
+        </Stack>
       </Modal>
 
       <ConfirmDialog
@@ -837,13 +870,16 @@ const FederationProviders = () => {
         title="Delete Federation Provider"
         message={`Delete provider "${providerToDelete?.label ?? ''}"?`}
         confirmLabel="Delete Provider"
+        variant="danger"
         pending={deleteProvider.isPending}
         onConfirm={confirmDeleteProvider}
         onCancel={() => setProviderToDelete(null)}
       />
-    </div>
+    </Stack>
   )
 }
+
+const monoInput = { input: { fontFamily: 'var(--mantine-font-family-monospace)' } }
 
 function ProviderForm({
   form,
@@ -861,53 +897,26 @@ function ProviderForm({
   showId?: boolean
 }) {
   return (
-    <div className="space-y-4">
+    <Stack gap="md">
       {showId && (
-        <div>
-          <label className={labelCls}>Provider ID</label>
-          <Input className="font-mono" value={form.id} onChange={(e) => setForm((p) => ({ ...p, id: e.target.value }))} placeholder="google" />
-        </div>
+        <TextInput label="Provider ID" styles={monoInput} value={form.id} onChange={(e) => { const value = e.currentTarget.value; setForm((p) => ({ ...p, id: value })) }} placeholder="google" />
       )}
-      <div>
-        <label className={labelCls}>Label</label>
-        <Input value={form.label} onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))} placeholder="Google Workspace" />
-      </div>
-      <div>
-        <label className={labelCls}>Authorization Endpoint</label>
-        <Input className="font-mono" value={form.authorizationEndpoint} onChange={(e) => setForm((p) => ({ ...p, authorizationEndpoint: e.target.value }))} placeholder="https://accounts.google.com/o/oauth2/v2/auth" />
-      </div>
-      <div>
-        <label className={labelCls}>Token Endpoint</label>
-        <Input className="font-mono" value={form.tokenEndpoint} onChange={(e) => setForm((p) => ({ ...p, tokenEndpoint: e.target.value }))} placeholder="https://oauth2.googleapis.com/token" />
-      </div>
-      <div>
-        <label className={labelCls}>UserInfo Endpoint</label>
-        <Input className="font-mono" value={form.userInfoEndpoint} onChange={(e) => setForm((p) => ({ ...p, userInfoEndpoint: e.target.value }))} placeholder="https://openidconnect.googleapis.com/v1/userinfo" />
-      </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div>
-          <label className={labelCls}>Client ID</label>
-          <Input className="font-mono" value={form.clientId} onChange={(e) => setForm((p) => ({ ...p, clientId: e.target.value }))} />
-        </div>
-        <div>
-          <label className={labelCls}>Client Secret</label>
-          <Input className="font-mono" value={form.clientSecret} onChange={(e) => setForm((p) => ({ ...p, clientSecret: e.target.value }))} placeholder="Leave empty to keep existing" />
-        </div>
-      </div>
-      <div>
-        <label className={labelCls}>Scopes</label>
-        <Input className="font-mono" value={form.scopes} onChange={(e) => setForm((p) => ({ ...p, scopes: e.target.value }))} placeholder="openid profile email" />
-      </div>
-      <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-        <input type="checkbox" className="rounded border-border" checked={form.enabled} onChange={(e) => setForm((p) => ({ ...p, enabled: e.target.checked }))} />
-        Provider is enabled
-      </label>
-      <div className="flex justify-end">
-        <Button onClick={onSubmit} disabled={pending} variant="primary" className="h-9 rounded-lg">
+      <TextInput label="Label" value={form.label} onChange={(e) => { const value = e.currentTarget.value; setForm((p) => ({ ...p, label: value })) }} placeholder="Google Workspace" />
+      <TextInput label="Authorization endpoint" styles={monoInput} value={form.authorizationEndpoint} onChange={(e) => { const value = e.currentTarget.value; setForm((p) => ({ ...p, authorizationEndpoint: value })) }} placeholder="https://accounts.google.com/o/oauth2/v2/auth" />
+      <TextInput label="Token endpoint" styles={monoInput} value={form.tokenEndpoint} onChange={(e) => { const value = e.currentTarget.value; setForm((p) => ({ ...p, tokenEndpoint: value })) }} placeholder="https://oauth2.googleapis.com/token" />
+      <TextInput label="UserInfo endpoint" styles={monoInput} value={form.userInfoEndpoint} onChange={(e) => { const value = e.currentTarget.value; setForm((p) => ({ ...p, userInfoEndpoint: value })) }} placeholder="https://openidconnect.googleapis.com/v1/userinfo" />
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+        <TextInput label="Client ID" styles={monoInput} value={form.clientId} onChange={(e) => { const value = e.currentTarget.value; setForm((p) => ({ ...p, clientId: value })) }} />
+        <PasswordInput label="Client secret" styles={monoInput} value={form.clientSecret} onChange={(e) => { const value = e.currentTarget.value; setForm((p) => ({ ...p, clientSecret: value })) }} placeholder="Leave empty to keep existing" autoComplete="new-password" />
+      </SimpleGrid>
+      <TextInput label="Scopes" description="Space-separated." styles={monoInput} value={form.scopes} onChange={(e) => { const value = e.currentTarget.value; setForm((p) => ({ ...p, scopes: value })) }} placeholder="openid profile email" />
+      <Switch label="Provider is enabled" checked={form.enabled} onChange={(e) => { const checked = e.currentTarget.checked; setForm((p) => ({ ...p, enabled: checked })) }} />
+      <Group justify="flex-end">
+        <Button onClick={onSubmit} loading={pending}>
           {submitLabel}
         </Button>
-      </div>
-    </div>
+      </Group>
+    </Stack>
   )
 }
 
@@ -927,38 +936,28 @@ function SamlSpForm({
   pending: boolean
 }) {
   return (
-    <div className="space-y-4">
-      {error ? <p className="rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-xs text-rose-700">{error}</p> : null}
-      <div>
-        <label className={labelCls}>Entity ID</label>
-        <Input className="font-mono" value={form.entityId} onChange={e => setForm(p => ({ ...p, entityId: e.target.value }))} placeholder="https://sp.example.com/saml/metadata" required />
-      </div>
-      <div>
-        <label className={labelCls}>ACS URL</label>
-        <Input className="font-mono" value={form.acsUrl} onChange={e => setForm(p => ({ ...p, acsUrl: e.target.value }))} placeholder="https://sp.example.com/saml/acs" required />
-      </div>
-      <div>
-        <label className={labelCls}>SLO URL (optional)</label>
-        <Input className="font-mono" value={form.sloUrl} onChange={e => setForm(p => ({ ...p, sloUrl: e.target.value }))} placeholder="https://sp.example.com/saml/slo" />
-      </div>
-      <div>
-        <label className={labelCls}>Name ID Format</label>
-        <Select value={form.nameIdFormat} onChange={e => setForm(p => ({ ...p, nameIdFormat: e.target.value as typeof form.nameIdFormat }))}>
-          <option value="persistent">Persistent</option>
-          <option value="transient">Transient</option>
-          <option value="emailAddress">Email Address</option>
-        </Select>
-      </div>
-      <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-        <input type="checkbox" className="rounded border-border" checked={form.enabled} onChange={e => setForm(p => ({ ...p, enabled: e.target.checked }))} />
-        Service provider is enabled
-      </label>
-      <div className="flex justify-end">
-        <Button onClick={onSubmit} disabled={pending} variant="primary" className="h-9 rounded-lg">
+    <Stack gap="md">
+      {error ? <Alert color="red">{error}</Alert> : null}
+      <TextInput label="Entity ID" styles={monoInput} value={form.entityId} onChange={e => { const value = e.currentTarget.value; setForm(p => ({ ...p, entityId: value })) }} placeholder="https://sp.example.com/saml/metadata" required />
+      <TextInput label="ACS URL" styles={monoInput} value={form.acsUrl} onChange={e => { const value = e.currentTarget.value; setForm(p => ({ ...p, acsUrl: value })) }} placeholder="https://sp.example.com/saml/acs" required />
+      <TextInput label="SLO URL (optional)" styles={monoInput} value={form.sloUrl} onChange={e => { const value = e.currentTarget.value; setForm(p => ({ ...p, sloUrl: value })) }} placeholder="https://sp.example.com/saml/slo" />
+      <NativeSelect
+        label="Name ID format"
+        value={form.nameIdFormat}
+        onChange={e => { const value = e.currentTarget.value as typeof form.nameIdFormat; setForm(p => ({ ...p, nameIdFormat: value })) }}
+        data={[
+          { value: 'persistent', label: 'Persistent' },
+          { value: 'transient', label: 'Transient' },
+          { value: 'emailAddress', label: 'Email Address' }
+        ]}
+      />
+      <Switch label="Service provider is enabled" checked={form.enabled} onChange={e => { const checked = e.currentTarget.checked; setForm(p => ({ ...p, enabled: checked })) }} />
+      <Group justify="flex-end">
+        <Button onClick={onSubmit} loading={pending}>
           {submitLabel}
         </Button>
-      </div>
-    </div>
+      </Group>
+    </Stack>
   )
 }
 

@@ -1,7 +1,6 @@
-import Card from './ui/Card'
-import Textarea from './ui/Textarea'
-import Select from './ui/Select'
 import { useMemo, useState } from 'react'
+import { Box, Button, Group, NativeSelect, Paper, SimpleGrid, Stack, Text, TextInput, Textarea } from '@mantine/core'
+import { SectionCard, StatusBadge } from '@nexus/design'
 import {
   useAccessRequests,
   useApproveAccessRequest,
@@ -16,6 +15,14 @@ import {
 
 
 type AccessRequestStatusFilter = 'all' | 'pending' | 'approved' | 'rejected' | 'expired' | 'cancelled'
+
+const requestStatusTone: Record<Exclude<AccessRequestStatusFilter, 'all'>, string> = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'denied',
+  expired: 'expired',
+  cancelled: 'canceled'
+}
 
 export default function AccessGovernancePanel() {
   const [statusFilter, setStatusFilter] = useState<AccessRequestStatusFilter>('all')
@@ -83,204 +90,221 @@ export default function AccessGovernancePanel() {
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-2">
-      <Card className="p-5">
-        <h2 className="text-base font-semibold text-foreground">Access Request Intake</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Create lightweight governance requests before assignment approval workflows are introduced.</p>
-
-        <div className="mt-4 grid gap-2">
-          <Select
-            value={subjectUserId}
-            onChange={(event) => setSubjectUserId(event.target.value)}
-            className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-          >
-            <option value="">Select target user</option>
-            {users.map((user) => (
-              <option key={user.id} value={user.id}>{user.username} ({user.email})</option>
-            ))}
-          </Select>
-
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Select
-              value={entitlementType}
-              onChange={(event) => {
-                setEntitlementType(event.target.value)
-                setEntitlementValue('')
-              }}
-              className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-            >
-              <option value="role">Role</option>
-              <option value="group">Group</option>
-            </Select>
-            <Select
-              value={entitlementValue}
-              onChange={(event) => setEntitlementValue(event.target.value)}
-              className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-            >
-              <option value="">Select {entitlementType}</option>
-              {entitlementOptions.map((option) => (
-                <option key={option.id} value={option.id}>{option.name}</option>
-              ))}
-            </Select>
-          </div>
-
-          <Textarea
-            value={justification}
-            onChange={(event) => setJustification(event.target.value)}
-            rows={3}
-            placeholder="Why this access is needed"
-            className="rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-          />
-
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              type="date"
-              value={expiresAtDate}
-              onChange={(event) => setExpiresAtDate(event.target.value)}
-              className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
+    <Stack gap="lg">
+      <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="lg">
+        <SectionCard
+          title="Access request intake"
+          description="Create lightweight governance requests before assignment approval workflows are introduced."
+        >
+          <Stack gap="sm">
+            <NativeSelect
+              aria-label="Target user"
+              value={subjectUserId}
+              onChange={(event) => setSubjectUserId(event.currentTarget.value)}
+              data={[
+                { value: '', label: 'Select target user' },
+                ...users.map((user) => ({ value: user.id, label: `${user.username} (${user.email})` }))
+              ]}
             />
-            <input
-              type="time"
-              value={expiresAtTime}
-              onChange={(event) => setExpiresAtTime(event.target.value)}
-              step={60}
-              disabled={!expiresAtDate}
-              className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20 disabled:bg-muted/50 disabled:text-muted-foreground"
+
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+              <NativeSelect
+                aria-label="Entitlement type"
+                value={entitlementType}
+                onChange={(event) => {
+                  setEntitlementType(event.currentTarget.value)
+                  setEntitlementValue('')
+                }}
+                data={[
+                  { value: 'role', label: 'Role' },
+                  { value: 'group', label: 'Group' }
+                ]}
+              />
+              <NativeSelect
+                aria-label="Entitlement"
+                value={entitlementValue}
+                onChange={(event) => setEntitlementValue(event.currentTarget.value)}
+                data={[
+                  { value: '', label: `Select ${entitlementType}` },
+                  ...entitlementOptions.map((option) => ({ value: option.id, label: option.name }))
+                ]}
+              />
+            </SimpleGrid>
+
+            <Textarea
+              aria-label="Justification"
+              value={justification}
+              onChange={(event) => setJustification(event.currentTarget.value)}
+              autosize
+              minRows={3}
+              placeholder="Why this access is needed"
             />
-          </div>
-          <p className="text-xs text-muted-foreground">Expiration is optional. Select date first, then time.</p>
 
-          <div>
-            <button
-              onClick={submitRequest}
-              disabled={createAccessRequest.isPending || !subjectUserId || entitlementType.trim().length === 0 || entitlementValue.trim().length === 0 || justification.trim().length < 3}
-              className="inline-flex h-9 items-center rounded-lg bg-sky-600 px-3 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-50"
-            >
-              {createAccessRequest.isPending ? 'Submitting…' : 'Create Access Request'}
-            </button>
-          </div>
-        </div>
-      </Card>
+            <SimpleGrid cols={2} spacing="sm">
+              <TextInput
+                type="date"
+                aria-label="Expiration date"
+                value={expiresAtDate}
+                onChange={(event) => setExpiresAtDate(event.currentTarget.value)}
+              />
+              <TextInput
+                type="time"
+                aria-label="Expiration time"
+                value={expiresAtTime}
+                onChange={(event) => setExpiresAtTime(event.currentTarget.value)}
+                step={60}
+                disabled={!expiresAtDate}
+              />
+            </SimpleGrid>
+            <Text size="xs" c="dimmed">Expiration is optional. Select date first, then time.</Text>
 
-      <Card className="p-5">
-        <div className="flex items-center justify-between gap-2">
-          <div>
-            <h2 className="text-base font-semibold text-foreground">Recent Access Requests</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Track pending and finalized requests for audit-ready visibility.</p>
-          </div>
-          <Select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as AccessRequestStatusFilter)}
-            className="h-9 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-          >
-            <option value="all">All statuses</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-            <option value="expired">Expired</option>
-            <option value="cancelled">Cancelled</option>
-          </Select>
-        </div>
+            <Box>
+              <Button
+                onClick={submitRequest}
+                loading={createAccessRequest.isPending}
+                disabled={!subjectUserId || entitlementType.trim().length === 0 || entitlementValue.trim().length === 0 || justification.trim().length < 3}
+              >
+                Create access request
+              </Button>
+            </Box>
+          </Stack>
+        </SectionCard>
 
-        <div className="mt-4 space-y-2">
-          <div className="mb-3 flex flex-wrap gap-2">
-            <button
-              onClick={() => sweepExpiredRequests(true)}
-              disabled={processExpiredAccessRequests.isPending}
-              className="inline-flex h-8 items-center rounded-lg border border-border bg-card px-3 text-xs font-medium text-foreground hover:bg-muted/50 disabled:opacity-50"
-            >
-              Dry-Run Expiration Sweep
-            </button>
-            <button
-              onClick={() => sweepExpiredRequests(false)}
-              disabled={processExpiredAccessRequests.isPending}
-              className="inline-flex h-8 items-center rounded-lg bg-sky-600 px-3 text-xs font-medium text-white hover:bg-sky-500 disabled:opacity-50"
-            >
-              Run Expiration Sweep
-            </button>
-          </div>
-          {sweepMessage ? <p className="text-xs text-muted-foreground">{sweepMessage}</p> : null}
-          {requests.length === 0 ? <p className="text-sm text-muted-foreground">No access requests found for this filter.</p> : null}
-          {requests.map((request) => {
-            const subject = usersById.get(request.subjectUserId)
-            return (
-              <div key={request.id} className="rounded-lg border border-border bg-muted/50 p-3 text-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-medium text-foreground">{request.entitlementType}: {request.entitlementValue}</p>
-                  <StatusBadge tone={request.status === 'approved' ? 'success' : request.status === 'rejected' || request.status === 'expired' ? 'danger' : 'warning'}>{request.status}</StatusBadge>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">Subject: {subject ? `${subject.username} (${subject.email})` : request.subjectUserId}</p>
-                <p className="mt-1 text-xs text-muted-foreground">Justification: {request.justification}</p>
-                <p className="mt-1 text-xs text-muted-foreground">Created: {new Date(request.createdAt).toLocaleString()}</p>
-                {request.expiresAt ? <p className="mt-1 text-xs text-muted-foreground">Expires: {new Date(request.expiresAt).toLocaleString()}</p> : null}
-                {request.status === 'pending' ? (
-                  <div className="mt-2 flex gap-2">
-                    <button
-                      onClick={() => approveRequest(request.id)}
-                      disabled={approveAccessRequest.isPending}
-                      className="rounded border border-emerald-200 bg-card px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => rejectRequest(request.id)}
-                      disabled={rejectAccessRequest.isPending}
-                      className="rounded border border-rose-200 bg-card px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50"
-                    >
-                      Reject
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            )
-          })}
-        </div>
-      </Card>
+        <SectionCard
+          title="Recent access requests"
+          description="Track pending and finalized requests for audit-ready visibility."
+          actions={
+            <NativeSelect
+              size="xs"
+              aria-label="Filter requests by status"
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.currentTarget.value as AccessRequestStatusFilter)}
+              data={[
+                { value: 'all', label: 'All statuses' },
+                { value: 'pending', label: 'Pending' },
+                { value: 'approved', label: 'Approved' },
+                { value: 'rejected', label: 'Rejected' },
+                { value: 'expired', label: 'Expired' },
+                { value: 'cancelled', label: 'Cancelled' }
+              ]}
+            />
+          }
+        >
+          <Stack gap="sm">
+            <Group gap="xs">
+              <Button
+                size="xs"
+                variant="default"
+                onClick={() => sweepExpiredRequests(true)}
+                disabled={processExpiredAccessRequests.isPending}
+              >
+                Dry-run expiration sweep
+              </Button>
+              <Button
+                size="xs"
+                onClick={() => sweepExpiredRequests(false)}
+                disabled={processExpiredAccessRequests.isPending}
+              >
+                Run expiration sweep
+              </Button>
+            </Group>
+            {sweepMessage ? <Text size="xs" c="dimmed">{sweepMessage}</Text> : null}
+            {requests.length === 0 ? <Text size="sm" c="dimmed">No access requests found for this filter.</Text> : null}
+            {requests.map((request) => {
+              const subject = usersById.get(request.subjectUserId)
+              return (
+                <Paper key={request.id} withBorder p="sm" radius="md" bg="var(--nx-color-surface-sunken)">
+                  <Group justify="space-between" gap="xs">
+                    <Text size="sm" fw={500}>{request.entitlementType}: {request.entitlementValue}</Text>
+                    <StatusBadge status={requestStatusTone[request.status] ?? 'pending'}>{request.status}</StatusBadge>
+                  </Group>
+                  <Stack gap={2} mt={4}>
+                    <Text size="xs" c="dimmed">Subject: {subject ? `${subject.username} (${subject.email})` : request.subjectUserId}</Text>
+                    <Text size="xs" c="dimmed">Justification: {request.justification}</Text>
+                    <Text size="xs" c="dimmed">Created: {new Date(request.createdAt).toLocaleString()}</Text>
+                    {request.expiresAt ? <Text size="xs" c="dimmed">Expires: {new Date(request.expiresAt).toLocaleString()}</Text> : null}
+                  </Stack>
+                  {request.status === 'pending' ? (
+                    <Group gap="xs" mt="xs">
+                      <Button
+                        size="xs"
+                        variant="light"
+                        color="green"
+                        onClick={() => approveRequest(request.id)}
+                        disabled={approveAccessRequest.isPending}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        color="red"
+                        onClick={() => rejectRequest(request.id)}
+                        disabled={rejectAccessRequest.isPending}
+                      >
+                        Reject
+                      </Button>
+                    </Group>
+                  ) : null}
+                </Paper>
+              )
+            })}
+          </Stack>
+        </SectionCard>
+      </SimpleGrid>
 
       {/* Stalled Requests */}
-      <Card className="p-5 xl:col-span-2">
-        <div className="flex items-center justify-between gap-2 mb-4">
-          <div>
-            <h2 className="text-base font-semibold text-foreground">Stalled Access Requests</h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">Pending requests that have not been acted on within the threshold — may need escalation.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-muted-foreground">Stalled after</label>
-            <Select
-              value={stalledAfterMinutes}
-              onChange={e => setStalledAfterMinutes(Number(e.target.value))}
-              className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground outline-none"
-            >
-              <option value={30}>30 min</option>
-              <option value={60}>1 hr</option>
-              <option value={240}>4 hrs</option>
-              <option value={1440}>24 hrs</option>
-              <option value={10080}>7 days</option>
-            </Select>
-          </div>
-        </div>
+      <SectionCard
+        title="Stalled access requests"
+        description="Pending requests that have not been acted on within the threshold — may need escalation."
+        actions={
+          <Group gap="xs" wrap="nowrap">
+            <Text size="xs" c="dimmed">Stalled after</Text>
+            <NativeSelect
+              size="xs"
+              aria-label="Stalled after"
+              value={String(stalledAfterMinutes)}
+              onChange={e => setStalledAfterMinutes(Number(e.currentTarget.value))}
+              data={[
+                { value: '30', label: '30 min' },
+                { value: '60', label: '1 hr' },
+                { value: '240', label: '4 hrs' },
+                { value: '1440', label: '24 hrs' },
+                { value: '10080', label: '7 days' }
+              ]}
+            />
+          </Group>
+        }
+      >
         {stalledRequests.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No stalled requests in this window.</p>
+          <Text size="sm" c="dimmed">No stalled requests in this window.</Text>
         ) : (
-          <div className="space-y-2">
+          <Stack gap="sm">
             {stalledRequests.map((request: any) => {
               const subject = usersById.get(request.subjectUserId)
               return (
-                <div key={request.id} className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-medium text-foreground">{request.entitlementType}: {request.entitlementValue}</p>
-                    <StatusBadge tone="warning">stalled</StatusBadge>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">Subject: {subject ? `${subject.username} (${subject.email})` : request.subjectUserId}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Justification: {request.justification}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Created: {new Date(request.createdAt).toLocaleString()}</p>
-                </div>
+                <Paper
+                  key={request.id}
+                  withBorder
+                  p="sm"
+                  radius="md"
+                  bg="var(--mantine-color-yellow-light)"
+                >
+                  <Group justify="space-between" gap="xs">
+                    <Text size="sm" fw={500}>{request.entitlementType}: {request.entitlementValue}</Text>
+                    <StatusBadge status="warning">stalled</StatusBadge>
+                  </Group>
+                  <Stack gap={2} mt={4}>
+                    <Text size="xs" c="dimmed">Subject: {subject ? `${subject.username} (${subject.email})` : request.subjectUserId}</Text>
+                    <Text size="xs" c="dimmed">Justification: {request.justification}</Text>
+                    <Text size="xs" c="dimmed">Created: {new Date(request.createdAt).toLocaleString()}</Text>
+                  </Stack>
+                </Paper>
               )
             })}
-          </div>
+          </Stack>
         )}
-      </Card>
-    </div>
+      </SectionCard>
+    </Stack>
   )
 }
-import StatusBadge from './ui/StatusBadge'

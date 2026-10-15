@@ -14,7 +14,8 @@ export default defineConfig({
         target: 'http://localhost:4000',
         changeOrigin: true,
       },
-      '/auth': {
+      // Anchored so the SPA route /authentication is not proxied to the API.
+      '^/auth(/|$)': {
         target: 'http://localhost:4000',
         changeOrigin: true,
       },

@@ -1,7 +1,6 @@
 import { type FormEvent, useState } from 'react'
+import { Alert, Button, Group, PasswordInput, Stack } from '@mantine/core'
 import Modal from './Modal'
-import Button from './ui/Button'
-import Input from './ui/Input'
 import { useAdminChangePassword } from '../hooks/useApi'
 import { useI18n } from '../i18n'
 
@@ -54,57 +53,44 @@ export default function ChangePasswordModal({
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title={t('password.title')} size="md">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-            {t('password.current')}
-          </label>
-          <Input
-            type="password"
+      <form onSubmit={handleSubmit}>
+        <Stack gap="md">
+          <PasswordInput
+            label={t('password.current')}
             value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
+            onChange={(e) => setCurrentPassword(e.currentTarget.value)}
             autoComplete="current-password"
             required
           />
-        </div>
-        <div>
-          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-            {t('password.new')}
-          </label>
-          <Input
-            type="password"
+          <PasswordInput
+            label={t('password.new')}
             value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
+            onChange={(e) => setNewPassword(e.currentTarget.value)}
             autoComplete="new-password"
             minLength={8}
             required
           />
-        </div>
-        <div>
-          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-            {t('password.confirm')}
-          </label>
-          <Input
-            type="password"
+          <PasswordInput
+            label={t('password.confirm')}
             value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
+            onChange={(e) => setConfirmPassword(e.currentTarget.value)}
             autoComplete="new-password"
             minLength={8}
             required
           />
-        </div>
 
-        {error ? <p className="text-sm text-rose-700">{error}</p> : null}
-        {success ? <p className="text-sm text-emerald-700">{t('password.success')}</p> : null}
+          {error ? <Alert color="red" variant="light">{error}</Alert> : null}
+          {success ? <Alert color="green" variant="light">{t('password.success')}</Alert> : null}
 
-        <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="secondary" onClick={handleClose}>
-            {t('password.cancel')}
-          </Button>
-          <Button type="submit" variant="primary" disabled={changePassword.isPending}>
-            {changePassword.isPending ? t('password.updating') : t('password.update')}
-          </Button>
-        </div>
+          <Group justify="flex-end" gap="xs" pt="xs">
+            <Button type="button" variant="default" onClick={handleClose}>
+              {t('password.cancel')}
+            </Button>
+            <Button type="submit" loading={changePassword.isPending}>
+              {t('password.update')}
+            </Button>
+          </Group>
+        </Stack>
       </form>
     </Modal>
   )

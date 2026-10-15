@@ -1,5 +1,6 @@
-import { ArrowLeft, Loader2, Trash2, UserPlus } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Alert, Badge, Box, Button, Center, Checkbox, Group, Loader, NativeSelect, Paper, PasswordInput, ScrollArea, SimpleGrid, Stack, Text, TextInput } from '@mantine/core'
+import { PageHeader, SearchInput, SectionCard } from '@nexus/design'
+import { Trash2, UserPlus, Users as UsersIcon } from 'lucide-react'
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import type { PortalUser } from '../hooks'
 import {
@@ -10,18 +11,12 @@ import {
   usePortalRoles,
   usePortalUpdateManagedUser,
 } from '../hooks'
-import Button from '../components/ui/Button'
-import Card from '../components/ui/Card'
-import Input from '../components/ui/Input'
-import LanguageSelector from '../components/LanguageSelector'
+import PortalShell from '../components/PortalShell'
 import { useI18n } from '../i18n'
 
 interface Props {
   currentUser: PortalUser
 }
-
-const fieldCls = 'h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-400/20'
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5'
 
 type CreateForm = {
   email: string
@@ -97,164 +92,99 @@ export default function Users({ currentUser }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 transition-colors">
-            <ArrowLeft size={15} />
-            {t('users.backToApps')}
-          </Link>
-          <h1 className="text-sm font-semibold text-slate-900">{t('users.title')}</h1>
-          <div className="w-24 flex justify-end">
-            <LanguageSelector className="hidden sm:inline-flex" />
-          </div>
-        </div>
-      </header>
+    <PortalShell user={currentUser}>
+      <PageHeader mb={0} title={t('users.title')} icon={<UsersIcon size={20} />} />
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-5">
-        <div className="sm:hidden">
-          <LanguageSelector />
-        </div>
-        {canEditUsers && (
-          <Card className="rounded-2xl p-5 space-y-4">
-            <div className="flex items-center gap-2">
-              <UserPlus size={16} className="text-slate-600" />
-              <h2 className="text-sm font-semibold text-slate-900">{t('users.createUser')}</h2>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label className={labelCls}>{t('users.email')}</label>
-                <Input className={fieldCls} value={createForm.email} onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))} />
-              </div>
-              <div>
-                <label className={labelCls}>{t('users.username')}</label>
-                <Input className={fieldCls} value={createForm.username} onChange={(e) => setCreateForm((p) => ({ ...p, username: e.target.value }))} />
-              </div>
-              <div>
-                <label className={labelCls}>{t('users.firstName')}</label>
-                <Input className={fieldCls} value={createForm.givenName} onChange={(e) => setCreateForm((p) => ({ ...p, givenName: e.target.value }))} />
-              </div>
-              <div>
-                <label className={labelCls}>{t('users.lastName')}</label>
-                <Input className={fieldCls} value={createForm.familyName} onChange={(e) => setCreateForm((p) => ({ ...p, familyName: e.target.value }))} />
-              </div>
-              <div className="sm:col-span-2">
-                <label className={labelCls}>{t('users.temporaryPassword')}</label>
-                <Input type="password" className={fieldCls} value={createForm.password} onChange={(e) => setCreateForm((p) => ({ ...p, password: e.target.value }))} />
-              </div>
-              <div>
-                <label className={labelCls}>{t('users.directRoles')}</label>
-                <div className="rounded-xl border border-slate-200 p-2 max-h-40 overflow-auto space-y-1">
-                  {roles.map((role) => (
-                    <label key={role.id} className="flex items-center gap-2 text-sm text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={createForm.roleIds.includes(role.id)}
-                        onChange={() =>
-                          setCreateForm((prev) => ({
-                            ...prev,
-                            roleIds: prev.roleIds.includes(role.id)
-                              ? prev.roleIds.filter((id) => id !== role.id)
-                              : [...prev.roleIds, role.id]
-                          }))
-                        }
-                      />
-                      {role.name}
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className={labelCls}>{t('users.groups')}</label>
-                <div className="rounded-xl border border-slate-200 p-2 max-h-40 overflow-auto space-y-1">
-                  {groups.map((group) => (
-                    <label key={group.id} className="flex items-center gap-2 text-sm text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={createForm.groupIds.includes(group.id)}
-                        onChange={() =>
-                          setCreateForm((prev) => ({
-                            ...prev,
-                            groupIds: prev.groupIds.includes(group.id)
-                              ? prev.groupIds.filter((id) => id !== group.id)
-                              : [...prev.groupIds, group.id]
-                          }))
-                        }
-                      />
-                      {group.name}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {createError ? <p className="text-sm text-rose-600">{createError}</p> : null}
-
-            <div>
-              <Button onClick={handleCreate} disabled={createUser.isPending}>
-                {createUser.isPending ? <Loader2 size={14} className="animate-spin" /> : null}
-                {t('users.create')}
-              </Button>
-            </div>
-          </Card>
-        )}
-
-        <Card className="rounded-2xl p-5">
-          <div className="flex flex-col gap-3 mb-4 sm:flex-row sm:items-end">
-            <div className="flex-1 min-w-0">
-              <label className={labelCls}>{t('users.search')}</label>
-              <Input
-                className={fieldCls}
-                placeholder={t('users.searchPlaceholder')}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+      {canEditUsers && (
+        <SectionCard
+          title={t('users.createUser')}
+          icon={<UserPlus size={16} />}
+          footer={
+            <Button onClick={handleCreate} loading={createUser.isPending}>
+              {t('users.create')}
+            </Button>
+          }
+        >
+          <Stack gap="md">
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md" verticalSpacing="md">
+              <TextInput label={t('users.email')} value={createForm.email} onChange={(e) => setCreateForm((p) => ({ ...p, email: e.currentTarget.value }))} />
+              <TextInput label={t('users.username')} value={createForm.username} onChange={(e) => setCreateForm((p) => ({ ...p, username: e.currentTarget.value }))} />
+              <TextInput label={t('users.firstName')} value={createForm.givenName} onChange={(e) => setCreateForm((p) => ({ ...p, givenName: e.currentTarget.value }))} />
+              <TextInput label={t('users.lastName')} value={createForm.familyName} onChange={(e) => setCreateForm((p) => ({ ...p, familyName: e.currentTarget.value }))} />
+              <PasswordInput
+                label={t('users.temporaryPassword')}
+                value={createForm.password}
+                onChange={(e) => setCreateForm((p) => ({ ...p, password: e.currentTarget.value }))}
+                style={{ gridColumn: '1 / -1' }}
               />
-            </div>
-            <div className="sm:w-52">
-              <label className={labelCls}>{t('users.role')}</label>
-              <select className={fieldCls} value={roleFilterId} onChange={(e) => setRoleFilterId(e.target.value)}>
-                <option value="">{t('users.allRoles')}</option>
-                {roles.map((role) => (
-                  <option key={role.id} value={role.id}>{role.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="sm:w-52">
-              <label className={labelCls}>{t('users.group')}</label>
-              <select className={fieldCls} value={groupFilterId} onChange={(e) => setGroupFilterId(e.target.value)}>
-                <option value="">{t('users.allGroups')}</option>
-                {groups.map((group) => (
-                  <option key={group.id} value={group.id}>{group.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="sm:w-auto">
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full sm:w-auto"
-                onClick={() => {
-                  setSearchTerm('')
-                  setRoleFilterId('')
-                  setGroupFilterId('')
-                }}
-              >
-                {t('users.clearFilters')}
-              </Button>
-            </div>
-          </div>
+              <CheckboxList
+                label={t('users.directRoles')}
+                items={roles}
+                value={createForm.roleIds}
+                onChange={(roleIds) => setCreateForm((prev) => ({ ...prev, roleIds }))}
+              />
+              <CheckboxList
+                label={t('users.groups')}
+                items={groups}
+                value={createForm.groupIds}
+                onChange={(groupIds) => setCreateForm((prev) => ({ ...prev, groupIds }))}
+              />
+            </SimpleGrid>
+
+            {createError ? <Alert color="red">{createError}</Alert> : null}
+          </Stack>
+        </SectionCard>
+      )}
+
+      <SectionCard>
+        <Stack gap="md">
+          <Group gap="sm" align="flex-end" wrap="wrap">
+            <SearchInput
+              label={t('users.search')}
+              placeholder={t('users.searchPlaceholder')}
+              value={searchTerm}
+              onChange={setSearchTerm}
+              style={{ flex: 1, minWidth: 200 }}
+            />
+            <NativeSelect
+              label={t('users.role')}
+              w={{ base: '100%', sm: 208 }}
+              value={roleFilterId}
+              onChange={(e) => setRoleFilterId(e.currentTarget.value)}
+              data={[{ value: '', label: t('users.allRoles') }, ...roles.map((role) => ({ value: role.id, label: role.name }))]}
+            />
+            <NativeSelect
+              label={t('users.group')}
+              w={{ base: '100%', sm: 208 }}
+              value={groupFilterId}
+              onChange={(e) => setGroupFilterId(e.currentTarget.value)}
+              data={[{ value: '', label: t('users.allGroups') }, ...groups.map((group) => ({ value: group.id, label: group.name }))]}
+            />
+            <Button
+              variant="default"
+              w={{ base: '100%', sm: 'auto' }}
+              onClick={() => {
+                setSearchTerm('')
+                setRoleFilterId('')
+                setGroupFilterId('')
+              }}
+            >
+              {t('users.clearFilters')}
+            </Button>
+          </Group>
 
           {isLoading ? (
-            <div className="py-6 flex items-center justify-center text-slate-500">
-              <Loader2 size={18} className="animate-spin" />
-            </div>
+            <Center py="lg">
+              <Loader size="sm" />
+            </Center>
           ) : error ? (
-            <p className="text-sm text-rose-600">{t('users.errors.loadFailed')}</p>
+            <Alert color="red">{t('users.errors.loadFailed')}</Alert>
           ) : filteredUsers.length === 0 ? (
-            <p className="text-sm text-slate-500">{t('users.noUsersFound')}</p>
+            <Paper withBorder p="xl" ta="center" style={{ borderStyle: 'dashed', background: 'transparent' }}>
+              <Text size="sm" c="dimmed">{t('users.noUsersFound')}</Text>
+            </Paper>
           ) : (
-            <div className="space-y-3">
+            <Stack gap="sm">
               {filteredUsers.map((user) => (
                 <UserRow
                   key={user.id}
@@ -270,11 +200,41 @@ export default function Users({ currentUser }: Props) {
                   }}
                 />
               ))}
-            </div>
+            </Stack>
           )}
-        </Card>
-      </main>
-    </div>
+        </Stack>
+      </SectionCard>
+    </PortalShell>
+  )
+}
+
+function CheckboxList({
+  label,
+  items,
+  value,
+  onChange,
+  size = 'sm',
+  mah = 160,
+}: {
+  label: string
+  items: Array<{ id: string; name: string }>
+  value: string[]
+  onChange: (value: string[]) => void
+  size?: 'xs' | 'sm'
+  mah?: number
+}) {
+  return (
+    <Checkbox.Group label={label} value={value} onChange={onChange} size={size}>
+      <Paper withBorder radius="md" mt={6}>
+        <ScrollArea.Autosize mah={mah} p="xs">
+          <Stack gap={6}>
+            {items.map((item) => (
+              <Checkbox key={item.id} value={item.id} label={item.name} size={size} />
+            ))}
+          </Stack>
+        </ScrollArea.Autosize>
+      </Paper>
+    </Checkbox.Group>
   )
 }
 
@@ -294,6 +254,8 @@ function UserRow({
     givenName: string
     familyName: string
     active: boolean
+    directRoleIds?: string[]
+    groups?: string[]
   }
   roles: Array<{ id: string; name: string }>
   groups: Array<{ id: string; name: string }>
@@ -354,78 +316,57 @@ function UserRow({
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 p-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-slate-900">{user.givenName} {user.familyName}</p>
-          <p className="text-xs text-slate-500">{user.username} · {user.email}</p>
-          <p className="text-[11px] text-slate-400 font-mono mt-1">{user.id}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={`text-xs font-medium ${user.active ? 'text-emerald-700' : 'text-slate-500'}`}>
+    <Paper withBorder radius="md" p="md">
+      <Group justify="space-between" align="flex-start" gap="sm" wrap="wrap">
+        <Box miw={0}>
+          <Text size="sm" fw={600}>{user.givenName} {user.familyName}</Text>
+          <Text size="xs" c="dimmed">{user.username} · {user.email}</Text>
+          <Text size="xs" c="dimmed" ff="monospace" mt={4}>{user.id}</Text>
+        </Box>
+        <Group gap="xs" wrap="nowrap">
+          <Badge color={user.active ? 'green' : 'gray'}>
             {user.active ? t('users.active') : t('users.inactive')}
-          </span>
+          </Badge>
           {canEditUsers ? (
             <>
-              <Button size="sm" variant="outline" onClick={handleToggle} disabled={busy}>
+              <Button size="xs" variant="default" onClick={handleToggle} disabled={busy}>
                 {user.active ? t('users.disable') : t('users.enable')}
               </Button>
-              <Button size="sm" variant="danger" onClick={handleDelete} disabled={busy}>
-                <Trash2 size={13} />
+              <Button size="xs" color="red" onClick={handleDelete} disabled={busy} leftSection={<Trash2 size={14} />}>
                 {t('users.delete')}
               </Button>
             </>
           ) : null}
-        </div>
-      </div>
+        </Group>
+      </Group>
       {canEditUsers ? (
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">{t('users.directRoles')}</p>
-            <div className="rounded-lg border border-slate-200 p-2 max-h-36 overflow-auto space-y-1">
-              {roles.map((role) => (
-                <label key={role.id} className="flex items-center gap-2 text-xs text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={selectedRoleIds.includes(role.id)}
-                    onChange={() =>
-                      setSelectedRoleIds((prev) =>
-                        prev.includes(role.id) ? prev.filter((id) => id !== role.id) : [...prev, role.id]
-                      )
-                    }
-                  />
-                  {role.name}
-                </label>
-              ))}
-            </div>
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">{t('users.groups')}</p>
-            <div className="rounded-lg border border-slate-200 p-2 max-h-36 overflow-auto space-y-1">
-              {groups.map((group) => (
-                <label key={group.id} className="flex items-center gap-2 text-xs text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={selectedGroupIds.includes(group.id)}
-                    onChange={() =>
-                      setSelectedGroupIds((prev) =>
-                        prev.includes(group.id) ? prev.filter((id) => id !== group.id) : [...prev, group.id]
-                      )
-                    }
-                  />
-                  {group.name}
-                </label>
-              ))}
-            </div>
-          </div>
-          <div className="sm:col-span-2">
-            <Button size="sm" variant="secondary" onClick={handleSaveAssignments} disabled={busy}>
+        <Stack gap="sm" mt="md">
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+            <CheckboxList
+              label={t('users.directRoles')}
+              items={roles}
+              value={selectedRoleIds}
+              onChange={setSelectedRoleIds}
+              size="xs"
+              mah={144}
+            />
+            <CheckboxList
+              label={t('users.groups')}
+              items={groups}
+              value={selectedGroupIds}
+              onChange={setSelectedGroupIds}
+              size="xs"
+              mah={144}
+            />
+          </SimpleGrid>
+          <Group>
+            <Button size="xs" variant="default" onClick={handleSaveAssignments} disabled={busy}>
               {t('users.saveAssignments')}
             </Button>
-          </div>
-        </div>
+          </Group>
+        </Stack>
       ) : null}
-      {error ? <p className="mt-2 text-xs text-rose-600">{error}</p> : null}
-    </div>
+      {error ? <Text size="xs" c="red" mt="xs">{error}</Text> : null}
+    </Paper>
   )
 }

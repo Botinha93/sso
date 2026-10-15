@@ -1,17 +1,11 @@
-import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
-import Card from '../components/ui/Card'
-import Textarea from '../components/ui/Textarea'
-import Select from '../components/ui/Select'
+import { ActionIcon, Alert, Badge, Button, Group, Select, Stack, Table, Text, TextInput, Textarea, Tooltip } from '@mantine/core'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, RefreshCw, Trash2, Play, Settings2, GitMerge } from 'lucide-react'
+import { Plus, Trash2, Play, Settings2, GitMerge, Activity } from 'lucide-react'
+import { PageHeader, RefreshButton, SectionCard, StatusBadge, TableSkeleton } from '@nexus/design'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
-import StatusBadge from '../components/ui/StatusBadge'
-import Button from '../components/ui/Button'
-import Input from '../components/ui/Input'
-import React from 'react';
+import EmptyState from '../components/EmptyState'
 import {
   useConnectors,
   useCreateConnector,
@@ -20,8 +14,6 @@ import {
   useTriggerConnectorSync,
   type ConnectorDto,
 } from '../hooks/useApi'
-
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
 
 type SchedulePreset = 'none' | 'every_15m' | 'hourly' | 'daily_02_00' | 'weekly_mon_02_00' | 'custom_existing'
 
@@ -50,7 +42,7 @@ const ConnectorStatusBadge = ({ status }: { status: ConnectorDto['status'] }) =>
     error: 'danger'
   }
   return (
-    <StatusBadge tone={toneByStatus[status] ?? 'neutral'}>
+    <StatusBadge status={toneByStatus[status] ?? 'neutral'}>
       {status}
     </StatusBadge>
   )
@@ -147,168 +139,169 @@ export default function Connectors() {
     await triggerSync.mutateAsync(id)
   }
 
-  const ConnectorForm = ({ onSubmit, isLoading }: { onSubmit: () => void; isLoading: boolean }) => (
-    <div className="space-y-4">
-      {formError && <div className="rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-700">{formError}</div>}
-      <div>
-        <label className={labelCls}>Name</label>
-        <Input placeholder="My Connector" value={form.name}
-          onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-      </div>
-      <div>
-        <label className={labelCls}>Type</label>
-        <Select value={form.type}
-          onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as ConnectorDto['type'] }))}>
-          {(['ldap', 'scim', 'csv', 'sql', 'custom'] as const).map((t) => (
-            <option key={t} value={t}>{t.toUpperCase()}</option>
-          ))}
-        </Select>
-      </div>
-      <div>
-        <label className={labelCls}>Sync Schedule (optional)</label>
+  // Rendered as a plain function (not a nested component) so inputs keep focus while typing.
+  const renderConnectorForm = ({ onSubmit, isLoading }: { onSubmit: () => void; isLoading: boolean }) => (
+    <Stack gap="md">
+      {formError && <Alert color="red" variant="light">{formError}</Alert>}
+      <TextInput
+        label="Name"
+        placeholder="My Connector"
+        value={form.name}
+        onChange={(e) => { const value = e.currentTarget.value; setForm((f) => ({ ...f, name: value })) }}
+      />
+      <Select
+        label="Type"
+        value={form.type}
+        allowDeselect={false}
+        onChange={(value) => { if (value) setForm((f) => ({ ...f, type: value as ConnectorDto['type'] })) }}
+        data={(['ldap', 'scim', 'csv', 'sql', 'custom'] as const).map((t) => ({ value: t, label: t.toUpperCase() }))}
+      />
+      <Stack gap={6}>
         <Select
+          label="Sync Schedule (optional)"
+          description="Automatic sync cadence is selected as a policy option; cron syntax is handled internally."
+          inputWrapperOrder={['label', 'input', 'description', 'error']}
           value={form.schedulePreset}
-          onChange={(e) => setForm((f) => ({ ...f, schedulePreset: e.target.value as SchedulePreset }))}
-        >
-          <option value="none">Manual only (no automatic sync)</option>
-          <option value="every_15m">Every 15 minutes</option>
-          <option value="hourly">Every hour</option>
-          <option value="daily_02_00">Daily at 02:00</option>
-          <option value="weekly_mon_02_00">Weekly on Monday at 02:00</option>
-          {form.schedulePreset === 'custom_existing' ? <option value="custom_existing">Keep existing custom schedule</option> : null}
-        </Select>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Automatic sync cadence is selected as a policy option; cron syntax is handled internally.
-        </p>
-        {form.schedulePreset === 'custom_existing' ? (
-          <p className="mt-1 text-xs text-amber-700">
-            This connector currently uses a custom legacy schedule. Choose another option to replace it.
-          </p>
-        ) : null}
-      </div>
-      <div>
-        <label className={labelCls}>Config (JSON)</label>
-        <Textarea
-          className="w-full rounded-lg border border-border bg-transparent px-3 py-2 font-mono text-xs text-foreground outline-none focus:border-ring focus:ring-2 focus:ring-ring/20"
-          rows={5}
-          value={form.config}
-          onChange={(e) => setForm((f) => ({ ...f, config: e.target.value }))}
+          allowDeselect={false}
+          onChange={(value) => { if (value) setForm((f) => ({ ...f, schedulePreset: value as SchedulePreset })) }}
+          data={[
+            { value: 'none', label: 'Manual only (no automatic sync)' },
+            { value: 'every_15m', label: 'Every 15 minutes' },
+            { value: 'hourly', label: 'Every hour' },
+            { value: 'daily_02_00', label: 'Daily at 02:00' },
+            { value: 'weekly_mon_02_00', label: 'Weekly on Monday at 02:00' },
+            ...(form.schedulePreset === 'custom_existing' ? [{ value: 'custom_existing', label: 'Keep existing custom schedule' }] : []),
+          ]}
         />
-      </div>
-      <div className="flex justify-end gap-2 pt-2">
-        <Button variant="secondary" onClick={() => { setShowCreate(false); setEditConnector(null) }}>Cancel</Button>
-        <Button variant="primary" onClick={onSubmit} disabled={isLoading}>
-          {isLoading ? 'Saving…' : 'Save'}
+        {form.schedulePreset === 'custom_existing' ? (
+          <Text size="xs" c="yellow.7">
+            This connector currently uses a custom legacy schedule. Choose another option to replace it.
+          </Text>
+        ) : null}
+      </Stack>
+      <Textarea
+        label="Config (JSON)"
+        autosize
+        minRows={5}
+        maxRows={16}
+        ff="monospace"
+        styles={{ input: { fontSize: 'var(--mantine-font-size-xs)' } }}
+        value={form.config}
+        onChange={(e) => { const value = e.currentTarget.value; setForm((f) => ({ ...f, config: value })) }}
+      />
+      <Group justify="flex-end" gap="xs" pt="xs">
+        <Button variant="default" onClick={() => { setShowCreate(false); setEditConnector(null) }}>Cancel</Button>
+        <Button onClick={onSubmit} loading={isLoading}>
+          Save
         </Button>
-      </div>
-    </div>
+      </Group>
+    </Stack>
   )
 
   return (
-    <div className="space-y-6">
+    <>
       <PageHeader
         eyebrow="Data Sync"
         title="Connectors"
         description="Manage external identity sources and sync execution."
-        action={
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" size="icon" onClick={() => refetch()} disabled={isFetching}>
-              <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+        actions={
+          <Group gap="xs">
+            <RefreshButton variant="icon" onRefresh={() => refetch()} loading={isFetching} lastUpdated={null} />
+            <Button component={Link} to="/metrics" variant="default" leftSection={<Activity size={16} />}>
+              View Auth Metrics
             </Button>
-            <Link to="/metrics" className="inline-flex h-9 items-center rounded-lg border border-border bg-card px-3 text-sm font-medium text-muted-foreground hover:bg-muted/50">View Auth Metrics</Link>
-            <Button variant="primary" onClick={openCreate}>
-              <Plus className="h-4 w-4" /> New Connector
+            <Button onClick={openCreate} leftSection={<Plus size={16} />}>
+              New Connector
             </Button>
-          </div>
+          </Group>
         }
       />
 
-      <>
-          {isLoading ? (
-            <TableSkeleton rows={4} />
-          ) : !connectors.length ? (
-            <EmptyState
-              icon={GitMerge}
-              title="No connectors yet"
-              description="Create a connector to sync users from an external source."
-              action={<Button variant="primary" size="sm" onClick={openCreate}><Plus className="h-3.5 w-3.5" /> New Connector</Button>}
-            />
-          ) : (
-            <Card className="overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="border-b border-border bg-muted/50">
-                  <tr>
-                    {['Name', 'Type', 'Status', 'Schedule', 'Last Sync', 'Actions'].map((h) => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {connectors.map((c) => (
-                    <tr key={c.id} className="hover:bg-muted/50">
-                      <td className="px-4 py-3 font-medium text-foreground">{c.name}</td>
-                      <td className="px-4 py-3">
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">{c.type.toUpperCase()}</span>
-                      </td>
-                      <td className="px-4 py-3"><ConnectorStatusBadge status={c.status} /></td>
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{c.schedule ?? '—'}</td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">
-                        {c.lastSyncAt ? new Date(c.lastSyncAt).toLocaleString() : '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
-                            onClick={() => handleSync(c.id)}
-                            disabled={triggerSync.isPending}
-                            title="Trigger sync"
-                          >
-                            <Play className="h-3.5 w-3.5" /> Sync
-                          </Button>
-                          <Link
-                            to={`/connectors/${c.id}`}
-                            className="flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
-                            title="View connector details"
-                          >
-                            Details
-                          </Link>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEdit(c)}
-                            title="Edit"
-                          >
-                            <Settings2 className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="hover:bg-rose-50 hover:text-rose-500"
-                            onClick={() => setDeleteTarget(c)}
-                            title="Delete"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
+      <SectionCard flush>
+        {isLoading ? (
+          <TableSkeleton rows={4} columns={['text', 'pill', 'pill', 'mono', 'text', 'action']} />
+        ) : !connectors.length ? (
+          <EmptyState
+            icon={GitMerge}
+            title="No connectors yet"
+            description="Create a connector to sync users from an external source."
+            action={<Button size="xs" onClick={openCreate} leftSection={<Plus size={14} />}>New Connector</Button>}
+          />
+        ) : (
+          <Table.ScrollContainer minWidth={820}>
+            <Table highlightOnHover verticalSpacing="sm">
+              <Table.Thead>
+                <Table.Tr>
+                  {['Name', 'Type', 'Status', 'Schedule', 'Last Sync', 'Actions'].map((h) => (
+                    <Table.Th key={h}>{h}</Table.Th>
                   ))}
-                </tbody>
-              </table>
-            </Card>
-          )}
-      </>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {connectors.map((c) => (
+                  <Table.Tr key={c.id}>
+                    <Table.Td><Text size="sm" fw={500}>{c.name}</Text></Table.Td>
+                    <Table.Td>
+                      <Badge variant="default" radius="sm">{c.type.toUpperCase()}</Badge>
+                    </Table.Td>
+                    <Table.Td><ConnectorStatusBadge status={c.status} /></Table.Td>
+                    <Table.Td><Text size="xs" ff="monospace" c="dimmed">{c.schedule ?? '—'}</Text></Table.Td>
+                    <Table.Td>
+                      <Text size="xs" c="dimmed" className="nx-tabular">
+                        {c.lastSyncAt ? new Date(c.lastSyncAt).toLocaleString() : '—'}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4} wrap="nowrap">
+                        <Button
+                          variant="subtle"
+                          color="green"
+                          size="xs"
+                          leftSection={<Play size={14} />}
+                          onClick={() => handleSync(c.id)}
+                          disabled={triggerSync.isPending}
+                          title="Trigger sync"
+                        >
+                          Sync
+                        </Button>
+                        <Button
+                          component={Link}
+                          to={`/connectors/${c.id}`}
+                          variant="subtle"
+                          color="gray"
+                          size="xs"
+                          title="View connector details"
+                        >
+                          Details
+                        </Button>
+                        <Tooltip label="Edit">
+                          <ActionIcon variant="subtle" color="gray" onClick={() => openEdit(c)} aria-label="Edit" title="Edit">
+                            <Settings2 size={14} />
+                          </ActionIcon>
+                        </Tooltip>
+                        <Tooltip label="Delete">
+                          <ActionIcon variant="subtle" color="red" onClick={() => setDeleteTarget(c)} aria-label="Delete" title="Delete">
+                            <Trash2 size={14} />
+                          </ActionIcon>
+                        </Tooltip>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
+        )}
+      </SectionCard>
 
       {/* Create modal */}
       <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title="New Connector">
-        <ConnectorForm onSubmit={handleCreate} isLoading={createConnector.isPending} />
+        {renderConnectorForm({ onSubmit: handleCreate, isLoading: createConnector.isPending })}
       </Modal>
 
       {/* Edit modal */}
       <Modal isOpen={!!editConnector} onClose={() => setEditConnector(null)} title="Edit Connector">
-        <ConnectorForm onSubmit={handleSave} isLoading={updateConnector.isPending} />
+        {renderConnectorForm({ onSubmit: handleSave, isLoading: updateConnector.isPending })}
       </Modal>
 
       {/* Delete confirmation */}
@@ -321,6 +314,6 @@ export default function Connectors() {
         confirmLabel="Delete"
         variant="danger"
       />
-    </div>
+    </>
   )
 }

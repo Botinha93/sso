@@ -1,20 +1,37 @@
-import Textarea from '../components/ui/Textarea'
-import Select from '../components/ui/Select'
-import { KeyRound, Link2, Pencil, Plus, RefreshCw, Shield, Trash2, UserCheck, UserX, Users as UsersIcon, X } from 'lucide-react'
-import { EmptyState, PageHeader, TableSkeleton } from '../components/PageHeader'
+import { KeyRound, Link2, Pencil, Plus, Shield, Trash2, UserCheck, UserX, Users as UsersIcon, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import {
+  ActionIcon,
+  Alert,
+  Avatar,
+  Badge,
+  Box,
+  Button,
+  Checkbox,
+  CloseButton,
+  Group,
+  Input,
+  NativeSelect,
+  Paper,
+  PasswordInput,
+  ScrollArea,
+  Select,
+  SimpleGrid,
+  Stack,
+  Table,
+  Text,
+  TextInput,
+  Textarea,
+  Tooltip,
+} from '@mantine/core'
+import { PageHeader, RefreshButton, SearchInput, SectionCard, TableSkeleton } from '@nexus/design'
+import EmptyState from '../components/EmptyState'
 import ImageField from '../components/ImageField'
-import ListSearch from '../components/ListSearch'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { imageFieldForCreate, imageFieldForUpdate, resolveMediaSrc } from '../lib/media'
 import { toDateInputValue } from '../lib/utils'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
-import Button from '../components/ui/Button'
-import Input from '../components/ui/Input'
-import Card from '../components/ui/Card'
-import StatusBadge from '../components/ui/StatusBadge'
-import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
 import BulkActionsBar, { SelectionCheckbox } from '../components/BulkActionsBar'
 import {
   useUsers,
@@ -31,7 +48,6 @@ import {
   useUploadUserAvatar,
   useDefaultUserAvatars,
 } from '../hooks/useApi'
-import React from 'react';
 
 interface AppInheritanceSource {
   appId: string
@@ -124,7 +140,7 @@ const defaultResetForm = () => ({
   confirmPassword: ''
 })
 
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
+
 
 const defaultValueForAttribute = (type?: AttributeType) => {
   if (type === 'boolean') return 'false'
@@ -132,6 +148,7 @@ const defaultValueForAttribute = (type?: AttributeType) => {
 }
 
 const SYSTEM_MANAGED_ATTRIBUTE_KEYS = new Set(['password_changed_at'])
+
 
 const AttributeValueField = ({
   attribute,
@@ -146,39 +163,113 @@ const AttributeValueField = ({
 }) => {
   if (attribute?.type === 'boolean') {
     return (
-      <Select value={value} onChange={(e) => onChange(e.target.value)} disabled={readOnly}>
-        <option value="false">false</option>
-        <option value="true">true</option>
-      </Select>
+      <NativeSelect
+        value={value}
+        onChange={(e) => onChange(e.currentTarget.value)}
+        disabled={readOnly}
+        data={['false', 'true']}
+      />
     )
   }
 
   if (attribute?.type === 'date') {
-    return <Input type="date" value={toDateInputValue(value)} onChange={(e) => onChange(e.target.value)} disabled={readOnly} />
+    return <TextInput type="date" value={toDateInputValue(value)} onChange={(e) => onChange(e.currentTarget.value)} disabled={readOnly} />
   }
 
   if (attribute?.type === 'json') {
     return (
       <Textarea
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => onChange(e.currentTarget.value)}
         disabled={readOnly}
-        className="w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20 min-h-[88px] font-mono"
+        autosize
+        minRows={3}
+        ff="monospace"
         placeholder='{"key":"value"}'
       />
     )
   }
 
   return (
-    <Input
+    <TextInput
       type={attribute?.type === 'number' ? 'number' : 'text'}
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(e) => onChange(e.currentTarget.value)}
       disabled={readOnly}
       placeholder={attribute?.description || attribute?.name || 'Value'}
     />
   )
 }
+
+/** Bordered, scrollable list of checkboxes (apps, groups, roles pickers). */
+const CheckList = ({ children }: { children: React.ReactNode }) => (
+  <Paper withBorder radius="md">
+    <ScrollArea.Autosize mah={160} type="auto">
+      <Stack gap={2} p={6}>
+        {children}
+      </Stack>
+    </ScrollArea.Autosize>
+  </Paper>
+)
+
+const CheckListItem = ({
+  checked,
+  onChange,
+  label,
+  badge,
+}: {
+  checked: boolean
+  onChange: () => void
+  label: React.ReactNode
+  badge?: React.ReactNode
+}) => (
+  <Group gap="xs" wrap="nowrap" px={6} py={4} className="nx-hover" style={{ borderRadius: 'var(--mantine-radius-sm)' }}>
+    <Checkbox
+      size="sm"
+      checked={checked}
+      onChange={onChange}
+      label={label}
+      style={{ flex: 1, minWidth: 0 }}
+      styles={{ labelWrapper: { minWidth: 0 }, label: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }}
+    />
+    {badge}
+  </Group>
+)
+
+const CheckListEmpty = ({ children }: { children: React.ReactNode }) => (
+  <Text size="xs" c="dimmed" px={6} py={4}>{children}</Text>
+)
+
+const AttributeEditorCard = ({
+  name,
+  attrKey,
+  removable,
+  onRemove,
+  children,
+}: {
+  name: string
+  attrKey: string
+  removable: boolean
+  onRemove: () => void
+  children: React.ReactNode
+}) => (
+  <Paper withBorder radius="md" p="sm">
+    <Group justify="space-between" gap="xs" mb="xs" wrap="nowrap">
+      <Box style={{ minWidth: 0 }}>
+        <Text size="sm" fw={500} truncate>{name}</Text>
+        <Text size="xs" c="dimmed" ff="monospace" truncate>{attrKey}</Text>
+      </Box>
+      {removable ? (
+        <Tooltip label="Remove attribute">
+          <ActionIcon type="button" variant="subtle" color="red" size="sm" onClick={onRemove} aria-label="Remove attribute">
+            <X size={14} />
+          </ActionIcon>
+        </Tooltip>
+      ) : null}
+    </Group>
+    {children}
+  </Paper>
+)
 
 const Users = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false)
@@ -677,330 +768,386 @@ const Users = () => {
     }))
   }
 
+
+  const appFilterData = [
+    { value: 'all', label: 'All Apps' },
+    { value: 'none', label: 'Unassigned' },
+    ...(apps as AppItem[]).map((app) => ({ value: app.id, label: app.name })),
+  ]
+  const editAppFilterData = [
+    { value: 'all', label: 'All Apps' },
+    { value: 'none', label: 'No App' },
+    ...(apps as AppItem[]).map((app) => ({ value: app.id, label: app.name })),
+  ]
+  const openCreate = () => { setFormData(defaultForm()); setCreateModalOpen(true) }
+  const pluralUsers = (count: number) => `user${count === 1 ? '' : 's'}`
+
   return (
-    <div>
+    <>
       <PageHeader
         eyebrow="Identity Directory"
         title="User Management"
         description="Human user accounts only. Machine-to-machine identities are managed under Service Identities and are excluded from this list and from GET /api/admin/users unless includeServiceUsers=true."
-        action={
-          <Button
-            onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }}
-            variant="primary"
-          >
-            <Plus size={14} />
+        actions={
+          <Button onClick={openCreate} leftSection={<Plus size={16} />}>
             New User
           </Button>
         }
       />
 
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search users by name, email, username…" />
-        <div className="max-w-sm w-full">
-          <label className={labelCls}>Filter by App</label>
-          <Select value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
-            <option value="all">All Apps</option>
-            <option value="none">Unassigned</option>
-            {(apps as AppItem[]).map((app) => (
-              <option key={app.id} value={app.id}>{app.name}</option>
-            ))}
-          </Select>
-        </div>
-      </div>
+      <SectionCard
+        flush
+        title="All Users"
+        actions={<RefreshButton variant="icon" loading={isFetching} onRefresh={() => refetch()} lastUpdated={null} />}
+      >
+        <Group
+          justify="space-between"
+          gap="sm"
+          px="md"
+          py="sm"
+          wrap="wrap"
+          style={{ borderBottom: '1px solid var(--nx-color-border)' }}
+        >
+          <SearchInput
+            value={searchInput}
+            onChange={setSearchInput}
+            placeholder="Search users by name, email, username…"
+            w={{ base: '100%', xs: 320 }}
+            maw={360}
+          />
+          <Select
+            aria-label="Filter by App"
+            value={appFilterId}
+            onChange={(value) => setAppFilterId(value ?? 'all')}
+            data={appFilterData}
+            allowDeselect={false}
+            searchable
+            w={{ base: '100%', xs: 240 }}
+          />
+        </Group>
 
-      <Table>
-        <TableHeaderRow>
-          <div className="flex items-center gap-3">
-            <SelectionCheckbox
-              checked={allFilteredUsersSelected}
-              indeterminate={someFilteredUsersSelected}
-              onChange={toggleSelectAllFilteredUsers}
-              disabled={!filteredUsers?.length}
-              title={allFilteredUsersSelected ? 'Deselect all' : 'Select all visible'}
-            />
-            <h4 className="text-sm font-semibold text-foreground">All Users</h4>
-          </div>
-          <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
-            <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
-            Refresh
-          </Button>
-        </TableHeaderRow>
         <BulkActionsBar
           count={selectedUserIds.length}
           noun="user"
           onClear={clearUserSelection}
         >
           <Button
-            variant="outline"
-            size="sm"
+            variant="default"
+            size="xs"
+            leftSection={<UserCheck size={14} />}
             onClick={() => { setBulkError(''); setBulkActiveAction('activate') }}
             disabled={bulkPending}
           >
-            <UserCheck size={12} />
             Activate
           </Button>
           <Button
-            variant="outline"
-            size="sm"
+            variant="default"
+            size="xs"
+            leftSection={<UserX size={14} />}
             onClick={() => { setBulkError(''); setBulkActiveAction('deactivate') }}
             disabled={bulkPending}
           >
-            <UserX size={12} />
             Deactivate
           </Button>
           <Button
-            variant="outline"
-            size="sm"
+            variant="default"
+            size="xs"
+            leftSection={<Link2 size={14} />}
             onClick={() => { setBulkError(''); setBulkGroupAction('add'); setBulkGroupId('') }}
             disabled={bulkPending}
           >
-            <Link2 size={12} />
             Add to Group
           </Button>
           <Button
-            variant="outline"
-            size="sm"
+            variant="default"
+            size="xs"
+            leftSection={<X size={14} />}
             onClick={() => { setBulkError(''); setBulkGroupAction('remove'); setBulkGroupId('') }}
             disabled={bulkPending}
           >
-            <X size={12} />
             Remove from Group
           </Button>
           <Button
-            variant="outline"
-            size="sm"
+            variant="default"
+            size="xs"
+            leftSection={<Shield size={14} />}
             onClick={() => { setBulkError(''); setBulkRoleAction('add'); setBulkRoleId('') }}
             disabled={bulkPending}
           >
-            <Shield size={12} />
             Assign Role
           </Button>
           <Button
-            variant="outline"
-            size="sm"
+            variant="default"
+            size="xs"
+            leftSection={<X size={14} />}
             onClick={() => { setBulkError(''); setBulkRoleAction('remove'); setBulkRoleId('') }}
             disabled={bulkPending}
           >
-            <X size={12} />
             Remove Role
           </Button>
           <Button
-            variant="outline"
-            size="sm"
-            className="border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-700"
+            variant="light"
+            color="red"
+            size="xs"
+            leftSection={<Trash2 size={14} />}
             onClick={() => { setBulkError(''); setBulkDeleteOpen(true) }}
             disabled={bulkPending}
           >
-            <Trash2 size={12} />
             Delete Selected
           </Button>
         </BulkActionsBar>
 
         {isLoading ? (
-          <TableSkeleton rows={6} />
+          <TableSkeleton rows={6} columns={['avatar', 'pill', 'pill', 'pill', 'pill', 'action']} p="md" />
         ) : !filteredUsers?.length ? (
-          <EmptyState icon={UsersIcon} title="No users registered" description="Create the first user to get started." action={<Button size="sm" variant="primary" onClick={() => { setFormData(defaultForm()); setCreateModalOpen(true) }}>New User</Button>} />
+          <EmptyState
+            icon={UsersIcon}
+            title="No users registered"
+            description="Create the first user to get started."
+            action={<Button size="xs" onClick={openCreate}>New User</Button>}
+          />
         ) : (
-          <TableBody>
-            {filteredUsers.map((user: User) => {
-              const isSelected = selectedUserIds.includes(user.id)
-              return (
-              <TableRow key={user.id} selected={isSelected} className="items-center gap-4">
-                <div className="flex items-start gap-3 flex-1 min-w-0">
-                  <div className="pt-1.5">
+          <Table.ScrollContainer minWidth={1080}>
+            <Table highlightOnHover verticalSpacing="sm">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th w={44}>
                     <SelectionCheckbox
-                      checked={isSelected}
-                      onChange={() => toggleSelectUser(user.id)}
-                      aria-label={`Select user ${user.email}`}
+                      checked={allFilteredUsersSelected}
+                      indeterminate={someFilteredUsersSelected}
+                      onChange={toggleSelectAllFilteredUsers}
+                      disabled={!filteredUsers?.length}
+                      title={allFilteredUsersSelected ? 'Deselect all' : 'Select all visible'}
+                      aria-label={allFilteredUsersSelected ? 'Deselect all' : 'Select all visible'}
                     />
-                  </div>
-                  <div className="h-8 w-8 shrink-0 rounded-full bg-gradient-to-br from-muted to-border flex items-center justify-center text-xs font-semibold text-muted-foreground mt-0.5">
-                    {(user.givenName?.[0] ?? '').toUpperCase()}{(user.familyName?.[0] ?? '').toUpperCase()}
-                  </div>
-                  <div className="space-y-0.5 flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-foreground">{user.givenName} {user.familyName}</p>
-                    {(user.appIds ?? (user.appId ? [user.appId] : [])).length === 0 ? (
-                      <StatusBadge tone="accent">
-                        No Apps
-                      </StatusBadge>
-                    ) : (
-                      (user.appIds ?? (user.appId ? [user.appId] : [])).map((assignedAppId) => {
-                        const directAppIds = user.directAppIds ?? []
-                        const inheritedAppIds = user.inheritedAppIds ?? []
-                        const isDirect = directAppIds.includes(assignedAppId)
-                        const isInherited = inheritedAppIds.includes(assignedAppId)
-                        const sourceGroupNames = (user.inheritedAppSources ?? [])
-                          .filter((source) => source.appId === assignedAppId)
-                          .map((source) => source.groupName)
-                        const suffix = !isDirect && isInherited
-                          ? sourceGroupNames.length > 0
-                            ? ` via ${sourceGroupNames.join(', ')}`
-                            : ' via group'
-                          : ''
-                        return (
-                          <StatusBadge key={assignedAppId} tone="accent">
-                            {appNameById.get(assignedAppId) ?? 'App'}
-                            {suffix}
-                          </StatusBadge>
-                        )
-                      })
-                    )}
-
-                    {!user.active && (
-                      <StatusBadge tone="danger">Inactive</StatusBadge>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground">{user.email} · @{user.username}</p>
-                  {user.roles.length > 0 && (
-                    <div className="flex gap-1 flex-wrap">
-                      {user.roles.map(r => (
-                        <StatusBadge key={r} tone="neutral">{r}</StatusBadge>
-                      ))}
-                    </div>
-                  )}
-                  {user.customAttributes && Object.keys(user.customAttributes).length > 0 && (
-                    <div className="flex gap-1 flex-wrap">
-                      {Object.entries(user.customAttributes).map(([key, value]) => (
-                        <StatusBadge key={key} tone="warning" mono>
-                          {attributeByKey.get(key)?.name ?? key}: {value}
-                          {user.inheritedCustomAttributes?.[key] === value && !user.directCustomAttributes?.[key] ? ' via group' : ''}
-                        </StatusBadge>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex gap-1 flex-wrap">
-                    {(user.groups ?? []).map((groupName) => (
-                      <StatusBadge key={groupName} tone="info">
-                        {groupName}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-sky-500 hover:text-rose-600"
-                          onClick={() => {
-                            const group = (groups as GroupItem[]).find((g) => g.name === groupName)
-                            if (!group) return
-                            removeUserGroup.mutate({ userId: user.id, groupId: group.id })
-                          }}
-                          title="Remove from group"
-                        >
-                          <X size={11} />
-                        </Button>
-                      </StatusBadge>
-                    ))}
-                  </div>
-                  <div className="mt-2 flex items-center gap-2 max-w-sm">
-                    <Select
-                      className="h-8"
-                      value={groupPickerByUser[user.id] ?? ''}
-                      onChange={(e) => setGroupPickerByUser((prev) => ({ ...prev, [user.id]: e.target.value }))}
-                    >
-                      <option value="">Assign group...</option>
-                      {(groups as GroupItem[])
-                        .filter((group) => !(user.groups ?? []).includes(group.name))
-                        .map((group) => (
-                          <option key={group.id} value={group.id}>{group.name}</option>
-                        ))}
-                    </Select>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      disabled={!groupPickerByUser[user.id] || assignUserGroup.isPending}
-                      onClick={() => assignUserGroup.mutate({ userId: user.id, groupId: groupPickerByUser[user.id] })}
-                    >
-                      <span className="inline-flex items-center gap-1"><Link2 size={11} />Add</span>
-                    </Button>
-                  </div>
-                </div>
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="hover:bg-amber-50 hover:text-amber-700"
-                    onClick={() => handleOpenReset(user)}
-                    disabled={resetUserPassword.isPending}
-                    title="Reset password"
-                  >
-                    <KeyRound size={14} />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleEdit(user)}
-                    disabled={updateUser.isPending}
-                    title="Edit user"
-                  >
-                    <Pencil size={14} />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleToggleActive(user)}
-                    disabled={updateUser.isPending}
-                    title={user.active ? 'Deactivate' : 'Activate'}
-                  >
-                    {user.active ? <UserCheck size={14} /> : <UserX size={14} />}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="hover:bg-rose-50 hover:text-rose-600"
-                    onClick={() => handleDelete(user.id, user.email)}
-                    disabled={deleteUser.isPending}
-                    title="Delete user"
-                  >
-                    <Trash2 size={14} />
-                  </Button>
-                </div>
-              </TableRow>
-              )
-            })}
-          </TableBody>
+                  </Table.Th>
+                  <Table.Th>User</Table.Th>
+                  <Table.Th>Apps</Table.Th>
+                  <Table.Th>Roles & attributes</Table.Th>
+                  <Table.Th>Groups</Table.Th>
+                  <Table.Th>Status</Table.Th>
+                  <Table.Th w={150} />
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {filteredUsers.map((user: User) => {
+                  const isSelected = selectedUserIds.includes(user.id)
+                  const assignedAppIds = user.appIds ?? (user.appId ? [user.appId] : [])
+                  const availableGroups = (groups as GroupItem[]).filter((group) => !(user.groups ?? []).includes(group.name))
+                  return (
+                    <Table.Tr key={user.id} bg={isSelected ? 'var(--nx-color-accent-soft)' : undefined} style={{ verticalAlign: 'top' }}>
+                      <Table.Td>
+                        <Box pt={8}>
+                          <SelectionCheckbox
+                            checked={isSelected}
+                            onChange={() => toggleSelectUser(user.id)}
+                            aria-label={`Select user ${user.email}`}
+                          />
+                        </Box>
+                      </Table.Td>
+                      <Table.Td>
+                        <Group gap="sm" wrap="nowrap">
+                          <Avatar src={resolveMediaSrc(user.avatarUrl)} size={32} radius="xl" color="gray">
+                            {(user.givenName?.[0] ?? '').toUpperCase()}{(user.familyName?.[0] ?? '').toUpperCase()}
+                          </Avatar>
+                          <Box style={{ minWidth: 0 }}>
+                            <Text size="sm" fw={500} truncate>{user.givenName} {user.familyName}</Text>
+                            <Text size="xs" c="dimmed" truncate>{user.email} · @{user.username}</Text>
+                          </Box>
+                        </Group>
+                      </Table.Td>
+                      <Table.Td>
+                        <Group gap={4}>
+                          {assignedAppIds.length === 0 ? (
+                            <Badge variant="light">No Apps</Badge>
+                          ) : (
+                            assignedAppIds.map((assignedAppId) => {
+                              const directAppIds = user.directAppIds ?? []
+                              const inheritedAppIds = user.inheritedAppIds ?? []
+                              const isDirect = directAppIds.includes(assignedAppId)
+                              const isInherited = inheritedAppIds.includes(assignedAppId)
+                              const sourceGroupNames = (user.inheritedAppSources ?? [])
+                                .filter((source) => source.appId === assignedAppId)
+                                .map((source) => source.groupName)
+                              const suffix = !isDirect && isInherited
+                                ? sourceGroupNames.length > 0
+                                  ? ` via ${sourceGroupNames.join(', ')}`
+                                  : ' via group'
+                                : ''
+                              return (
+                                <Badge key={assignedAppId} variant="light" tt="none">
+                                  {appNameById.get(assignedAppId) ?? 'App'}
+                                  {suffix}
+                                </Badge>
+                              )
+                            })
+                          )}
+                        </Group>
+                      </Table.Td>
+                      <Table.Td>
+                        <Stack gap={4}>
+                          {user.roles.length > 0 ? (
+                            <Group gap={4}>
+                              {user.roles.map(r => (
+                                <Badge key={r} variant="light" color="gray" tt="none">{r}</Badge>
+                              ))}
+                            </Group>
+                          ) : null}
+                          {user.customAttributes && Object.keys(user.customAttributes).length > 0 ? (
+                            <Group gap={4}>
+                              {Object.entries(user.customAttributes).map(([key, value]) => (
+                                <Badge key={key} variant="light" color="yellow" tt="none" ff="monospace">
+                                  {attributeByKey.get(key)?.name ?? key}: {value}
+                                  {user.inheritedCustomAttributes?.[key] === value && !user.directCustomAttributes?.[key] ? ' via group' : ''}
+                                </Badge>
+                              ))}
+                            </Group>
+                          ) : null}
+                          {user.roles.length === 0 && !(user.customAttributes && Object.keys(user.customAttributes).length > 0) ? (
+                            <Text size="xs" c="dimmed">—</Text>
+                          ) : null}
+                        </Stack>
+                      </Table.Td>
+                      <Table.Td>
+                        <Stack gap={6}>
+                          {(user.groups ?? []).length > 0 ? (
+                            <Group gap={4}>
+                              {(user.groups ?? []).map((groupName) => (
+                                <Badge
+                                  key={groupName}
+                                  variant="light"
+                                  color="blue"
+                                  tt="none"
+                                  pr={2}
+                                  rightSection={
+                                    <CloseButton
+                                      size="xs"
+                                      iconSize={11}
+                                      onClick={() => {
+                                        const group = (groups as GroupItem[]).find((g) => g.name === groupName)
+                                        if (!group) return
+                                        removeUserGroup.mutate({ userId: user.id, groupId: group.id })
+                                      }}
+                                      title="Remove from group"
+                                      aria-label={`Remove from group ${groupName}`}
+                                    />
+                                  }
+                                >
+                                  {groupName}
+                                </Badge>
+                              ))}
+                            </Group>
+                          ) : null}
+                          <Group gap={6} wrap="nowrap">
+                            <Select
+                              size="xs"
+                              placeholder="Assign group..."
+                              aria-label="Assign group"
+                              value={groupPickerByUser[user.id] || null}
+                              onChange={(value) => setGroupPickerByUser((prev) => ({ ...prev, [user.id]: value ?? '' }))}
+                              data={availableGroups.map((group) => ({ value: group.id, label: group.name }))}
+                              searchable
+                              clearable
+                              w={170}
+                            />
+                            <Button
+                              variant="default"
+                              size="xs"
+                              leftSection={<Link2 size={12} />}
+                              disabled={!groupPickerByUser[user.id] || assignUserGroup.isPending}
+                              onClick={() => assignUserGroup.mutate({ userId: user.id, groupId: groupPickerByUser[user.id] })}
+                            >
+                              Add
+                            </Button>
+                          </Group>
+                        </Stack>
+                      </Table.Td>
+                      <Table.Td>
+                        {user.active ? (
+                          <Badge variant="light" color="green">Active</Badge>
+                        ) : (
+                          <Badge variant="light" color="red">Inactive</Badge>
+                        )}
+                      </Table.Td>
+                      <Table.Td>
+                        <Group gap={2} justify="flex-end" wrap="nowrap">
+                          <Tooltip label="Reset password">
+                            <ActionIcon
+                              variant="subtle"
+                              color="gray"
+                              onClick={() => handleOpenReset(user)}
+                              disabled={resetUserPassword.isPending}
+                              aria-label="Reset password"
+                            >
+                              <KeyRound size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                          <Tooltip label="Edit user">
+                            <ActionIcon
+                              variant="subtle"
+                              color="gray"
+                              onClick={() => handleEdit(user)}
+                              disabled={updateUser.isPending}
+                              aria-label="Edit user"
+                            >
+                              <Pencil size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                          <Tooltip label={user.active ? 'Deactivate' : 'Activate'}>
+                            <ActionIcon
+                              variant="subtle"
+                              color="gray"
+                              onClick={() => handleToggleActive(user)}
+                              disabled={updateUser.isPending}
+                              aria-label={user.active ? 'Deactivate' : 'Activate'}
+                            >
+                              {user.active ? <UserCheck size={16} /> : <UserX size={16} />}
+                            </ActionIcon>
+                          </Tooltip>
+                          <Tooltip label="Delete user">
+                            <ActionIcon
+                              variant="subtle"
+                              color="red"
+                              onClick={() => handleDelete(user.id, user.email)}
+                              disabled={deleteUser.isPending}
+                              aria-label="Delete user"
+                            >
+                              <Trash2 size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                        </Group>
+                      </Table.Td>
+                    </Table.Tr>
+                  )
+                })}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
         )}
-      </Table>
+      </SectionCard>
 
       <Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Create New User">
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className={labelCls}>Apps</label>
-              <div className="border border-border rounded-lg p-2 max-h-40 overflow-auto space-y-1">
-                {(apps as AppItem[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No apps available</p>}
+        <Stack gap="md">
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+            <Input.Wrapper label="Apps" style={{ gridRow: 'span 2' }}>
+              <CheckList>
+                {(apps as AppItem[]).length === 0 && <CheckListEmpty>No apps available</CheckListEmpty>}
                 {(apps as AppItem[]).map((app) => (
-                  <label key={app.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 text-sm text-foreground cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.appIds.includes(app.id)}
-                      onChange={() => toggleAppId(app.id, 'create')}
-                      className="rounded border-border"
-                    />
-                    {app.name}
-                  </label>
+                  <CheckListItem
+                    key={app.id}
+                    checked={formData.appIds.includes(app.id)}
+                    onChange={() => toggleAppId(app.id, 'create')}
+                    label={app.name}
+                  />
                 ))}
-              </div>
-            </div>
-            <div>
-              <label className={labelCls}>First Name</label>
-              <Input type="text" value={formData.givenName} onChange={e => setFormData(f => ({ ...f, givenName: e.target.value }))} placeholder="Jane" />
-            </div>
-            <div>
-              <label className={labelCls}>Last Name</label>
-              <Input type="text" value={formData.familyName} onChange={e => setFormData(f => ({ ...f, familyName: e.target.value }))} placeholder="Doe" />
-            </div>
-          </div>
-          <div>
-            <label className={labelCls}>Email Address</label>
-            <Input type="email" value={formData.email} onChange={e => setFormData(f => ({ ...f, email: e.target.value }))} placeholder="jane@example.com" />
-          </div>
-          <div>
-            <label className={labelCls}>Username</label>
-            <Input type="text" value={formData.username} onChange={e => setFormData(f => ({ ...f, username: e.target.value }))} className="font-mono" placeholder="janedoe" />
-          </div>
-          <div>
-            <label className={labelCls}>Password</label>
-            <Input type="password" value={formData.password} onChange={e => setFormData(f => ({ ...f, password: e.target.value }))} placeholder="Min 8 characters" />
-          </div>
+              </CheckList>
+            </Input.Wrapper>
+            <TextInput label="First Name" value={formData.givenName} onChange={e => { const v = e.currentTarget.value; setFormData(f => ({ ...f, givenName: v })) }} placeholder="Jane" />
+            <TextInput label="Last Name" value={formData.familyName} onChange={e => { const v = e.currentTarget.value; setFormData(f => ({ ...f, familyName: v })) }} placeholder="Doe" />
+          </SimpleGrid>
+          <TextInput label="Email Address" type="email" value={formData.email} onChange={e => { const v = e.currentTarget.value; setFormData(f => ({ ...f, email: v })) }} placeholder="jane@example.com" />
+          <TextInput label="Username" value={formData.username} onChange={e => { const v = e.currentTarget.value; setFormData(f => ({ ...f, username: v })) }} ff="monospace" placeholder="janedoe" />
+          <PasswordInput label="Password" value={formData.password} onChange={e => { const v = e.currentTarget.value; setFormData(f => ({ ...f, password: v })) }} placeholder="Min 8 characters" />
           <ImageField
             label="Profile Picture"
             value={formData.avatarUrl}
@@ -1010,142 +1157,118 @@ const Users = () => {
             onUpload={async (file) => setFormData((f) => ({ ...f, avatarFile: file }))}
             uploadHint={formData.avatarFile ? `Selected: ${(formData as any).avatarFile.name}. Uploads when the user is created.` : undefined}
           />
-          <div>
-            <label className={labelCls}>Custom Attributes</label>
-            <div className="space-y-2">
+          <Input.Wrapper label="Custom Attributes" error={createFormError || undefined}>
+            <Stack gap="xs">
               {Object.entries(formData.customAttributes).length === 0 ? (
-                <p className="text-xs text-muted-foreground">No attributes selected</p>
+                <Text size="xs" c="dimmed">No attributes selected</Text>
               ) : (
                 Object.entries(formData.customAttributes).map(([key, value]) => {
                   const attribute = attributeByKey.get(key)
                   const systemManaged = SYSTEM_MANAGED_ATTRIBUTE_KEYS.has(key)
                   return (
-                    <div key={key} className="rounded-lg border border-border p-3">
-                      <div className="mb-2 flex items-center justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-medium text-foreground">{attribute?.name ?? key}</p>
-                          <p className="text-xs text-muted-foreground font-mono">{key}</p>
-                        </div>
-                        {systemManaged ? null : (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="hover:bg-rose-50 hover:text-rose-600"
-                            onClick={() => removeAttribute('create', key)}
-                            title="Remove attribute"
-                          >
-                            <X size={12} />
-                          </Button>
-                        )}
-                      </div>
+                    <AttributeEditorCard
+                      key={key}
+                      name={attribute?.name ?? key}
+                      attrKey={key}
+                      removable={!systemManaged}
+                      onRemove={() => removeAttribute('create', key)}
+                    >
                       <AttributeValueField
                         attribute={attribute}
                         value={value}
                         readOnly={systemManaged}
                         onChange={(nextValue) => updateAttributeValue('create', key, nextValue)}
                       />
-                    </div>
+                    </AttributeEditorCard>
                   )
                 })
               )}
-              <div className="flex items-center gap-2">
+              <Group gap="xs" wrap="nowrap">
                 <Select
-                  value={attributePicker.create}
-                  onChange={(e) => setAttributePicker((prev) => ({ ...prev, create: e.target.value }))}
-                >
-                  <option value="">Add attribute...</option>
-                  {enabledAttributeDefinitions
+                  aria-label="Add attribute"
+                  placeholder="Add attribute..."
+                  value={attributePicker.create || null}
+                  onChange={(value) => setAttributePicker((prev) => ({ ...prev, create: value ?? '' }))}
+                  data={enabledAttributeDefinitions
                     .filter((attribute) => !(attribute.key in formData.customAttributes) && !SYSTEM_MANAGED_ATTRIBUTE_KEYS.has(attribute.key))
-                    .map((attribute) => (
-                      <option key={attribute.id} value={attribute.key}>{attribute.name}</option>
-                    ))}
-                </Select>
+                    .map((attribute) => ({ value: attribute.key, label: attribute.name }))}
+                  searchable
+                  clearable
+                  style={{ flex: 1 }}
+                />
                 <Button
                   type="button"
                   onClick={() => addAttribute('create')}
                   disabled={!attributePicker.create}
-                  size="md"
-                  variant="secondary"
+                  variant="default"
                 >
                   Add
                 </Button>
-              </div>
-            </div>
-            {createFormError && <p className="mt-1 text-xs text-rose-600">{createFormError}</p>}
-          </div>
-          <div>
-            <label className={labelCls}>Groups</label>
-            <div className="border border-border rounded-lg p-2 max-h-40 overflow-auto space-y-1">
-              {(groups as GroupItem[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No groups available</p>}
+              </Group>
+            </Stack>
+          </Input.Wrapper>
+          <Input.Wrapper label="Groups">
+            <CheckList>
+              {(groups as GroupItem[]).length === 0 && <CheckListEmpty>No groups available</CheckListEmpty>}
               {(groups as GroupItem[]).map((group) => (
-                <label key={group.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 text-sm text-foreground cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.groupIds.includes(group.id)}
-                    onChange={() => toggleCreateGroup(group.id)}
-                    className="rounded border-border"
-                  />
-                  {group.name}
-                </label>
+                <CheckListItem
+                  key={group.id}
+                  checked={formData.groupIds.includes(group.id)}
+                  onChange={() => toggleCreateGroup(group.id)}
+                  label={group.name}
+                />
               ))}
-            </div>
-          </div>
-          <div>
-            <label className={labelCls}>Roles</label>
-            <div className="border border-border rounded-lg p-2 max-h-40 overflow-auto space-y-1">
-              {(roles as RoleItem[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No roles available</p>}
+            </CheckList>
+          </Input.Wrapper>
+          <Input.Wrapper label="Roles">
+            <CheckList>
+              {(roles as RoleItem[]).length === 0 && <CheckListEmpty>No roles available</CheckListEmpty>}
               {(roles as RoleItem[]).map((role) => (
-                <label key={role.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 text-sm text-foreground cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.roleIds.includes(role.id)}
-                    onChange={() => toggleCreateRole(role.id)}
-                    className="rounded border-border"
-                  />
-                  {role.name}
-                </label>
+                <CheckListItem
+                  key={role.id}
+                  checked={formData.roleIds.includes(role.id)}
+                  onChange={() => toggleCreateRole(role.id)}
+                  label={role.name}
+                />
               ))}
-            </div>
-          </div>
-          <div className="flex gap-2 justify-end pt-2">
-            <Button onClick={() => setCreateModalOpen(false)} variant="secondary">
+            </CheckList>
+          </Input.Wrapper>
+          <Group justify="flex-end" gap="xs" pt="xs">
+            <Button onClick={() => setCreateModalOpen(false)} variant="default">
               Cancel
             </Button>
             <Button
               onClick={handleCreate}
-              disabled={createUser.isPending || !formData.email || !formData.username || !formData.password}
-              variant="primary"
+              loading={createUser.isPending}
+              disabled={!formData.email || !formData.username || !formData.password}
             >
-              {createUser.isPending ? 'Creating…' : 'Create User'}
+              Create User
             </Button>
-          </div>
-        </div>
+          </Group>
+        </Stack>
       </Modal>
 
       <Modal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} title={`Edit User${userToEdit ? `: ${userToEdit.email}` : ''}`}>
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className={labelCls}>Direct Apps</label>
-              <div className="border border-border rounded-lg p-2 max-h-40 overflow-auto space-y-1">
-                {(apps as AppItem[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No apps available</p>}
-                {(apps as AppItem[]).map((app) => (
-                  <label key={app.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 text-sm text-foreground cursor-pointer">
-                    <input
-                      type="checkbox"
+        <Stack gap="md">
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+            <Stack gap="xs" style={{ gridRow: 'span 2' }}>
+              <Input.Wrapper label="Direct Apps">
+                <CheckList>
+                  {(apps as AppItem[]).length === 0 && <CheckListEmpty>No apps available</CheckListEmpty>}
+                  {(apps as AppItem[]).map((app) => (
+                    <CheckListItem
+                      key={app.id}
                       checked={editFormData.appIds.includes(app.id)}
                       onChange={() => toggleAppId(app.id, 'edit')}
-                      className="rounded border-border"
+                      label={app.name}
                     />
-                    {app.name}
-                  </label>
-                ))}
-              </div>
+                  ))}
+                </CheckList>
+              </Input.Wrapper>
               {userToEdit && (userToEdit.inheritedAppIds ?? []).length > 0 && (
-                <div className="mt-2 rounded-lg border border-dashed border-border p-3">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Inherited Apps</p>
-                  <div className="space-y-1.5">
+                <Paper withBorder radius="md" p="sm" style={{ borderStyle: 'dashed' }}>
+                  <Text size="xs" fw={600} c="dimmed" mb="xs">Inherited Apps</Text>
+                  <Stack gap={6}>
                     {(userToEdit.inheritedAppIds ?? []).map((appId) => {
                       const sourceGroupNames = Array.from(
                         new Set(
@@ -1155,41 +1278,29 @@ const Users = () => {
                         )
                       )
                       return (
-                        <div key={appId} className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                          <span className="font-medium text-foreground">{appNameById.get(appId) ?? appId}</span>
-                          <span className="text-muted-foreground">from</span>
+                        <Group key={appId} gap={6}>
+                          <Text size="xs" fw={500}>{appNameById.get(appId) ?? appId}</Text>
+                          <Text size="xs" c="dimmed">from</Text>
                           {sourceGroupNames.length === 0 ? (
-                            <StatusBadge tone="info">group</StatusBadge>
+                            <Badge variant="light" color="blue" size="sm" tt="none">group</Badge>
                           ) : (
                             sourceGroupNames.map((groupName) => (
-                              <StatusBadge key={groupName} tone="info">{groupName}</StatusBadge>
+                              <Badge key={groupName} variant="light" color="blue" size="sm" tt="none">{groupName}</Badge>
                             ))
                           )}
-                        </div>
+                        </Group>
                       )
                     })}
-                  </div>
-                  <p className="mt-2 text-[11px] text-muted-foreground">Inherited apps cannot be removed here. Remove the user from the source group or unassign the app from that group instead.</p>
-                </div>
+                  </Stack>
+                  <Text size="xs" c="dimmed" mt="xs">Inherited apps cannot be removed here. Remove the user from the source group or unassign the app from that group instead.</Text>
+                </Paper>
               )}
-            </div>
-            <div>
-              <label className={labelCls}>First Name</label>
-              <Input type="text" value={editFormData.givenName} onChange={e => setEditFormData(f => ({ ...f, givenName: e.target.value }))} placeholder="Jane" />
-            </div>
-            <div>
-              <label className={labelCls}>Last Name</label>
-              <Input type="text" value={editFormData.familyName} onChange={e => setEditFormData(f => ({ ...f, familyName: e.target.value }))} placeholder="Doe" />
-            </div>
-          </div>
-          <div>
-            <label className={labelCls}>Email Address</label>
-            <Input type="email" value={editFormData.email} onChange={e => setEditFormData(f => ({ ...f, email: e.target.value }))} placeholder="jane@example.com" />
-          </div>
-          <div>
-            <label className={labelCls}>Username</label>
-            <Input type="text" value={editFormData.username} onChange={e => setEditFormData(f => ({ ...f, username: e.target.value }))} className="font-mono" placeholder="janedoe" />
-          </div>
+            </Stack>
+            <TextInput label="First Name" value={editFormData.givenName} onChange={e => { const v = e.currentTarget.value; setEditFormData(f => ({ ...f, givenName: v })) }} placeholder="Jane" />
+            <TextInput label="Last Name" value={editFormData.familyName} onChange={e => { const v = e.currentTarget.value; setEditFormData(f => ({ ...f, familyName: v })) }} placeholder="Doe" />
+          </SimpleGrid>
+          <TextInput label="Email Address" type="email" value={editFormData.email} onChange={e => { const v = e.currentTarget.value; setEditFormData(f => ({ ...f, email: v })) }} placeholder="jane@example.com" />
+          <TextInput label="Username" value={editFormData.username} onChange={e => { const v = e.currentTarget.value; setEditFormData(f => ({ ...f, username: v })) }} ff="monospace" placeholder="janedoe" />
           {userToEdit ? (
             <ImageField
               label="Profile Picture"
@@ -1211,35 +1322,22 @@ const Users = () => {
               }}
             />
           ) : null}
-          <div>
-            <label className={labelCls}>Direct Custom Attributes</label>
-            <div className="space-y-2">
+          <Input.Wrapper label="Direct Custom Attributes" error={editFormError || undefined}>
+            <Stack gap="xs">
               {Object.entries(editFormData.customAttributes).length === 0 ? (
-                <p className="text-xs text-muted-foreground">No direct attributes selected</p>
+                <Text size="xs" c="dimmed">No direct attributes selected</Text>
               ) : (
                 Object.entries(editFormData.customAttributes).map(([key, value]) => {
                   const attribute = attributeByKey.get(key)
                   const systemManaged = SYSTEM_MANAGED_ATTRIBUTE_KEYS.has(key)
                   return (
-                    <div key={key} className="rounded-lg border border-border p-3">
-                      <div className="mb-2 flex items-center justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-medium text-foreground">{attribute?.name ?? key}</p>
-                          <p className="text-xs text-muted-foreground font-mono">{key}</p>
-                        </div>
-                        {systemManaged ? null : (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="hover:bg-rose-50 hover:text-rose-600"
-                            onClick={() => removeAttribute('edit', key)}
-                            title="Remove attribute"
-                          >
-                            <X size={12} />
-                          </Button>
-                        )}
-                      </div>
+                    <AttributeEditorCard
+                      key={key}
+                      name={attribute?.name ?? key}
+                      attrKey={key}
+                      removable={!systemManaged}
+                      onRemove={() => removeAttribute('edit', key)}
+                    >
                       <AttributeValueField
                         attribute={attribute}
                         value={value}
@@ -1247,221 +1345,203 @@ const Users = () => {
                         onChange={(nextValue) => updateAttributeValue('edit', key, nextValue)}
                       />
                       {systemManaged ? (
-                        <p className="mt-1 text-xs text-muted-foreground">Updated automatically from the server when the password changes.</p>
+                        <Text size="xs" c="dimmed" mt={4}>Updated automatically from the server when the password changes.</Text>
                       ) : null}
-                    </div>
+                    </AttributeEditorCard>
                   )
                 })
               )}
-              <div className="flex items-center gap-2">
+              <Group gap="xs" wrap="nowrap">
                 <Select
-                  value={attributePicker.edit}
-                  onChange={(e) => setAttributePicker((prev) => ({ ...prev, edit: e.target.value }))}
-                >
-                  <option value="">Add attribute...</option>
-                  {enabledAttributeDefinitions
+                  aria-label="Add attribute"
+                  placeholder="Add attribute..."
+                  value={attributePicker.edit || null}
+                  onChange={(value) => setAttributePicker((prev) => ({ ...prev, edit: value ?? '' }))}
+                  data={enabledAttributeDefinitions
                     .filter((attribute) => !(attribute.key in editFormData.customAttributes) && !SYSTEM_MANAGED_ATTRIBUTE_KEYS.has(attribute.key))
-                    .map((attribute) => (
-                      <option key={attribute.id} value={attribute.key}>{attribute.name}</option>
-                    ))}
-                </Select>
+                    .map((attribute) => ({ value: attribute.key, label: attribute.name }))}
+                  searchable
+                  clearable
+                  style={{ flex: 1 }}
+                />
                 <Button
                   type="button"
                   onClick={() => addAttribute('edit')}
                   disabled={!attributePicker.edit}
-                  variant="secondary"
+                  variant="default"
                 >
                   Add
                 </Button>
-              </div>
+              </Group>
               {userToEdit && userToEdit.inheritedCustomAttributes && Object.keys(userToEdit.inheritedCustomAttributes).length > 0 && (
-                <div className="rounded-lg border border-dashed border-border p-3">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Inherited From Groups</p>
-                  <div className="space-y-1">
+                <Paper withBorder radius="md" p="sm" style={{ borderStyle: 'dashed' }}>
+                  <Text size="xs" fw={600} c="dimmed" mb="xs">Inherited From Groups</Text>
+                  <Stack gap={4}>
                     {Object.entries(userToEdit.inheritedCustomAttributes).map(([key, value]) => (
-                      <div key={key} className="text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground">{attributeByKey.get(key)?.name ?? key}</span>: {value}
-                      </div>
+                      <Text key={key} size="xs" c="dimmed">
+                        <Text span size="xs" fw={500} c="var(--mantine-color-text)">{attributeByKey.get(key)?.name ?? key}</Text>: {value}
+                      </Text>
                     ))}
-                  </div>
-                </div>
+                  </Stack>
+                </Paper>
               )}
-            </div>
-            {editFormError && <p className="mt-1 text-xs text-rose-600">{editFormError}</p>}
-          </div>
-          <div className="space-y-3">
-            <label className={labelCls}>Groups</label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className={labelCls}>Search Groups</label>
-                <Input
-                  type="text"
+            </Stack>
+          </Input.Wrapper>
+          <Input.Wrapper label="Groups">
+            <Stack gap="xs">
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                <TextInput
+                  label="Search Groups"
+                  size="xs"
                   value={editGroupSearch}
-                  onChange={(e) => setEditGroupSearch(e.target.value)}
+                  onChange={(e) => setEditGroupSearch(e.currentTarget.value)}
                   placeholder="Search by group or app name…"
                 />
-              </div>
-              <div>
-                <label className={labelCls}>Filter by App</label>
                 <Select
+                  label="Filter by App"
+                  size="xs"
                   value={editGroupAppFilter}
-                  onChange={(e) => setEditGroupAppFilter(e.target.value)}
-                >
-                  <option value="all">All Apps</option>
-                  <option value="none">No App</option>
-                  {(apps as AppItem[]).map((app) => (
-                    <option key={app.id} value={app.id}>{app.name}</option>
-                  ))}
-                </Select>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {groupOptions.length === 0
-                ? 'No groups available'
-                : filteredEditGroups.length === 0
-                  ? 'No matching groups'
-                  : `Showing ${filteredEditGroups.length} of ${groupOptions.length} groups · ${editFormData.groupIds.length} selected`}
-            </p>
-            <div className="border border-border rounded-lg p-2 max-h-40 overflow-auto space-y-1">
-              {groupOptions.length === 0 ? (
-                <p className="text-xs text-muted-foreground px-1 py-1">No groups available</p>
-              ) : filteredEditGroups.length === 0 ? (
-                <p className="text-xs text-muted-foreground px-1 py-1">No groups match the current filters</p>
-              ) : (
-                filteredEditGroups.map((group) => {
-                  const groupAppIds = resolveGroupAppIds(group)
-                  const appLabel = groupAppIds.length === 0
-                    ? 'No App'
-                    : groupAppIds.map((id) => appNameById.get(id) ?? id).join(', ')
-                  return (
-                    <label key={group.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 text-sm text-foreground cursor-pointer">
-                      <input
-                        type="checkbox"
+                  onChange={(value) => setEditGroupAppFilter(value ?? 'all')}
+                  data={editAppFilterData}
+                  allowDeselect={false}
+                  searchable
+                />
+              </SimpleGrid>
+              <Text size="xs" c="dimmed">
+                {groupOptions.length === 0
+                  ? 'No groups available'
+                  : filteredEditGroups.length === 0
+                    ? 'No matching groups'
+                    : `Showing ${filteredEditGroups.length} of ${groupOptions.length} groups · ${editFormData.groupIds.length} selected`}
+              </Text>
+              <CheckList>
+                {groupOptions.length === 0 ? (
+                  <CheckListEmpty>No groups available</CheckListEmpty>
+                ) : filteredEditGroups.length === 0 ? (
+                  <CheckListEmpty>No groups match the current filters</CheckListEmpty>
+                ) : (
+                  filteredEditGroups.map((group) => {
+                    const groupAppIds = resolveGroupAppIds(group)
+                    const appLabel = groupAppIds.length === 0
+                      ? 'No App'
+                      : groupAppIds.map((id) => appNameById.get(id) ?? id).join(', ')
+                    return (
+                      <CheckListItem
+                        key={group.id}
                         checked={editFormData.groupIds.includes(group.id)}
                         onChange={() => toggleEditGroup(group.id)}
-                        className="rounded border-border"
+                        label={group.name}
+                        badge={
+                          <Badge variant="light" color={groupAppIds.length > 0 ? undefined : 'gray'} size="sm" tt="none" maw={200}>
+                            {appLabel}
+                          </Badge>
+                        }
                       />
-                      <span className="flex-1 min-w-0 truncate">{group.name}</span>
-                      <StatusBadge tone={groupAppIds.length > 0 ? 'accent' : 'neutral'}>
-                        {appLabel}
-                      </StatusBadge>
-                    </label>
-                  )
-                })
-              )}
-            </div>
-          </div>
-          <div className="space-y-3">
-            <label className={labelCls}>Roles</label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className={labelCls}>Search Roles</label>
-                <Input
-                  type="text"
+                    )
+                  })
+                )}
+              </CheckList>
+            </Stack>
+          </Input.Wrapper>
+          <Input.Wrapper label="Roles">
+            <Stack gap="xs">
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+                <TextInput
+                  label="Search Roles"
+                  size="xs"
                   value={editRoleSearch}
-                  onChange={(e) => setEditRoleSearch(e.target.value)}
+                  onChange={(e) => setEditRoleSearch(e.currentTarget.value)}
                   placeholder="Search by role or app name…"
                 />
-              </div>
-              <div>
-                <label className={labelCls}>Filter by App</label>
                 <Select
+                  label="Filter by App"
+                  size="xs"
                   value={editRoleAppFilter}
-                  onChange={(e) => setEditRoleAppFilter(e.target.value)}
-                >
-                  <option value="all">All Apps</option>
-                  <option value="none">No App</option>
-                  {(apps as AppItem[]).map((app) => (
-                    <option key={app.id} value={app.id}>{app.name}</option>
-                  ))}
-                </Select>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {roleOptions.length === 0
-                ? 'No roles available'
-                : filteredEditRoles.length === 0
-                  ? 'No matching roles'
-                  : `Showing ${filteredEditRoles.length} of ${roleOptions.length} roles · ${editFormData.roleIds.length} selected`}
-            </p>
-            <div className="border border-border rounded-lg p-2 max-h-40 overflow-auto space-y-1">
-              {roleOptions.length === 0 ? (
-                <p className="text-xs text-muted-foreground px-1 py-1">No roles available</p>
-              ) : filteredEditRoles.length === 0 ? (
-                <p className="text-xs text-muted-foreground px-1 py-1">No roles match the current filters</p>
-              ) : (
-                filteredEditRoles.map((role) => {
-                  const appName = role.appId ? appNameById.get(role.appId) : null
-                  return (
-                    <label key={role.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 text-sm text-foreground cursor-pointer">
-                      <input
-                        type="checkbox"
+                  onChange={(value) => setEditRoleAppFilter(value ?? 'all')}
+                  data={editAppFilterData}
+                  allowDeselect={false}
+                  searchable
+                />
+              </SimpleGrid>
+              <Text size="xs" c="dimmed">
+                {roleOptions.length === 0
+                  ? 'No roles available'
+                  : filteredEditRoles.length === 0
+                    ? 'No matching roles'
+                    : `Showing ${filteredEditRoles.length} of ${roleOptions.length} roles · ${editFormData.roleIds.length} selected`}
+              </Text>
+              <CheckList>
+                {roleOptions.length === 0 ? (
+                  <CheckListEmpty>No roles available</CheckListEmpty>
+                ) : filteredEditRoles.length === 0 ? (
+                  <CheckListEmpty>No roles match the current filters</CheckListEmpty>
+                ) : (
+                  filteredEditRoles.map((role) => {
+                    const appName = role.appId ? appNameById.get(role.appId) : null
+                    return (
+                      <CheckListItem
+                        key={role.id}
                         checked={editFormData.roleIds.includes(role.id)}
                         onChange={() => toggleEditRole(role.id)}
-                        className="rounded border-border"
+                        label={role.name}
+                        badge={
+                          <Badge variant="light" color={appName ? undefined : 'gray'} size="sm" tt="none" maw={200}>
+                            {appName ?? 'No App'}
+                          </Badge>
+                        }
                       />
-                      <span className="flex-1 min-w-0 truncate">{role.name}</span>
-                      <StatusBadge tone={appName ? 'accent' : 'neutral'}>
-                        {appName ?? 'No App'}
-                      </StatusBadge>
-                    </label>
-                  )
-                })
-              )}
-            </div>
-          </div>
-          <div className="flex gap-2 justify-end pt-2">
-            <Button onClick={() => setEditModalOpen(false)} variant="secondary">
+                    )
+                  })
+                )}
+              </CheckList>
+            </Stack>
+          </Input.Wrapper>
+          <Group justify="flex-end" gap="xs" pt="xs">
+            <Button onClick={() => setEditModalOpen(false)} variant="default">
               Cancel
             </Button>
             <Button
               onClick={handleSaveEdit}
-              disabled={updateUser.isPending || !editFormData.email || !editFormData.username || !editFormData.givenName || !editFormData.familyName}
-              variant="primary"
+              loading={updateUser.isPending}
+              disabled={!editFormData.email || !editFormData.username || !editFormData.givenName || !editFormData.familyName}
             >
-              {updateUser.isPending ? 'Saving…' : 'Save Changes'}
+              Save Changes
             </Button>
-          </div>
-        </div>
+          </Group>
+        </Stack>
       </Modal>
 
       <Modal isOpen={resetModalOpen} onClose={() => setResetModalOpen(false)} title={`Reset Password${userToReset ? `: ${userToReset.email}` : ''}`}>
-        <div className="space-y-4">
-          <p className="text-xs text-muted-foreground">
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
             Set a new password for this user. Existing sessions for this user will be revoked immediately.
-          </p>
-          <div>
-            <label className={labelCls}>New Password</label>
-            <Input
-              type="password"
-              value={resetFormData.password}
-              onChange={(e) => setResetFormData((f) => ({ ...f, password: e.target.value }))}
-              placeholder="Min 8 characters"
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Confirm Password</label>
-            <Input
-              type="password"
-              value={resetFormData.confirmPassword}
-              onChange={(e) => setResetFormData((f) => ({ ...f, confirmPassword: e.target.value }))}
-              placeholder="Repeat new password"
-            />
-          </div>
-          {resetFormError && <p className="text-xs text-rose-600">{resetFormError}</p>}
-          <div className="flex gap-2 justify-end pt-2">
-            <Button onClick={() => setResetModalOpen(false)} variant="secondary">
+          </Text>
+          <PasswordInput
+            label="New Password"
+            value={resetFormData.password}
+            onChange={(e) => { const v = e.currentTarget.value; setResetFormData((f) => ({ ...f, password: v })) }}
+            placeholder="Min 8 characters"
+          />
+          <PasswordInput
+            label="Confirm Password"
+            value={resetFormData.confirmPassword}
+            onChange={(e) => { const v = e.currentTarget.value; setResetFormData((f) => ({ ...f, confirmPassword: v })) }}
+            placeholder="Repeat new password"
+          />
+          {resetFormError && <Alert color="red" variant="light">{resetFormError}</Alert>}
+          <Group justify="flex-end" gap="xs" pt="xs">
+            <Button onClick={() => setResetModalOpen(false)} variant="default">
               Cancel
             </Button>
             <Button
               onClick={handleResetPassword}
-              disabled={resetUserPassword.isPending || !resetFormData.password || !resetFormData.confirmPassword}
-              variant="primary"
+              loading={resetUserPassword.isPending}
+              disabled={!resetFormData.password || !resetFormData.confirmPassword}
             >
-              {resetUserPassword.isPending ? 'Resetting…' : 'Reset Password'}
+              Reset Password
             </Button>
-          </div>
-        </div>
+          </Group>
+        </Stack>
       </Modal>
 
       <ConfirmDialog
@@ -1475,20 +1555,20 @@ const Users = () => {
       />
 
       <Modal isOpen={bulkDeleteOpen} onClose={closeBulkModals} title="Delete Selected Users" size="md">
-        <div className="space-y-4">
-          <p className="text-sm text-foreground">
-            Permanently delete <span className="font-semibold">{selectedUserIds.length}</span> user{selectedUserIds.length === 1 ? '' : 's'}? This action cannot be undone.
-          </p>
-          {bulkError && <p className="text-xs text-rose-600">{bulkError}</p>}
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={closeBulkModals} disabled={bulkPending}>
+        <Stack gap="md">
+          <Text size="sm">
+            Permanently delete <Text span fw={600}>{selectedUserIds.length}</Text> {pluralUsers(selectedUserIds.length)}? This action cannot be undone.
+          </Text>
+          {bulkError && <Alert color="red" variant="light">{bulkError}</Alert>}
+          <Group justify="flex-end" gap="xs">
+            <Button variant="default" onClick={closeBulkModals} disabled={bulkPending}>
               Cancel
             </Button>
-            <Button variant="danger" onClick={handleBulkDeleteUsers} disabled={bulkPending || selectedUserIds.length === 0}>
-              {bulkPending ? 'Deleting…' : `Delete ${selectedUserIds.length} User${selectedUserIds.length === 1 ? '' : 's'}`}
+            <Button color="red" onClick={handleBulkDeleteUsers} loading={bulkPending} disabled={selectedUserIds.length === 0}>
+              {`Delete ${selectedUserIds.length} User${selectedUserIds.length === 1 ? '' : 's'}`}
             </Button>
-          </div>
-        </div>
+          </Group>
+        </Stack>
       </Modal>
 
       <Modal
@@ -1497,25 +1577,25 @@ const Users = () => {
         title={bulkActiveAction === 'activate' ? 'Activate Selected Users' : 'Deactivate Selected Users'}
         size="md"
       >
-        <div className="space-y-4">
-          <p className="text-sm text-foreground">
-            {bulkActiveAction === 'activate' ? 'Activate' : 'Deactivate'} the {selectedUserIds.length} selected user{selectedUserIds.length === 1 ? '' : 's'}?
+        <Stack gap="md">
+          <Text size="sm">
+            {bulkActiveAction === 'activate' ? 'Activate' : 'Deactivate'} the {selectedUserIds.length} selected {pluralUsers(selectedUserIds.length)}?
             {bulkActiveAction === 'deactivate' && ' Existing sessions for these users will continue until expiry but new sign-ins will be blocked.'}
-          </p>
-          {bulkError && <p className="text-xs text-rose-600">{bulkError}</p>}
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={closeBulkModals} disabled={bulkPending}>
+          </Text>
+          {bulkError && <Alert color="red" variant="light">{bulkError}</Alert>}
+          <Group justify="flex-end" gap="xs">
+            <Button variant="default" onClick={closeBulkModals} disabled={bulkPending}>
               Cancel
             </Button>
             <Button
-              variant="primary"
               onClick={handleBulkSetActive}
-              disabled={bulkPending || selectedUserIds.length === 0}
+              loading={bulkPending}
+              disabled={selectedUserIds.length === 0}
             >
-              {bulkPending ? 'Applying…' : bulkActiveAction === 'activate' ? 'Activate Users' : 'Deactivate Users'}
+              {bulkActiveAction === 'activate' ? 'Activate Users' : 'Deactivate Users'}
             </Button>
-          </div>
-        </div>
+          </Group>
+        </Stack>
       </Modal>
 
       <Modal
@@ -1524,36 +1604,32 @@ const Users = () => {
         title={bulkGroupAction === 'add' ? 'Add Selected Users to Group' : 'Remove Selected Users from Group'}
         size="md"
       >
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            {bulkGroupAction === 'add' ? 'Assign' : 'Remove'} the {selectedUserIds.length} selected user{selectedUserIds.length === 1 ? '' : 's'} {bulkGroupAction === 'add' ? 'to' : 'from'} a group.
-          </p>
-          <div>
-            <label className={labelCls}>Group</label>
-            <Select
-              value={bulkGroupId}
-              onChange={(e) => setBulkGroupId(e.target.value)}
-            >
-              <option value="">Select a group…</option>
-              {(groups as GroupItem[]).map((group) => (
-                <option key={group.id} value={group.id}>{group.name}</option>
-              ))}
-            </Select>
-          </div>
-          {bulkError && <p className="text-xs text-rose-600">{bulkError}</p>}
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={closeBulkModals} disabled={bulkPending}>
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            {bulkGroupAction === 'add' ? 'Assign' : 'Remove'} the {selectedUserIds.length} selected {pluralUsers(selectedUserIds.length)} {bulkGroupAction === 'add' ? 'to' : 'from'} a group.
+          </Text>
+          <Select
+            label="Group"
+            placeholder="Select a group…"
+            value={bulkGroupId || null}
+            onChange={(value) => setBulkGroupId(value ?? '')}
+            data={(groups as GroupItem[]).map((group) => ({ value: group.id, label: group.name }))}
+            searchable
+          />
+          {bulkError && <Alert color="red" variant="light">{bulkError}</Alert>}
+          <Group justify="flex-end" gap="xs">
+            <Button variant="default" onClick={closeBulkModals} disabled={bulkPending}>
               Cancel
             </Button>
             <Button
-              variant="primary"
               onClick={handleBulkGroup}
-              disabled={bulkPending || !bulkGroupId}
+              loading={bulkPending}
+              disabled={!bulkGroupId}
             >
-              {bulkPending ? 'Applying…' : bulkGroupAction === 'add' ? 'Add to Group' : 'Remove from Group'}
+              {bulkGroupAction === 'add' ? 'Add to Group' : 'Remove from Group'}
             </Button>
-          </div>
-        </div>
+          </Group>
+        </Stack>
       </Modal>
 
       <Modal
@@ -1562,38 +1638,34 @@ const Users = () => {
         title={bulkRoleAction === 'add' ? 'Assign Role to Selected Users' : 'Remove Role from Selected Users'}
         size="md"
       >
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            {bulkRoleAction === 'add' ? 'Assign' : 'Remove'} a role {bulkRoleAction === 'add' ? 'to' : 'from'} the {selectedUserIds.length} selected user{selectedUserIds.length === 1 ? '' : 's'}. Only direct role assignments are affected; roles inherited via groups are not changed.
-          </p>
-          <div>
-            <label className={labelCls}>Role</label>
-            <Select
-              value={bulkRoleId}
-              onChange={(e) => setBulkRoleId(e.target.value)}
-            >
-              <option value="">Select a role…</option>
-              {(roles as RoleItem[]).map((role) => (
-                <option key={role.id} value={role.id}>{role.name}</option>
-              ))}
-            </Select>
-          </div>
-          {bulkError && <p className="text-xs text-rose-600">{bulkError}</p>}
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={closeBulkModals} disabled={bulkPending}>
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            {bulkRoleAction === 'add' ? 'Assign' : 'Remove'} a role {bulkRoleAction === 'add' ? 'to' : 'from'} the {selectedUserIds.length} selected {pluralUsers(selectedUserIds.length)}. Only direct role assignments are affected; roles inherited via groups are not changed.
+          </Text>
+          <Select
+            label="Role"
+            placeholder="Select a role…"
+            value={bulkRoleId || null}
+            onChange={(value) => setBulkRoleId(value ?? '')}
+            data={(roles as RoleItem[]).map((role) => ({ value: role.id, label: role.name }))}
+            searchable
+          />
+          {bulkError && <Alert color="red" variant="light">{bulkError}</Alert>}
+          <Group justify="flex-end" gap="xs">
+            <Button variant="default" onClick={closeBulkModals} disabled={bulkPending}>
               Cancel
             </Button>
             <Button
-              variant="primary"
               onClick={handleBulkRole}
-              disabled={bulkPending || !bulkRoleId}
+              loading={bulkPending}
+              disabled={!bulkRoleId}
             >
-              {bulkPending ? 'Applying…' : bulkRoleAction === 'add' ? 'Assign Role' : 'Remove Role'}
+              {bulkRoleAction === 'add' ? 'Assign Role' : 'Remove Role'}
             </Button>
-          </div>
-        </div>
+          </Group>
+        </Stack>
       </Modal>
-    </div>
+    </>
   )
 }
 

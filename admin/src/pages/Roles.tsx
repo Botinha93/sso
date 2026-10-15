@@ -1,20 +1,16 @@
-import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
-import Select from '../components/ui/Select'
-import { ChevronRight, Plus, RefreshCw, Shield, Trash2 } from 'lucide-react'
-import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
+import { ChevronRight, Plus, Shield, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import ListSearch from '../components/ListSearch'
+import { ActionIcon, Badge, Box, Button, Group, NativeSelect, SimpleGrid, Stack, Table, Text, TextInput, ThemeIcon } from '@mantine/core'
+import { CheckboxMatrix, PageHeader, RefreshButton, SearchInput, SectionCard, TableSkeleton } from '@nexus/design'
+import EmptyState from '../components/EmptyState'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
-import Button from '../components/ui/Button'
-import Card from '../components/ui/Card'
-import Input from '../components/ui/Input'
 import BulkActionsBar, { SelectionCheckbox } from '../components/BulkActionsBar'
 import { useRoles, useCreateRole, useUpdateRole, useDeleteRole, useApps, useClients } from '../hooks/useApi'
 import React from 'react';
 
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
+const monoInput = { input: { fontFamily: 'var(--mantine-font-family-monospace)' } }
 
 // Built-in system resources
 const SYSTEM_RESOURCES = [
@@ -69,163 +65,85 @@ function PermissionMatrix({ permissions, onChange, appResources }: {
   const hasResourceAction = (resourceKeys: string[], action: Action) =>
     resourceKeys.some(resourceKey => set.has(permKey(resourceKey, action)))
 
-  const toggleResourceAction = (resourceKeys: string[], action: Action) => {
-    const next = new Set(set)
-    const keys = resourceKeys.map(resourceKey => permKey(resourceKey, action))
-    const checked = keys.some(key => next.has(key))
-    if (checked) {
-      keys.forEach(key => next.delete(key))
-    } else if (resourceKeys[0]) {
-      next.add(permKey(resourceKeys[0], action))
-    }
-    onChange(Array.from(next))
-  }
-
   // Combine system resources with app-specific ones.
   // App resource permission key format can be either "{appId}:{resource}:{action}"
   // or legacy "{appSlug}:{resource}:{action}" (for bootstrap-seeded roles).
-  const allResources = [
-    ...SYSTEM_RESOURCES.map(resource => ({
-      keyVariants: [resource.key],
-      label: resource.label,
-      groupKey: '__system__',
-      groupLabel: 'System',
-      isSystem: true,
-    })),
-    ...appResources.map(ar => ({
+  const sections: Array<{ key: string; label: string; rows: Array<{ key: string; label: string; keyVariants: string[] }> }> = [
+    {
+      key: '__system__',
+      label: 'System',
+      rows: SYSTEM_RESOURCES.map(resource => ({ key: `system:${resource.key}`, label: resource.label, keyVariants: [resource.key] })),
+    },
+  ]
+  for (const ar of appResources) {
+    let section = sections.find(s => s.key === ar.appId)
+    if (!section) {
+      section = { key: ar.appId, label: ar.appName, rows: [] }
+      sections.push(section)
+    }
+    const rowKey = `app:${ar.appId}:${ar.resource}`
+    if (section.rows.some(row => row.key === rowKey)) continue
+    section.rows.push({
+      key: rowKey,
+      label: ar.resource,
       keyVariants: uniqueNonEmpty([
         `${ar.appId}:${ar.resource}`,
         ar.appSlug ? `${ar.appSlug}:${ar.resource}` : undefined,
         `${normalizePermissionPrefix(ar.appName)}:${ar.resource}`,
       ]),
-      label: ar.resource,
-      groupKey: ar.appId,
-      groupLabel: ar.appName,
-      isSystem: false,
-    }))
-  ]
-
-  function toggleRow(resourceKeys: string[]) {
-    const allChecked = ACTIONS.every(action => hasResourceAction(resourceKeys, action))
-    const next = new Set(set)
-    if (allChecked) {
-      ACTIONS.forEach(action => resourceKeys.forEach(resourceKey => next.delete(permKey(resourceKey, action))))
-    } else if (resourceKeys[0]) {
-      ACTIONS.forEach(action => {
-        if (!hasResourceAction(resourceKeys, action)) {
-          next.add(permKey(resourceKeys[0], action))
-        }
-      })
-    }
-    onChange(Array.from(next))
+    })
   }
 
-  function toggleCol(action: Action) {
-    const allChecked = allResources.every(resource => hasResourceAction(resource.keyVariants, action))
-    const next = new Set(set)
-    if (allChecked) {
-      allResources.forEach(resource => resource.keyVariants.forEach(resourceKey => next.delete(permKey(resourceKey, action))))
-    } else {
-      allResources.forEach(resource => {
-        if (!hasResourceAction(resource.keyVariants, action) && resource.keyVariants[0]) {
-          next.add(permKey(resource.keyVariants[0], action))
-        }
-      })
+  // Each matrix cell maps to a resource (with all of its permission-key variants) and an action.
+  // A cell is checked when any variant grants the action; checking adds the primary variant,
+  // unchecking removes every variant.
+  const cellKey = (rowKey: string, action: string) => `${rowKey}::${action}`
+  const cells = new Map<string, { keyVariants: string[]; action: Action }>()
+  for (const section of sections) {
+    for (const row of section.rows) {
+      for (const action of ACTIONS) cells.set(cellKey(row.key, action), { keyVariants: row.keyVariants, action })
     }
+  }
+  const value = Array.from(cells.entries())
+    .filter(([, cell]) => hasResourceAction(cell.keyVariants, cell.action))
+    .map(([key]) => key)
+
+  const handleChange = (nextValue: string[]) => {
+    const prevChecked = new Set(value)
+    const nextChecked = new Set(nextValue)
+    const next = new Set(set)
+    cells.forEach((cell, key) => {
+      if (prevChecked.has(key) && !nextChecked.has(key)) {
+        cell.keyVariants.forEach(resourceKey => next.delete(permKey(resourceKey, cell.action)))
+      } else if (!prevChecked.has(key) && nextChecked.has(key) && cell.keyVariants[0]) {
+        next.add(permKey(cell.keyVariants[0], cell.action))
+      }
+    })
     onChange(Array.from(next))
   }
-
-  // Group app resources by appId
-  const uniqueApps = Array.from(new Set(allResources.filter(r => !r.isSystem).map(r => r.groupKey)))
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
-      <table className="w-full text-xs border-collapse">
-        <thead>
-          <tr className="bg-muted/50">
-            <th className="text-left px-3 py-2 font-semibold text-muted-foreground border-r border-border min-w-[160px]">Resource</th>
-            {ACTIONS.map(action => (
-              <th key={action} className="px-3 py-2 font-semibold text-muted-foreground border-r border-border last:border-r-0 uppercase tracking-wider cursor-pointer select-none hover:bg-muted transition-colors" onClick={() => toggleCol(action)}>
-                {action}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {/* System resources */}
-          <tr>
-            <td colSpan={ACTIONS.length + 1} className="px-3 py-1.5 bg-muted text-[10px] font-bold uppercase tracking-widest text-muted-foreground border-b border-border">
-              System
-            </td>
-          </tr>
-          {allResources.filter(r => r.isSystem).map((resource, i) => {
-            const allChecked = ACTIONS.every(action => hasResourceAction(resource.keyVariants, action))
-            return (
-              <tr key={resource.label} className={i % 2 === 0 ? 'bg-card' : 'bg-muted/50'}>
-                <td
-                  className="px-3 py-2 font-medium text-foreground border-r border-border cursor-pointer select-none hover:bg-muted transition-colors"
-                  onClick={() => toggleRow(resource.keyVariants)}
-                  title="Click to toggle all"
-                >
-                  <span className={allChecked ? 'text-foreground font-semibold' : ''}>{resource.label}</span>
-                </td>
-                {ACTIONS.map(action => {
-                  const checked = hasResourceAction(resource.keyVariants, action)
-                  return (
-                    <td key={action} className="px-3 py-2 text-center border-r border-border last:border-r-0">
-                      <input type="checkbox" checked={checked} onChange={() => toggleResourceAction(resource.keyVariants, action)} className="rounded border-border text-foreground focus:ring-ring" />
-                    </td>
-                  )
-                })}
-              </tr>
-            )
-          })}
-
-          {/* App-specific resources grouped by app */}
-          {uniqueApps.map(appId => {
-            const appRows = allResources.filter(r => !r.isSystem && r.groupKey === appId)
-            const appName = appRows[0]?.groupLabel ?? appId
-            return [
-              <tr key={`section-${appId}`}>
-                <td colSpan={ACTIONS.length + 1} className="px-3 py-1.5 bg-sky-50 text-[10px] font-bold uppercase tracking-widest text-sky-600 border-b border-sky-100">
-                  {appName}
-                </td>
-              </tr>,
-              ...appRows.map((ar, i) => {
-                const allChecked = ACTIONS.every(action => hasResourceAction(ar.keyVariants, action))
-                return (
-                  <tr key={`${appId}:${ar.label}`} className={i % 2 === 0 ? 'bg-card' : 'bg-sky-50/30'}>
-                    <td
-                      className="px-3 py-2 font-medium text-foreground border-r border-border cursor-pointer select-none hover:bg-sky-50 transition-colors pl-5"
-                      onClick={() => toggleRow(ar.keyVariants)}
-                      title="Click to toggle all"
-                    >
-                      <span className={allChecked ? 'text-foreground font-semibold' : ''}>{ar.label}</span>
-                    </td>
-                    {ACTIONS.map(action => {
-                      const checked = hasResourceAction(ar.keyVariants, action)
-                      return (
-                        <td key={action} className="px-3 py-2 text-center border-r border-border last:border-r-0">
-                          <input type="checkbox" checked={checked} onChange={() => toggleResourceAction(ar.keyVariants, action)} className="rounded border-border text-sky-600 focus:ring-sky-400" />
-                        </td>
-                      )
-                    })}
-                  </tr>
-                )
-              })
-            ]
-          })}
-
-          {appResources.length === 0 && (
-            <tr>
-              <td colSpan={ACTIONS.length + 1} className="px-3 py-2 text-xs text-muted-foreground italic text-center border-t border-border">
-                No app resources defined. Add resources to an app to see them here.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
+    <Stack gap="xs">
+      <CheckboxMatrix
+        columns={ACTIONS.map(action => ({ key: action, label: action }))}
+        sections={sections.map(section => ({
+          key: section.key,
+          label: section.label,
+          rows: section.rows.map(row => ({ key: row.key, label: row.label })),
+        }))}
+        value={value}
+        onChange={handleChange}
+        getCellKey={cellKey}
+        rowHeader="Resource"
+        rowHeaderWidth={180}
+        style={{ border: '1px solid var(--nx-color-border)', borderRadius: 'var(--mantine-radius-md)', overflow: 'hidden' }}
+      />
+      {appResources.length === 0 && (
+        <Text size="xs" c="dimmed" fs="italic" ta="center">
+          No app resources defined. Add resources to an app to see them here.
+        </Text>
+      )}
+    </Stack>
   )
 }
 
@@ -376,218 +294,241 @@ const Roles = () => {
 
   const activePermCount = (role: any) => (role.permissions ?? []).length
 
+  const appSelectData = [
+    { value: '', label: 'No app' },
+    ...(apps as any[]).map((app: any) => ({ value: app.id, label: app.name })),
+  ]
+  const scopeSelectData = [
+    { value: 'platform', label: 'Platform' },
+    { value: 'tenant', label: 'Tenant' },
+  ]
+
+  const renderRoleFields = (mode: 'create' | 'edit') => (
+    <>
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+        <NativeSelect
+          label="App"
+          value={formData.appId}
+          onChange={e => { const value = e.currentTarget.value; setFormData(p => ({ ...p, appId: value })) }}
+          data={appSelectData}
+        />
+        <TextInput
+          label="Role name"
+          value={formData.name}
+          onChange={e => { const value = e.currentTarget.value; setFormData(p => ({ ...p, name: value })) }}
+          styles={monoInput}
+          placeholder={mode === 'create' ? 'application_user' : undefined}
+        />
+        <NativeSelect
+          label="Scope"
+          value={formData.scope}
+          onChange={e => { const value = e.currentTarget.value as any; setFormData(p => ({ ...p, scope: value })) }}
+          data={scopeSelectData}
+        />
+      </SimpleGrid>
+      <TextInput
+        label="Description"
+        value={formData.description}
+        onChange={e => { const value = e.currentTarget.value; setFormData(p => ({ ...p, description: value })) }}
+        placeholder={mode === 'create' ? 'Role description' : undefined}
+      />
+      <Stack gap={4}>
+        <Text size="sm" fw={500}>
+          Permissions{' '}
+          {mode === 'create' && (
+            <Text span size="xs" c="dimmed" fw={400}>(click header to toggle column, resource name to toggle row)</Text>
+          )}
+        </Text>
+        <PermissionMatrix permissions={formData.permissions} onChange={perms => setFormData(p => ({ ...p, permissions: perms }))} appResources={appResources} />
+      </Stack>
+    </>
+  )
+
   return (
-    <div>
+    <Box>
       <PageHeader
         eyebrow="Access Control"
         title="Roles & Permissions"
-        action={
+        actions={
           <Button
             onClick={() => { setCreateFormError(''); setFormData({ ...EMPTY_FORM }); setCreateModalOpen(true) }}
-            variant="primary"
-            className="h-9 rounded-lg"
+            leftSection={<Plus size={16} />}
           >
-            <Plus size={14} />
-            New Role
+            New role
           </Button>
         }
       />
 
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search roles by name or description…" />
-        <div className="max-w-sm w-full">
-          <label className={labelCls}>Filter by App</label>
-          <Select value={appFilterId} onChange={(e) => setAppFilterId(e.target.value)}>
-            <option value="all">All Apps</option>
-            <option value="none">Unassigned</option>
-            {(apps as any[]).map((app: any) => (
-              <option key={app.id} value={app.id}>{app.name}</option>
-            ))}
-          </Select>
-        </div>
-      </div>
+      <Stack gap="md">
+        <Group justify="space-between" align="flex-end" gap="sm" wrap="wrap">
+          <SearchInput value={searchInput} onChange={setSearchInput} placeholder="Search roles by name or description…" maw={360} w="100%" />
+          <NativeSelect
+            label="Filter by app"
+            value={appFilterId}
+            onChange={(e) => setAppFilterId(e.currentTarget.value)}
+            data={[
+              { value: 'all', label: 'All Apps' },
+              { value: 'none', label: 'Unassigned' },
+              ...(apps as any[]).map((app: any) => ({ value: app.id, label: app.name })),
+            ]}
+            w="100%"
+            maw={320}
+          />
+        </Group>
 
-      <Table>
-        <TableHeaderRow>
-          <div className="flex items-center gap-3">
-            <SelectionCheckbox
-              checked={allFilteredSelected}
-              indeterminate={someFilteredSelected}
-              onChange={toggleSelectAllFiltered}
-              disabled={filteredRoles.length === 0}
-              title={allFilteredSelected ? 'Deselect all' : 'Select all visible'}
-            />
-            <h4 className="text-sm font-semibold text-foreground">All Roles</h4>
-          </div>
-          <Button onClick={() => refetch()} disabled={isFetching} variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
-            <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
-            Refresh
-          </Button>
-        </TableHeaderRow>
-        <BulkActionsBar
-          count={selectedRoleIds.length}
-          noun="role"
-          onClear={clearSelection}
+        <SectionCard
+          flush
+          title="All roles"
+          actions={<RefreshButton size="xs" onRefresh={() => refetch()} loading={isFetching} lastUpdated={null} />}
         >
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-700"
-            onClick={() => { setBulkError(''); setBulkDeleteOpen(true) }}
-            disabled={bulkPending}
+          <BulkActionsBar
+            count={selectedRoleIds.length}
+            noun="role"
+            onClear={clearSelection}
           >
-            <Trash2 size={12} />
-            Delete Selected
-          </Button>
-        </BulkActionsBar>
-        <TableBody>
-          {isLoading && <TableSkeleton rows={4} />}
-          {!isLoading && filteredRoles.length === 0 && <EmptyState title="No roles yet" description="Create a role to define a set of permissions." />}
-          {filteredRoles.map((role: any) => {
-            const isSelected = selectedRoleIds.includes(role.id)
-            return (
-            <TableRow key={role.id} className={`flex items-center justify-between px-5 py-3.5 hover:bg-muted/50 transition-colors group ${isSelected ? 'bg-sky-50/40' : ''}`}>
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <SelectionCheckbox
-                  checked={isSelected}
-                  onChange={() => toggleSelectRole(role.id)}
-                  aria-label={`Select role ${role.name}`}
-                />
-                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                  <Shield size={14} className="text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h5 className="text-sm font-medium text-foreground">{role.name}</h5>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-100">{role.appId ? appNameById.get(role.appId) ?? 'App' : 'No App'}</span>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground">{role.scope}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{role.description || 'No description'} · <span className="font-medium text-muted-foreground">{activePermCount(role)} permission{activePermCount(role) !== 1 ? 's' : ''}</span></p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <Button
-                  onClick={() => openEdit(role)}
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100"
-                  title="Edit permissions"
-                >
-                  <ChevronRight size={14} />
-                </Button>
-                <Button
-                  onClick={() => setRoleToDelete(role)}
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
-                >
-                  <Trash2 size={14} />
-                </Button>
-              </div>
-            </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
+            <Button
+              variant="light"
+              color="red"
+              size="xs"
+              leftSection={<Trash2 size={14} />}
+              onClick={() => { setBulkError(''); setBulkDeleteOpen(true) }}
+              disabled={bulkPending}
+            >
+              Delete selected
+            </Button>
+          </BulkActionsBar>
+          {isLoading ? (
+            <TableSkeleton rows={4} columns={['avatar', 'pill', 'pill', 'number', 'action']} />
+          ) : filteredRoles.length === 0 ? (
+            <EmptyState icon={Shield} title="No roles yet" description="Create a role to define a set of permissions." />
+          ) : (
+            <Table.ScrollContainer minWidth={760} type="native">
+              <Table highlightOnHover verticalSpacing="sm">
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th w={44}>
+                      <SelectionCheckbox
+                        checked={allFilteredSelected}
+                        indeterminate={someFilteredSelected}
+                        onChange={toggleSelectAllFiltered}
+                        disabled={filteredRoles.length === 0}
+                        title={allFilteredSelected ? 'Deselect all' : 'Select all visible'}
+                        aria-label={allFilteredSelected ? 'Deselect all' : 'Select all visible'}
+                      />
+                    </Table.Th>
+                    <Table.Th>Role</Table.Th>
+                    <Table.Th>App</Table.Th>
+                    <Table.Th>Scope</Table.Th>
+                    <Table.Th>Permissions</Table.Th>
+                    <Table.Th w={96} />
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {filteredRoles.map((role: any) => {
+                    const isSelected = selectedRoleIds.includes(role.id)
+                    return (
+                      <Table.Tr key={role.id} bg={isSelected ? 'var(--nx-color-accent-soft)' : undefined}>
+                        <Table.Td>
+                          <SelectionCheckbox
+                            checked={isSelected}
+                            onChange={() => toggleSelectRole(role.id)}
+                            aria-label={`Select role ${role.name}`}
+                          />
+                        </Table.Td>
+                        <Table.Td>
+                          <Group gap="sm" wrap="nowrap">
+                            <ThemeIcon variant="light" color="gray" size={32} radius="md">
+                              <Shield size={16} />
+                            </ThemeIcon>
+                            <Box miw={0}>
+                              <Text size="sm" fw={500} truncate>{role.name}</Text>
+                              <Text size="xs" c="dimmed" lineClamp={1}>{role.description || 'No description'}</Text>
+                            </Box>
+                          </Group>
+                        </Table.Td>
+                        <Table.Td>
+                          <Badge variant="light" color={role.appId ? 'blue' : 'gray'}>
+                            {role.appId ? appNameById.get(role.appId) ?? 'App' : 'No App'}
+                          </Badge>
+                        </Table.Td>
+                        <Table.Td>
+                          <Badge variant="default">{role.scope}</Badge>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text size="sm" c="dimmed" className="nx-tabular">
+                            {activePermCount(role)} permission{activePermCount(role) !== 1 ? 's' : ''}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Group gap={4} justify="flex-end" wrap="nowrap">
+                            <ActionIcon
+                              variant="subtle"
+                              color="gray"
+                              onClick={() => openEdit(role)}
+                              title="Edit permissions"
+                              aria-label={`Edit permissions for ${role.name}`}
+                            >
+                              <ChevronRight size={16} />
+                            </ActionIcon>
+                            <ActionIcon
+                              variant="subtle"
+                              color="red"
+                              onClick={() => setRoleToDelete(role)}
+                              title="Delete role"
+                              aria-label={`Delete role ${role.name}`}
+                            >
+                              <Trash2 size={16} />
+                            </ActionIcon>
+                          </Group>
+                        </Table.Td>
+                      </Table.Tr>
+                    )
+                  })}
+                </Table.Tbody>
+              </Table>
+            </Table.ScrollContainer>
+          )}
+        </SectionCard>
+      </Stack>
 
       {/* Create modal */}
       <Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Create New Role">
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className={labelCls}>App</label>
-              <Select value={formData.appId} onChange={e => setFormData(p => ({ ...p, appId: e.target.value }))}>
-                <option value="">No app</option>
-                {(apps as any[]).map((app: any) => (
-                  <option key={app.id} value={app.id}>{app.name}</option>
-                ))}
-              </Select>
-            </div>
-            <div>
-              <label className={labelCls}>Role Name</label>
-              <Input type="text" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} className="font-mono" placeholder="application_user" />
-            </div>
-            <div>
-              <label className={labelCls}>Scope</label>
-              <Select value={formData.scope} onChange={e => setFormData(p => ({ ...p, scope: e.target.value as any }))}>
-                <option value="platform">Platform</option>
-                <option value="tenant">Tenant</option>
-              </Select>
-            </div>
-          </div>
-          <div>
-            <label className={labelCls}>Description</label>
-            <Input type="text" value={formData.description} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} placeholder="Role description" />
-          </div>
-          <div>
-            <label className={labelCls}>Permissions <span className="text-muted-foreground normal-case font-normal">(click header to toggle column, resource name to toggle row)</span></label>
-            <PermissionMatrix permissions={formData.permissions} onChange={perms => setFormData(p => ({ ...p, permissions: perms }))} appResources={appResources} />
-          </div>
-          <div className="flex gap-2 justify-end pt-2">
-            <Button onClick={() => setCreateModalOpen(false)} variant="secondary" className="h-9 rounded-lg">
+        <Stack gap="md">
+          {renderRoleFields('create')}
+          <Group justify="flex-end" gap="xs" pt="xs">
+            <Button onClick={() => setCreateModalOpen(false)} variant="default">
               Cancel
             </Button>
             <Button
               onClick={handleCreate}
-              disabled={createRole.isPending || !formData.name || !formData.permissions.length}
-              variant="primary"
-              className="h-9 rounded-lg"
+              disabled={!formData.name || !formData.permissions.length}
+              loading={createRole.isPending}
             >
-              {createRole.isPending ? 'Creating…' : 'Create Role'}
+              Create role
             </Button>
-          </div>
-          {createFormError && <p className="text-xs text-rose-600">{createFormError}</p>}
-        </div>
+          </Group>
+          {createFormError && <Text size="xs" c="red">{createFormError}</Text>}
+        </Stack>
       </Modal>
 
       {/* Edit modal */}
       <Modal isOpen={!!editRole} onClose={() => setEditRole(null)} title={`Edit Role: ${editRole?.name ?? ''}`}>
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className={labelCls}>App</label>
-              <Select value={formData.appId} onChange={e => setFormData(p => ({ ...p, appId: e.target.value }))}>
-                <option value="">No app</option>
-                {(apps as any[]).map((app: any) => (
-                  <option key={app.id} value={app.id}>{app.name}</option>
-                ))}
-              </Select>
-            </div>
-            <div>
-              <label className={labelCls}>Role Name</label>
-              <Input type="text" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} className="font-mono" />
-            </div>
-            <div>
-              <label className={labelCls}>Scope</label>
-              <Select value={formData.scope} onChange={e => setFormData(p => ({ ...p, scope: e.target.value as any }))}>
-                <option value="platform">Platform</option>
-                <option value="tenant">Tenant</option>
-              </Select>
-            </div>
-          </div>
-          <div>
-            <label className={labelCls}>Description</label>
-            <Input type="text" value={formData.description} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} />
-          </div>
-          <div>
-            <label className={labelCls}>Permissions</label>
-            <PermissionMatrix permissions={formData.permissions} onChange={perms => setFormData(p => ({ ...p, permissions: perms }))} appResources={appResources} />
-          </div>
-          <div className="flex gap-2 justify-end pt-2">
-            <Button onClick={() => setEditRole(null)} variant="secondary" className="h-9 rounded-lg">
+        <Stack gap="md">
+          {renderRoleFields('edit')}
+          <Group justify="flex-end" gap="xs" pt="xs">
+            <Button onClick={() => setEditRole(null)} variant="default">
               Cancel
             </Button>
             <Button
               onClick={handleUpdate}
-              disabled={updateRole.isPending || !formData.name}
-              variant="primary"
-              className="h-9 rounded-lg"
+              disabled={!formData.name}
+              loading={updateRole.isPending}
             >
-              {updateRole.isPending ? 'Saving…' : 'Save Changes'}
+              Save changes
             </Button>
-          </div>
-          {editFormError && <p className="text-xs text-rose-600">{editFormError}</p>}
-        </div>
+          </Group>
+          {editFormError && <Text size="xs" c="red">{editFormError}</Text>}
+        </Stack>
       </Modal>
 
       <ConfirmDialog
@@ -601,26 +542,27 @@ const Roles = () => {
       />
 
       <Modal isOpen={bulkDeleteOpen} onClose={() => !bulkPending && setBulkDeleteOpen(false)} title="Delete Selected Roles" size="md">
-        <div className="space-y-4">
-          <p className="text-sm text-foreground">
-            Permanently delete <span className="font-semibold">{selectedRoleIds.length}</span> role{selectedRoleIds.length === 1 ? '' : 's'}? This action cannot be undone.
-          </p>
-          {bulkError && <p className="text-xs text-rose-600">{bulkError}</p>}
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setBulkDeleteOpen(false)} disabled={bulkPending}>
+        <Stack gap="md">
+          <Text size="sm">
+            Permanently delete <Text span fw={600}>{selectedRoleIds.length}</Text> role{selectedRoleIds.length === 1 ? '' : 's'}? This action cannot be undone.
+          </Text>
+          {bulkError && <Text size="xs" c="red">{bulkError}</Text>}
+          <Group justify="flex-end" gap="xs">
+            <Button variant="default" onClick={() => setBulkDeleteOpen(false)} disabled={bulkPending}>
               Cancel
             </Button>
             <Button
-              variant="danger"
+              color="red"
               onClick={handleBulkDelete}
-              disabled={bulkPending || selectedRoleIds.length === 0}
+              disabled={selectedRoleIds.length === 0}
+              loading={bulkPending}
             >
-              {bulkPending ? 'Deleting…' : `Delete ${selectedRoleIds.length} Role${selectedRoleIds.length === 1 ? '' : 's'}`}
+              {`Delete ${selectedRoleIds.length} Role${selectedRoleIds.length === 1 ? '' : 's'}`}
             </Button>
-          </div>
-        </div>
+          </Group>
+        </Stack>
       </Modal>
-    </div>
+    </Box>
   )
 }
 

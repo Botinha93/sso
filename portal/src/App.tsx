@@ -1,3 +1,4 @@
+import { Center, Loader } from '@mantine/core'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useEffect, useRef } from 'react'
 import { usePortalMe, usePortalUpdateProfile } from './hooks'
@@ -46,9 +47,9 @@ export default function App() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin" />
-      </div>
+      <Center mih="100vh">
+        <Loader size="sm" />
+      </Center>
     )
   }
 

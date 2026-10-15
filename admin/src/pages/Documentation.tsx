@@ -1,11 +1,27 @@
-import { Fragment, useDeferredValue, useMemo, useState } from 'react'
-import { BookText, Code2, Search, Server } from 'lucide-react'
+import { Fragment, useDeferredValue, useMemo, useState, type ReactNode } from 'react'
+import {
+  Alert,
+  Box,
+  Button,
+  Code,
+  Grid,
+  Group,
+  List,
+  NavLink,
+  Paper,
+  ScrollArea,
+  SimpleGrid,
+  Stack,
+  Table,
+  Tabs,
+  Text,
+  TextInput,
+  Title,
+} from '@mantine/core'
+import { PageHeader, SearchInput, SectionCard } from '@nexus/design'
+import { BookText, Code2, Server } from 'lucide-react'
 import { parse } from 'yaml'
-import { PageHeader } from '../components/PageHeader'
-import Button from '../components/ui/Button'
-import CodeBlock from '../components/ui/CodeBlock'
-import Input from '../components/ui/Input'
-import React from 'react';
+import CodeBlock from '../components/CodeBlock'
 
 /*@ts-ignore*/
 import openApiSource from '../../../openapi.yaml?raw'
@@ -4623,6 +4639,51 @@ function endpointDocs(route: ApiRoute): ApiEndpointDocs {
   }
 }
 
+function Eyebrow({ children, c = 'dimmed' }: { children: ReactNode; c?: string }) {
+  return (
+    <Text size="xs" fw={600} tt="uppercase" lts="0.05em" c={c}>
+      {children}
+    </Text>
+  )
+}
+
+function LabeledText({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <Text size="sm">
+      <Text span fw={600}>{label}</Text> {children}
+    </Text>
+  )
+}
+
+function TutorialCard({ tutorial }: { tutorial: TutorialSection }) {
+  return (
+    <SectionCard title={tutorial.title}>
+      <Stack gap="md">
+        <LabeledText label="Goal:">{tutorial.goal}</LabeledText>
+        <Stack gap={6}>
+          <Eyebrow>Steps</Eyebrow>
+          <List type="ordered" size="sm" spacing={4}>
+            {tutorial.steps.map((step) => (
+              <List.Item key={step}>{step}</List.Item>
+            ))}
+          </List>
+        </Stack>
+        <Paper withBorder radius="md" px="sm" py="xs" bg="var(--nx-color-surface-sunken)">
+          <LabeledText label="Expected result:">{tutorial.expectedResult}</LabeledText>
+        </Paper>
+      </Stack>
+    </SectionCard>
+  )
+}
+
+function ScrollTip({ children }: { children: ReactNode }) {
+  return (
+    <Text size="xs" c="dimmed" px="md" py="xs" style={{ borderBottom: '1px solid var(--nx-color-border)' }}>
+      {children}
+    </Text>
+  )
+}
+
 function ApiDocs() {
   const [query, setQuery] = useState('')
   const [expandedRoute, setExpandedRoute] = useState<string | null>(null)
@@ -4639,156 +4700,140 @@ function ApiDocs() {
   }, [deferredQuery])
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-        <h3 className="text-base font-semibold text-emerald-900">API Learning Path</h3>
-        <p className="mt-2 text-sm text-emerald-800">
-          Start with Tutorial 1 if you are new to OAuth/OIDC, then move to device, service, and revocation tutorials.
-          These tutorials explain the why and the expected behavior, not just the endpoint list.
-        </p>
-      </div>
+    <Stack gap="md">
+      <Alert color="green" title="API Learning Path">
+        Start with Tutorial 1 if you are new to OAuth/OIDC, then move to device, service, and revocation tutorials.
+        These tutorials explain the why and the expected behavior, not just the endpoint list.
+      </Alert>
 
       {API_TUTORIALS.map((tutorial) => (
-        <div key={tutorial.title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-base font-semibold text-slate-900">{tutorial.title}</h3>
-          <p className="mt-1 text-sm text-slate-600"><span className="font-semibold">Goal:</span> {tutorial.goal}</p>
-          <div className="mt-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Steps</p>
-            <ul className="mt-2 space-y-1 text-sm text-slate-700">
-              {tutorial.steps.map((step) => (
-                <li key={step}>{step}</li>
-              ))}
-            </ul>
-          </div>
-          <p className="mt-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-            <span className="font-semibold">Expected result:</span> {tutorial.expectedResult}
-          </p>
-        </div>
+        <TutorialCard key={tutorial.title} tutorial={tutorial} />
       ))}
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <p className="text-sm text-slate-600">
-          This catalog reflects all accessible endpoints currently exposed by the platform, including OAuth2/OIDC protocol routes,
-          admin APIs, portal APIs, and compatibility routes.
-        </p>
-        <p className="mt-2 text-sm text-slate-600">
-          Request and response panels below now prefer the authoritative OpenAPI contract from <span className="font-mono">openapi.yaml</span>,
-          with the existing operator notes retained as supplemental context.
-        </p>
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Filter by method, path, auth, or description"
-          />
-          {query.trim() ? (
-            <Button
-              variant="secondary"
-              type="button"
-              onClick={() => setQuery('')}
-              className="shrink-0"
-            >
-              Clear
-            </Button>
-          ) : null}
-        </div>
-        <p className="mt-2 text-xs text-slate-500">
-          Showing {filtered.length} of {API_ROUTES.length} endpoints.
-        </p>
-      </div>
+      <SectionCard>
+        <Stack gap="sm">
+          <Text size="sm" c="dimmed">
+            This catalog reflects all accessible endpoints currently exposed by the platform, including OAuth2/OIDC protocol routes,
+            admin APIs, portal APIs, and compatibility routes.
+          </Text>
+          <Text size="sm" c="dimmed">
+            Request and response panels below now prefer the authoritative OpenAPI contract from <Code>openapi.yaml</Code>,
+            with the existing operator notes retained as supplemental context.
+          </Text>
+          <Group gap="xs" wrap="nowrap" align="center">
+            <TextInput
+              flex={1}
+              value={query}
+              onChange={(event) => setQuery(event.currentTarget.value)}
+              placeholder="Filter by method, path, auth, or description"
+            />
+            {query.trim() ? (
+              <Button variant="default" type="button" onClick={() => setQuery('')}>
+                Clear
+              </Button>
+            ) : null}
+          </Group>
+          <Text size="xs" c="dimmed">
+            Showing {filtered.length} of {API_ROUTES.length} endpoints.
+          </Text>
+        </Stack>
+      </SectionCard>
 
-      <div className="overflow-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-4 py-2 text-xs text-slate-500">
-          Tip: swipe horizontally on small screens to view all columns.
-        </div>
-        <table className="min-w-[980px] w-full text-left text-sm">
-          <thead className="bg-slate-50 text-slate-600">
-            <tr>
-              <th className="px-4 py-3 font-semibold">Method</th>
-              <th className="px-4 py-3 font-semibold">Path</th>
-              <th className="px-4 py-3 font-semibold">Auth</th>
-              <th className="px-4 py-3 font-semibold">Description</th>
-              <th className="px-4 py-3 font-semibold">Details</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((route) => {
-              const key = `${route.method}:${route.path}`
-              const docs = endpointDocs(route)
-              const specDocs = openApiEndpointDocs(route)
-              const isOpen = expandedRoute === key
-              const parameters = Array.from(new Set([...(specDocs?.parameters ?? []), ...docs.parameters]))
-              const requestBody = specDocs?.requestBody ?? docs.requestJson
-              const responses = specDocs?.responses ?? docs.expectedResponse
-              const notes = Array.from(new Set([...(specDocs?.notes ?? []), ...(docs.notes ?? [])]))
-              return (
-                <Fragment key={key}>
-                  <tr key={key} className="border-t border-slate-100 align-top">
-                    <td className="px-4 py-3">
-                      <span className="rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs font-mono text-slate-700">{route.method}</span>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-700">{route.path}</td>
-                    <td className="px-4 py-3 text-xs text-slate-500">{route.auth}</td>
-                    <td className="px-4 py-3 text-slate-600">{route.description}</td>
-                    <td className="px-4 py-3">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setExpandedRoute(isOpen ? null : key)}
-                      >
-                        {isOpen ? 'Hide' : 'Show'}
-                      </Button>
-                    </td>
-                  </tr>
-                  {isOpen ? (
-                    <tr className="border-t border-slate-100 bg-slate-50/50">
-                      <td className="px-4 py-4" colSpan={5}>
-                        <div className="grid gap-4 lg:grid-cols-1">
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Parameters</p>
-                            {parameters.length ? (
-                              <ul className="mt-2 space-y-1 text-xs text-slate-700">
-                                {parameters.map((param) => (
-                                  <li key={param}>{param}</li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <p className="mt-2 text-xs text-slate-500">No required parameters.</p>
-                            )}
-                          </div>
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Request Body</p>
-                            <CodeBlock
-                              code={requestBody ?? 'N/A for this endpoint'}
-                              language="json"
-                              className="mt-2"
-                            />
-                          </div>
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Responses</p>
-                            <CodeBlock code={responses} language="json" className="mt-2" />
-                          </div>
-                          {notes.length ? (
-                            <div>
-                              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Notes</p>
-                              <ul className="mt-2 space-y-1 text-xs text-slate-700">
-                                {notes.map((note) => (
-                                  <li key={note}>{note}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
-                  ) : null}
-                </Fragment>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
+      <SectionCard flush>
+        <ScrollTip>Tip: swipe horizontally on small screens to view all columns.</ScrollTip>
+        <Table.ScrollContainer minWidth={980}>
+          <Table highlightOnHover verticalSpacing="sm" horizontalSpacing="md" fz="sm">
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Method</Table.Th>
+                <Table.Th>Path</Table.Th>
+                <Table.Th>Auth</Table.Th>
+                <Table.Th>Description</Table.Th>
+                <Table.Th>Details</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {filtered.map((route) => {
+                const key = `${route.method}:${route.path}`
+                const docs = endpointDocs(route)
+                const specDocs = openApiEndpointDocs(route)
+                const isOpen = expandedRoute === key
+                const parameters = Array.from(new Set([...(specDocs?.parameters ?? []), ...docs.parameters]))
+                const requestBody = specDocs?.requestBody ?? docs.requestJson
+                const responses = specDocs?.responses ?? docs.expectedResponse
+                const notes = Array.from(new Set([...(specDocs?.notes ?? []), ...(docs.notes ?? [])]))
+                return (
+                  <Fragment key={key}>
+                    <Table.Tr style={{ verticalAlign: 'top' }}>
+                      <Table.Td>
+                        <Code>{route.method}</Code>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="xs" ff="monospace">{route.path}</Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="xs" c="dimmed">{route.auth}</Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="sm" c="dimmed">{route.description}</Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Button
+                          variant="default"
+                          size="xs"
+                          onClick={() => setExpandedRoute(isOpen ? null : key)}
+                          aria-expanded={isOpen}
+                        >
+                          {isOpen ? 'Hide' : 'Show'}
+                        </Button>
+                      </Table.Td>
+                    </Table.Tr>
+                    {isOpen ? (
+                      <Table.Tr bg="var(--nx-color-surface-sunken)">
+                        <Table.Td colSpan={5} py="md">
+                          <Stack gap="md">
+                            <Stack gap={6}>
+                              <Eyebrow>Parameters</Eyebrow>
+                              {parameters.length ? (
+                                <List size="xs" spacing={4}>
+                                  {parameters.map((param) => (
+                                    <List.Item key={param}>{param}</List.Item>
+                                  ))}
+                                </List>
+                              ) : (
+                                <Text size="xs" c="dimmed">No required parameters.</Text>
+                              )}
+                            </Stack>
+                            <Stack gap={6}>
+                              <Eyebrow>Request Body</Eyebrow>
+                              <CodeBlock code={requestBody ?? 'N/A for this endpoint'} language="json" />
+                            </Stack>
+                            <Stack gap={6}>
+                              <Eyebrow>Responses</Eyebrow>
+                              <CodeBlock code={responses} language="json" />
+                            </Stack>
+                            {notes.length ? (
+                              <Stack gap={6}>
+                                <Eyebrow>Notes</Eyebrow>
+                                <List size="xs" spacing={4}>
+                                  {notes.map((note) => (
+                                    <List.Item key={note}>{note}</List.Item>
+                                  ))}
+                                </List>
+                              </Stack>
+                            ) : null}
+                          </Stack>
+                        </Table.Td>
+                      </Table.Tr>
+                    ) : null}
+                  </Fragment>
+                )
+              })}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
+      </SectionCard>
+    </Stack>
   )
 }
 
@@ -4887,299 +4932,307 @@ function AdminDocs() {
     'user_logout',
   ]
 
+  const overviewLinks = [
+    { href: '#admin-guide-start', label: 'How To Use This Guide' },
+    { href: '#admin-learning-path', label: 'Learning Path' },
+    { href: '#admin-core-concepts', label: 'Core OAuth2/OIDC' },
+    { href: '#admin-page-guides', label: 'Page Guides' },
+    { href: '#admin-concept-library', label: 'Concept Library' },
+  ]
+
+  const monoList = (items: string[]) => (
+    <List size="xs" spacing={4} listStyleType="none" ff="monospace">
+      {items.map((value) => (
+        <List.Item key={value}>{value}</List.Item>
+      ))}
+    </List>
+  )
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-      <aside className="lg:sticky lg:top-0 lg:self-start">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Documentation Menu</p>
-            <Button
-              variant="secondary"
-              size="sm"
-              type="button"
-              onClick={() => setMenuOpen((open) => !open)}
-              className="lg:hidden"
-            >
-              {menuOpen ? 'Hide' : 'Show'}
-            </Button>
-          </div>
-          <div className="relative mt-3">
-            <Search size={14} className="pointer-events-none absolute left-3 top-2.5 text-slate-400" />
-            <Input
-              type="text"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search pages, entities, concepts"
-              className="pl-9"
-            />
-          </div>
+    <Grid gap="lg">
+      <Grid.Col span={{ base: 12, lg: 'content' }} w={{ lg: 280 }}>
+        <Box
+          component="aside"
+          pos={{ base: 'static', lg: 'sticky' }}
+          top="calc(var(--app-shell-header-offset, 0px) + var(--mantine-spacing-md))"
+        >
+          <Paper withBorder radius="md" p="md">
+            <Stack gap="sm">
+              <Group justify="space-between" gap="xs">
+                <Eyebrow>Documentation Menu</Eyebrow>
+                <Button
+                  variant="default"
+                  size="xs"
+                  type="button"
+                  onClick={() => setMenuOpen((open) => !open)}
+                  hiddenFrom="lg"
+                  aria-expanded={menuOpen}
+                >
+                  {menuOpen ? 'Hide' : 'Show'}
+                </Button>
+              </Group>
+              <SearchInput
+                value={search}
+                onChange={setSearch}
+                placeholder="Search pages, entities, concepts"
+                aria-label="Search documentation"
+              />
 
-          <div className={`mt-4 space-y-4 text-sm ${menuOpen ? 'block' : 'hidden lg:block'}`}>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Overview</p>
-              <div className="mt-2 space-y-1">
-                <a href="#admin-guide-start" className="block rounded-md px-2 py-1.5 text-slate-600 hover:bg-slate-50 hover:text-slate-900">How To Use This Guide</a>
-                <a href="#admin-learning-path" className="block rounded-md px-2 py-1.5 text-slate-600 hover:bg-slate-50 hover:text-slate-900">Learning Path</a>
-                <a href="#admin-core-concepts" className="block rounded-md px-2 py-1.5 text-slate-600 hover:bg-slate-50 hover:text-slate-900">Core OAuth2/OIDC</a>
-                <a href="#admin-page-guides" className="block rounded-md px-2 py-1.5 text-slate-600 hover:bg-slate-50 hover:text-slate-900">Page Guides</a>
-                <a href="#admin-concept-library" className="block rounded-md px-2 py-1.5 text-slate-600 hover:bg-slate-50 hover:text-slate-900">Concept Library</a>
-              </div>
-            </div>
+              <Stack gap="md" display={{ base: menuOpen ? 'flex' : 'none', lg: 'flex' }}>
+                <Stack gap={4}>
+                  <Eyebrow>Overview</Eyebrow>
+                  {overviewLinks.map((link) => (
+                    <NavLink key={link.href} component="a" href={link.href} label={link.label} />
+                  ))}
+                </Stack>
 
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Pages</p>
-              <div className="mt-2 max-h-64 space-y-1 overflow-auto pr-1">
-                {navPages.map((item) => (
-                  <a key={item.id} href={`#${item.id}`} className="block rounded-md px-2 py-1.5 text-slate-600 hover:bg-slate-50 hover:text-slate-900">
-                    {item.label}
-                  </a>
-                ))}
-              </div>
-            </div>
+                <Stack gap={4}>
+                  <Eyebrow>Pages</Eyebrow>
+                  <ScrollArea.Autosize mah={256} type="auto" offsetScrollbars>
+                    {navPages.map((item) => (
+                      <NavLink key={item.id} component="a" href={`#${item.id}`} label={item.label} />
+                    ))}
+                  </ScrollArea.Autosize>
+                </Stack>
 
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Concepts</p>
-              <div className="mt-2 max-h-64 space-y-1 overflow-auto pr-1">
-                {navConcepts.map((item) => (
-                  <a key={item.id} href={`#${item.id}`} className="block rounded-md px-2 py-1.5 text-slate-600 hover:bg-slate-50 hover:text-slate-900">
-                    {item.label}
-                  </a>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </aside>
+                <Stack gap={4}>
+                  <Eyebrow>Concepts</Eyebrow>
+                  <ScrollArea.Autosize mah={256} type="auto" offsetScrollbars>
+                    {navConcepts.map((item) => (
+                      <NavLink key={item.id} component="a" href={`#${item.id}`} label={item.label} />
+                    ))}
+                  </ScrollArea.Autosize>
+                </Stack>
+              </Stack>
+            </Stack>
+          </Paper>
+        </Box>
+      </Grid.Col>
 
-      <div className="space-y-4">
-        {searchNeedle ? (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-            Search results: {pageGuides.length} page guide sections, {visibleConcepts.length} concept entries, {coreConcepts.length} core concepts.
-          </div>
-        ) : null}
+      <Grid.Col span={{ base: 12, lg: 'auto' }} miw={0}>
+        <Stack gap="md">
+          {searchNeedle ? (
+            <Paper withBorder radius="md" px="md" py="sm" bg="var(--nx-color-surface-sunken)">
+              <Text size="xs" c="dimmed">
+                Search results: {pageGuides.length} page guide sections, {visibleConcepts.length} concept entries, {coreConcepts.length} core concepts.
+              </Text>
+            </Paper>
+          ) : null}
 
-        <div id="admin-guide-start" className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
-          <h3 className="text-base font-semibold text-amber-900">How To Use This Admin Guide</h3>
-          <p className="mt-2 text-sm text-amber-800">
+          <Alert id="admin-guide-start" color="yellow" title="How To Use This Admin Guide">
             Use the floating menu to jump by page or concept, and use search to narrow the documentation before you read.
             The page guides are grouped by admin view so the explanation for each entity lives close to the screen where operators actually use it.
-          </p>
-        </div>
+          </Alert>
 
-        <div id="admin-learning-path" className="rounded-2xl border border-indigo-200 bg-indigo-50 p-5 shadow-sm">
-          <h3 className="text-base font-semibold text-indigo-900">Admin Operator Learning Path</h3>
-          <p className="mt-2 text-sm text-indigo-800">
+          <Alert id="admin-learning-path" color="indigo" title="Admin Operator Learning Path">
             Use the tutorials below in order for onboarding. They walk from setup and identity basics into advanced policy,
             federation, and event operations with expected outcomes.
-          </p>
-        </div>
+          </Alert>
 
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-          <h3 className="text-base font-semibold text-emerald-900">Authentication Flows Quick Reference</h3>
-          <p className="mt-2 text-sm text-emerald-800">
-            Authentication flows are managed from the Authentication view and define ordered stage pipelines for supported grants.
-            Use this reference when operating or troubleshooting flow configuration.
-          </p>
-          <div className="mt-4 grid gap-4 lg:grid-cols-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Admin API Routes</p>
-              <ul className="mt-2 space-y-1 text-xs font-mono text-emerald-900">
-                {authFlowApiRoutes.map((route) => (
-                  <li key={route}>{route}</li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Grant Types</p>
-              <ul className="mt-2 space-y-1 text-xs font-mono text-emerald-900">
-                {authFlowGrantTypes.map((grant) => (
-                  <li key={grant}>{grant}</li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Stage Types</p>
-              <ul className="mt-2 max-h-48 space-y-1 overflow-auto pr-1 text-xs font-mono text-emerald-900">
-                {authFlowStageTypes.map((stage) => (
-                  <li key={stage}>{stage}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
+          <Alert color="green" title="Authentication Flows Quick Reference">
+            <Stack gap="md">
+              <Text size="sm">
+                Authentication flows are managed from the Authentication view and define ordered stage pipelines for supported grants.
+                Use this reference when operating or troubleshooting flow configuration.
+              </Text>
+              <SimpleGrid cols={{ base: 1, lg: 3 }} spacing="md">
+                <Stack gap={6}>
+                  <Eyebrow c="green">Admin API Routes</Eyebrow>
+                  {monoList(authFlowApiRoutes)}
+                </Stack>
+                <Stack gap={6}>
+                  <Eyebrow c="green">Grant Types</Eyebrow>
+                  {monoList(authFlowGrantTypes)}
+                </Stack>
+                <Stack gap={6}>
+                  <Eyebrow c="green">Stage Types</Eyebrow>
+                  <ScrollArea.Autosize mah={192} type="auto" offsetScrollbars>
+                    {monoList(authFlowStageTypes)}
+                  </ScrollArea.Autosize>
+                </Stack>
+              </SimpleGrid>
+            </Stack>
+          </Alert>
 
-        {ADMIN_TUTORIALS.map((tutorial) => (
-          <div key={tutorial.title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="text-base font-semibold text-slate-900">{tutorial.title}</h3>
-            <p className="mt-1 text-sm text-slate-600"><span className="font-semibold">Goal:</span> {tutorial.goal}</p>
-            <div className="mt-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Steps</p>
-              <ul className="mt-2 space-y-1 text-sm text-slate-700">
-                {tutorial.steps.map((step) => (
-                  <li key={step}>{step}</li>
-                ))}
-              </ul>
-            </div>
-            <p className="mt-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-              <span className="font-semibold">Expected result:</span> {tutorial.expectedResult}
-            </p>
-          </div>
-        ))}
+          {ADMIN_TUTORIALS.map((tutorial) => (
+            <TutorialCard key={tutorial.title} tutorial={tutorial} />
+          ))}
 
-        <div id="admin-core-concepts" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-lg font-semibold text-slate-900">Core OAuth2 And OIDC Concepts</h3>
-          <p className="mt-2 text-sm text-slate-600">
-            These are the baseline concepts used throughout the admin views and API operations.
-          </p>
-          <div className="mt-4 space-y-3">
-            {coreConcepts.map((item) => (
-              <div key={item.title} className="rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
-                <p className="text-sm font-semibold text-slate-900">{item.title}</p>
-                <p className="mt-1 text-sm leading-6 text-slate-600">{item.detail}</p>
-              </div>
-            ))}
-            {searchNeedle && coreConcepts.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500">No core concept matches the current search.</p>
-            ) : null}
-          </div>
-        </div>
+          <Box id="admin-core-concepts">
+          <SectionCard
+            title="Core OAuth2 And OIDC Concepts"
+            description="These are the baseline concepts used throughout the admin views and API operations."
+          >
+            <Stack gap="sm">
+              {coreConcepts.map((item) => (
+                <Paper key={item.title} withBorder radius="md" px="md" py="sm" bg="var(--nx-color-surface-sunken)">
+                  <Text size="sm" fw={600}>{item.title}</Text>
+                  <Text size="sm" c="dimmed" mt={4} lh={1.6}>{item.detail}</Text>
+                </Paper>
+              ))}
+              {searchNeedle && coreConcepts.length === 0 ? (
+                <Paper withBorder radius="md" px="md" py="sm" style={{ borderStyle: 'dashed' }}>
+                  <Text size="sm" c="dimmed">No core concept matches the current search.</Text>
+                </Paper>
+              ) : null}
+            </Stack>
+          </SectionCard>
+          </Box>
 
-        <div id="admin-page-guides" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-lg font-semibold text-slate-900">Page Guides</h3>
-          <p className="mt-2 text-sm text-slate-600">
-            Every page guide combines the view purpose, available functions, related concepts, and field-by-field entity tutorials in one place.
-          </p>
-        </div>
+          <Box id="admin-page-guides">
+            <SectionCard
+              title="Page Guides"
+              description="Every page guide combines the view purpose, available functions, related concepts, and field-by-field entity tutorials in one place."
+            />
+          </Box>
 
-        {pageGuides.map(({ item, tutorials, concepts }) => (
-          <section id={`page-${slugify(item.view)}`} key={`${item.view}:${item.route}`} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h4 className="text-lg font-semibold text-slate-900">{item.view}</h4>
-              <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-mono text-slate-600">{item.route}</span>
-            </div>
-            <p className="mt-2 text-sm text-slate-600">{item.purpose}</p>
+          {pageGuides.map(({ item, tutorials, concepts }) => (
+            <Box component="section" id={`page-${slugify(item.view)}`} key={`${item.view}:${item.route}`}>
+            <SectionCard
+              title={item.view}
+              description={item.purpose}
+              actions={<Code>{item.route}</Code>}
+            >
+              <Stack gap="md">
+                <Stack gap={6}>
+                  <Eyebrow>Functions</Eyebrow>
+                  <List size="sm" spacing={4}>
+                    {item.functions.map((fn) => (
+                      <List.Item key={fn}>{fn}</List.Item>
+                    ))}
+                  </List>
+                </Stack>
 
-            <div className="mt-4">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Functions</p>
-              <ul className="mt-2 space-y-1 text-sm text-slate-700">
-                {item.functions.map((fn) => (
-                  <li key={fn}>{fn}</li>
-                ))}
-              </ul>
-            </div>
+                {concepts.length ? (
+                  <Stack gap={6}>
+                    <Eyebrow>Related Concepts</Eyebrow>
+                    <Group gap="xs">
+                      {concepts.map((concept) => (
+                        <Button
+                          key={`${item.view}:${concept.id}`}
+                          component="a"
+                          href={`#concept-${concept.id}`}
+                          variant="default"
+                          size="compact-xs"
+                          fw={500}
+                        >
+                          {concept.title}
+                        </Button>
+                      ))}
+                    </Group>
+                  </Stack>
+                ) : null}
 
-            {concepts.length ? (
-              <div className="mt-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Related Concepts</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {concepts.map((concept) => (
-                    <a
-                      key={`${item.view}:${concept.id}`}
-                      href={`#concept-${concept.id}`}
-                      className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
-                    >
-                      {concept.title}
-                    </a>
-                  ))}
-                </div>
-              </div>
-            ) : null}
+                {tutorials.length ? (
+                  <Stack gap="md" pt="md" style={{ borderTop: '1px solid var(--nx-color-border)' }}>
+                    <Stack gap={4}>
+                      <Eyebrow>Field Tutorials</Eyebrow>
+                      <Text size="sm" c="dimmed">These are the entities operators configure from this page or directly alongside it.</Text>
+                    </Stack>
 
-            {tutorials.length ? (
-              <div className="mt-5 space-y-4 border-t border-slate-100 pt-5">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Field Tutorials</p>
-                  <p className="mt-1 text-sm text-slate-600">These are the entities operators configure from this page or directly alongside it.</p>
-                </div>
+                    {tutorials.map((tutorial) => (
+                      <Paper key={`${item.view}:${tutorial.entity}`} withBorder radius="md" p="md" bg="var(--nx-color-surface-sunken)">
+                        <Stack gap="sm">
+                          <Title order={5}>{tutorial.entity}</Title>
+                          <Stack gap={4}>
+                            <LabeledText label="Purpose:">{tutorial.purpose}</LabeledText>
+                            <LabeledText label="When to use it:">{tutorial.whenToUse}</LabeledText>
+                          </Stack>
+                          <Group gap="xs">
+                            {tutorial.learnMore.map((conceptId) => {
+                              const concept = conceptById.get(conceptId)
+                              return concept ? (
+                                <Button
+                                  key={`${tutorial.entity}:${conceptId}`}
+                                  component="a"
+                                  href={`#concept-${conceptId}`}
+                                  variant="default"
+                                  size="compact-xs"
+                                  fw={500}
+                                >
+                                  {concept.title}
+                                </Button>
+                              ) : null
+                            })}
+                          </Group>
+                          <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
+                            <ScrollTip>Tip: swipe horizontally on small screens to view all field columns.</ScrollTip>
+                            <Table.ScrollContainer minWidth={760}>
+                              <Table verticalSpacing="sm" horizontalSpacing="md" fz="sm">
+                                <Table.Thead>
+                                  <Table.Tr>
+                                    <Table.Th>Field</Table.Th>
+                                    <Table.Th>What It Means</Table.Th>
+                                    <Table.Th>Recommended Practice</Table.Th>
+                                  </Table.Tr>
+                                </Table.Thead>
+                                <Table.Tbody>
+                                  {tutorial.fields.map((field) => (
+                                    <Table.Tr key={`${tutorial.entity}:${field.field}`} style={{ verticalAlign: 'top' }}>
+                                      <Table.Td fw={600}>{field.field}</Table.Td>
+                                      <Table.Td>{field.meaning}</Table.Td>
+                                      <Table.Td>{field.recommendation}</Table.Td>
+                                    </Table.Tr>
+                                  ))}
+                                </Table.Tbody>
+                              </Table>
+                            </Table.ScrollContainer>
+                          </Paper>
+                        </Stack>
+                      </Paper>
+                    ))}
+                  </Stack>
+                ) : null}
+              </Stack>
+            </SectionCard>
+            </Box>
+          ))}
 
-                {tutorials.map((tutorial) => (
-                  <div key={`${item.view}:${tutorial.entity}`} className="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
-                    <h5 className="text-base font-semibold text-slate-900">{tutorial.entity}</h5>
-                    <p className="mt-2 text-sm text-slate-700"><span className="font-semibold">Purpose:</span> {tutorial.purpose}</p>
-                    <p className="mt-1 text-sm text-slate-700"><span className="font-semibold">When to use it:</span> {tutorial.whenToUse}</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {tutorial.learnMore.map((conceptId) => {
-                        const concept = conceptById.get(conceptId)
-                        return concept ? (
-                          <a
-                            key={`${tutorial.entity}:${conceptId}`}
-                            href={`#concept-${conceptId}`}
-                            className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
-                          >
-                            {concept.title}
-                          </a>
-                        ) : null
-                      })}
-                    </div>
-                    <div className="mt-4 overflow-auto rounded-xl border border-slate-200 bg-white">
-                      <div className="border-b border-slate-200 px-4 py-2 text-xs text-slate-500">
-                        Tip: swipe horizontally on small screens to view all field columns.
-                      </div>
-                      <table className="min-w-[760px] w-full text-left text-sm">
-                        <thead className="bg-slate-50 text-slate-600">
-                          <tr>
-                            <th className="px-4 py-3 font-semibold">Field</th>
-                            <th className="px-4 py-3 font-semibold">What It Means</th>
-                            <th className="px-4 py-3 font-semibold">Recommended Practice</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {tutorial.fields.map((field) => (
-                            <tr key={`${tutorial.entity}:${field.field}`} className="border-t border-slate-100 align-top">
-                              <td className="px-4 py-3 font-semibold text-slate-900">{field.field}</td>
-                              <td className="px-4 py-3 text-slate-700">{field.meaning}</td>
-                              <td className="px-4 py-3 text-slate-700">{field.recommendation}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </section>
-        ))}
+          {!hasResults ? (
+            <Paper withBorder radius="md" p="lg" style={{ borderStyle: 'dashed' }}>
+              <Text size="sm" c="dimmed">
+                No admin pages or concepts matched the current search. Try a page name like Users or a concept like PKCE.
+              </Text>
+            </Paper>
+          ) : null}
 
-        {!hasResults ? (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">
-            No admin pages or concepts matched the current search. Try a page name like Users or a concept like PKCE.
-          </div>
-        ) : null}
+          <Box id="admin-concept-library">
+            <SectionCard
+              title="Concept Library"
+              description="Deep explanations of the concepts referenced by the page guides. Use these when you need the mental model behind a field or workflow."
+            />
+          </Box>
 
-        <div id="admin-concept-library" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-lg font-semibold text-slate-900">Concept Library</h3>
-          <p className="mt-2 text-sm text-slate-600">
-            Deep explanations of the concepts referenced by the page guides. Use these when you need the mental model behind a field or workflow.
-          </p>
-        </div>
-
-        {visibleConcepts.map((concept) => (
-          <section id={`concept-${concept.id}`} key={concept.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h4 className="text-base font-semibold text-slate-900">{concept.title}</h4>
-            <p className="mt-2 text-sm text-slate-700 p-2"><span className="font-semibold">Plain explanation:</span> {concept.plainExplanation}</p>
-            <p className="mt-1 text-sm text-slate-700 p-2"><span className="font-semibold">Why it matters:</span> {concept.whyItMatters}</p>
-            <p className="mt-1 text-sm text-slate-700 p-2"><span className="font-semibold">Who defines it:</span> {concept.whoDefinesIt}</p>
-            <div className="mt-2">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Where in Admin</p>
-              <ul className="mt-1 space-y-1 text-sm text-slate-700">
-                {concept.whereInAdmin.map((where) => (
-                  <li className="ml-4 list-disc" key={where}>{where}</li>
-                ))}
-              </ul>
-            </div>
-            <div className="mt-2">
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Details</p>
-              <ul className="mt-1 space-y-1 text-sm text-slate-700">
-                {concept.details.map((detail) => (
-                  <li className="pl-1" key={detail}>{detail}</li>
-                ))}
-              </ul>
-            </div>
-          </section>
-        ))}
-      </div>
-    </div>
+          {visibleConcepts.map((concept) => (
+            <Box component="section" id={`concept-${concept.id}`} key={concept.id}>
+            <SectionCard title={concept.title}>
+              <Stack gap="sm">
+                <LabeledText label="Plain explanation:">{concept.plainExplanation}</LabeledText>
+                <LabeledText label="Why it matters:">{concept.whyItMatters}</LabeledText>
+                <LabeledText label="Who defines it:">{concept.whoDefinesIt}</LabeledText>
+                <Stack gap={4}>
+                  <Eyebrow>Where in Admin</Eyebrow>
+                  <List size="sm" spacing={4}>
+                    {concept.whereInAdmin.map((where) => (
+                      <List.Item key={where}>{where}</List.Item>
+                    ))}
+                  </List>
+                </Stack>
+                <Stack gap={4}>
+                  <Eyebrow>Details</Eyebrow>
+                  <List size="sm" spacing={4} listStyleType="none">
+                    {concept.details.map((detail) => (
+                      <List.Item key={detail}>{detail}</List.Item>
+                    ))}
+                  </List>
+                </Stack>
+              </Stack>
+            </SectionCard>
+            </Box>
+          ))}
+        </Stack>
+      </Grid.Col>
+    </Grid>
   )
 }
 
@@ -5208,77 +5261,65 @@ function DevDocs() {
 }`
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-2xl border border-sky-200 bg-sky-50 p-5 text-sm text-sky-900 shadow-sm">
+    <Stack gap="md">
+      <Alert color="blue">
         Extension is supported through explicit service and admin modules. Keep security invariants intact: permission checks,
         CSRF enforcement on admin mutations, and audit/event emission for state-changing operations.
-      </div>
+      </Alert>
 
-      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-        <h3 className="text-base font-semibold text-emerald-900">Plugin Runtime Development Guide</h3>
-        <p className="mt-2 text-sm text-emerald-800">
-          Plugins run in a sandboxed runtime and are invoked on declared hook events. Upload as ZIP with an entrypoint file that exports
-          <span className="font-mono"> onEvent(event, api)</span>.
-        </p>
-        <ul className="mt-3 space-y-1 text-sm text-emerald-900">
-          <li>- Runtime hook invocation uses manifest.hooks exact event names.</li>
-          <li>- Keep handlers deterministic and fast; execution uses strict timeout bounds.</li>
-          <li>- Use <span className="font-mono">api.log(message, metadata)</span> for plugin diagnostics (captured in audit telemetry).</li>
-          <li>- Avoid side effects outside declared integration behavior.</li>
-        </ul>
+      <Alert color="green" title="Plugin Runtime Development Guide">
+        <Stack gap="md">
+          <Text size="sm">
+            Plugins run in a sandboxed runtime and are invoked on declared hook events. Upload as ZIP with an entrypoint file that exports{' '}
+            <Code>onEvent(event, api)</Code>.
+          </Text>
+          <List size="sm" spacing={4}>
+            <List.Item>Runtime hook invocation uses manifest.hooks exact event names.</List.Item>
+            <List.Item>Keep handlers deterministic and fast; execution uses strict timeout bounds.</List.Item>
+            <List.Item>Use <Code>api.log(message, metadata)</Code> for plugin diagnostics (captured in audit telemetry).</List.Item>
+            <List.Item>Avoid side effects outside declared integration behavior.</List.Item>
+          </List>
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Manifest Example</p>
-            <CodeBlock code={pluginManifestExample} language="json" className="mt-2" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Entrypoint Example</p>
-            <CodeBlock code={pluginRuntimeExample} language="javascript" className="mt-2" />
-          </div>
-        </div>
-      </div>
+          <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="md">
+            <Stack gap={6} miw={0}>
+              <Eyebrow c="green">Manifest Example</Eyebrow>
+              <CodeBlock code={pluginManifestExample} language="json" />
+            </Stack>
+            <Stack gap={6} miw={0}>
+              <Eyebrow c="green">Entrypoint Example</Eyebrow>
+              <CodeBlock code={pluginRuntimeExample} language="javascript" />
+            </Stack>
+          </SimpleGrid>
+        </Stack>
+      </Alert>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="text-base font-semibold text-slate-900">Plugin Lifecycle</h3>
-        <p className="mt-2 text-sm text-slate-600">
-          See <span className="font-mono">docs/PLUGIN_DEVELOPMENT.md</span> for the full plugin packaging and runtime reference.
-        </p>
-        <ol className="mt-2 space-y-1 text-sm text-slate-700">
-          <li>1. Build plugin bundle as ZIP with entrypoint path matching manifest.entrypoint.</li>
-          <li>2. Validate bundle and manifest in Admin Plugins.</li>
-          <li>3. Upload and optionally activate plugin.</li>
-          <li>4. Runtime hot-reloads active plugins after upload/delete.</li>
-          <li>5. Verify behavior by triggering matching events and reviewing audit logs for plugin_runtime_* events.</li>
-        </ol>
-      </div>
+      <SectionCard
+        title="Plugin Lifecycle"
+        description={
+          <>
+            See <Code>docs/PLUGIN_DEVELOPMENT.md</Code> for the full plugin packaging and runtime reference.
+          </>
+        }
+      >
+        <List type="ordered" size="sm" spacing={4}>
+          <List.Item>Build plugin bundle as ZIP with entrypoint path matching manifest.entrypoint.</List.Item>
+          <List.Item>Validate bundle and manifest in Admin Plugins.</List.Item>
+          <List.Item>Upload and optionally activate plugin.</List.Item>
+          <List.Item>Runtime hot-reloads active plugins after upload/delete.</List.Item>
+          <List.Item>Verify behavior by triggering matching events and reviewing audit logs for plugin_runtime_* events.</List.Item>
+        </List>
+      </SectionCard>
 
       {DEV_TUTORIALS.map((tutorial) => (
-        <div key={tutorial.title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-base font-semibold text-slate-900">{tutorial.title}</h3>
-          <p className="mt-1 text-sm text-slate-600"><span className="font-semibold">Goal:</span> {tutorial.goal}</p>
-          <div className="mt-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Steps</p>
-            <ul className="mt-2 space-y-1 text-sm text-slate-700">
-              {tutorial.steps.map((step) => (
-                <li key={step}>{step}</li>
-              ))}
-            </ul>
-          </div>
-          <p className="mt-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-            <span className="font-semibold">Expected result:</span> {tutorial.expectedResult}
-          </p>
-        </div>
+        <TutorialCard key={tutorial.title} tutorial={tutorial} />
       ))}
 
       {DEV_EXTENSION_POINTS.map((item) => (
-        <div key={item.name} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="text-base font-semibold text-slate-900">{item.name}</h3>
-          <p className="mt-2 text-xs uppercase tracking-wider text-slate-400">{item.where}</p>
-          <p className="mt-2 text-sm leading-6 text-slate-600">{item.guidance}</p>
-        </div>
+        <SectionCard key={item.name} title={item.name} eyebrow={item.where}>
+          <Text size="sm" c="dimmed" lh={1.6}>{item.guidance}</Text>
+        </SectionCard>
       ))}
-    </div>
+    </Stack>
   )
 }
 
@@ -5286,40 +5327,25 @@ export default function Documentation() {
   const [area, setArea] = useState<DocArea>('api')
 
   return (
-    <div className="space-y-6">
+    <>
       <PageHeader
         eyebrow="Knowledge Base"
         title="Platform Documentation"
         description="Centralized documentation for API surface, admin system capabilities, and safe developer extension paths."
+        tabs={
+          <Tabs value={area} onChange={(value) => value && setArea(value as DocArea)}>
+            <Tabs.List>
+              <Tabs.Tab value="api" leftSection={<Server size={14} />}>API Documentation</Tabs.Tab>
+              <Tabs.Tab value="admin" leftSection={<BookText size={14} />}>Admin Documentation</Tabs.Tab>
+              <Tabs.Tab value="dev" leftSection={<Code2 size={14} />}>Dev Documentation</Tabs.Tab>
+            </Tabs.List>
+          </Tabs>
+        }
       />
-
-      <div className="flex flex-wrap gap-2">
-        <Button
-          variant={area === 'api' ? 'primary' : 'secondary'}
-          onClick={() => setArea('api')}
-        >
-          <Server size={14} />
-          API Documentation
-        </Button>
-        <Button
-          variant={area === 'admin' ? 'primary' : 'secondary'}
-          onClick={() => setArea('admin')}
-        >
-          <BookText size={14} />
-          Admin Documentation
-        </Button>
-        <Button
-          variant={area === 'dev' ? 'primary' : 'secondary'}
-          onClick={() => setArea('dev')}
-        >
-          <Code2 size={14} />
-          Dev Documentation
-        </Button>
-      </div>
 
       {area === 'api' ? <ApiDocs /> : null}
       {area === 'admin' ? <AdminDocs /> : null}
       {area === 'dev' ? <DevDocs /> : null}
-    </div>
+    </>
   )
 }

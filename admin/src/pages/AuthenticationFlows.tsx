@@ -1,17 +1,11 @@
-import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
-import Select from '../components/ui/Select'
-import { Check, ClipboardList, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
-import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
+import { ActionIcon, Alert, Badge, Box, Button, Checkbox, Group, NativeSelect, Paper, Stack, Table, Text, TextInput, ThemeIcon, Tooltip } from '@mantine/core'
+import { Check, ChevronDown, ChevronUp, ClipboardList, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { PageHeader, SearchInput, SectionCard, TableSkeleton } from '@nexus/design'
 import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
-import ListSearch from '../components/ListSearch'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
-import StatusBadge from '../components/ui/StatusBadge'
-import Button from '../components/ui/Button'
-import Input from '../components/ui/Input'
-import Card from '../components/ui/Card'
-import React from 'react';
+import EmptyState from '../components/EmptyState'
 import {
   useAuthenticationFlows,
   useCreateAuthenticationFlow,
@@ -98,8 +92,6 @@ const blankForm = {
   grantTypes: ['authorization_code', 'refresh_token'] as GrantType[],
   stages: ['password', 'federation', 'consent'] as StageType[],
 }
-
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
 
 const AuthenticationFlows = () => {
   const [searchInput, setSearchInput] = useState('')
@@ -199,31 +191,28 @@ const AuthenticationFlows = () => {
   }
 
   return (
-    <div>
+    <Stack gap="lg">
       <PageHeader
         eyebrow="Authentication"
         title="Flows & Stages"
-        action={
-          <Button variant="primary" onClick={openCreate}>
-            <Plus size={14} />
-            New Flow
+        actions={
+          <Button leftSection={<Plus size={16} />} onClick={openCreate}>
+            New flow
           </Button>
         }
       />
 
-      <div className="mb-4">
-        <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search authentication flows…" />
-      </div>
+      <SearchInput value={searchInput} onChange={setSearchInput} placeholder="Search authentication flows…" maw={360} />
 
-      <Table>
-        <TableHeaderRow>
-          <h4 className="text-sm font-semibold text-foreground">Configured Authentication Flows</h4>
-          <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
-            <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
+      <SectionCard
+        flush
+        title="Configured authentication flows"
+        actions={
+          <Button variant="subtle" size="xs" leftSection={<RefreshCw size={14} />} onClick={() => refetch()} loading={isFetching} disabled={isFetching}>
             Refresh
           </Button>
-        </TableHeaderRow>
-
+        }
+      >
         {isLoading ? (
           <TableSkeleton rows={4} />
         ) : flows.length === 0 ? (
@@ -233,72 +222,76 @@ const AuthenticationFlows = () => {
             description="Create a flow to define how users authenticate."
           />
         ) : (
-          <TableBody>
-            {flows.map((flow) => (
-              <TableRow key={flow.id} className="px-5 py-4 hover:bg-muted/50 transition-colors flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center">
-                      <ClipboardList size={14} className="text-muted-foreground" />
-                    </div>
-                    <h5 className="text-sm font-medium text-foreground">{flow.name}</h5>
-                    <StatusBadge tone="neutral" className="uppercase tracking-wider">{flow.designation}</StatusBadge>
-                    {flow.enabled && (
-                      <StatusBadge tone="success">
-                        <Check size={10} /> Active
-                      </StatusBadge>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-2">{flow.description}</p>
-                  <div className="flex flex-wrap gap-1 mb-2">
-                    {flow.grantTypes.map((grantType) => (
-                      <StatusBadge key={`${flow.id}-grant-${grantType}`} tone="accent" mono>
-                        {grantType}
-                      </StatusBadge>
-                    ))}
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {[...flow.stages]
-                      .sort((a, b) => a.order - b.order)
-                      .map((stage) => (
-                        <StatusBadge key={`${flow.id}-${stage.type}`} tone="neutral" mono>
-                          {stage.order}. {stage.type}
-                        </StatusBadge>
-                      ))}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => openEdit(flow)}
-                    title="Edit flow"
-                  >
-                    <Pencil size={14} />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="hover:bg-rose-50 hover:text-rose-600"
-                    onClick={() => onDelete(flow)}
-                    disabled={deleteFlow.isPending}
-                    title="Delete flow"
-                  >
-                    <Trash2 size={14} />
-                  </Button>
-                </div>
-              </TableRow>
-            ))}
-          </TableBody>
+          <Table.ScrollContainer minWidth={560} mb={0}>
+            <Table verticalSpacing="md" highlightOnHover>
+              <Table.Tbody>
+                {flows.map((flow) => (
+                  <Table.Tr key={flow.id}>
+                    <Table.Td pl="lg">
+                      <Group gap="xs" mb={4} wrap="wrap">
+                        <ThemeIcon size={28} radius="md" variant="light" color="gray">
+                          <ClipboardList size={14} />
+                        </ThemeIcon>
+                        <Text size="sm" fw={500}>{flow.name}</Text>
+                        <Badge size="sm" variant="light" color="gray">{flow.designation}</Badge>
+                        {flow.enabled && (
+                          <Badge size="sm" variant="light" color="green" leftSection={<Check size={10} />}>
+                            Active
+                          </Badge>
+                        )}
+                      </Group>
+                      <Text size="xs" c="dimmed" mb="xs">{flow.description}</Text>
+                      <Group gap={4} mb={6}>
+                        {flow.grantTypes.map((grantType) => (
+                          <Badge key={`${flow.id}-grant-${grantType}`} size="sm" variant="light" color="blue" tt="none" ff="monospace" fw={500}>
+                            {grantType}
+                          </Badge>
+                        ))}
+                      </Group>
+                      <Group gap={4}>
+                        {[...flow.stages]
+                          .sort((a, b) => a.order - b.order)
+                          .map((stage) => (
+                            <Badge key={`${flow.id}-${stage.type}`} size="sm" variant="light" color="gray" tt="none" ff="monospace" fw={500}>
+                              {stage.order}. {stage.type}
+                            </Badge>
+                          ))}
+                      </Group>
+                    </Table.Td>
+                    <Table.Td pr="lg" w={1} style={{ verticalAlign: 'top' }}>
+                      <Group gap={4} wrap="nowrap">
+                        <Tooltip label="Edit flow">
+                          <ActionIcon variant="subtle" color="gray" aria-label="Edit flow" onClick={() => openEdit(flow)}>
+                            <Pencil size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                        <Tooltip label="Delete flow">
+                          <ActionIcon
+                            variant="subtle"
+                            color="red"
+                            aria-label="Delete flow"
+                            onClick={() => onDelete(flow)}
+                            disabled={deleteFlow.isPending}
+                          >
+                            <Trash2 size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
         )}
-      </Table>
+      </SectionCard>
 
       <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title="Create Authentication Flow">
         <FlowForm
           form={form}
           setForm={setForm}
           pending={createFlow.isPending}
-          submitLabel={createFlow.isPending ? 'Creating...' : 'Create Flow'}
+          submitLabel="Create flow"
           onSubmit={onCreate}
           error={createFormError}
         />
@@ -309,7 +302,7 @@ const AuthenticationFlows = () => {
           form={form}
           setForm={setForm}
           pending={updateFlow.isPending}
-          submitLabel={updateFlow.isPending ? 'Saving...' : 'Save Changes'}
+          submitLabel="Save changes"
           onSubmit={onEdit}
           error={editFormError}
         />
@@ -324,7 +317,7 @@ const AuthenticationFlows = () => {
         onConfirm={confirmDeleteFlow}
         onCancel={() => setFlowToDelete(null)}
       />
-    </div>
+    </Stack>
   )
 }
 
@@ -376,93 +369,92 @@ function FlowForm({
   }
 
   return (
-    <div className="space-y-4">
-      {error && <p className="text-xs text-rose-600">{error}</p>}
-      <div>
-        <label className={labelCls}>Flow Name</label>
-        <Input value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="High assurance login" />
-      </div>
-      <div>
-        <label className={labelCls}>Description</label>
-        <Input value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} placeholder="Federation + consent + optional MFA" />
-      </div>
-      <div>
-        <label className={labelCls}>Designation</label>
-        <Select value={form.designation} onChange={(e) => setForm((prev) => ({ ...prev, designation: e.target.value as FlowDesignation }))}>
-          {DESIGNATION_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>{option.label}</option>
-          ))}
-        </Select>
-      </div>
-      <div>
-        <label className={labelCls}>Grant Types</label>
-        <div className="space-y-2 rounded-lg border border-border p-2 flex flex-col gap-5">
-          {GRANT_OPTIONS.map((option) => (
-            <label key={option.value} className="inline-flex items-center gap-1 text-sm text-foreground cursor-pointer">
-              <input
-                type="checkbox"
+    <Stack gap="md">
+      {error && <Alert color="red" variant="light">{error}</Alert>}
+      <TextInput
+        label="Flow name"
+        value={form.name}
+        onChange={(e) => { const value = e.currentTarget.value; setForm((prev) => ({ ...prev, name: value })) }}
+        placeholder="High assurance login"
+      />
+      <TextInput
+        label="Description"
+        value={form.description}
+        onChange={(e) => { const value = e.currentTarget.value; setForm((prev) => ({ ...prev, description: value })) }}
+        placeholder="Federation + consent + optional MFA"
+      />
+      <NativeSelect
+        label="Designation"
+        value={form.designation}
+        onChange={(e) => { const value = e.currentTarget.value as FlowDesignation; setForm((prev) => ({ ...prev, designation: value })) }}
+        data={DESIGNATION_OPTIONS}
+      />
+      <Box>
+        <Text size="sm" fw={500} mb={6}>Grant types</Text>
+        <Paper withBorder radius="md" p="sm">
+          <Stack gap="xs">
+            {GRANT_OPTIONS.map((option) => (
+              <Checkbox
+                key={option.value}
+                label={option.label}
                 checked={form.grantTypes.includes(option.value)}
                 onChange={() => toggleGrant(option.value)}
-                className="rounded border-border"
               />
-              {option.label}
-            </label>
-          ))}
-        </div>
-      </div>
-      <div>
-        <label className={labelCls}>Stages</label>
-        <div className="space-y-2 rounded-lg border border-border p-2">
-          {STAGE_OPTIONS.map((option) => {
-            const enabled = form.stages.includes(option.value)
-            const order = form.stages.indexOf(option.value)
+            ))}
+          </Stack>
+        </Paper>
+      </Box>
+      <Box>
+        <Text size="sm" fw={500} mb={6}>Stages</Text>
+        <Paper withBorder radius="md" p={4}>
+          <Stack gap={0}>
+            {STAGE_OPTIONS.map((option) => {
+              const enabled = form.stages.includes(option.value)
+              const order = form.stages.indexOf(option.value)
 
-            return (
-              <div key={option.value} className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-muted/50">
-                <label className="inline-flex items-center gap-2 text-sm text-foreground cursor-pointer">
-                  <input
-                    type="checkbox"
+              return (
+                <Group key={option.value} justify="space-between" wrap="nowrap" px="xs" py={6} mih={40}>
+                  <Checkbox
+                    label={option.label}
                     checked={enabled}
                     onChange={() => toggleStage(option.value)}
-                    className="rounded border-border"
                   />
-                  {option.label}
-                </label>
-                {enabled ? (
-                  <div className="inline-flex items-center gap-1">
-                    <span className="text-xs text-muted-foreground font-mono">#{order + 1}</span>
-                    <Button variant="outline" size="sm" onClick={() => moveStage(option.value, -1)}>Up</Button>
-                    <Button variant="outline" size="sm" onClick={() => moveStage(option.value, 1)}>Down</Button>
-                  </div>
-                ) : (
-                  <span className="text-xs text-muted-foreground">Disabled</span>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </div>
+                  {enabled ? (
+                    <Group gap={4} wrap="nowrap">
+                      <Text size="xs" c="dimmed" ff="monospace" mr={4}>#{order + 1}</Text>
+                      <ActionIcon variant="default" size="sm" aria-label={`Move ${option.label} up`} onClick={() => moveStage(option.value, -1)}>
+                        <ChevronUp size={14} />
+                      </ActionIcon>
+                      <ActionIcon variant="default" size="sm" aria-label={`Move ${option.label} down`} onClick={() => moveStage(option.value, 1)}>
+                        <ChevronDown size={14} />
+                      </ActionIcon>
+                    </Group>
+                  ) : (
+                    <Text size="xs" c="dimmed">Disabled</Text>
+                  )}
+                </Group>
+              )
+            })}
+          </Stack>
+        </Paper>
+      </Box>
 
-      <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-        <input
-          type="checkbox"
-          className="rounded border-border"
-          checked={form.enabled}
-          onChange={(e) => setForm((prev) => ({ ...prev, enabled: e.target.checked }))}
-        />
-        Set as active authentication flow
-      </label>
+      <Checkbox
+        label="Set as active authentication flow"
+        checked={form.enabled}
+        onChange={(e) => { const checked = e.currentTarget.checked; setForm((prev) => ({ ...prev, enabled: checked })) }}
+      />
 
-      <div className="flex justify-end">
+      <Group justify="flex-end">
         <Button
-          variant="primary"
           onClick={onSubmit}
+          loading={pending}
           disabled={pending || !form.name || !form.description || form.stages.length === 0 || form.grantTypes.length === 0}
         >
           {submitLabel}
         </Button>
-      </div>
-    </div>
+      </Group>
+    </Stack>
   )
 }
 

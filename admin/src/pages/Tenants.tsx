@@ -1,17 +1,12 @@
-import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
-import { Building2, Pencil, Plus, RefreshCw } from 'lucide-react'
-import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
+import { Building2, Pencil, Plus } from 'lucide-react'
 import { useState } from 'react'
-import ListSearch from '../components/ListSearch'
+import { ActionIcon, Box, Button, Checkbox, Group, Stack, Table, Text, TextInput, ThemeIcon } from '@mantine/core'
+import { PageHeader, RefreshButton, SearchInput, SectionCard, TableSkeleton } from '@nexus/design'
+import EmptyState from '../components/EmptyState'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import Modal from '../components/Modal'
-import Button from '../components/ui/Button'
-import Card from '../components/ui/Card'
-import Input from '../components/ui/Input'
 import { useCreateTenant, useTenants, useUpdateTenant } from '../hooks/useApi'
 import React from 'react';
-
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
 
 const Tenants = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false)
@@ -66,126 +61,146 @@ const Tenants = () => {
   }
 
   return (
-    <div>
+    <Box>
       <PageHeader
         eyebrow="Multi-Tenancy"
         title="Organizations"
-        action={
+        actions={
           <Button
             onClick={() => { setCreateFormError(''); setCreateModalOpen(true) }}
-            variant="primary"
-            className="h-9 rounded-lg"
+            leftSection={<Plus size={16} />}
           >
-            <Plus size={14} />
-            New Tenant
+            New tenant
           </Button>
         }
       />
 
-      <div className="mb-4">
-        <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search tenants by name or slug…" />
-      </div>
+      <Stack gap="md">
+        <SearchInput value={searchInput} onChange={setSearchInput} placeholder="Search tenants by name or slug…" maw={360} />
 
-      <Table>
-        <TableHeaderRow>
-          <h4 className="text-sm font-semibold text-foreground">All Tenants</h4>
-          <Button onClick={() => refetch()} disabled={isFetching} variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
-            <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
-            Refresh
-          </Button>
-        </TableHeaderRow>
-        <TableBody>
-          {isLoading && <TableSkeleton rows={3} />}
-          {!isLoading && tenants.length === 0 && <EmptyState title="No organizations yet" description="Create a tenant to enable multi-tenancy." />}
-          {tenants.map((tenant: any) => (
-            <TableRow key={tenant.id} className="flex items-center justify-between gap-4 px-5 py-3.5 hover:bg-muted/50 transition-colors">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                  <Building2 size={14} className="text-muted-foreground" />
-                </div>
-                <div>
-                  <h5 className="text-sm font-medium text-foreground">{tenant.name}</h5>
-                  <p className="text-xs text-muted-foreground font-mono">{tenant.slug}</p>
-                </div>
-              </div>
-              <Button
-                onClick={() => openEditTenant(tenant)}
-                disabled={updateTenant.isPending}
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
-                title="Edit tenant"
-              >
-                <Pencil size={14} />
-              </Button>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+        <SectionCard
+          flush
+          title="All tenants"
+          actions={<RefreshButton size="xs" onRefresh={() => refetch()} loading={isFetching} lastUpdated={null} />}
+        >
+          {isLoading ? (
+            <TableSkeleton rows={3} columns={['avatar', 'text', 'action']} />
+          ) : tenants.length === 0 ? (
+            <EmptyState icon={Building2} title="No organizations yet" description="Create a tenant to enable multi-tenancy." />
+          ) : (
+            <Table.ScrollContainer minWidth={480} type="native">
+              <Table highlightOnHover verticalSpacing="sm">
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Organization</Table.Th>
+                    <Table.Th>Slug</Table.Th>
+                    <Table.Th w={64} />
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {tenants.map((tenant: any) => (
+                    <Table.Tr key={tenant.id}>
+                      <Table.Td>
+                        <Group gap="sm" wrap="nowrap">
+                          <ThemeIcon variant="light" color="gray" size={32} radius="md">
+                            <Building2 size={16} />
+                          </ThemeIcon>
+                          <Text size="sm" fw={500} truncate>{tenant.name}</Text>
+                        </Group>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="xs" c="dimmed" ff="monospace">{tenant.slug}</Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Group justify="flex-end">
+                          <ActionIcon
+                            variant="subtle"
+                            color="gray"
+                            onClick={() => openEditTenant(tenant)}
+                            disabled={updateTenant.isPending}
+                            title="Edit tenant"
+                            aria-label="Edit tenant"
+                          >
+                            <Pencil size={16} />
+                          </ActionIcon>
+                        </Group>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </Table.ScrollContainer>
+          )}
+        </SectionCard>
+      </Stack>
 
       <Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Create New Tenant">
-        <div className="space-y-4">
-          <div>
-            <label className={labelCls}>Organization Name</label>
-            <Input type="text" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} placeholder="Acme Corp" />
-          </div>
-          <div>
-            <label className={labelCls}>Identifier Slug</label>
-            <Input type="text" value={formData.slug} onChange={e => setFormData(p => ({ ...p, slug: e.target.value }))} className="font-mono" placeholder="acme-corp" />
-          </div>
-          <div className="flex gap-2 justify-end pt-2">
-            <Button onClick={() => setCreateModalOpen(false)} variant="secondary" className="h-9 rounded-lg">
+        <Stack gap="md">
+          <TextInput
+            label="Organization name"
+            value={formData.name}
+            onChange={e => { const value = e.currentTarget.value; setFormData(p => ({ ...p, name: value })) }}
+            placeholder="Acme Corp"
+          />
+          <TextInput
+            label="Identifier slug"
+            value={formData.slug}
+            onChange={e => { const value = e.currentTarget.value; setFormData(p => ({ ...p, slug: value })) }}
+            styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
+            placeholder="acme-corp"
+          />
+          <Group justify="flex-end" gap="xs" pt="xs">
+            <Button onClick={() => setCreateModalOpen(false)} variant="default">
               Cancel
             </Button>
             <Button
               onClick={handleCreate}
-              disabled={createTenant.isPending || !formData.name || !formData.slug}
-              variant="primary"
-              className="h-9 rounded-lg"
+              disabled={!formData.name || !formData.slug}
+              loading={createTenant.isPending}
             >
-              {createTenant.isPending ? 'Creating…' : 'Create Tenant'}
+              Create tenant
             </Button>
-          </div>
-          {createFormError && <p className="text-xs text-rose-600">{createFormError}</p>}
-        </div>
+          </Group>
+          {createFormError && <Text size="xs" c="red">{createFormError}</Text>}
+        </Stack>
       </Modal>
 
       <Modal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} title={`Edit Tenant${tenantToEdit ? `: ${tenantToEdit.name}` : ''}`}>
-        <div className="space-y-4">
-          <div>
-            <label className={labelCls}>Organization Name</label>
-            <Input type="text" value={editFormData.name} onChange={e => setEditFormData(p => ({ ...p, name: e.target.value }))} placeholder="Acme Corp" />
-          </div>
-          <div>
-            <label className={labelCls}>Identifier Slug</label>
-            <Input type="text" value={editFormData.slug} onChange={e => setEditFormData(p => ({ ...p, slug: e.target.value }))} className="font-mono" placeholder="acme-corp" />
-          </div>
-          <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
-            <input
-              type="checkbox"
-              checked={editFormData.active}
-              onChange={e => setEditFormData(p => ({ ...p, active: e.target.checked }))}
-              className="rounded border-border"
-            />
-            Tenant is active
-          </label>
-          <div className="flex gap-2 justify-end pt-2">
-            <Button onClick={() => setEditModalOpen(false)} variant="secondary" className="h-9 rounded-lg">
+        <Stack gap="md">
+          <TextInput
+            label="Organization name"
+            value={editFormData.name}
+            onChange={e => { const value = e.currentTarget.value; setEditFormData(p => ({ ...p, name: value })) }}
+            placeholder="Acme Corp"
+          />
+          <TextInput
+            label="Identifier slug"
+            value={editFormData.slug}
+            onChange={e => { const value = e.currentTarget.value; setEditFormData(p => ({ ...p, slug: value })) }}
+            styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
+            placeholder="acme-corp"
+          />
+          <Checkbox
+            label="Tenant is active"
+            checked={editFormData.active}
+            onChange={e => { const checked = e.currentTarget.checked; setEditFormData(p => ({ ...p, active: checked })) }}
+          />
+          <Group justify="flex-end" gap="xs" pt="xs">
+            <Button onClick={() => setEditModalOpen(false)} variant="default">
               Cancel
             </Button>
             <Button
               onClick={handleSaveEdit}
-              disabled={updateTenant.isPending || !editFormData.name || !editFormData.slug}
-              variant="primary"
-              className="h-9 rounded-lg"
+              disabled={!editFormData.name || !editFormData.slug}
+              loading={updateTenant.isPending}
             >
-              {updateTenant.isPending ? 'Saving…' : 'Save Changes'}
+              Save changes
             </Button>
-          </div>
-          {editFormError && <p className="text-xs text-rose-600">{editFormError}</p>}
-        </div>
+          </Group>
+          {editFormError && <Text size="xs" c="red">{editFormError}</Text>}
+        </Stack>
       </Modal>
-    </div>
+    </Box>
   )
 }
 

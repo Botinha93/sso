@@ -1,17 +1,29 @@
-import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
-import Textarea from '../components/ui/Textarea'
-import Select from '../components/ui/Select'
 import { useMemo, useState } from 'react'
-import ListSearch from '../components/ListSearch'
+import {
+  Badge,
+  Box,
+  Button,
+  Chip,
+  Code,
+  Group,
+  NativeSelect,
+  NumberInput,
+  Paper,
+  SimpleGrid,
+  Stack,
+  Table,
+  Tabs,
+  Text,
+  TextInput,
+  Textarea,
+  Title,
+} from '@mantine/core'
+import { PageHeader, PageHeaderSkeleton, SearchInput, SectionCard, TableSkeleton } from '@nexus/design'
+import { ScrollText } from 'lucide-react'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import Editor from '@monaco-editor/react'
-import { PageHeader, PageHeaderSkeleton, TableSkeleton } from '../components/PageHeader'
-import StatusBadge from '../components/ui/StatusBadge'
-import Button from '../components/ui/Button'
-import Card from '../components/ui/Card'
-import CodeBlock from '../components/ui/CodeBlock'
-import Input from '../components/ui/Input'
-import React from 'react';
+import CodeBlock from '../components/CodeBlock'
+import EmptyState from '../components/EmptyState'
 
 import {
   useCreatePolicy,
@@ -44,6 +56,54 @@ type AssignmentDraft = {
   rawMode: boolean
 }
 
+const monoInputStyles = {
+  input: { fontFamily: 'var(--mantine-font-family-monospace)', fontSize: 'var(--mantine-font-size-xs)' },
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <Text size="xs" fw={600} tt="uppercase" c="dimmed" mb="xs" style={{ letterSpacing: '0.05em' }}>
+      {children}
+    </Text>
+  )
+}
+
+function PolicyBadges({ policy }: { policy: any }) {
+  return (
+    <>
+      <Badge color="gray" variant="light" ff="monospace" tt="none">{policy.key}</Badge>
+      <Badge color="blue" variant="light" ff="monospace" tt="none">{policy.category ?? 'authentication'}</Badge>
+    </>
+  )
+}
+
+function StageBindingChips({
+  selected,
+  onToggle,
+}: {
+  selected: AuthStageType[]
+  onToggle: (stage: AuthStageType, active: boolean) => void
+}) {
+  return (
+    <Group gap="xs">
+      {AUTH_STAGES.map((stage) => {
+        const active = selected.includes(stage)
+        return (
+          <Chip
+            key={stage}
+            size="xs"
+            checked={active}
+            onChange={() => onToggle(stage, active)}
+            styles={{ label: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
+          >
+            {stage}
+          </Chip>
+        )
+      })}
+    </Group>
+  )
+}
+
 function PolicyCodeEditor({
   value,
   onChange,
@@ -56,7 +116,13 @@ function PolicyCodeEditor({
   height?: number
 }) {
   return (
-    <div className="overflow-hidden rounded border border-border">
+    <Box
+      style={{
+        overflow: 'hidden',
+        borderRadius: 'var(--mantine-radius-sm)',
+        border: '1px solid var(--nx-color-border)',
+      }}
+    >
       <Editor
         language="javascript"
         value={value}
@@ -73,14 +139,20 @@ function PolicyCodeEditor({
         }}
         loading={
           <Textarea
-            className="min-h-[180px] w-full border-0 px-3 py-2 font-mono text-xs outline-none"
+            w="100%"
+            variant="unstyled"
+            px="sm"
+            py="xs"
+            minRows={8}
+            autosize
+            styles={monoInputStyles}
             value={value}
             placeholder={placeholder}
             onChange={(e) => onChange(e.target.value)}
           />
         }
       />
-    </div>
+    </Box>
   )
 }
 
@@ -166,170 +238,166 @@ function AssignmentConfigEditor({
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Where It Applies</p>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Scope Type</label>
-            <Select
-              className="w-full rounded border border-border px-3 py-2 text-sm"
-              value={draft.scopeType}
-              onChange={(e) => onDraftChange({
-                ...draft,
-                scopeType: e.target.value as ScopeType,
-                scopeId: e.target.value === 'global' ? '' : draft.scopeId,
-              })}
-            >
-              <option value="global">global</option>
-              <option value="tenant">tenant</option>
-              <option value="group">group</option>
-              <option value="user">user</option>
-            </Select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Scope ID</label>
-            <Input
-              placeholder={draft.scopeType === 'global' ? 'Not required for global scope' : `Enter ${draft.scopeType} id`}
-              value={draft.scopeId}
-              disabled={draft.scopeType === 'global'}
-              onChange={(e) => onDraftChange({ ...draft, scopeId: e.target.value })}
-            />
-          </div>
-        </div>
-      </div>
+    <Stack gap="md">
+      <Box>
+        <SectionLabel>Where It Applies</SectionLabel>
+        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+          <NativeSelect
+            label="Scope Type"
+            value={draft.scopeType}
+            onChange={(e) => onDraftChange({
+              ...draft,
+              scopeType: e.target.value as ScopeType,
+              scopeId: e.target.value === 'global' ? '' : draft.scopeId,
+            })}
+            data={['global', 'tenant', 'group', 'user']}
+          />
+          <TextInput
+            label="Scope ID"
+            placeholder={draft.scopeType === 'global' ? 'Not required for global scope' : `Enter ${draft.scopeType} id`}
+            value={draft.scopeId}
+            disabled={draft.scopeType === 'global'}
+            onChange={(e) => onDraftChange({ ...draft, scopeId: e.target.value })}
+          />
+        </SimpleGrid>
+      </Box>
 
-      <div>
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Configuration</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Fields are generated from the default config shape for <span className="font-mono">{policyKey}</span>.
-            </p>
-          </div>
+      <Box>
+        <Group justify="space-between" align="flex-start" gap="sm" mb="xs" wrap="nowrap">
+          <Box>
+            <Text size="xs" fw={600} tt="uppercase" c="dimmed" style={{ letterSpacing: '0.05em' }}>Configuration</Text>
+            <Text size="xs" c="dimmed" mt={4}>
+              Fields are generated from the default config shape for <Code>{policyKey}</Code>.
+            </Text>
+          </Box>
           <Button
-            variant="outline"
-            size="sm"
+            variant="default"
+            size="xs"
             onClick={() => onDraftChange({ ...draft, rawMode: !draft.rawMode })}
           >
             {draft.rawMode ? 'Use Generated Fields' : 'Edit Raw JSON'}
           </Button>
-        </div>
+        </Group>
 
         {draft.rawMode ? (
-          <div className="space-y-2">
+          <Stack gap="xs">
             <Textarea
-              className="min-h-[180px] w-full rounded border border-border px-3 py-2 font-mono text-xs outline-none"
+              autosize
+              minRows={8}
+              styles={monoInputStyles}
               value={draft.rawConfig}
               onChange={(e) => setRawConfig(e.target.value)}
               placeholder="{}"
             />
-            <div className="flex justify-end">
-              <Button variant="primary" size="sm" onClick={applyRawConfig}>
+            <Group justify="flex-end">
+              <Button size="xs" onClick={applyRawConfig}>
                 Apply JSON
               </Button>
-            </div>
-          </div>
+            </Group>
+          </Stack>
         ) : fieldEntries.length === 0 ? (
-          <div className="rounded border border-dashed border-border bg-muted/50 px-3 py-4 text-sm text-muted-foreground">
-            This policy has no default config fields yet. Use raw JSON mode if you want to store custom configuration.
-          </div>
+          <Paper
+            withBorder
+            px="sm"
+            py="md"
+            radius="sm"
+            bg="var(--nx-color-surface-sunken)"
+            style={{ borderStyle: 'dashed' }}
+          >
+            <Text size="sm" c="dimmed">
+              This policy has no default config fields yet. Use raw JSON mode if you want to store custom configuration.
+            </Text>
+          </Paper>
         ) : (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
             {fieldEntries.map(([key, value]) => {
               const fieldKind = inferFieldKind(value)
 
               if (fieldKind === 'boolean') {
                 return (
-                  <div key={key}>
-                    <label className="mb-1 block text-xs font-medium text-muted-foreground">{humanizeFieldName(key)}</label>
-                    <Select
-                      className="w-full rounded border border-border px-3 py-2 text-sm"
-                      value={String(Boolean(value))}
-                      onChange={(e) => updateConfigValue(key, e.target.value === 'true')}
-                    >
-                      <option value="true">true</option>
-                      <option value="false">false</option>
-                    </Select>
-                  </div>
+                  <NativeSelect
+                    key={key}
+                    label={humanizeFieldName(key)}
+                    value={String(Boolean(value))}
+                    onChange={(e) => updateConfigValue(key, e.target.value === 'true')}
+                    data={['true', 'false']}
+                  />
                 )
               }
 
               if (fieldKind === 'number') {
                 return (
-                  <div key={key}>
-                    <label className="mb-1 block text-xs font-medium text-muted-foreground">{humanizeFieldName(key)}</label>
-                    <Input
-                      type="number"
-                      value={String(value)}
-                      onChange={(e) => updateConfigValue(key, Number(e.target.value))}
-                    />
-                  </div>
+                  <NumberInput
+                    key={key}
+                    label={humanizeFieldName(key)}
+                    value={value as number}
+                    onChange={(next) => updateConfigValue(key, Number(next))}
+                  />
                 )
               }
 
               if (fieldKind === 'string') {
                 return (
-                  <div key={key}>
-                    <label className="mb-1 block text-xs font-medium text-muted-foreground">{humanizeFieldName(key)}</label>
-                    <Input
-                      type="text"
-                      value={String(value)}
-                      onChange={(e) => updateConfigValue(key, e.target.value)}
-                    />
-                  </div>
+                  <TextInput
+                    key={key}
+                    label={humanizeFieldName(key)}
+                    value={String(value)}
+                    onChange={(e) => updateConfigValue(key, e.target.value)}
+                  />
                 )
               }
 
               if (fieldKind === 'string_array' || fieldKind === 'number_array') {
                 const current = Array.isArray(value) ? value.join(', ') : ''
                 return (
-                  <div key={key} className="md:col-span-2">
-                    <label className="mb-1 block text-xs font-medium text-muted-foreground">{humanizeFieldName(key)}</label>
-                    <Input
-                      type="text"
-                      value={current}
-                      onChange={(e) => {
-                        const items = e.target.value
-                          .split(',')
-                          .map((item) => item.trim())
-                          .filter(Boolean)
-                        updateConfigValue(
-                          key,
-                          fieldKind === 'number_array' ? items.map((item) => Number(item)) : items
-                        )
-                      }}
-                    />
-                    <p className="mt-1 text-xs text-muted-foreground">Use comma-separated values.</p>
-                  </div>
+                  <TextInput
+                    key={key}
+                    style={{ gridColumn: '1 / -1' }}
+                    label={humanizeFieldName(key)}
+                    description="Use comma-separated values."
+                    inputWrapperOrder={['label', 'input', 'description', 'error']}
+                    value={current}
+                    onChange={(e) => {
+                      const items = e.target.value
+                        .split(',')
+                        .map((item) => item.trim())
+                        .filter(Boolean)
+                      updateConfigValue(
+                        key,
+                        fieldKind === 'number_array' ? items.map((item) => Number(item)) : items
+                      )
+                    }}
+                  />
                 )
               }
 
               return (
-                <div key={key} className="md:col-span-2">
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">{humanizeFieldName(key)}</label>
-                  <Textarea
-                    className="min-h-[110px] w-full rounded border border-border px-3 py-2 font-mono text-xs outline-none"
-                    value={JSON.stringify(value ?? {}, null, 2)}
-                    onChange={(e) => {
-                      try {
-                        updateConfigValue(key, JSON.parse(e.target.value))
-                      } catch {
-                        onDraftChange({
-                          ...draft,
-                          config: draft.config,
-                          rawConfig: JSON.stringify({ ...draft.config, [key]: e.target.value }, null, 2),
-                        })
-                      }
-                    }}
-                  />
-                </div>
+                <Textarea
+                  key={key}
+                  style={{ gridColumn: '1 / -1' }}
+                  label={humanizeFieldName(key)}
+                  autosize
+                  minRows={5}
+                  styles={monoInputStyles}
+                  value={JSON.stringify(value ?? {}, null, 2)}
+                  onChange={(e) => {
+                    try {
+                      updateConfigValue(key, JSON.parse(e.target.value))
+                    } catch {
+                      onDraftChange({
+                        ...draft,
+                        config: draft.config,
+                        rawConfig: JSON.stringify({ ...draft.config, [key]: e.target.value }, null, 2),
+                      })
+                    }
+                  }}
+                />
               )
             })}
-          </div>
+          </SimpleGrid>
         )}
-      </div>
-    </div>
+      </Box>
+    </Stack>
   )
 }
 
@@ -361,125 +429,102 @@ export default function Policies() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <Stack gap="lg">
         <PageHeaderSkeleton blocks={1} />
         <TableSkeleton rows={4} />
-      </div>
+      </Stack>
     )
   }
 
   return (
-    <div className="space-y-6">
+    <Stack gap="lg">
       <PageHeader
         eyebrow="Security"
         title="Policies"
         description="Define policy behavior in JavaScript, then manage where each policy applies and its configuration separately."
       />
 
-      <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search policies by key or name…" />
+      <SearchInput maw={360} value={searchInput} onChange={setSearchInput} placeholder="Search policies by key or name…" />
 
-      <div className="flex gap-2 border-b border-border">
-        {[
-          { key: 'definitions', label: 'Definitions' },
-          { key: 'configuration', label: 'Configuration' },
-          { key: 'decisions', label: 'Decision History' }
-        ].map(tab => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key as PolicyTab)}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === tab.key
-                ? 'border-b-2 border-primary text-foreground'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs value={activeTab} onChange={(value) => value && setActiveTab(value as PolicyTab)}>
+        <Tabs.List>
+          <Tabs.Tab value="definitions">Definitions</Tabs.Tab>
+          <Tabs.Tab value="configuration">Configuration</Tabs.Tab>
+          <Tabs.Tab value="decisions">Decision History</Tabs.Tab>
+        </Tabs.List>
+      </Tabs>
 
       {activeTab === 'definitions' ? (
-        <div className="space-y-6">
-          <Card className="p-4 space-y-4">
-            <h2 className="text-sm font-semibold text-foreground">Create Policy Definition</h2>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <Input placeholder="key" value={newPolicy.key} onChange={(e) => setNewPolicy((v) => ({ ...v, key: e.target.value }))} />
-              <Input placeholder="name" value={newPolicy.name} onChange={(e) => setNewPolicy((v) => ({ ...v, name: e.target.value }))} />
-              <Input placeholder="description" value={newPolicy.description} onChange={(e) => setNewPolicy((v) => ({ ...v, description: e.target.value }))} />
-            </div>
+        <Stack gap="lg">
+          <SectionCard title="Create Policy Definition">
+            <Stack gap="md">
+              <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm">
+                <TextInput aria-label="key" placeholder="key" value={newPolicy.key} onChange={(e) => setNewPolicy((v) => ({ ...v, key: e.target.value }))} />
+                <TextInput aria-label="name" placeholder="name" value={newPolicy.name} onChange={(e) => setNewPolicy((v) => ({ ...v, name: e.target.value }))} />
+                <TextInput aria-label="description" placeholder="description" value={newPolicy.description} onChange={(e) => setNewPolicy((v) => ({ ...v, description: e.target.value }))} />
+              </SimpleGrid>
 
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <Select
-                className="rounded border px-3 py-2"
-                value={newPolicy.category}
-                onChange={(e) => setNewPolicy((v) => ({
-                  ...v,
-                  category: e.target.value as PolicyCategory,
-                  stageBindings: e.target.value === 'authorization' ? [] : v.stageBindings
-                }))}
-              >
-                <option value="authentication">authentication</option>
-                <option value="authorization">authorization</option>
-              </Select>
-            </div>
+              <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm">
+                <NativeSelect
+                  aria-label="Category"
+                  value={newPolicy.category}
+                  onChange={(e) => setNewPolicy((v) => ({
+                    ...v,
+                    category: e.target.value as PolicyCategory,
+                    stageBindings: e.target.value === 'authorization' ? [] : v.stageBindings
+                  }))}
+                  data={['authentication', 'authorization']}
+                />
+              </SimpleGrid>
 
-            {newPolicy.category === 'authentication' ? (
-              <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Stage Bindings</p>
-                <div className="flex flex-wrap gap-2">
-                  {AUTH_STAGES.map((stage) => {
-                    const active = newPolicy.stageBindings.includes(stage)
-                    return (
-                      <button
-                        key={stage}
-                        type="button"
-                        onClick={() => setNewPolicy((v) => ({
-                          ...v,
-                          stageBindings: active ? v.stageBindings.filter((s) => s !== stage) : [...v.stageBindings, stage]
-                        }))}
-                        className={`rounded px-2 py-1 text-xs font-mono transition-colors ${active ? 'bg-sky-600 text-white' : 'bg-muted text-foreground hover:bg-muted'}`}
-                      >
-                        {stage}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">Authorization policies do not use stage bindings.</p>
-            )}
+              {newPolicy.category === 'authentication' ? (
+                <Box>
+                  <SectionLabel>Stage Bindings</SectionLabel>
+                  <StageBindingChips
+                    selected={newPolicy.stageBindings}
+                    onToggle={(stage, active) => setNewPolicy((v) => ({
+                      ...v,
+                      stageBindings: active ? v.stageBindings.filter((s) => s !== stage) : [...v.stageBindings, stage]
+                    }))}
+                  />
+                </Box>
+              ) : (
+                <Text size="xs" c="dimmed">Authorization policies do not use stage bindings.</Text>
+              )}
 
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">JavaScript Validator (optional)</p>
-              <PolicyCodeEditor
-                value={newPolicy.javascriptCode}
-                placeholder={defaultJsTemplate}
-                onChange={(next) => setNewPolicy((v) => ({ ...v, javascriptCode: next }))}
-              />
-            </div>
+              <Box>
+                <SectionLabel>JavaScript Validator (optional)</SectionLabel>
+                <PolicyCodeEditor
+                  value={newPolicy.javascriptCode}
+                  placeholder={defaultJsTemplate}
+                  onChange={(next) => setNewPolicy((v) => ({ ...v, javascriptCode: next }))}
+                />
+              </Box>
 
-            <div className="flex justify-end">
-              <Button
-                variant="primary"
-                onClick={async () => {
-                  await createPolicy.mutateAsync({
-                    ...newPolicy,
-                    stageBindings: newPolicy.category === 'authorization' ? [] : newPolicy.stageBindings,
-                    javascriptCode: newPolicy.javascriptCode.trim() || undefined
-                  })
-                  setNewPolicy({ key: '', name: '', description: '', category: 'authentication', stageBindings: [], javascriptCode: '', enabled: true })
-                }}
-              >
-                Add
-              </Button>
-            </div>
-          </Card>
+              <Group justify="flex-end">
+                <Button
+                  loading={createPolicy.isPending}
+                  onClick={async () => {
+                    await createPolicy.mutateAsync({
+                      ...newPolicy,
+                      stageBindings: newPolicy.category === 'authorization' ? [] : newPolicy.stageBindings,
+                      javascriptCode: newPolicy.javascriptCode.trim() || undefined
+                    })
+                    setNewPolicy({ key: '', name: '', description: '', category: 'authentication', stageBindings: [], javascriptCode: '', enabled: true })
+                  }}
+                >
+                  Add
+                </Button>
+              </Group>
+            </Stack>
+          </SectionCard>
 
-          <Card className="p-4">
-            <h2 className="text-sm font-semibold text-foreground">JavaScript Policy Interface</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Available objects/functions in server-side policy scripts:</p>
+          <SectionCard
+            title="JavaScript Policy Interface"
+            description="Available objects/functions in server-side policy scripts:"
+          >
             <CodeBlock
-              className="mt-3 text-xs"
+              fz="xs"
               language="javascript"
               code={`policy.key
 policy.name
@@ -508,11 +553,11 @@ now() // returns current ISO timestamp
 // "error message"
 // { allow: false, message: "error message" }`}
             />
-          </Card>
+          </SectionCard>
 
           <PolicyDecisionSimulator />
 
-          <div className="space-y-4">
+          <Stack gap="md">
             {sortedPolicies.map((policy: any) => {
               const editState = policyEditState[policy.id] ?? {
                 category: (policy.category ?? 'authentication') as PolicyCategory,
@@ -521,242 +566,259 @@ now() // returns current ISO timestamp
               }
 
               return (
-                <Card key={policy.id} className="p-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-base font-semibold text-foreground">{policy.name}</h3>
-                    <span className="rounded bg-muted px-2 py-0.5 font-mono text-xs text-foreground">{policy.key}</span>
-                    <span className="rounded bg-sky-100 px-2 py-0.5 font-mono text-xs text-sky-700">{policy.category ?? 'authentication'}</span>
-                    <Button
-                      variant={policy.enabled ? 'secondary' : 'ghost'}
-                      size="sm"
-                      onClick={() => updatePolicy.mutate({ id: policy.id, enabled: !policy.enabled })}
-                    >
-                      {policy.enabled ? 'Enabled' : 'Disabled'}
-                    </Button>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      className="ml-auto"
-                      onClick={() => deletePolicy.mutate(policy.id)}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                  <p className="mt-2 text-sm text-muted-foreground">{policy.description}</p>
+                <SectionCard key={policy.id}>
+                  <Stack gap="md">
+                    <Box>
+                      <Group gap="xs" wrap="wrap">
+                        <Title order={3} size="h5">{policy.name}</Title>
+                        <PolicyBadges policy={policy} />
+                        <Button
+                          variant={policy.enabled ? 'light' : 'subtle'}
+                          color={policy.enabled ? 'green' : 'gray'}
+                          size="xs"
+                          onClick={() => updatePolicy.mutate({ id: policy.id, enabled: !policy.enabled })}
+                        >
+                          {policy.enabled ? 'Enabled' : 'Disabled'}
+                        </Button>
+                        <Button
+                          color="red"
+                          variant="light"
+                          size="xs"
+                          ml="auto"
+                          onClick={() => deletePolicy.mutate(policy.id)}
+                        >
+                          Delete
+                        </Button>
+                      </Group>
+                      {policy.description ? <Text size="sm" c="dimmed" mt="xs">{policy.description}</Text> : null}
+                    </Box>
 
-                  <div className="mt-3">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Category</p>
-                    <Select
-                      className="rounded border px-3 py-2 text-sm"
-                      value={editState.category}
-                      onChange={(e) => setPolicyEditState((prev) => ({
-                        ...prev,
-                        [policy.id]: {
-                          ...editState,
-                          category: e.target.value as PolicyCategory,
-                          stageBindings: e.target.value === 'authorization' ? [] : editState.stageBindings
-                        }
-                      }))}
-                    >
-                      <option value="authentication">authentication</option>
-                      <option value="authorization">authorization</option>
-                    </Select>
-                  </div>
+                    <Box>
+                      <SectionLabel>Category</SectionLabel>
+                      <NativeSelect
+                        aria-label="Category"
+                        maw={260}
+                        value={editState.category}
+                        onChange={(e) => setPolicyEditState((prev) => ({
+                          ...prev,
+                          [policy.id]: {
+                            ...editState,
+                            category: e.target.value as PolicyCategory,
+                            stageBindings: e.target.value === 'authorization' ? [] : editState.stageBindings
+                          }
+                        }))}
+                        data={['authentication', 'authorization']}
+                      />
+                    </Box>
 
-                  <div className="mt-3">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Stage Bindings</p>
-                    {editState.category === 'authentication' ? (
-                      <div className="flex flex-wrap gap-2">
-                        {AUTH_STAGES.map((stage) => {
-                          const active = editState.stageBindings.includes(stage)
-                          return (
-                            <button
-                              key={stage}
-                              type="button"
-                              onClick={() => setPolicyEditState((prev) => ({
-                                ...prev,
-                                [policy.id]: {
-                                  ...editState,
-                                  stageBindings: active
-                                    ? editState.stageBindings.filter((s) => s !== stage)
-                                    : [...editState.stageBindings, stage]
-                                }
-                              }))}
-                              className={`rounded px-2 py-1 text-xs font-mono transition-colors ${active ? 'bg-sky-600 text-white' : 'bg-muted text-foreground hover:bg-muted'}`}
-                            >
-                              {stage}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">Authorization policies do not use stage bindings.</p>
-                    )}
-                  </div>
+                    <Box>
+                      <SectionLabel>Stage Bindings</SectionLabel>
+                      {editState.category === 'authentication' ? (
+                        <StageBindingChips
+                          selected={editState.stageBindings}
+                          onToggle={(stage, active) => setPolicyEditState((prev) => ({
+                            ...prev,
+                            [policy.id]: {
+                              ...editState,
+                              stageBindings: active
+                                ? editState.stageBindings.filter((s) => s !== stage)
+                                : [...editState.stageBindings, stage]
+                            }
+                          }))}
+                        />
+                      ) : (
+                        <Text size="xs" c="dimmed">Authorization policies do not use stage bindings.</Text>
+                      )}
+                    </Box>
 
-                  <div className="mt-4">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">JavaScript Validator</p>
-                    <PolicyCodeEditor
-                      value={editState.javascriptCode}
-                      placeholder={defaultJsTemplate}
-                      height={260}
-                      onChange={(next) => setPolicyEditState((prev) => ({
-                        ...prev,
-                        [policy.id]: { ...editState, javascriptCode: next }
-                      }))}
-                    />
-                    <div className="mt-2 flex justify-end">
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={async () => {
-                          await updatePolicy.mutateAsync({
-                            id: policy.id,
-                            category: editState.category,
-                            stageBindings: editState.category === 'authorization' ? [] : editState.stageBindings,
-                            javascriptCode: editState.javascriptCode.trim() || null
-                          })
-                        }}
-                      >
-                        Save Definition
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
+                    <Box>
+                      <SectionLabel>JavaScript Validator</SectionLabel>
+                      <PolicyCodeEditor
+                        value={editState.javascriptCode}
+                        placeholder={defaultJsTemplate}
+                        height={260}
+                        onChange={(next) => setPolicyEditState((prev) => ({
+                          ...prev,
+                          [policy.id]: { ...editState, javascriptCode: next }
+                        }))}
+                      />
+                      <Group justify="flex-end" mt="xs">
+                        <Button
+                          size="xs"
+                          onClick={async () => {
+                            await updatePolicy.mutateAsync({
+                              id: policy.id,
+                              category: editState.category,
+                              stageBindings: editState.category === 'authorization' ? [] : editState.stageBindings,
+                              javascriptCode: editState.javascriptCode.trim() || null
+                            })
+                          }}
+                        >
+                          Save Definition
+                        </Button>
+                      </Group>
+                    </Box>
+                  </Stack>
+                </SectionCard>
               )
             })}
-          </div>
-        </div>
+          </Stack>
+        </Stack>
       ) : activeTab === 'configuration' ? (
-        <div className="space-y-4">
-          <Card className="p-4">
-            <h2 className="text-base font-semibold text-foreground">Policy Configuration</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Choose where a policy applies first, then fill in the generated configuration fields derived from its default JSON structure.
-            </p>
-          </Card>
+        <Stack gap="md">
+          <SectionCard
+            title="Policy Configuration"
+            description="Choose where a policy applies first, then fill in the generated configuration fields derived from its default JSON structure."
+          />
 
           {sortedPolicies.map((policy: any) => {
             const draft = assignmentDrafts[policy.id] ?? createAssignmentDraft(policy.key)
 
             return (
-              <Card key={policy.id} className="p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-base font-semibold text-foreground">{policy.name}</h3>
-                  <span className="rounded bg-muted px-2 py-0.5 font-mono text-xs text-foreground">{policy.key}</span>
-                  <span className="rounded bg-sky-100 px-2 py-0.5 font-mono text-xs text-sky-700">{policy.category ?? 'authentication'}</span>
-                  <span className={`rounded px-2 py-1 text-xs ${policy.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-muted text-foreground'}`}>
-                    {policy.enabled ? 'Enabled' : 'Disabled'}
-                  </span>
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">{policy.description}</p>
+              <SectionCard key={policy.id}>
+                <Stack gap="md">
+                  <Box>
+                    <Group gap="xs" wrap="wrap">
+                      <Title order={3} size="h5">{policy.name}</Title>
+                      <PolicyBadges policy={policy} />
+                      <Badge color={policy.enabled ? 'green' : 'gray'} variant="light">
+                        {policy.enabled ? 'Enabled' : 'Disabled'}
+                      </Badge>
+                    </Group>
+                    {policy.description ? <Text size="sm" c="dimmed" mt="xs">{policy.description}</Text> : null}
+                  </Box>
 
-                <div className="mt-4 rounded-lg border border-border bg-muted/50 p-4">
-                  <AssignmentConfigEditor
-                    draft={draft}
-                    policyKey={policy.key}
-                    onDraftChange={(next) => setAssignmentDrafts((prev) => ({ ...prev, [policy.id]: next }))}
-                  />
-                  <div className="mt-4 flex justify-end">
-                    <Button
-                      variant="primary"
-                      onClick={async () => {
-                        await setAssignment.mutateAsync({
-                          id: policy.id,
-                          scopeType: draft.scopeType,
-                          scopeId: draft.scopeType === 'global' ? undefined : draft.scopeId,
-                          enabled: true,
-                          config: draft.rawMode ? JSON.parse(draft.rawConfig || '{}') : draft.config
-                        })
-                      }}
-                    >
-                      Upsert Assignment
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="mt-4 space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Existing Assignments</p>
-                  {(policy.assignments ?? []).length === 0 ? (
-                    <div className="rounded border border-dashed border-border bg-muted/50 px-3 py-4 text-sm text-muted-foreground">
-                      No assignments configured yet.
-                    </div>
-                  ) : (
-                    (policy.assignments ?? []).map((assignment: any) => (
-                      <div key={assignment.id} className="flex flex-wrap items-center gap-2 rounded border border-border px-3 py-2 text-xs text-foreground">
-                        <span className="rounded bg-muted px-2 py-0.5 font-mono">{assignment.scopeType}</span>
-                        <span className="font-mono text-muted-foreground">{assignment.scopeId || 'global'}</span>
-                        <span className="min-w-0 flex-1 truncate text-muted-foreground">{summarizeConfig(assignment.config ?? {})}</span>
+                  <Paper withBorder radius="md" p="md" bg="var(--nx-color-surface-sunken)">
+                    <AssignmentConfigEditor
+                      draft={draft}
+                      policyKey={policy.key}
+                      onDraftChange={(next) => setAssignmentDrafts((prev) => ({ ...prev, [policy.id]: next }))}
+                    />
+                    <Group justify="flex-end" mt="md">
                       <Button
-                          variant="danger"
-                          size="sm"
-                          className="ml-auto"
-                          onClick={() => removeAssignment.mutate({
+                        loading={setAssignment.isPending && setAssignment.variables?.id === policy.id}
+                        onClick={async () => {
+                          await setAssignment.mutateAsync({
                             id: policy.id,
-                            scopeType: assignment.scopeType,
-                            scopeId: assignment.scopeType === 'global' ? undefined : assignment.scopeId
-                          })}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </Card>
+                            scopeType: draft.scopeType,
+                            scopeId: draft.scopeType === 'global' ? undefined : draft.scopeId,
+                            enabled: true,
+                            config: draft.rawMode ? JSON.parse(draft.rawConfig || '{}') : draft.config
+                          })
+                        }}
+                      >
+                        Upsert Assignment
+                      </Button>
+                    </Group>
+                  </Paper>
+
+                  <Box>
+                    <SectionLabel>Existing Assignments</SectionLabel>
+                    {(policy.assignments ?? []).length === 0 ? (
+                      <Paper
+                        withBorder
+                        px="sm"
+                        py="md"
+                        radius="sm"
+                        bg="var(--nx-color-surface-sunken)"
+                        style={{ borderStyle: 'dashed' }}
+                      >
+                        <Text size="sm" c="dimmed">No assignments configured yet.</Text>
+                      </Paper>
+                    ) : (
+                      <Stack gap="xs">
+                        {(policy.assignments ?? []).map((assignment: any) => (
+                          <Paper key={assignment.id} withBorder px="sm" py="xs" radius="sm">
+                            <Group gap="xs" wrap="nowrap">
+                              <Badge color="gray" variant="light" ff="monospace" tt="none">{assignment.scopeType}</Badge>
+                              <Text size="xs" ff="monospace" c="dimmed">{assignment.scopeId || 'global'}</Text>
+                              <Text size="xs" c="dimmed" truncate style={{ flex: 1, minWidth: 0 }}>
+                                {summarizeConfig(assignment.config ?? {})}
+                              </Text>
+                              <Button
+                                color="red"
+                                variant="subtle"
+                                size="xs"
+                                onClick={() => removeAssignment.mutate({
+                                  id: policy.id,
+                                  scopeType: assignment.scopeType,
+                                  scopeId: assignment.scopeType === 'global' ? undefined : assignment.scopeId
+                                })}
+                              >
+                                Remove
+                              </Button>
+                            </Group>
+                          </Paper>
+                        ))}
+                      </Stack>
+                    )}
+                  </Box>
+                </Stack>
+              </SectionCard>
             )
           })}
-        </div>
+        </Stack>
       ) : (
-        <div className="space-y-4">
-          <Card className="p-4">
-            <h2 className="text-base font-semibold text-foreground">Authorization Decision History</h2>
-            <p className="mt-1 text-sm text-muted-foreground">View recent policy evaluation decisions for audit and debugging purposes.</p>
-          </Card>
-
+        <SectionCard
+          flush
+          title="Authorization Decision History"
+          description="View recent policy evaluation decisions for audit and debugging purposes."
+        >
           {decisionsLoading ? (
             <TableSkeleton rows={4} />
           ) : decisions.length === 0 ? (
-            <div className="rounded-xl border border-border bg-muted/50 p-6 text-center text-muted-foreground">
-              <p>No authorization decisions recorded yet.</p>
-              <p className="mt-1 text-sm">Run policy evaluations or access protected resources to generate decision logs.</p>
-            </div>
+            <EmptyState
+              icon={ScrollText}
+              title="No authorization decisions recorded yet."
+              description="Run policy evaluations or access protected resources to generate decision logs."
+            />
           ) : (
-            <Card className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b border-border bg-muted/50">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-medium text-foreground">Timestamp</th>
-                    <th className="px-4 py-3 text-left font-medium text-foreground">Subject</th>
-                    <th className="px-4 py-3 text-left font-medium text-foreground">Resource</th>
-                    <th className="px-4 py-3 text-left font-medium text-foreground">Action</th>
-                    <th className="px-4 py-3 text-left font-medium text-foreground">Decision</th>
-                    <th className="px-4 py-3 text-left font-medium text-foreground">Policy Applied</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {decisions.map((decision: any, idx: number) => (
-                    <tr key={idx} className="hover:bg-muted/50">
-                      <td className="px-4 py-3 text-xs text-muted-foreground font-mono">
-                        {new Date(decision.evaluatedAt ?? decision.createdAt).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{decision.userId?.slice(0, 12)}…</td>
-                      <td className="px-4 py-3 truncate text-foreground">{decision.resource || '—'}</td>
-                      <td className="px-4 py-3"><code className="bg-muted px-2 py-1 rounded text-xs">{decision.action}</code></td>
-                      <td className="px-4 py-3">
-                            <StatusBadge tone={decision.decision === 'allow' || decision.allowed ? 'success' : 'danger'}>
-                              {decision.decision === 'allow' || decision.allowed ? 'ALLOW' : 'DENY'}
-                            </StatusBadge>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">{decision.policyId || decision.policyKey || '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Card>
+            <Table.ScrollContainer minWidth={860}>
+              <Table highlightOnHover verticalSpacing="sm">
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Timestamp</Table.Th>
+                    <Table.Th>Subject</Table.Th>
+                    <Table.Th>Resource</Table.Th>
+                    <Table.Th>Action</Table.Th>
+                    <Table.Th>Decision</Table.Th>
+                    <Table.Th>Policy Applied</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {decisions.map((decision: any, idx: number) => {
+                    const allowed = decision.decision === 'allow' || decision.allowed
+                    return (
+                      <Table.Tr key={idx}>
+                        <Table.Td>
+                          <Text size="xs" c="dimmed" ff="monospace">
+                            {new Date(decision.evaluatedAt ?? decision.createdAt).toLocaleString()}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text size="xs" c="dimmed" ff="monospace">{decision.userId?.slice(0, 12)}…</Text>
+                        </Table.Td>
+                        <Table.Td maw={280}>
+                          <Text size="sm" truncate>{decision.resource || '—'}</Text>
+                        </Table.Td>
+                        <Table.Td><Code>{decision.action}</Code></Table.Td>
+                        <Table.Td>
+                          <Badge color={allowed ? 'green' : 'red'} variant="light">
+                            {allowed ? 'ALLOW' : 'DENY'}
+                          </Badge>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text size="xs" c="dimmed">{decision.policyId || decision.policyKey || '—'}</Text>
+                        </Table.Td>
+                      </Table.Tr>
+                    )
+                  })}
+                </Table.Tbody>
+              </Table>
+            </Table.ScrollContainer>
           )}
-        </div>
+        </SectionCard>
       )}
-    </div>
+    </Stack>
   )
 }

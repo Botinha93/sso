@@ -1,7 +1,6 @@
-import Card from '../components/ui/Card'
+import { Button, Card, Code, Group, Paper, SimpleGrid, Stack, Text, ThemeIcon, Title } from '@mantine/core'
 import { ArrowUpRight, KeyRound, LogIn, MonitorSmartphone, ShieldCheck } from 'lucide-react'
-import { PageHeader } from '../components/PageHeader'
-import React from 'react';
+import { PageHeader, SectionCard } from '@nexus/design'
 
 const cards = [
   {
@@ -36,50 +35,44 @@ const cards = [
 
 export default function InteractionViews() {
   return (
-    <div className="space-y-6">
+    <Stack gap="lg">
       <PageHeader
         eyebrow="Authentication"
         title="Interaction Views"
         description="Quick access to the hosted OAuth and OIDC user-facing interaction screens. These views are normally opened by live protocol flows, but can be launched here for manual validation."
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <SimpleGrid cols={{ base: 1, sm: 2, xl: 4 }} spacing="md">
         {cards.map((card) => {
           const Icon = card.icon
           return (
-            <Card key={card.title} className="p-5">
-              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-muted text-foreground">
+            <Card key={card.title} withBorder radius="md" padding="lg">
+              <ThemeIcon size={44} radius="md" variant="light" color="gray" mb="md">
                 <Icon size={20} />
-              </div>
-              <h2 className="text-lg font-semibold text-foreground">{card.title}</h2>
-              <p className="mt-2 text-sm text-muted-foreground">{card.description}</p>
-              <p className="mt-3 rounded-xl border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">{card.note}</p>
-              <div className="mt-4 flex items-center justify-between gap-3">
-                <code className="truncate text-xs text-muted-foreground">{card.href}</code>
-                <a
-                  href={card.href}
-                  className="inline-flex items-center gap-1 rounded-lg bg-sky-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-500"
-                >
+              </ThemeIcon>
+              <Title order={3} fz="md" fw={600}>{card.title}</Title>
+              <Text size="sm" c="dimmed" mt="xs">{card.description}</Text>
+              <Paper withBorder radius="md" px="sm" py="xs" mt="sm" bg="var(--nx-color-surface-sunken)" style={{ flex: 1 }}>
+                <Text size="xs" c="dimmed">{card.note}</Text>
+              </Paper>
+              <Group justify="space-between" gap="sm" mt="md" wrap="nowrap">
+                <Code style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{card.href}</Code>
+                <Button component="a" href={card.href} size="xs" rightSection={<ArrowUpRight size={14} />}>
                   Open
-                  <ArrowUpRight size={14} />
-                </a>
-              </div>
+                </Button>
+              </Group>
             </Card>
           )
         })}
-      </div>
+      </SimpleGrid>
 
-      <Card className="p-5">
-        <div className="flex items-center gap-2 text-foreground">
-          <KeyRound size={18} />
-          <h2 className="text-base font-semibold">Usage Notes</h2>
-        </div>
-        <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-          <p>The consent screen is most meaningful when opened by an authorize request that provides client_id, scope, redirect_uri, response_type, and response_mode.</p>
-          <p>The device verification screen is now usable as a standalone page because it accepts a manual user code entry.</p>
-          <p>These links are intended for operator validation and troubleshooting, not as the normal application launch path.</p>
-        </div>
-      </Card>
-    </div>
+      <SectionCard title="Usage notes" icon={<KeyRound size={16} />}>
+        <Stack gap="xs">
+          <Text size="sm" c="dimmed">The consent screen is most meaningful when opened by an authorize request that provides client_id, scope, redirect_uri, response_type, and response_mode.</Text>
+          <Text size="sm" c="dimmed">The device verification screen is now usable as a standalone page because it accepts a manual user code entry.</Text>
+          <Text size="sm" c="dimmed">These links are intended for operator validation and troubleshooting, not as the normal application launch path.</Text>
+        </Stack>
+      </SectionCard>
+    </Stack>
   )
 }

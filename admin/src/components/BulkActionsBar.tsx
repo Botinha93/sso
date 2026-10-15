@@ -1,6 +1,5 @@
-import { X } from 'lucide-react'
 import React from 'react'
-import Button from './ui/Button'
+import { CloseButton, Checkbox, type CheckboxProps, Group, Paper, Text } from '@mantine/core'
 
 interface BulkActionsBarProps {
   count: number
@@ -21,54 +20,43 @@ const BulkActionsBar = ({
   const label = `${count} ${count === 1 ? noun : (pluralNoun ?? `${noun}s`)} selected`
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sky-100 bg-sky-50/70 px-5 py-2.5">
-      <div className="flex items-center gap-2 text-sm text-sky-900">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 hover:bg-sky-100 hover:text-sky-900"
-          onClick={onClear}
-          title="Clear selection"
-        >
-          <X size={12} />
-        </Button>
-        <span className="font-medium">{label}</span>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        {children}
-      </div>
-    </div>
+    <Paper
+      radius={0}
+      px="md"
+      py={8}
+      bg="var(--nx-color-accent-soft)"
+      style={{ borderBottom: '1px solid var(--nx-color-border)' }}
+      className="nx-fade-in"
+    >
+      <Group justify="space-between" gap="sm" wrap="wrap">
+        <Group gap={6}>
+          <CloseButton size="sm" onClick={onClear} title="Clear selection" aria-label="Clear selection" />
+          <Text size="sm" fw={500}>{label}</Text>
+        </Group>
+        <Group gap="xs" wrap="wrap">
+          {children}
+        </Group>
+      </Group>
+    </Paper>
   )
 }
 
 export default BulkActionsBar
 
-interface SelectionCheckboxProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type' | 'ref'> {
-  indeterminate?: boolean
-}
-
-export const SelectionCheckbox = React.forwardRef<HTMLInputElement, SelectionCheckboxProps>(
-  ({ indeterminate, className, ...props }, ref) => {
-    const innerRef = React.useRef<HTMLInputElement | null>(null)
-
-    React.useImperativeHandle(ref, () => innerRef.current as HTMLInputElement)
-
-    React.useEffect(() => {
-      if (innerRef.current) {
-        innerRef.current.indeterminate = Boolean(indeterminate && !props.checked)
-      }
-    }, [indeterminate, props.checked])
-
-    return (
-      <input
-        type="checkbox"
-        ref={innerRef}
-        onClick={(event) => event.stopPropagation()}
-        className={`rounded border-slate-300 cursor-pointer ${className ?? ''}`}
-        {...props}
-      />
-    )
-  }
+export const SelectionCheckbox = React.forwardRef<HTMLInputElement, Omit<CheckboxProps, 'ref'>>(
+  ({ indeterminate, checked, onClick, ...props }, ref) => (
+    <Checkbox
+      ref={ref}
+      size="xs"
+      checked={checked}
+      indeterminate={Boolean(indeterminate && !checked)}
+      onClick={(event) => {
+        event.stopPropagation()
+        onClick?.(event)
+      }}
+      {...props}
+    />
+  )
 )
 
 SelectionCheckbox.displayName = 'SelectionCheckbox'

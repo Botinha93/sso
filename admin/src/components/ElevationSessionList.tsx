@@ -1,14 +1,8 @@
-import Card from './ui/Card'
-import Select from './ui/Select'
 import { useState } from 'react'
+import { Group, NativeSelect, Paper, Stack, Text } from '@mantine/core'
 import { Clock3 } from 'lucide-react'
+import { ExpiryBadge, SectionCard, StatusBadge } from '@nexus/design'
 import { useElevationSessions, type ElevationSessionDto } from '../hooks/useApi'
-
-const statusStyles: Record<ElevationSessionDto['status'], string> = {
-  active: 'bg-emerald-100 text-emerald-800',
-  revoked: 'bg-rose-100 text-rose-800',
-  expired: 'bg-muted text-muted-foreground'
-}
 
 const statusLabels: Record<ElevationSessionDto['status'], string> = {
   active: 'Active',
@@ -21,48 +15,52 @@ export default function ElevationSessionList() {
   const { data: sessions = [], isLoading } = useElevationSessions(statusFilter)
 
   return (
-    <Card className="p-5">
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-foreground">Elevation Sessions</h3>
-        <Select
+    <SectionCard
+      title="Elevation sessions"
+      loading={isLoading}
+      actions={
+        <NativeSelect
+          size="xs"
+          aria-label="Filter sessions by status"
           value={statusFilter ?? ''}
-          onChange={e => setStatusFilter((e.target.value as ElevationSessionDto['status']) || undefined)}
-          className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground outline-none"
-        >
-          <option value="">All statuses</option>
-          <option value="active">Active</option>
-          <option value="revoked">Revoked</option>
-          <option value="expired">Expired</option>
-        </Select>
-      </div>
-
-      {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
-      ) : sessions.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No elevation sessions found.</p>
+          onChange={e => setStatusFilter((e.currentTarget.value as ElevationSessionDto['status']) || undefined)}
+          data={[
+            { value: '', label: 'All statuses' },
+            { value: 'active', label: 'Active' },
+            { value: 'revoked', label: 'Revoked' },
+            { value: 'expired', label: 'Expired' }
+          ]}
+        />
+      }
+    >
+      {sessions.length === 0 ? (
+        <Text size="sm" c="dimmed">No elevation sessions found.</Text>
       ) : (
-        <div className="space-y-3">
+        <Stack gap="sm">
           {sessions.map(session => (
-            <div key={session.id} className="rounded-lg border border-border bg-muted/50 p-3 space-y-2">
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-sm text-foreground">
-                  <span className="font-mono">{session.resource}</span>
-                  {' → '}
-                  <span className="font-mono">{session.action}</span>
-                </p>
-                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[session.status]}`}>
-                  {statusLabels[session.status]}
-                </span>
-              </div>
-              <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Clock3 size={11} />
-                Started {new Date(session.startedAt).toLocaleString()}
-              </p>
-              <p className="text-xs text-muted-foreground">Expires {new Date(session.expiresAt).toLocaleString()}</p>
-            </div>
+            <Paper key={session.id} withBorder p="sm" radius="md" bg="var(--nx-color-surface-sunken)">
+              <Stack gap={6}>
+                <Group justify="space-between" align="flex-start" gap="xs" wrap="nowrap">
+                  <Text size="sm">
+                    <Text span ff="monospace" inherit>{session.resource}</Text>
+                    {' → '}
+                    <Text span ff="monospace" inherit>{session.action}</Text>
+                  </Text>
+                  <StatusBadge status={session.status}>{statusLabels[session.status]}</StatusBadge>
+                </Group>
+                <Group gap={4}>
+                  <Clock3 size={14} color="var(--nx-color-text-muted)" />
+                  <Text size="xs" c="dimmed">Started {new Date(session.startedAt).toLocaleString()}</Text>
+                </Group>
+                <Group gap="xs">
+                  <Text size="xs" c="dimmed">Expires {new Date(session.expiresAt).toLocaleString()}</Text>
+                  {session.status === 'active' ? <ExpiryBadge size="xs" expiresAt={session.expiresAt} /> : null}
+                </Group>
+              </Stack>
+            </Paper>
           ))}
-        </div>
+        </Stack>
       )}
-    </Card>
+    </SectionCard>
   )
 }

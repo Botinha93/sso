@@ -1,10 +1,10 @@
 import ElevationPanel from '../components/ElevationPanel'
-import { PageHeader } from '../components/PageHeader'
+import { PageHeader } from '@nexus/design'
 import React from 'react';
 
 export default function Elevations() {
   return (
-    <div className="space-y-6">
+    <>
       <PageHeader
         eyebrow="Governance"
         title="Elevation Operations"
@@ -12,6 +12,6 @@ export default function Elevations() {
       />
 
       <ElevationPanel />
-    </div>
+    </>
   )
 }

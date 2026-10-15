@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Eye, EyeOff, LogIn, ShieldCheck } from 'lucide-react'
+import { Alert, Button, Image, Paper, PasswordInput, Skeleton, Stack, TextInput, ThemeIcon } from '@mantine/core'
+import { AuthCard, AuthLayout, ColorSchemeToggle, OtpStep } from '@nexus/design'
+import { ArrowLeft, Lock, LogIn, Mail, ShieldCheck } from 'lucide-react'
 import LanguageSelector from '../components/LanguageSelector'
-import Alert from '../components/ui/Alert'
-import Button from '../components/ui/Button'
-import Card from '../components/ui/Card'
-import Input from '../components/ui/Input'
 import { useI18n } from '../i18n'
 import { extractErrorMessage, resolveLoginCredentialError } from '../lib/errors'
 
@@ -21,27 +19,22 @@ interface UiCustomization {
 
 function LoginLoadingSkeleton() {
   return (
-    <div className="w-full max-w-sm" aria-hidden>
-      <div className="mb-4 flex justify-end">
-        <div className="auth-skeleton h-8 w-28 rounded-lg" />
-      </div>
-      <div className="mb-8 text-center">
-        <div className="auth-skeleton mx-auto mb-4 h-14 w-14 rounded-2xl" />
-        <div className="auth-skeleton mx-auto h-6 w-40" />
-        <div className="auth-skeleton mx-auto mt-2 h-4 w-52" />
-      </div>
-      <Card className="space-y-4 rounded-2xl p-6 shadow-lg">
-        <div className="space-y-2">
-          <div className="auth-skeleton h-3 w-28" />
-          <div className="auth-skeleton h-10 w-full" />
-        </div>
-        <div className="space-y-2">
-          <div className="auth-skeleton h-3 w-20" />
-          <div className="auth-skeleton h-10 w-full" />
-        </div>
-        <div className="auth-skeleton h-10 w-full" />
-        </Card>
-    </div>
+    <Paper withBorder radius="lg" p={{ base: 'lg', sm: 'xl' }} aria-hidden>
+      <Stack gap="md">
+        <Skeleton height={44} width={44} radius="md" mx="auto" />
+        <Skeleton height={24} width="60%" mx="auto" />
+        <Skeleton height={14} width="75%" mx="auto" />
+        <Stack gap={6} mt="md">
+          <Skeleton height={12} width="40%" />
+          <Skeleton height={36} />
+        </Stack>
+        <Stack gap={6}>
+          <Skeleton height={12} width="30%" />
+          <Skeleton height={36} />
+        </Stack>
+        <Skeleton height={36} />
+      </Stack>
+    </Paper>
   )
 }
 
@@ -100,8 +93,7 @@ export default function Login() {
     setError('')
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const submit = async (mfaCodeOverride?: string) => {
     setError('')
     setInfoMessage('')
     setPending(true)
@@ -114,7 +106,7 @@ export default function Login() {
       const payload = changePasswordTicket
         ? { changePasswordTicket, newPassword, confirmPassword }
         : mfaTicket
-          ? { mfaTicket, code: mfaCode.trim() }
+          ? { mfaTicket, code: (mfaCodeOverride ?? mfaCode).trim() }
           : { email: username, password }
 
       const res = await fetch(endpoint, {
@@ -165,140 +157,155 @@ export default function Login() {
     }
   }
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    void submit()
+  }
+
+  const submitLabel = pending
+    ? t('login.signingIn')
+    : changePasswordTicket
+      ? t('login.updatePassword')
+      : mfaTicket
+        ? t('login.verifyCode')
+        : t('login.signIn')
+
+  const backButton = (
+    <Button
+      type="button"
+      variant="subtle"
+      color="gray"
+      size="xs"
+      leftSection={<ArrowLeft size={14} />}
+      onClick={resetChallengeState}
+    >
+      {t('login.back')}
+    </Button>
+  )
+
+  const brandMark = (
+    <ThemeIcon
+      size={56}
+      radius="lg"
+      variant="filled"
+      color={ui?.primaryColor ?? undefined}
+      style={{ overflow: 'hidden' }}
+    >
+      {ui?.logoUrl
+        ? <Image src={ui.logoUrl} alt="Logo" w={56} h={56} fit="cover" />
+        : <ShieldCheck size={26} />}
+    </ThemeIcon>
+  )
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: ui?.backgroundCss ?? 'var(--semantic-bg-page)' }}>
+    <AuthLayout
+      style={ui?.backgroundCss ? { background: ui.backgroundCss } : undefined}
+      topRight={
+        <>
+          <LanguageSelector />
+          <ColorSchemeToggle size="lg" variant="default" />
+        </>
+      }
+    >
       {uiLoading ? (
         <LoginLoadingSkeleton />
+      ) : mfaTicket && !changePasswordTicket ? (
+        <AuthCard
+          logo={brandMark}
+          title={ui?.title ?? t('login.title')}
+          subtitle={ui?.subtitle ?? t('login.subtitle')}
+          footer={backButton}
+        >
+          <Stack gap="md">
+            <OtpStep
+              value={mfaCode}
+              onChange={(value) => setMfaCode(value.replace(/\D+/g, '').slice(0, 8))}
+              onSubmit={(code) => {
+                if (pending) return
+                void submit(code)
+              }}
+              loading={pending}
+              error={error || undefined}
+              labels={{ submit: submitLabel, input: t('login.authenticatorCode') }}
+              hint={t('login.authenticatorCode')}
+            />
+            {infoMessage ? <Alert color="yellow">{infoMessage}</Alert> : null}
+          </Stack>
+        </AuthCard>
       ) : (
-      <div className="w-full max-w-sm">
-        <div className="mb-4 flex justify-end">
-          <LanguageSelector />
-        </div>
-        <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-2xl mx-auto mb-4 overflow-hidden shadow-md" style={{ backgroundColor: ui?.primaryColor ?? '#0f172a' }}>
-            {ui?.logoUrl
-              ? <img src={ui.logoUrl} alt="Logo" className="h-full w-full object-cover" />
-              : <ShieldCheck size={26} />}
-          </div>
-          <h1 className="text-2xl font-bold text-foreground">{ui?.title ?? t('login.title')}</h1>
-          <p className="text-sm text-muted-foreground mt-1">{ui?.subtitle ?? t('login.subtitle')}</p>
-        </div>
-
-        <Card className="rounded-2xl p-6 shadow-lg">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {changePasswordTicket ? (
-              <>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                    {t('login.newPassword')}
-                  </label>
-                  <Input
-                    type="password"
-                    className="h-10 rounded-xl px-3.5"
+        <AuthCard
+          logo={brandMark}
+          title={ui?.title ?? t('login.title')}
+          subtitle={ui?.subtitle ?? t('login.subtitle')}
+          footer={changePasswordTicket ? backButton : undefined}
+        >
+          <form onSubmit={handleSubmit}>
+            <Stack gap="sm">
+              {changePasswordTicket ? (
+                <>
+                  <PasswordInput
+                    label={t('login.newPassword')}
                     value={newPassword}
-                    onChange={e => setNewPassword(e.target.value)}
+                    onChange={e => setNewPassword(e.currentTarget.value)}
+                    autoComplete="new-password"
+                    leftSection={<Lock size={16} />}
                     autoFocus
                     required
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                    {t('login.confirmNewPassword')}
-                  </label>
-                  <Input
-                    type="password"
-                    className="h-10 rounded-xl px-3.5"
+                  <PasswordInput
+                    label={t('login.confirmNewPassword')}
                     value={confirmPassword}
-                    onChange={e => setConfirmPassword(e.target.value)}
+                    onChange={e => setConfirmPassword(e.currentTarget.value)}
+                    autoComplete="new-password"
+                    leftSection={<Lock size={16} />}
                     required
                   />
-                </div>
-              </>
-            ) : mfaTicket ? (
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                  {t('login.authenticatorCode')}
-                </label>
-                <Input
-                  className="h-10 rounded-xl px-3.5 tracking-[0.2em]"
-                  value={mfaCode}
-                  onChange={e => setMfaCode(e.target.value.replace(/\D+/g, '').slice(0, 8))}
-                  autoFocus
-                  required
-                />
-              </div>
-            ) : (
-              <>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                    {t('login.usernameOrEmail')}
-                  </label>
-                  <Input
-                    className="h-10 rounded-xl px-3.5"
+                </>
+              ) : (
+                <>
+                  <TextInput
+                    label={t('login.usernameOrEmail')}
                     value={username}
-                    onChange={e => setUsername(e.target.value)}
+                    onChange={e => setUsername(e.currentTarget.value)}
+                    leftSection={<Mail size={16} />}
                     autoFocus
                     autoComplete="username"
                     required
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                    {t('login.password')}
-                  </label>
-                  <div className="relative">
-                    <Input
-                      type={showPw ? 'text' : 'password'}
-                      className="h-10 rounded-xl px-3.5 pr-10"
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      autoComplete="current-password"
-                      required
-                    />
-                    <Button
-                      onClick={() => setShowPw(p => !p)}
-                      aria-label={showPw ? t('login.hidePassword') : t('login.showPassword')}
-                      aria-pressed={showPw}
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-2 top-1.5 h-7 w-7 rounded-md"
-                    >
-                      {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </Button>
-                  </div>
-                </div>
-              </>
-            )}
+                  <PasswordInput
+                    label={t('login.password')}
+                    value={password}
+                    onChange={e => setPassword(e.currentTarget.value)}
+                    leftSection={<Lock size={16} />}
+                    autoComplete="current-password"
+                    visible={showPw}
+                    onVisibilityChange={setShowPw}
+                    visibilityToggleButtonProps={{
+                      'aria-label': showPw ? t('login.hidePassword') : t('login.showPassword'),
+                      'aria-pressed': showPw,
+                    }}
+                    required
+                  />
+                </>
+              )}
 
-            {infoMessage ? <Alert tone="warning">{infoMessage}</Alert> : null}
-            {error ? <Alert tone="danger">{error}</Alert> : null}
+              {infoMessage ? <Alert color="yellow">{infoMessage}</Alert> : null}
+              {error ? <Alert color="red">{error}</Alert> : null}
 
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={pending}
-              className="h-10 w-full rounded-xl"
-              style={{ backgroundColor: ui?.primaryColor ?? undefined }}
-            >
-              <LogIn size={15} />
-              {pending
-                ? t('login.signingIn')
-                : changePasswordTicket
-                  ? t('login.updatePassword')
-                  : mfaTicket
-                    ? t('login.verifyCode')
-                    : t('login.signIn')}
-            </Button>
-
-            {(mfaTicket || changePasswordTicket) ? (
-              <Button type="button" variant="secondary" className="h-10 w-full rounded-xl" onClick={resetChallengeState}>
-                {t('login.back')}
+              <Button
+                type="submit"
+                fullWidth
+                mt="xs"
+                disabled={pending}
+                color={ui?.primaryColor ?? undefined}
+                leftSection={<LogIn size={16} />}
+              >
+                {submitLabel}
               </Button>
-            ) : null}
+            </Stack>
           </form>
-        </Card>
-      </div>
+        </AuthCard>
       )}
-    </div>
+    </AuthLayout>
   )
 }

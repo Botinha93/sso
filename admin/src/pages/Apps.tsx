@@ -1,16 +1,13 @@
-import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
-import { Boxes, ExternalLink, Globe, Pencil, Plus, RefreshCw, Trash2, Users, Shield, Key, Server } from 'lucide-react'
-import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
+import { ActionIcon, Alert, Badge, Box, Button, Center, Checkbox, Group, Image, Paper, ScrollArea, SimpleGrid, Stack, Tabs, Text, TextInput, Tooltip } from '@mantine/core'
+import { Boxes, ExternalLink, Globe, Pencil, Plus, Trash2, Users, Shield, Key, Server } from 'lucide-react'
+import { CardSkeleton, ListEditor, PageHeader, RefreshButton, ResourceCard, SearchInput } from '@nexus/design'
 import { useState } from 'react'
 import ImageField from '../components/ImageField'
-import ListSearch from '../components/ListSearch'
+import EmptyState from '../components/EmptyState'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { iconFieldForCreate, iconFieldForUpdate, imageFieldForCreate, imageFieldForUpdate, resolveMediaSrc } from '../lib/media'
 import ConfirmDialog from '../components/ConfirmDialog'
 import Modal from '../components/Modal'
-import Button from '../components/ui/Button'
-import Card from '../components/ui/Card'
-import Input from '../components/ui/Input'
 import React from 'react';
 import {
   useApps, useCreateApp, useDeleteApp, useUpdateApp,
@@ -20,8 +17,6 @@ import {
   useRoles, useUpdateRole,
   useClients, useUpdateClient,
 } from '../hooks/useApi'
-
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
 
 const EMOJI_SUGGESTIONS = ['🚀', '🔐', '📦', '🛡️', '⚙️', '🌐', '📊', '💼', '🔧', '🎯', '📱', '🖥️', '🤖', '🔑', '💡']
 
@@ -87,44 +82,48 @@ const ComponentsManager = ({ appId }: ComponentsManagerProps) => {
   const assignedIds = new Set(items.filter((item) => (item.appIds ?? (item.appId ? [item.appId] : [])).includes(appId)).map((item) => item.id))
 
   return (
-    <div>
-      <div className="flex gap-1 mb-4 border-b border-border pb-3">
-        {tabs.map(t => (
-          <Button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            variant={tab === t.key ? 'primary' : 'ghost'}
-            size="sm"
-            className={`h-7 px-3 text-xs ${tab === t.key ? '' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
-          >
-            {t.icon}{t.label}
-          </Button>
-        ))}
-      </div>
-      <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
+    <Stack gap="sm">
+      <Tabs value={tab} onChange={(value) => value && setTab(value as ComponentTab)}>
+        <Tabs.List>
+          {tabs.map(t => (
+            <Tabs.Tab key={t.key} value={t.key} leftSection={t.icon}>{t.label}</Tabs.Tab>
+          ))}
+        </Tabs.List>
+      </Tabs>
+      <ScrollArea.Autosize mah={256} type="auto">
         {items.length === 0 ? (
-          <p className="text-xs text-muted-foreground text-center py-4">No {tab} found</p>
-        ) : items.map((item) => {
-          const assigned = assignedIds.has(item.id)
-          const label = (item as any).username || item.email || item.name || item.id
-          return (
-            <label
-              key={item.id}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${assigned ? 'bg-muted/50 hover:bg-muted' : 'hover:bg-muted/50'}`}
-            >
-              <input
-                type="checkbox"
-                checked={assigned}
-                onChange={() => toggleAssign(item)}
-                className="h-4 w-4 rounded border-border text-foreground accent-sky-600"
-              />
-              <span className="text-sm text-foreground flex-1">{label}</span>
-              {assigned && <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">assigned</span>}
-            </label>
-          )
-        })}
-      </div>
-    </div>
+          <Text size="xs" c="dimmed" ta="center" py="md">No {tab} found</Text>
+        ) : (
+          <Stack gap={4}>
+            {items.map((item) => {
+              const assigned = assignedIds.has(item.id)
+              const label = (item as any).username || item.email || item.name || item.id
+              return (
+                <Paper
+                  key={item.id}
+                  radius="md"
+                  px="sm"
+                  py={8}
+                  bg={assigned ? 'var(--nx-color-surface-sunken)' : 'transparent'}
+                >
+                  <Checkbox
+                    checked={assigned}
+                    onChange={() => toggleAssign(item)}
+                    label={
+                      <Group gap="xs" justify="space-between" wrap="nowrap">
+                        <Text size="sm">{label}</Text>
+                        {assigned && <Badge size="sm" variant="light" color="gray">assigned</Badge>}
+                      </Group>
+                    }
+                    styles={{ body: { alignItems: 'center' }, labelWrapper: { flex: 1 } }}
+                  />
+                </Paper>
+              )
+            })}
+          </Stack>
+        )}
+      </ScrollArea.Autosize>
+    </Stack>
   )
 }
 
@@ -216,34 +215,49 @@ const Apps = () => {
     setAppToDelete(null)
   }
 
+  const renderAppVisual = (imageUrl: string | undefined, icon: string | undefined, name: string, fallbackSize = 20) => {
+    const src = resolveMediaSrc(imageUrl)
+    if (src) return <Image src={src} alt={name} w="100%" h="100%" fit="cover" radius="md" />
+    if (icon) return <Text span fz={fallbackSize + 2} lh={1}>{icon}</Text>
+    return <Boxes size={fallbackSize} />
+  }
+
   const renderAppForm = () => (
-    <div className="space-y-4">
-      <div className="grid grid-cols-[80px_1fr] gap-3 items-end">
-        <div>
-          <label className={labelCls}>Preview</label>
-          <div
-            className="h-12 w-full rounded-xl border-2 border-dashed border-border flex items-center justify-center text-2xl cursor-text hover:border-ring transition-colors"
+    <Stack gap="md">
+      <Group gap="sm" align="flex-end" wrap="nowrap">
+        <Stack gap={4}>
+          <Text size="sm" fw={500}>Preview</Text>
+          <Center
+            w={80}
+            h={48}
             title="Click emoji suggestions to pick"
+            style={{
+              border: '2px dashed var(--nx-color-border)',
+              borderRadius: 'var(--mantine-radius-md)',
+              overflow: 'hidden',
+              color: 'var(--nx-color-text-muted)',
+            }}
           >
-            {resolveMediaSrc(formData.imageUrl) ? <img src={resolveMediaSrc(formData.imageUrl)} alt="app" className="h-full w-full object-cover rounded-xl" /> : (formData.icon || <Boxes size={20} className="text-muted-foreground" />)}
-          </div>
-        </div>
-        <div>
-          <label className={labelCls}>App Name *</label>
-          <Input
-            type="text"
-            value={formData.name}
-            onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
-            placeholder="Internal Portal"
-          />
-        </div>
-      </div>
+            {resolveMediaSrc(formData.imageUrl)
+              ? <Image src={resolveMediaSrc(formData.imageUrl)} alt="app" w="100%" h="100%" fit="cover" />
+              : (formData.icon ? <Text span fz={24} lh={1}>{formData.icon}</Text> : <Boxes size={20} />)}
+          </Center>
+        </Stack>
+        <TextInput
+          label="App Name"
+          withAsterisk
+          flex={1}
+          value={formData.name}
+          onChange={e => { const value = e.currentTarget.value; setFormData(p => ({ ...p, name: value })) }}
+          placeholder="Internal Portal"
+        />
+      </Group>
 
       <ImageField
         label="App Image"
         value={formData.imageUrl}
         onChange={(imageUrl) => setFormData((prev) => ({ ...prev, imageUrl }))}
-        previewFallback={formData.icon || <Boxes size={20} className="text-muted-foreground" />}
+        previewFallback={formData.icon || <Boxes size={20} />}
         defaultImages={(defaultAppImages as any)?.items ?? []}
         uploadPending={uploadAppImage.isPending}
         onUpload={appToEdit
@@ -264,265 +278,223 @@ const Apps = () => {
           : undefined}
       />
 
-      <div>
-        <label className={labelCls}>Emoji Suggestions</label>
-        <div className="flex flex-wrap gap-1.5">
+      <Stack gap={6}>
+        <Text size="sm" fw={500}>Emoji Suggestions</Text>
+        <Group gap={6}>
           {EMOJI_SUGGESTIONS.map(emoji => (
-            <Button
+            <ActionIcon
               key={emoji}
               type="button"
+              size="lg"
+              variant={formData.icon === emoji ? 'light' : 'default'}
               onClick={() => setFormData(p => ({ ...p, icon: p.icon === emoji ? '' : emoji }))}
-              variant={formData.icon === emoji ? 'primary' : 'ghost'}
-              size="icon"
-              className={`w-8 h-8 rounded-lg text-base ${formData.icon === emoji ? '' : 'bg-muted/50 hover:bg-muted'}`}
+              aria-label={`Use ${emoji} icon`}
+              aria-pressed={formData.icon === emoji}
             >
-              {emoji}
-            </Button>
+              <Text span fz="md" lh={1}>{emoji}</Text>
+            </ActionIcon>
           ))}
           {formData.icon && !EMOJI_SUGGESTIONS.includes(formData.icon) && (
-            <Input
-              type="text"
+            <TextInput
               value={formData.icon}
-              onChange={e => setFormData(p => ({ ...p, icon: e.target.value.slice(0, 4) }))}
-              className="w-20 h-8 rounded-lg border border-border px-2 text-sm text-center"
+              onChange={e => { const value = e.currentTarget.value.slice(0, 4); setFormData(p => ({ ...p, icon: value })) }}
+              w={80}
+              size="xs"
+              styles={{ input: { textAlign: 'center' } }}
               placeholder="custom"
+              aria-label="Custom icon"
             />
           )}
           <Button
             type="button"
+            variant="subtle"
+            color="gray"
+            size="xs"
             onClick={() => setFormData(p => ({ ...p, icon: '' }))}
-            variant="ghost"
-            size="sm"
-            className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
           >
             clear
           </Button>
-        </div>
-      </div>
+        </Group>
+      </Stack>
 
-      <div>
-        <label className={labelCls}>Description</label>
-        <Input
-          type="text"
-          value={formData.description}
-          onChange={e => setFormData(p => ({ ...p, description: e.target.value }))}
-          placeholder="Identity assets for internal portal"
+      <TextInput
+        label="Description"
+        value={formData.description}
+        onChange={e => { const value = e.currentTarget.value; setFormData(p => ({ ...p, description: value })) }}
+        placeholder="Identity assets for internal portal"
+      />
+
+      <TextInput
+        label="App URL"
+        type="url"
+        leftSection={<Globe size={14} />}
+        value={formData.url}
+        onChange={e => { const value = e.currentTarget.value; setFormData(p => ({ ...p, url: value })) }}
+        placeholder="https://portal.example.com"
+      />
+
+      <Stack gap={6}>
+        <Box>
+          <Text size="sm" fw={500}>Resources</Text>
+          <Text size="xs" c="dimmed">Used for role permission scoping.</Text>
+        </Box>
+        <ListEditor<string>
+          value={formData.resources}
+          onChange={(resources) => setFormData(p => ({ ...p, resources }))}
+          createItem={() => ''}
+          addLabel="Add Resource"
+          emptyText="No resources yet."
+          removeLabel="Remove resource"
+          renderItem={(resource, { id, onChange }) => (
+            <TextInput
+              id={id}
+              value={resource}
+              onChange={e => onChange(e.currentTarget.value)}
+              placeholder="resource_name"
+              aria-label="Resource name"
+              ff="monospace"
+              flex={1}
+            />
+          )}
         />
-      </div>
-
-      <div>
-        <label className={labelCls}>App URL</label>
-        <div className="relative">
-          <Globe size={14} className="absolute left-3 top-2.5 text-muted-foreground pointer-events-none" />
-          <Input
-            type="url"
-            value={formData.url}
-            onChange={e => setFormData(p => ({ ...p, url: e.target.value }))}
-            className="pl-8"
-            placeholder="https://portal.example.com"
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className={labelCls}>Resources <span className="text-muted-foreground normal-case font-normal">(used for role permission scoping)</span></label>
-        <div className="space-y-1.5">
-          {formData.resources.map((r, i) => (
-            <div key={i} className="flex gap-2">
-              <Input
-                type="text"
-                value={r}
-                onChange={e => {
-                  const next = [...formData.resources]
-                  next[i] = e.target.value
-                  setFormData(p => ({ ...p, resources: next }))
-                }}
-                placeholder="resource_name"
-              />
-              <Button
-                type="button"
-                onClick={() => setFormData(p => ({ ...p, resources: p.resources.filter((_, j) => j !== i) }))}
-                variant="ghost"
-                size="sm"
-                className="h-9 px-2 text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
-              >
-                ✕
-              </Button>
-            </div>
-          ))}
-          <Button
-            type="button"
-            onClick={() => setFormData(p => ({ ...p, resources: [...p.resources, ''] }))}
-            variant="outline"
-            size="sm"
-            className="h-8 border-dashed text-xs text-muted-foreground hover:border-ring hover:text-foreground"
-          >
-            + Add Resource
-          </Button>
-        </div>
-      </div>
-    </div>
+      </Stack>
+    </Stack>
   )
 
+  const closeEdit = () => { setEditOpen(false); setAppToEdit(null) }
+
   return (
-    <div>
+    <>
       <PageHeader
         eyebrow="Management Units"
         title="Apps"
-        action={
-          <Button
-            onClick={openCreate}
-            variant="primary"
-            className="h-9 rounded-lg"
-          >
-            <Plus size={14} />
+        actions={
+          <Button onClick={openCreate} leftSection={<Plus size={16} />}>
             New App
           </Button>
         }
       />
 
-      <div className="mb-4">
-        <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search apps by name, description, URL…" />
-      </div>
+      <Group justify="space-between" gap="sm">
+        <SearchInput value={searchInput} onChange={setSearchInput} placeholder="Search apps by name, description, URL…" maw={360} w="100%" />
+        <RefreshButton onRefresh={() => refetch()} loading={isFetching} size="xs" lastUpdated={null} />
+      </Group>
 
-      <Table>
-        <TableHeaderRow>
-          <h4 className="text-sm font-semibold text-foreground">All Apps</h4>
-          <Button onClick={() => refetch()} disabled={isFetching} variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
-            <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
-            Refresh
-          </Button>
-        </TableHeaderRow>
-
-        {isLoading ? (
-          <TableSkeleton rows={5} />
-        ) : (apps as AppItem[]).length === 0 ? (
+      {isLoading ? (
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+          {Array.from({ length: 6 }, (_, i) => <CardSkeleton key={i} />)}
+        </SimpleGrid>
+      ) : (apps as AppItem[]).length === 0 ? (
+        <Paper withBorder radius="md">
           <EmptyState
             icon={Boxes}
             title="No apps created yet"
             description="Create an app to group users, clients and roles."
-            action={<Button onClick={openCreate} variant="primary" size="sm" className="h-8 rounded-lg">New App</Button>}
+            action={<Button onClick={openCreate} size="xs" leftSection={<Plus size={14} />}>New App</Button>}
           />
-        ) : (
-          <TableBody>
-            {(apps as AppItem[]).map((app) => (
-              <TableRow key={app.id} className="px-5 py-3.5 hover:bg-muted/50 transition-colors flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <div className="w-8 h-8 rounded-xl bg-muted flex items-center justify-center text-lg shrink-0">
-                      {resolveMediaSrc(app.imageUrl) ? <img src={resolveMediaSrc(app.imageUrl)} alt={app.name} className="h-full w-full rounded-xl object-cover" /> : (app.icon ? app.icon : <Boxes size={16} className="text-muted-foreground" />)}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h5 className="text-sm font-medium text-foreground">{app.name}</h5>
-                        {app.url && (
-                          <a href={app.url} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground transition-colors" title={app.url}>
-                            <ExternalLink size={12} />
-                          </a>
-                        )}
-                      </div>
-                      {app.description && <p className="text-xs text-muted-foreground truncate">{app.description}</p>}
-                    </div>
-                  </div>
-                  {(app.resources?.length ?? 0) > 0 && (
-                    <StatusBadge tone="info" className="ml-10">
-                      {app.resources.length} resource{app.resources.length !== 1 ? 's' : ''}
-                    </StatusBadge>
+        </Paper>
+      ) : (
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md" className="nx-stagger">
+          {(apps as AppItem[]).map((app) => (
+            <ResourceCard
+              key={app.id}
+              layout="grid"
+              title={app.name}
+              subtitle={app.url}
+              description={app.description || undefined}
+              icon={renderAppVisual(app.imageUrl, app.icon, app.name)}
+              iconColor="gray"
+              tags={(app.resources?.length ?? 0) > 0 ? [
+                <Badge key="resources" variant="light" color="blue">
+                  {app.resources.length} resource{app.resources.length !== 1 ? 's' : ''}
+                </Badge>,
+              ] : undefined}
+              actions={
+                <Group gap={4} wrap="nowrap">
+                  {app.url && (
+                    <Tooltip label={app.url}>
+                      <ActionIcon
+                        component="a"
+                        href={app.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        variant="subtle"
+                        color="gray"
+                        aria-label={`Open ${app.name}`}
+                      >
+                        <ExternalLink size={14} />
+                      </ActionIcon>
+                    </Tooltip>
                   )}
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button
-                    onClick={() => openEdit(app)}
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
-                    title="Edit app"
-                  >
-                    <Pencil size={14} />
-                  </Button>
-                  <Button
-                    onClick={() => setAppToDelete(app)}
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
-                    title="Delete app"
-                  >
-                    <Trash2 size={14} />
-                  </Button>
-                </div>
-              </TableRow>
-            ))}
-          </TableBody>
-        )}
-      </Table>
+                  <Tooltip label="Edit app">
+                    <ActionIcon onClick={() => openEdit(app)} variant="subtle" color="gray" aria-label="Edit app" title="Edit app">
+                      <Pencil size={14} />
+                    </ActionIcon>
+                  </Tooltip>
+                  <Tooltip label="Delete app">
+                    <ActionIcon onClick={() => setAppToDelete(app)} variant="subtle" color="red" aria-label="Delete app" title="Delete app">
+                      <Trash2 size={14} />
+                    </ActionIcon>
+                  </Tooltip>
+                </Group>
+              }
+            />
+          ))}
+        </SimpleGrid>
+      )}
 
       {/* Create Modal */}
       <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} title="Create App">
-        <div className="space-y-4">
+        <Stack gap="md">
           {renderAppForm()}
-          {createFormError && <p className="text-xs text-rose-600">{createFormError}</p>}
-          <div className="flex gap-2 justify-end pt-2">
-            <Button onClick={() => { setCreateOpen(false); setSelectedImageFile(null) }} variant="secondary" className="h-9 rounded-lg">Cancel</Button>
+          {createFormError && <Alert color="red" variant="light">{createFormError}</Alert>}
+          <Group justify="flex-end" gap="xs" pt="xs">
+            <Button onClick={() => { setCreateOpen(false); setSelectedImageFile(null) }} variant="default">Cancel</Button>
             <Button
               onClick={handleCreate}
-              disabled={createApp.isPending || uploadAppImage.isPending || !formData.name}
-              variant="primary"
-              className="h-9 rounded-lg"
+              loading={createApp.isPending || uploadAppImage.isPending}
+              disabled={!formData.name}
             >
-              {createApp.isPending || uploadAppImage.isPending ? 'Creating...' : 'Create App'}
+              Create App
             </Button>
-          </div>
-        </div>
+          </Group>
+        </Stack>
       </Modal>
 
       {/* Edit Modal with tabs */}
-      <Modal isOpen={editOpen} onClose={() => { setEditOpen(false); setAppToEdit(null) }} title={`Edit App${appToEdit ? `: ${appToEdit.name}` : ''}`}>
-        <div>
-          {/* Tabs */}
-          <div className="flex gap-1 mb-5 border-b border-border pb-3">
-            <Button
-              onClick={() => setEditTab('details')}
-              variant={editTab === 'details' ? 'primary' : 'ghost'}
-              size="sm"
-              className={`h-7 px-3 text-xs ${editTab === 'details' ? '' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
-            >
-              Details
-            </Button>
-            <Button
-              onClick={() => setEditTab('components')}
-              variant={editTab === 'components' ? 'primary' : 'ghost'}
-              size="sm"
-              className={`h-7 px-3 text-xs ${editTab === 'components' ? '' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
-            >
-              Components
-            </Button>
-          </div>
+      <Modal isOpen={editOpen} onClose={closeEdit} title={`Edit App${appToEdit ? `: ${appToEdit.name}` : ''}`}>
+        <Tabs value={editTab} onChange={(value) => value && setEditTab(value as 'details' | 'components')}>
+          <Tabs.List mb="md">
+            <Tabs.Tab value="details">Details</Tabs.Tab>
+            <Tabs.Tab value="components">Components</Tabs.Tab>
+          </Tabs.List>
 
-          {editTab === 'details' ? (
-            <div className="space-y-4">
+          <Tabs.Panel value="details">
+            <Stack gap="md">
               {renderAppForm()}
-              {editFormError && <p className="text-xs text-rose-600">{editFormError}</p>}
-              <div className="flex gap-2 justify-end pt-2">
-                <Button onClick={() => { setEditOpen(false); setAppToEdit(null) }} variant="secondary" className="h-9 rounded-lg">Cancel</Button>
+              {editFormError && <Alert color="red" variant="light">{editFormError}</Alert>}
+              <Group justify="flex-end" gap="xs" pt="xs">
+                <Button onClick={closeEdit} variant="default">Cancel</Button>
                 <Button
                   onClick={handleUpdate}
-                  disabled={updateApp.isPending || !formData.name}
-                  variant="primary"
-                  className="h-9 rounded-lg"
+                  loading={updateApp.isPending}
+                  disabled={!formData.name}
                 >
-                  {updateApp.isPending ? 'Saving...' : 'Save Changes'}
+                  Save Changes
                 </Button>
-              </div>
-            </div>
-          ) : (
-            <div>
+              </Group>
+            </Stack>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="components">
+            <Stack gap="md">
               {appToEdit && <ComponentsManager appId={appToEdit.id} />}
-              <div className="flex justify-end pt-4 border-t border-border mt-4">
-                <Button onClick={() => { setEditOpen(false); setAppToEdit(null) }} variant="secondary" className="h-9 rounded-lg">Close</Button>
-              </div>
-            </div>
-          )}
-        </div>
+              <Group justify="flex-end" pt="sm" style={{ borderTop: '1px solid var(--nx-color-border)' }}>
+                <Button onClick={closeEdit} variant="default">Close</Button>
+              </Group>
+            </Stack>
+          </Tabs.Panel>
+        </Tabs>
       </Modal>
 
       <ConfirmDialog
@@ -534,9 +506,8 @@ const Apps = () => {
         onConfirm={confirmDelete}
         onCancel={() => setAppToDelete(null)}
       />
-    </div>
+    </>
   )
 }
 
 export default Apps
-import StatusBadge from '../components/ui/StatusBadge'

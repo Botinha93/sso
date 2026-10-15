@@ -1,11 +1,11 @@
 import AccessGovernancePanel from '../components/AccessGovernancePanel'
 import AccessReviewCampaignPanel from '../components/AccessReviewCampaignPanel'
-import { PageHeader } from '../components/PageHeader'
+import { PageHeader } from '@nexus/design'
 import React from 'react';
 
 export default function AccessGovernance() {
   return (
-    <div className="space-y-6">
+    <>
       <PageHeader
         eyebrow="Governance"
         title="Access Governance"
@@ -14,6 +14,6 @@ export default function AccessGovernance() {
 
       <AccessGovernancePanel />
       <AccessReviewCampaignPanel />
-    </div>
+    </>
   )
 }

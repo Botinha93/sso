@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM node:22-bookworm-slim AS build
 
 RUN apt-get update \
@@ -9,7 +10,13 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY . .
 
-RUN npm ci
+# @nexus/design comes from GitHub Packages (scope mapped in .npmrc). Pass a token with read:packages:
+#   docker build --secret id=github_token,env=GITHUB_TOKEN .
+# It is written to a throwaway user npmrc for this step only and never lands in an image layer.
+RUN --mount=type=secret,id=github_token,required=true \
+  printf '//npm.pkg.github.com/:_authToken=%s\n' "$(cat /run/secrets/github_token)" > /tmp/.npmrc \
+  && NPM_CONFIG_USERCONFIG=/tmp/.npmrc npm ci; \
+  status=$?; rm -f /tmp/.npmrc; exit $status
 
 RUN npm run prisma:generate \
   && npm run build \

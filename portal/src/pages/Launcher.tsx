@@ -1,10 +1,10 @@
-import { ExternalLink, Grid3X3, LogOut, Settings, Users as UsersIcon } from 'lucide-react'
+import { Alert, Anchor, Avatar, Badge, Box, Group, Paper, SimpleGrid, Text, Title } from '@mantine/core'
+import { AppTile, AppTileGrid } from '@nexus/design'
+import { Lightbulb, Settings, Users as UsersIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useEffect, useMemo, useState } from 'react'
-import { logout, type PortalUser } from '../hooks'
-import LanguageSelector from '../components/LanguageSelector'
-import Button from '../components/ui/Button'
-import Card from '../components/ui/Card'
+import { type PortalUser } from '../hooks'
+import PortalShell from '../components/PortalShell'
 import { useI18n, formatPasswordExpirationWarning } from '../i18n'
 
 interface Props {
@@ -19,8 +19,6 @@ interface UiCustomization {
   accentColor?: string
   backgroundCss?: string
 }
-
-const portalHome = import.meta.env.BASE_URL
 
 export default function Launcher({ user }: Props) {
   const { t } = useI18n()
@@ -73,57 +71,24 @@ export default function Launcher({ user }: Props) {
     ? null
     : formatPasswordExpirationWarning(t, passwordExpirationDays)
 
-  const handleLogout = async () => {
-    await logout()
-    window.location.href = portalHome
-  }
+  const subtitle = ui?.subtitle ?? user.email
+  const initials = `${user.givenName?.[0] ?? ''}${user.email?.[0] ?? ''}`.toUpperCase()
 
   return (
-    <div className="min-h-screen" style={{ background: ui?.backgroundCss ?? '#f8fafc' }}>
-      {/* Header */}
-      <header className="bg-card border-b border-border sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white text-sm overflow-hidden" style={{ backgroundColor: ui?.primaryColor ?? '#0f172a' }}>
-            {ui?.logoUrl ? <img src={ui.logoUrl} alt="Logo" className="h-full w-full object-cover" /> : <Grid3X3 size={16} />}
-            </div>
-            <span className="text-sm font-semibold text-foreground">{ui?.title ?? 'Account Portal'}</span>
-          </div>
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <Link to="/profile">
-              <Button variant="ghost" size="sm" className="px-2 sm:px-3">
-                <Settings size={14} />
-                <span className="hidden sm:inline">{t('launcher.settings')}</span>
-              </Button>
-            </Link>
-            <LanguageSelector className="hidden sm:inline-flex" />
-            <Button
-              onClick={handleLogout}
-              variant="ghost"
-              size="sm"
-              className="px-2 sm:px-3"
-            >
-              <LogOut size={14} />
-              <span className="hidden sm:inline">{t('common.signOut')}</span>
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
-        <div className="mb-4 sm:hidden">
-          <LanguageSelector />
-        </div>
-        {passwordExpirationWarning && !warningDismissed ? (
-          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <span>{passwordExpirationWarning}</span>
-            <div className="flex shrink-0 items-center gap-3">
-              <Link to="/profile?section=password" className="font-medium text-amber-900 underline">
+    <PortalShell user={user} brand={ui} background={ui?.backgroundCss}>
+      {passwordExpirationWarning && !warningDismissed ? (
+        <Alert color="yellow">
+          <Group justify="space-between" gap="sm" wrap="wrap">
+            <Text size="sm">{passwordExpirationWarning}</Text>
+            <Group gap="md">
+              <Anchor component={Link} to="/profile?section=password" size="sm" fw={500}>
                 {t('launcher.changePassword')}
-              </Link>
-              <button
+              </Anchor>
+              <Anchor
+                component="button"
                 type="button"
-                className="text-amber-800 underline"
+                size="sm"
+                c="dimmed"
                 onClick={() => {
                   sessionStorage.removeItem('passwordExpirationWarning')
                   sessionStorage.setItem('passwordExpirationWarningDismissed', '1')
@@ -132,139 +97,94 @@ export default function Launcher({ user }: Props) {
                 }}
               >
                 {t('launcher.dismissWarning')}
-              </button>
-            </div>
-          </div>
-        ) : null}
-        {/* Welcome */}
-        <div className="mb-10">
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-400 to-indigo-500 flex items-center justify-center overflow-hidden text-white font-bold shadow-sm">
-              {user.avatarUrl ? <img src={user.avatarUrl} alt="avatar" className="h-full w-full object-cover" /> : `${user.givenName?.[0] ?? ''}${user.email?.[0] ?? ''}`.toUpperCase()}
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-foreground">
-                {t('launcher.welcomeBack', { name: user.givenName })}
-              </h1>
-              <p className="text-sm text-muted-foreground">{ui?.subtitle ?? user.email}</p>
-            </div>
-          </div>
-        </div>
+              </Anchor>
+            </Group>
+          </Group>
+        </Alert>
+      ) : null}
 
-        {/* App Grid */}
-        <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">{t('launcher.yourApps')}</h2>
-          {canManageUsers && (
-            <div className="mb-4">
-              <Link to="/users">
-                <Card className="group cursor-pointer rounded-2xl p-4 transition-all hover:scale-[1.01] hover:border-ring hover:shadow-lg flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-primary text-primary-foreground">
-                    <Settings size={16} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{t('launcher.manageUsers')}</p>
-                    <p className="text-xs text-muted-foreground">{t('launcher.manageUsersHint')}</p>
-                  </div>
-                </Card>
-              </Link>
-            </div>
-          )}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4">
-              <AppTile
-                app={{
-                  id: '__portal_suggestions__',
-                  name: t('suggestions.appName'),
-                  description: t('suggestions.appDescription'),
-                }}
-                inheritedFromGroups={[]}
-                viaGroupLabel={(group) => t('launcher.viaGroup', { group })}
-                to="/suggestions"
-              />
-              {user.apps.map(app => (
-                <AppTile
-                  key={app.id}
-                  app={app}
-                  inheritedFromGroups={inheritedGroupsByAppId.get(app.id) ?? []}
-                  viaGroupLabel={(group) => t('launcher.viaGroup', { group })}
-                />
-              ))}
-            </div>
-            {user.apps.length === 0 ? (
-            <div className="mt-4 rounded-2xl border border-dashed border-border p-8 text-center">
-              <p className="text-muted-foreground text-sm">{t('launcher.noAppsTitle')}</p>
-              <p className="text-muted-foreground text-xs mt-1">{t('launcher.noAppsHint')}</p>
-            </div>
-            ) : null}
-        </section>
-      </main>
-    </div>
+      <Group gap="md" wrap="nowrap">
+        <Avatar src={user.avatarUrl} alt="avatar" size={48} radius="xl" color="blue">
+          {initials}
+        </Avatar>
+        <Box miw={0}>
+          <Title order={2}>{t('launcher.welcomeBack', { name: user.givenName })}</Title>
+          <Text size="sm" c="dimmed" mt={2} truncate="end">{subtitle}</Text>
+        </Box>
+      </Group>
+
+      {canManageUsers && (
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+          <AppTile
+            layout="row"
+            name={t('launcher.manageUsers')}
+            description={t('launcher.manageUsersHint')}
+            icon={<Settings size={18} />}
+            color="blue"
+            component={Link}
+            componentProps={{ to: '/users' }}
+          />
+        </SimpleGrid>
+      )}
+
+      <AppTileGrid title={t('launcher.yourApps')}>
+        <AppTile
+          name={t('suggestions.appName')}
+          description={t('suggestions.appDescription')}
+          icon={<Lightbulb size={22} />}
+          color="yellow"
+          component={Link}
+          componentProps={{ to: '/suggestions' }}
+        />
+        {user.apps.map(app => (
+          <LauncherAppTile
+            key={app.id}
+            app={app}
+            inheritedFromGroups={inheritedGroupsByAppId.get(app.id) ?? []}
+            viaGroupLabel={(group) => t('launcher.viaGroup', { group })}
+          />
+        ))}
+      </AppTileGrid>
+
+      {user.apps.length === 0 ? (
+        <Paper withBorder p="xl" ta="center" style={{ borderStyle: 'dashed', background: 'transparent' }}>
+          <Text size="sm" c="dimmed">{t('launcher.noAppsTitle')}</Text>
+          <Text size="xs" c="dimmed" mt={4}>{t('launcher.noAppsHint')}</Text>
+        </Paper>
+      ) : null}
+    </PortalShell>
   )
 }
 
-function appColor(name: string): string {
-  const colors = [
-    'from-sky-400 to-blue-600',
-    'from-violet-400 to-indigo-600',
-    'from-emerald-400 to-teal-600',
-    'from-amber-400 to-orange-500',
-    'from-rose-400 to-pink-600',
-    'from-cyan-400 to-sky-600',
-  ]
-  let hash = 0
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0
-  return colors[hash % colors.length]
-}
-
-interface AppTileProps {
+interface LauncherAppTileProps {
   app: PortalUser['apps'][0]
   inheritedFromGroups: string[]
   viaGroupLabel: (group: string) => string
-  to?: string
 }
 
-function AppTile({ app, inheritedFromGroups, viaGroupLabel, to }: AppTileProps) {
+function LauncherAppTile({ app, inheritedFromGroups, viaGroupLabel }: LauncherAppTileProps) {
   const isInherited = inheritedFromGroups.length > 0
   const groupTooltip = isInherited
     ? inheritedFromGroups.map((group) => viaGroupLabel(group)).join(' · ')
     : undefined
+  const target = app.url ? (app.url.startsWith('http') ? '_blank' : '_self') : undefined
 
-  const content = (
-    <Card className="group cursor-pointer rounded-2xl p-5 transition-all hover:scale-[1.02] hover:border-ring hover:shadow-lg flex flex-col items-center gap-3 relative">
-      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center overflow-hidden bg-gradient-to-br ${appColor(app.name)} text-white text-2xl font-bold shadow-sm`}>
-        {app.imageUrl ? <img src={app.imageUrl} alt={app.name} className="h-full w-full rounded-2xl object-cover" /> : app.name[0]?.toUpperCase()}
-      </div>
-      <div className="text-center w-full">
-        <p className="text-sm font-semibold text-foreground leading-tight">{app.name}</p>
-        {app.description && (
-          <p className="text-xs text-muted-foreground mt-0.5 leading-tight line-clamp-2">{app.description}</p>
-        )}
-        {isInherited && (
-          <p
-            className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-medium text-sky-700 bg-sky-50 rounded-full px-2 py-0.5 max-w-full"
-            title={groupTooltip}
-          >
-            <UsersIcon size={10} className="shrink-0" />
-            <span className="truncate">{viaGroupLabel(inheritedFromGroups[0])}{inheritedFromGroups.length > 1 ? ` +${inheritedFromGroups.length - 1}` : ''}</span>
-          </p>
-        )}
-      </div>
-      {app.url && (
-        <ExternalLink size={12} className="absolute top-3 right-3 text-muted-foreground/60 group-hover:text-muted-foreground transition-colors" />
-      )}
-    </Card>
+  return (
+    <AppTile
+      name={app.name}
+      description={app.description || undefined}
+      imageSrc={app.imageUrl}
+      href={app.url || undefined}
+      target={target}
+      rel={app.url ? 'noreferrer' : undefined}
+      external={target === '_blank'}
+      badge={
+        isInherited ? (
+          <Badge size="xs" color="blue" leftSection={<UsersIcon size={10} />} title={groupTooltip} maw="100%">
+            {viaGroupLabel(inheritedFromGroups[0])}{inheritedFromGroups.length > 1 ? ` +${inheritedFromGroups.length - 1}` : ''}
+          </Badge>
+        ) : undefined
+      }
+    />
   )
-
-  if (to) {
-    return <Link to={to}>{content}</Link>
-  }
-
-  if (app.url) {
-    return (
-      <a href={app.url} target={app.url.startsWith('http') ? '_blank' : '_self'} rel="noreferrer">
-        {content}
-      </a>
-    )
-  }
-
-  return content
 }

@@ -1,18 +1,10 @@
-import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
-import Card from '../components/ui/Card'
-import Select from '../components/ui/Select'
 import { useMemo, useState } from 'react'
+import { Group, NativeSelect, Stack, Table, Text } from '@mantine/core'
 import { Clock3, ShieldAlert } from 'lucide-react'
-import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
-import StatusBadge from '../components/ui/StatusBadge'
+import { ExpiryBadge, PageHeader, SectionCard, StatGroup, StatusBadge, TableSkeleton } from '@nexus/design'
+import EmptyState from '../components/EmptyState'
 import { type ElevationSessionDto, useElevationSessions } from '../hooks/useApi'
 import React from 'react';
-
-const statusStyles: Record<ElevationSessionDto['status'], 'success' | 'danger' | 'neutral'> = {
-  active: 'success',
-  revoked: 'danger',
-  expired: 'neutral'
-}
 
 export default function ElevationSessions() {
   const [status, setStatus] = useState<ElevationSessionDto['status'] | 'all'>('active')
@@ -30,49 +22,34 @@ export default function ElevationSessions() {
   }, [sessions])
 
   return (
-    <div className="space-y-6">
+    <>
       <PageHeader
         eyebrow="Governance"
         title="Elevation Sessions"
         description="Inspect active and historical privileged sessions created through elevation approvals and emergency break-glass operations."
-        action={
-          <Select
+        actions={
+          <NativeSelect
+            aria-label="Filter by status"
             value={status}
-            onChange={(event) => setStatus(event.target.value as ElevationSessionDto['status'] | 'all')}
-            className="h-9 rounded-lg border border-border bg-card px-3 text-sm text-foreground outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/20"
-          >
-            <option value="all">All statuses</option>
-            <option value="active">Active</option>
-            <option value="revoked">Revoked</option>
-            <option value="expired">Expired</option>
-          </Select>
+            onChange={(event) => setStatus(event.currentTarget.value as ElevationSessionDto['status'] | 'all')}
+            data={[
+              { value: 'all', label: 'All statuses' },
+              { value: 'active', label: 'Active' },
+              { value: 'revoked', label: 'Revoked' },
+              { value: 'expired', label: 'Expired' }
+            ]}
+          />
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total</p>
-          <p className="mt-2 text-2xl font-bold text-foreground">{stats.total}</p>
-        </Card>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Active</p>
-          <p className="mt-2 text-2xl font-bold text-emerald-800">{stats.active}</p>
-        </div>
-        <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-rose-700">Revoked</p>
-          <p className="mt-2 text-2xl font-bold text-rose-800">{stats.revoked}</p>
-        </div>
-        <div className="rounded-xl border border-border bg-muted/50 p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Expired</p>
-          <p className="mt-2 text-2xl font-bold text-foreground">{stats.expired}</p>
-        </div>
-      </div>
+      <StatGroup>
+        <StatGroup.Item label="Total" value={stats.total} loading={isLoading} />
+        <StatGroup.Item label="Active" value={stats.active} tone="green" loading={isLoading} />
+        <StatGroup.Item label="Revoked" value={stats.revoked} tone="red" loading={isLoading} />
+        <StatGroup.Item label="Expired" value={stats.expired} loading={isLoading} />
+      </StatGroup>
 
-      <Table>
-        <TableHeaderRow className="px-4 py-3">
-          <h2 className="text-sm font-semibold text-foreground">Session Timeline</h2>
-        </TableHeaderRow>
-
+      <SectionCard title="Session timeline" flush>
         {isLoading ? (
           <TableSkeleton rows={4} />
         ) : sessions.length === 0 ? (
@@ -82,31 +59,53 @@ export default function ElevationSessions() {
             description="Privilege escalation sessions will appear here."
           />
         ) : (
-          <TableBody>
-            {sessions.map((session) => (
-              <TableRow key={session.id} className="px-4 py-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm text-foreground">
-                    <span className="font-mono">{session.resource}</span>
-                    <span className="mx-1 text-muted-foreground">→</span>
-                    <span className="font-mono">{session.action}</span>
-                  </p>
-                  <StatusBadge tone={statusStyles[session.status]}>{session.status}</StatusBadge>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                  <span className="font-mono">session {session.id.slice(0, 12)}...</span>
-                  <span className="flex items-center gap-1">
-                    <Clock3 size={12} />
-                    Started {new Date(session.startedAt).toLocaleString()}
-                  </span>
-                  <span>Expires {new Date(session.expiresAt).toLocaleString()}</span>
-                  {session.endedAt ? <span>Ended {new Date(session.endedAt).toLocaleString()}</span> : null}
-                </div>
-              </TableRow>
-            ))}
-          </TableBody>
+          <Table.ScrollContainer minWidth={760}>
+            <Table highlightOnHover verticalSpacing="sm">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Permission</Table.Th>
+                  <Table.Th>Session</Table.Th>
+                  <Table.Th>Started</Table.Th>
+                  <Table.Th>Expires</Table.Th>
+                  <Table.Th>Status</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {sessions.map((session) => (
+                  <Table.Tr key={session.id}>
+                    <Table.Td>
+                      <Text size="sm">
+                        <Text span ff="monospace" inherit>{session.resource}</Text>
+                        <Text span c="dimmed" mx={4} inherit>→</Text>
+                        <Text span ff="monospace" inherit>{session.action}</Text>
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs" c="dimmed" ff="monospace">session {session.id.slice(0, 12)}...</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4} wrap="nowrap">
+                        <Clock3 size={14} color="var(--nx-color-text-muted)" />
+                        <Text size="xs" c="dimmed">Started {new Date(session.startedAt).toLocaleString()}</Text>
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Stack gap={2}>
+                        {session.status === 'active' ? <ExpiryBadge expiresAt={session.expiresAt} /> : null}
+                        <Text size="xs" c="dimmed">Expires {new Date(session.expiresAt).toLocaleString()}</Text>
+                        {session.endedAt ? <Text size="xs" c="dimmed">Ended {new Date(session.endedAt).toLocaleString()}</Text> : null}
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      <StatusBadge status={session.status}>{session.status}</StatusBadge>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
         )}
-      </Table>
-    </div>
+      </SectionCard>
+    </>
   )
 }

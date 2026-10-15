@@ -1,12 +1,9 @@
-import Select from '../components/ui/Select'
 import { useState } from 'react'
-import ListSearch from '../components/ListSearch'
+import { ActionIcon, Badge, Box, Button, Code, Group, NativeSelect, Stack, Switch, Table, Text, TextInput, Tooltip } from '@mantine/core'
+import { Plus, Send, Trash2, Webhook } from 'lucide-react'
+import { PageHeader, PageHeaderSkeleton, SearchInput, SectionCard } from '@nexus/design'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
-import { PageHeader, PageHeaderSkeleton } from '../components/PageHeader'
-import Button from '../components/ui/Button'
-import Input from '../components/ui/Input'
-import Card from '../components/ui/Card'
-import React from 'react';
+import EmptyState from '../components/EmptyState'
 import {
   useCreateEventHook,
   useDeleteEventHook,
@@ -50,44 +47,64 @@ export default function EventHooks() {
     return statusOk && eventOk
   })
 
+  const notificationColor = (status: string) =>
+    status === 'delivered' || status === 'success' ? 'green' : status === 'failed' ? 'red' : 'gray'
+
   if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <PageHeaderSkeleton blocks={3} />
-      </div>
-    )
+    return <PageHeaderSkeleton blocks={3} />
   }
 
   return (
-    <div className="space-y-6">
+    <Stack gap="lg">
       <PageHeader
         eyebrow="Automation"
         title="Events and Hooks"
         description="Dispatch platform events to webhooks and review delivery logs."
       />
 
-      <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search hooks by event type or URL…" />
+      <SearchInput value={searchInput} onChange={setSearchInput} placeholder="Search hooks by event type or URL…" maw={360} />
 
-      <Card className="p-4">
-        <h2 className="text-sm font-semibold text-foreground">Create Hook</h2>
-        <p className="mt-1 text-xs text-muted-foreground">Choose one of the supported system events. Use <span className="font-mono">*</span> to receive all events.</p>
-        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-5">
-          <Select
+      <SectionCard
+        title="Create hook"
+        description={<>Choose one of the supported system events. Use <Code>*</Code> to receive all events.</>}
+      >
+        <Group align="flex-start" gap="sm" wrap="wrap">
+          <NativeSelect
+            aria-label="Event type"
             value={form.eventType}
-            onChange={(e) => setForm((v) => ({ ...v, eventType: e.target.value }))}
-          >
-            {eventOptions.map((eventType) => (
-              <option key={eventType} value={eventType}>{eventType}</option>
-            ))}
-          </Select>
-          <Input value={form.targetUrl} onChange={(e) => setForm((v) => ({ ...v, targetUrl: e.target.value }))} placeholder="https://hooks.example.com/identity" />
-          <Select value={form.method} onChange={(e) => setForm((v) => ({ ...v, method: e.target.value }))}>
-            <option value="POST">POST</option>
-            <option value="PUT">PUT</option>
-          </Select>
-          <Input className="font-mono text-xs" value={form.headers} onChange={(e) => setForm((v) => ({ ...v, headers: e.target.value }))} placeholder='{"x-key":"123"}' />
+            onChange={(e) => { const value = e.currentTarget.value; setForm((v) => ({ ...v, eventType: value })) }}
+            data={eventOptions}
+            miw={200}
+            style={{ flex: 1 }}
+          />
+          <TextInput
+            aria-label="Target URL"
+            value={form.targetUrl}
+            onChange={(e) => { const value = e.currentTarget.value; setForm((v) => ({ ...v, targetUrl: value })) }}
+            placeholder="https://hooks.example.com/identity"
+            miw={240}
+            style={{ flex: 2 }}
+          />
+          <NativeSelect
+            aria-label="HTTP method"
+            value={form.method}
+            onChange={(e) => { const value = e.currentTarget.value; setForm((v) => ({ ...v, method: value })) }}
+            data={['POST', 'PUT']}
+            w={100}
+          />
+          <TextInput
+            aria-label="Headers (JSON)"
+            value={form.headers}
+            onChange={(e) => { const value = e.currentTarget.value; setForm((v) => ({ ...v, headers: value })) }}
+            placeholder='{"x-key":"123"}'
+            ff="monospace"
+            styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)', fontSize: 'var(--mantine-font-size-xs)' } }}
+            miw={180}
+            style={{ flex: 1 }}
+          />
           <Button
-            variant="primary"
+            leftSection={<Plus size={16} />}
+            loading={createHook.isPending}
             onClick={async () => {
               try {
                 setFormError(null)
@@ -104,96 +121,118 @@ export default function EventHooks() {
               }
             }}
           >
-            Add Hook
+            Add hook
           </Button>
-        </div>
-        {formError ? <p className="mt-2 text-xs text-rose-600">{formError}</p> : null}
-      </Card>
+        </Group>
+        {formError ? <Text size="xs" c="red" mt="xs">{formError}</Text> : null}
+      </SectionCard>
 
-      <Card className="p-4">
-        <h2 className="text-sm font-semibold text-foreground">Configured Hooks</h2>
-        <div className="mt-3 space-y-2">
-          {hooks.map((hook: any) => (
-            <div key={hook.id} className="flex flex-wrap items-center gap-2 rounded border border-border px-3 py-2 text-xs text-foreground">
-              <span className="rounded bg-muted px-2 py-0.5 font-mono">{hook.eventType}</span>
-              <span>{hook.method}</span>
-              <span className="truncate">{hook.targetUrl}</span>
-              <Button
-                variant={hook.enabled ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => updateHook.mutate({ id: hook.id, enabled: !hook.enabled })}
-              >
-                {hook.enabled ? 'Enabled' : 'Disabled'}
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={testHook.isPending}
-                onClick={() => testHook.mutate({ id: hook.id })}
-              >
-                Send Test
-              </Button>
-              <Button
-                variant="danger"
-                size="sm"
-                className="ml-auto"
-                onClick={() => deleteHook.mutate(hook.id)}
-              >
-                Delete
-              </Button>
-            </div>
-          ))}
-        </div>
-      </Card>
+      <SectionCard title="Configured hooks" flush>
+        {hooks.length === 0 ? (
+          <EmptyState icon={Webhook} title="No hooks configured" description="Create a hook above to start dispatching events." />
+        ) : (
+          <Table.ScrollContainer minWidth={640} mb={0}>
+            <Table verticalSpacing="sm" highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th pl="lg">Event</Table.Th>
+                  <Table.Th>Method</Table.Th>
+                  <Table.Th>Target</Table.Th>
+                  <Table.Th>Enabled</Table.Th>
+                  <Table.Th pr="lg" />
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {hooks.map((hook: any) => (
+                  <Table.Tr key={hook.id}>
+                    <Table.Td pl="lg"><Code>{hook.eventType}</Code></Table.Td>
+                    <Table.Td><Text size="sm">{hook.method}</Text></Table.Td>
+                    <Table.Td maw={360}><Text size="sm" truncate>{hook.targetUrl}</Text></Table.Td>
+                    <Table.Td>
+                      <Switch
+                        size="sm"
+                        checked={!!hook.enabled}
+                        onChange={() => updateHook.mutate({ id: hook.id, enabled: !hook.enabled })}
+                        label={hook.enabled ? 'Enabled' : 'Disabled'}
+                      />
+                    </Table.Td>
+                    <Table.Td pr="lg">
+                      <Group gap={4} justify="flex-end" wrap="nowrap">
+                        <Button
+                          variant="default"
+                          size="xs"
+                          leftSection={<Send size={14} />}
+                          disabled={testHook.isPending}
+                          onClick={() => testHook.mutate({ id: hook.id })}
+                        >
+                          Send test
+                        </Button>
+                        <Tooltip label="Delete">
+                          <ActionIcon variant="subtle" color="red" aria-label="Delete" onClick={() => deleteHook.mutate(hook.id)}>
+                            <Trash2 size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
+        )}
+      </SectionCard>
 
-      <Card className="p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-foreground">Notification Log</h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <Select className="h-8 w-auto text-xs"
+      <SectionCard
+        title="Notification log"
+        flush
+        actions={
+          <Group gap="xs">
+            <NativeSelect
+              size="xs"
+              aria-label="Filter by status"
               value={notificationFilter}
-              onChange={(e) => setNotificationFilter(e.target.value)}
-            >
-              <option value="all">All statuses</option>
-              <option value="delivered">Delivered</option>
-              <option value="failed">Failed</option>
-            </Select>
-            <Select className="h-8 w-auto text-xs"
+              onChange={(e) => setNotificationFilter(e.currentTarget.value)}
+              data={[
+                { value: 'all', label: 'All statuses' },
+                { value: 'delivered', label: 'Delivered' },
+                { value: 'failed', label: 'Failed' },
+              ]}
+            />
+            <NativeSelect
+              size="xs"
+              aria-label="Filter by event"
               value={eventFilter}
-              onChange={(e) => setEventFilter(e.target.value)}
-            >
-              <option value="all">All events</option>
-              {eventOptions.filter((eventType) => eventType !== '*').map((eventType) => (
-                <option key={eventType} value={eventType}>{eventType}</option>
-              ))}
-            </Select>
-          </div>
-        </div>
-        <div className="mt-3 overflow-auto">
-          <table className="w-full min-w-[700px] text-left text-xs">
-            <thead className="text-muted-foreground">
-              <tr>
-                <th className="py-2">When</th>
-                <th className="py-2">Event</th>
-                <th className="py-2">Status</th>
-                <th className="py-2">HTTP</th>
-                <th className="py-2">Error</th>
-              </tr>
-            </thead>
-            <tbody>
+              onChange={(e) => setEventFilter(e.currentTarget.value)}
+              data={[{ value: 'all', label: 'All events' }, ...eventOptions.filter((eventType) => eventType !== '*')]}
+            />
+          </Group>
+        }
+      >
+        <Table.ScrollContainer minWidth={700} mb={0}>
+          <Table verticalSpacing="xs" fz="xs" highlightOnHover>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th pl="lg">When</Table.Th>
+                <Table.Th>Event</Table.Th>
+                <Table.Th>Status</Table.Th>
+                <Table.Th>HTTP</Table.Th>
+                <Table.Th pr="lg">Error</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
               {filteredNotifications.map((item: any) => (
-                <tr key={item.id} className="border-t border-border">
-                  <td className="py-2">{new Date(item.createdAt).toLocaleString()}</td>
-                  <td className="py-2 font-mono">{item.eventType}</td>
-                  <td className="py-2">{item.status}</td>
-                  <td className="py-2">{item.responseStatus ?? '-'}</td>
-                  <td className="py-2">{item.error ?? '-'}</td>
-                </tr>
+                <Table.Tr key={item.id}>
+                  <Table.Td pl="lg" style={{ whiteSpace: 'nowrap' }}>{new Date(item.createdAt).toLocaleString()}</Table.Td>
+                  <Table.Td ff="monospace">{item.eventType}</Table.Td>
+                  <Table.Td><Badge size="sm" variant="light" color={notificationColor(item.status)}>{item.status}</Badge></Table.Td>
+                  <Table.Td className="nx-tabular">{item.responseStatus ?? '-'}</Table.Td>
+                  <Table.Td pr="lg"><Box maw={320}><Text size="xs" c={item.error ? 'red' : 'dimmed'} lineClamp={2}>{item.error ?? '-'}</Text></Box></Table.Td>
+                </Table.Tr>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    </div>
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
+      </SectionCard>
+    </Stack>
   )
 }

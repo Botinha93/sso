@@ -1,15 +1,37 @@
-import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
-import Select from '../components/ui/Select'
 import { useEffect, useState } from 'react'
-import { Plus, RefreshCw, Trash2, Key, RotateCw, Copy, Eye, EyeOff, Pencil } from 'lucide-react'
-import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
+import {
+  ActionIcon,
+  Alert,
+  Badge,
+  Box,
+  Button,
+  Checkbox,
+  Group,
+  NativeSelect,
+  NumberInput,
+  Paper,
+  ScrollArea,
+  SimpleGrid,
+  Stack,
+  Table,
+  Text,
+  TextInput,
+  Title,
+  Tooltip,
+} from '@mantine/core'
+import {
+  CopyField,
+  PageHeader,
+  RefreshButton,
+  SecretReveal,
+  SectionCard,
+  StatusBadge,
+  TableSkeleton,
+} from '@nexus/design'
+import { Plus, Trash2, Key, RotateCw, Pencil, Bot } from 'lucide-react'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
-import StatusBadge from '../components/ui/StatusBadge'
-import Button from '../components/ui/Button'
-import Card from '../components/ui/Card'
-import Input from '../components/ui/Input'
-import React from 'react';
+import EmptyState from '../components/EmptyState'
 import {
   useServiceIdentities,
   useCreateServiceIdentity,
@@ -27,8 +49,6 @@ import {
   type ServiceIdentityCredentialDto
 } from '../hooks/useApi'
 
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
-
 const defaultForm = () => ({
   name: '',
   description: '',
@@ -39,10 +59,18 @@ const defaultForm = () => ({
   allowedAudiences: ''
 })
 
+type IdentityForm = ReturnType<typeof defaultForm>
+
 interface NewSecretInfo {
   clientId: string
   plainClientSecret: string
 }
+
+const STATUS_OPTIONS = [
+  { value: 'active', label: 'Active' },
+  { value: 'inactive', label: 'Inactive' },
+  { value: 'suspended', label: 'Suspended' },
+]
 
 const statusBadge = (status: ServiceIdentityDto['status']) => {
   const tones: Record<ServiceIdentityDto['status'], 'success' | 'neutral' | 'danger'> = {
@@ -52,7 +80,7 @@ const statusBadge = (status: ServiceIdentityDto['status']) => {
   }
 
   return (
-    <StatusBadge tone={tones[status]}>
+    <StatusBadge status={tones[status]}>
       {status}
     </StatusBadge>
   )
@@ -74,6 +102,129 @@ function toggleSelection(values: string[], value: string) {
     : [...values, value]
 }
 
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <Text size="sm" fw={500} mb={4}>
+      {children}
+    </Text>
+  )
+}
+
+/** Scrollable bordered checkbox list used for scopes / roles / groups. */
+function CheckboxListBox({
+  label,
+  emptyText,
+  items,
+  mono,
+}: {
+  label: string
+  emptyText: string
+  items: { key: string; label: string; checked: boolean; onToggle: () => void }[]
+  mono?: boolean
+}) {
+  return (
+    <Box>
+      <FieldLabel>{label}</FieldLabel>
+      <Paper withBorder radius="sm" bg="var(--nx-color-surface-sunken)">
+        <ScrollArea.Autosize mah={140} type="auto">
+          <Stack gap={6} p="xs">
+            {items.length === 0 && <Text size="xs" c="dimmed">{emptyText}</Text>}
+            {items.map((item) => (
+              <Checkbox
+                key={item.key}
+                size="xs"
+                checked={item.checked}
+                onChange={item.onToggle}
+                label={mono ? <Text span size="xs" ff="monospace">{item.label}</Text> : item.label}
+              />
+            ))}
+          </Stack>
+        </ScrollArea.Autosize>
+      </Paper>
+    </Box>
+  )
+}
+
+function IdentityFormFields({
+  form,
+  setForm,
+  scopes,
+  roles,
+  groups,
+}: {
+  form: IdentityForm
+  setForm: React.Dispatch<React.SetStateAction<IdentityForm>>
+  scopes: any[]
+  roles: any[]
+  groups: any[]
+}) {
+  return (
+    <>
+      <TextInput
+        label="Name"
+        value={form.name}
+        onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+        placeholder="reporting-worker"
+      />
+      <TextInput
+        label="Description"
+        value={form.description}
+        onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+        placeholder="Machine identity for scheduled reporting jobs"
+      />
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+        <Box>
+          <NativeSelect
+            label="Status"
+            value={form.status}
+            onChange={e => setForm(f => ({ ...f, status: e.target.value as ServiceIdentityDto['status'] }))}
+            data={STATUS_OPTIONS}
+          />
+        </Box>
+        <CheckboxListBox
+          label="Token Scopes"
+          emptyText="No scopes defined."
+          mono
+          items={scopes.map((scope: any) => ({
+            key: scope.id,
+            label: scope.name,
+            checked: form.allowedScopes.includes(scope.name),
+            onToggle: () => setForm((f) => ({ ...f, allowedScopes: toggleScopeSelection(f.allowedScopes, scope.name) })),
+          }))}
+        />
+      </SimpleGrid>
+      <TextInput
+        label="Token Audiences"
+        value={form.allowedAudiences}
+        onChange={e => setForm(f => ({ ...f, allowedAudiences: e.target.value }))}
+        placeholder="api.example.com, jobs.internal"
+      />
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+        <CheckboxListBox
+          label="Direct Roles"
+          emptyText="No roles defined."
+          items={roles.map((role: any) => ({
+            key: role.id,
+            label: role.name,
+            checked: form.roleIds.includes(role.id),
+            onToggle: () => setForm((f) => ({ ...f, roleIds: toggleSelection(f.roleIds, role.id) })),
+          }))}
+        />
+        <CheckboxListBox
+          label="Groups"
+          emptyText="No groups defined."
+          items={groups.map((group: any) => ({
+            key: group.id,
+            label: group.name,
+            checked: form.groupIds.includes(group.id),
+            onToggle: () => setForm((f) => ({ ...f, groupIds: toggleSelection(f.groupIds, group.id) })),
+          }))}
+        />
+      </SimpleGrid>
+    </>
+  )
+}
+
 const CredentialsPanel = ({
   identity,
 }: {
@@ -86,7 +237,6 @@ const CredentialsPanel = ({
   const revokeCredential = useRevokeServiceIdentityCredential()
   const [expiresInDays, setExpiresInDays] = useState<string>('365')
   const [newSecret, setNewSecret] = useState<NewSecretInfo | null>(null)
-  const [secretVisible, setSecretVisible] = useState(false)
   const [credentialToRevoke, setCredentialToRevoke] = useState<string | null>(null)
 
   const si = data ?? identity
@@ -120,162 +270,155 @@ const CredentialsPanel = ({
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div>
-          <label className={labelCls}>Status</label>
-          <div className="h-9 flex items-center">{statusBadge(si.status)}</div>
-        </div>
-        <div>
-          <label className={labelCls}>Identity ID</label>
-          <div className="h-9 flex items-center rounded-lg border border-border px-3 text-xs font-mono text-muted-foreground truncate">
-            {si.id}
-          </div>
-        </div>
-      </div>
+    <Stack gap="lg">
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+        <Box>
+          <FieldLabel>Status</FieldLabel>
+          <Group h={36} align="center">{statusBadge(si.status)}</Group>
+        </Box>
+        <CopyField label="Identity ID" value={si.id} />
+      </SimpleGrid>
 
       {newSecret && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-          <p className="text-sm font-semibold text-amber-900 mb-2">Save this OAuth client secret. It is shown only once.</p>
-          <div className="space-y-2">
-            <div>
-              <p className="text-xs text-amber-700 mb-1">Client ID</p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 rounded bg-card border border-amber-200 px-2 py-1 text-xs font-mono text-foreground">{newSecret.clientId}</code>
-                <Button onClick={() => navigator.clipboard.writeText(newSecret.clientId)} variant="ghost" size="icon" className="h-6 w-6 p-1 text-amber-600 hover:text-amber-800">
-                  <Copy className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
-            <div>
-              <p className="text-xs text-amber-700 mb-1">Client Secret</p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 rounded bg-card border border-amber-200 px-2 py-1 text-xs font-mono text-foreground">
-                  {secretVisible ? newSecret.plainClientSecret : '••••••••••••••••••••••••••••••••'}
-                </code>
-                <Button onClick={() => setSecretVisible((prev) => !prev)} variant="ghost" size="icon" className="h-6 w-6 p-1 text-amber-600 hover:text-amber-800">
-                  {secretVisible ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                </Button>
-                <Button onClick={() => navigator.clipboard.writeText(newSecret.plainClientSecret)} variant="ghost" size="icon" className="h-6 w-6 p-1 text-amber-600 hover:text-amber-800">
-                  <Copy className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
-          </div>
-          <Button onClick={() => setNewSecret(null)} variant="ghost" size="sm" className="mt-3 h-auto px-0 text-xs text-amber-700 underline">Dismiss</Button>
-        </div>
+        <SecretReveal
+          title="Save this OAuth client secret. It is shown only once."
+          message={null}
+          items={[
+            { label: 'Client ID', value: newSecret.clientId },
+            { label: 'Client Secret', value: newSecret.plainClientSecret, secret: true },
+          ]}
+          onAcknowledge={() => setNewSecret(null)}
+          acknowledgeLabel="Dismiss"
+        />
       )}
 
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">OAuth Client Credentials</h3>
-            <p className="mt-0.5 text-xs text-muted-foreground">Use these with /oauth/token and grant_type=client_credentials.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Input
-              type="number"
-              min="1"
-              max="3650"
+      <Box>
+        <Group justify="space-between" align="flex-end" mb="sm" gap="sm">
+          <Box>
+            <Title order={4} size="h6">OAuth Client Credentials</Title>
+            <Text size="xs" c="dimmed" mt={2}>Use these with /oauth/token and grant_type=client_credentials.</Text>
+          </Box>
+          <Group gap="xs" wrap="nowrap">
+            <NumberInput
+              aria-label="Expires (days)"
+              size="xs"
+              w={130}
+              min={1}
+              max={3650}
               value={expiresInDays}
-              onChange={(e) => setExpiresInDays(e.target.value)}
+              onChange={(value) => setExpiresInDays(String(value))}
               placeholder="Expires (days)"
-              className="h-8 w-28 rounded-lg border border-border px-2 text-xs text-foreground"
             />
             <Button
               onClick={handleIssueCredential}
-              disabled={issueCredential.isPending}
-              variant="primary"
-              size="sm"
-              className="h-8 rounded-lg text-xs"
+              loading={issueCredential.isPending}
+              size="xs"
+              leftSection={<Key size={14} />}
             >
-              <Key className="h-3.5 w-3.5" />
               Issue Client Secret
             </Button>
-          </div>
-        </div>
+          </Group>
+        </Group>
 
-        <div className="space-y-2">
-          {(si.credentials ?? []).length === 0 ? (
-            <div className="p-6 text-center text-muted-foreground text-sm rounded-xl border border-border">No credentials yet</div>
-          ) : (
-            (si.credentials ?? []).map((cred: ServiceIdentityCredentialDto) => {
+        {(si.credentials ?? []).length === 0 ? (
+          <Paper withBorder radius="md" p="lg">
+            <Text size="sm" c="dimmed" ta="center">No credentials yet</Text>
+          </Paper>
+        ) : (
+          <Stack gap="xs">
+            {(si.credentials ?? []).map((cred: ServiceIdentityCredentialDto) => {
               const isRevoked = !!cred.revokedAt
               const isExpired = cred.expiresAt ? new Date(cred.expiresAt) < new Date() : false
               const status = isRevoked ? 'revoked' : isExpired ? 'expired' : 'active'
 
               return (
-                <div key={cred.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 gap-3">
-                  <div className="min-w-0 flex-1">
-                    <code className="text-xs font-mono text-foreground truncate block">{cred.clientId}</code>
-                    <div className="flex flex-wrap items-center gap-3 mt-0.5 text-xs text-muted-foreground">
-                      <span className={`font-medium ${status === 'active' ? 'text-emerald-600' : 'text-rose-500'}`}>{status}</span>
-                      {cred.expiresAt && <span>Expires {new Date(cred.expiresAt).toLocaleDateString()}</span>}
-                      {cred.lastUsedAt && <span>Last used {new Date(cred.lastUsedAt).toLocaleString()}</span>}
-                    </div>
-                  </div>
-                  {!isRevoked && (
-                    <div className="flex items-center gap-1">
-                      <Button
-                        onClick={() => handleRotate(cred.id)}
-                        title="Rotate credential"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
-                      >
-                        <RotateCw className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        onClick={() => setCredentialToRevoke(cred.id)}
-                        title="Revoke credential"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                <Paper key={cred.id} withBorder radius="md" px="sm" py="xs">
+                  <Group justify="space-between" gap="sm" wrap="nowrap">
+                    <Box miw={0} style={{ flex: 1 }}>
+                      <Text size="xs" ff="monospace" truncate>{cred.clientId}</Text>
+                      <Group gap="sm" mt={2} wrap="wrap">
+                        <Text size="xs" fw={500} c={status === 'active' ? 'green' : 'red'}>{status}</Text>
+                        {cred.expiresAt && <Text size="xs" c="dimmed">Expires {new Date(cred.expiresAt).toLocaleDateString()}</Text>}
+                        {cred.lastUsedAt && <Text size="xs" c="dimmed">Last used {new Date(cred.lastUsedAt).toLocaleString()}</Text>}
+                      </Group>
+                    </Box>
+                    {!isRevoked && (
+                      <Group gap={4} wrap="nowrap">
+                        <Tooltip label="Rotate credential">
+                          <ActionIcon
+                            variant="subtle"
+                            color="gray"
+                            onClick={() => handleRotate(cred.id)}
+                            title="Rotate credential"
+                            aria-label="Rotate credential"
+                          >
+                            <RotateCw size={14} />
+                          </ActionIcon>
+                        </Tooltip>
+                        <Tooltip label="Revoke credential">
+                          <ActionIcon
+                            variant="subtle"
+                            color="red"
+                            onClick={() => setCredentialToRevoke(cred.id)}
+                            title="Revoke credential"
+                            aria-label="Revoke credential"
+                          >
+                            <Trash2 size={14} />
+                          </ActionIcon>
+                        </Tooltip>
+                      </Group>
+                    )}
+                  </Group>
+                </Paper>
               )
-            })
-          )}
-        </div>
-      </div>
-
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-foreground">Credential Usage Telemetry</h3>
-          <Button onClick={() => refetchUsage()} disabled={isUsageRefreshing} variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
-            <RefreshCw size={12} className={isUsageRefreshing ? 'animate-spin' : ''} />
-            Refresh
-          </Button>
-        </div>
-        {usage.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No usage telemetry available yet.</p>
-        ) : (
-          <div className="divide-y divide-border rounded-lg border border-border bg-card">
-            {usage.map((entry) => (
-              <div key={entry.credentialId} className="flex items-center justify-between px-3 py-2.5">
-                <div>
-                  <p className="text-xs font-mono text-foreground">{entry.clientId}</p>
-                  <p className="text-xs text-muted-foreground">{entry.lastUsedAt ? `Last used ${new Date(entry.lastUsedAt).toLocaleString()}` : 'Never used'}</p>
-                </div>
-                <StatusBadge tone={entry.status === 'active' ? 'success' : entry.status === 'expired' ? 'warning' : 'danger'}>{entry.status}</StatusBadge>
-              </div>
-            ))}
-          </div>
+            })}
+          </Stack>
         )}
-      </div>
+      </Box>
+
+      <Box>
+        <Group justify="space-between" mb="sm">
+          <Title order={4} size="h6">Credential Usage Telemetry</Title>
+          <RefreshButton
+            size="xs"
+            onRefresh={() => refetchUsage()}
+            loading={isUsageRefreshing}
+            lastUpdated={null}
+          />
+        </Group>
+        {usage.length === 0 ? (
+          <Text size="sm" c="dimmed">No usage telemetry available yet.</Text>
+        ) : (
+          <Paper withBorder radius="md">
+            {usage.map((entry, idx) => (
+              <Group
+                key={entry.credentialId}
+                justify="space-between"
+                px="sm"
+                py="xs"
+                style={idx > 0 ? { borderTop: '1px solid var(--nx-color-border)' } : undefined}
+              >
+                <Box>
+                  <Text size="xs" ff="monospace">{entry.clientId}</Text>
+                  <Text size="xs" c="dimmed">{entry.lastUsedAt ? `Last used ${new Date(entry.lastUsedAt).toLocaleString()}` : 'Never used'}</Text>
+                </Box>
+                <StatusBadge status={entry.status === 'active' ? 'success' : entry.status === 'expired' ? 'warning' : 'danger'}>{entry.status}</StatusBadge>
+              </Group>
+            ))}
+          </Paper>
+        )}
+      </Box>
 
       <ConfirmDialog
         isOpen={!!credentialToRevoke}
         title="Revoke Credential"
         message="This will permanently revoke the credential. Any service using it will lose access immediately."
+        variant="danger"
+        pending={revokeCredential.isPending}
         onConfirm={handleRevoke}
         onCancel={() => setCredentialToRevoke(null)}
       />
-    </div>
+    </Stack>
   )
 }
 
@@ -378,336 +521,193 @@ const ServiceIdentities = () => {
   }
 
   return (
-    <div>
+    <Stack gap="lg">
       <PageHeader
         eyebrow="Machine Directory"
         title="Service Identities"
         description="M2M / workload accounts. These are not shown in the Users directory by default; list them here via GET /api/admin/service-identities, or pass includeServiceUsers=true on GET /api/admin/users when a combined listing is required."
-        action={
+        actions={
           <Button
             onClick={() => { setCreateFormError(''); setFormData(defaultForm()); setCreateModalOpen(true) }}
-            variant="primary"
-            className="h-9 rounded-lg"
+            leftSection={<Plus size={16} />}
           >
-            <Plus size={14} />
             New Identity
           </Button>
         }
       />
 
-      <div className="mb-4 max-w-sm">
-        <label className={labelCls}>Filter by Status</label>
-        <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as 'all' | ServiceIdentityDto['status'])}>
-          <option value="all">All Identities</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-          <option value="suspended">Suspended</option>
-        </Select>
-      </div>
+      <NativeSelect
+        label="Filter by Status"
+        maw={360}
+        value={statusFilter}
+        onChange={(e) => setStatusFilter(e.target.value as 'all' | ServiceIdentityDto['status'])}
+        data={[{ value: 'all', label: 'All Identities' }, ...STATUS_OPTIONS]}
+      />
 
-      <Table>
-        <TableHeaderRow>
-          <h4 className="text-sm font-semibold text-foreground">All Service Identities</h4>
-          <Button onClick={() => refetch()} disabled={isFetching} variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground">
-            <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
-            Refresh
-          </Button>
-        </TableHeaderRow>
-
+      <SectionCard
+        flush
+        title="All Service Identities"
+        actions={
+          <RefreshButton
+            size="xs"
+            onRefresh={() => refetch()}
+            loading={isFetching}
+            lastUpdated={null}
+          />
+        }
+      >
         {isLoading ? (
           <TableSkeleton rows={5} />
         ) : filteredIdentities.length === 0 ? (
           <EmptyState
+            icon={Bot}
             title="No service identities registered"
             description="Create a machine identity, then issue an OAuth client ID and secret for client-credentials tokens."
           />
         ) : (
-          <TableBody>
-            {filteredIdentities.map((identity) => (
-              <TableRow key={identity.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-muted/50 transition-colors gap-4">
-                <div className="space-y-0.5 flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-medium text-foreground">{identity.name}</p>
-                    {statusBadge(identity.status)}
-                  </div>
-                  <p className="text-xs text-muted-foreground">{identity.description || 'No description'}</p>
-                  {identity.allowedScopes.length > 0 && (
-                    <div className="flex gap-1 flex-wrap">
-                      {identity.allowedScopes.map((scope) => (
-                        <StatusBadge key={scope} tone="neutral">{scope}</StatusBadge>
-                      ))}
-                    </div>
-                  )}
-                  {identity.allowedAudiences.length > 0 && (
-                    <div className="flex gap-1 flex-wrap">
-                      {identity.allowedAudiences.map((audience) => (
-                        <StatusBadge key={audience} tone="accent">{audience}</StatusBadge>
-                      ))}
-                    </div>
-                  )}
-                  {!!identity.roleIds?.length && (
-                    <p className="text-xs text-muted-foreground">Direct roles: {identity.roleIds.length}</p>
-                  )}
-                  {!!identity.groupIds?.length && (
-                    <p className="text-xs text-muted-foreground">Group memberships: {identity.groupIds.length}</p>
-                  )}
-                  <p className="text-xs text-muted-foreground font-mono">Created {new Date(identity.createdAt).toLocaleDateString()}</p>
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <Button
-                    onClick={() => {
-                      setIdentityToManage(identity)
-                      setManageModalOpen(true)
-                    }}
-                    variant="secondary"
-                    size="sm"
-                    className="h-8 rounded-lg text-xs"
-                  >
-                    Manage Credentials
-                  </Button>
-                  <Button
-                    onClick={() => handleEdit(identity)}
-                    disabled={updateIdentity.isPending}
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
-                    title="Edit identity"
-                  >
-                    <Pencil size={14} />
-                  </Button>
-                  <Button
-                    onClick={() => setIdentityToDelete(identity)}
-                    disabled={deleteIdentity.isPending}
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40"
-                    title="Delete identity"
-                  >
-                    <Trash2 size={14} />
-                  </Button>
-                </div>
-              </TableRow>
-            ))}
-          </TableBody>
+          <Table.ScrollContainer minWidth={760}>
+            <Table highlightOnHover verticalSpacing="sm">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Identity</Table.Th>
+                  <Table.Th>Access</Table.Th>
+                  <Table.Th>Created</Table.Th>
+                  <Table.Th />
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {filteredIdentities.map((identity) => (
+                  <Table.Tr key={identity.id}>
+                    <Table.Td>
+                      <Stack gap={2}>
+                        <Group gap="xs" wrap="wrap">
+                          <Text size="sm" fw={500}>{identity.name}</Text>
+                          {statusBadge(identity.status)}
+                        </Group>
+                        <Text size="xs" c="dimmed">{identity.description || 'No description'}</Text>
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      <Stack gap={4}>
+                        {identity.allowedScopes.length > 0 && (
+                          <Group gap={4} wrap="wrap">
+                            {identity.allowedScopes.map((scope) => (
+                              <Badge key={scope} color="gray" variant="light" size="sm" tt="none">{scope}</Badge>
+                            ))}
+                          </Group>
+                        )}
+                        {identity.allowedAudiences.length > 0 && (
+                          <Group gap={4} wrap="wrap">
+                            {identity.allowedAudiences.map((audience) => (
+                              <Badge key={audience} color="blue" variant="light" size="sm" tt="none">{audience}</Badge>
+                            ))}
+                          </Group>
+                        )}
+                        {!!identity.roleIds?.length && (
+                          <Text size="xs" c="dimmed">Direct roles: {identity.roleIds.length}</Text>
+                        )}
+                        {!!identity.groupIds?.length && (
+                          <Text size="xs" c="dimmed">Group memberships: {identity.groupIds.length}</Text>
+                        )}
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs" c="dimmed" ff="monospace">Created {new Date(identity.createdAt).toLocaleDateString()}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4} justify="flex-end" wrap="nowrap">
+                        <Button
+                          onClick={() => {
+                            setIdentityToManage(identity)
+                            setManageModalOpen(true)
+                          }}
+                          variant="default"
+                          size="xs"
+                        >
+                          Manage Credentials
+                        </Button>
+                        <Tooltip label="Edit identity">
+                          <ActionIcon
+                            onClick={() => handleEdit(identity)}
+                            disabled={updateIdentity.isPending}
+                            variant="subtle"
+                            color="gray"
+                            title="Edit identity"
+                            aria-label="Edit identity"
+                          >
+                            <Pencil size={14} />
+                          </ActionIcon>
+                        </Tooltip>
+                        <Tooltip label="Delete identity">
+                          <ActionIcon
+                            onClick={() => setIdentityToDelete(identity)}
+                            disabled={deleteIdentity.isPending}
+                            variant="subtle"
+                            color="red"
+                            title="Delete identity"
+                            aria-label="Delete identity"
+                          >
+                            <Trash2 size={14} />
+                          </ActionIcon>
+                        </Tooltip>
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
         )}
-      </Table>
+      </SectionCard>
 
       <Modal isOpen={createModalOpen} onClose={() => { setCreateModalOpen(false); setFormData(defaultForm()) }} title="Create Service Identity">
-        <div className="space-y-4">
-          <div>
-            <label className={labelCls}>Name</label>
-            <Input
-              value={formData.name}
-              onChange={e => setFormData(f => ({ ...f, name: e.target.value }))}
-              placeholder="reporting-worker"
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Description</label>
-            <Input
-              value={formData.description}
-              onChange={e => setFormData(f => ({ ...f, description: e.target.value }))}
-              placeholder="Machine identity for scheduled reporting jobs"
-            />
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className={labelCls}>Status</label>
-              <Select
-                value={formData.status}
-                onChange={e => setFormData(f => ({ ...f, status: e.target.value as ServiceIdentityDto['status'] }))}
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="suspended">Suspended</option>
-              </Select>
-            </div>
-            <div>
-              <label className={labelCls}>Token Scopes</label>
-              <div className="rounded-lg border border-border p-2 max-h-[140px] overflow-auto bg-muted/40 space-y-1.5">
-                {(scopes as any[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No scopes defined.</p>}
-                {(scopes as any[]).map((scope: any) => (
-                  <label key={scope.id} className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.allowedScopes.includes(scope.name)}
-                      onChange={() => setFormData((f) => ({ ...f, allowedScopes: toggleScopeSelection(f.allowedScopes, scope.name) }))}
-                      className="rounded border-border"
-                    />
-                    <span className="font-mono">{scope.name}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div>
-            <label className={labelCls}>Token Audiences</label>
-            <Input
-              value={formData.allowedAudiences}
-              onChange={e => setFormData(f => ({ ...f, allowedAudiences: e.target.value }))}
-              placeholder="api.example.com, jobs.internal"
-            />
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className={labelCls}>Direct Roles</label>
-              <div className="rounded-lg border border-border p-2 max-h-[140px] overflow-auto bg-muted/40 space-y-1.5">
-                {(roles as any[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No roles defined.</p>}
-                {(roles as any[]).map((role: any) => (
-                  <label key={role.id} className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.roleIds.includes(role.id)}
-                      onChange={() => setFormData((f) => ({ ...f, roleIds: toggleSelection(f.roleIds, role.id) }))}
-                      className="rounded border-border"
-                    />
-                    <span>{role.name}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className={labelCls}>Groups</label>
-              <div className="rounded-lg border border-border p-2 max-h-[140px] overflow-auto bg-muted/40 space-y-1.5">
-                {(groups as any[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No groups defined.</p>}
-                {(groups as any[]).map((group: any) => (
-                  <label key={group.id} className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.groupIds.includes(group.id)}
-                      onChange={() => setFormData((f) => ({ ...f, groupIds: toggleSelection(f.groupIds, group.id) }))}
-                      className="rounded border-border"
-                    />
-                    <span>{group.name}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="flex gap-2 justify-end pt-2">
-            <Button onClick={() => { setCreateModalOpen(false); setFormData(defaultForm()) }} variant="secondary" className="h-9 rounded-lg">
+        <Stack gap="md">
+          <IdentityFormFields
+            form={formData}
+            setForm={setFormData}
+            scopes={scopes as any[]}
+            roles={roles as any[]}
+            groups={groups as any[]}
+          />
+          {createFormError && <Alert color="red" variant="light">{createFormError}</Alert>}
+          <Group justify="flex-end" gap="xs" pt="xs">
+            <Button onClick={() => { setCreateModalOpen(false); setFormData(defaultForm()) }} variant="default">
               Cancel
             </Button>
             <Button
               onClick={handleCreate}
-              disabled={!formData.name || createIdentity.isPending}
-              variant="primary"
-              className="h-9 rounded-lg"
+              disabled={!formData.name}
+              loading={createIdentity.isPending}
             >
-              {createIdentity.isPending ? 'Creating…' : 'Create Identity'}
+              Create Identity
             </Button>
-          </div>
-          {createFormError && <p className="text-xs text-rose-600">{createFormError}</p>}
-        </div>
+          </Group>
+        </Stack>
       </Modal>
 
       <Modal isOpen={editModalOpen} onClose={() => { setEditModalOpen(false); setIdentityToEdit(null) }} title={`Edit Service Identity${identityToEdit ? `: ${identityToEdit.name}` : ''}`}>
-        <div className="space-y-4">
-          <div>
-            <label className={labelCls}>Name</label>
-            <Input
-              value={editFormData.name}
-              onChange={e => setEditFormData(f => ({ ...f, name: e.target.value }))}
-              placeholder="reporting-worker"
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Description</label>
-            <Input
-              value={editFormData.description}
-              onChange={e => setEditFormData(f => ({ ...f, description: e.target.value }))}
-              placeholder="Machine identity for scheduled reporting jobs"
-            />
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className={labelCls}>Status</label>
-              <Select
-                value={editFormData.status}
-                onChange={e => setEditFormData(f => ({ ...f, status: e.target.value as ServiceIdentityDto['status'] }))}
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="suspended">Suspended</option>
-              </Select>
-            </div>
-            <div>
-              <label className={labelCls}>Token Scopes</label>
-              <div className="rounded-lg border border-border p-2 max-h-[140px] overflow-auto bg-muted/40 space-y-1.5">
-                {(scopes as any[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No scopes defined.</p>}
-                {(scopes as any[]).map((scope: any) => (
-                  <label key={scope.id} className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editFormData.allowedScopes.includes(scope.name)}
-                      onChange={() => setEditFormData((f) => ({ ...f, allowedScopes: toggleScopeSelection(f.allowedScopes, scope.name) }))}
-                      className="rounded border-border"
-                    />
-                    <span className="font-mono">{scope.name}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div>
-            <label className={labelCls}>Token Audiences</label>
-            <Input
-              value={editFormData.allowedAudiences}
-              onChange={e => setEditFormData(f => ({ ...f, allowedAudiences: e.target.value }))}
-              placeholder="api.example.com, jobs.internal"
-            />
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className={labelCls}>Direct Roles</label>
-              <div className="rounded-lg border border-border p-2 max-h-[140px] overflow-auto bg-muted/40 space-y-1.5">
-                {(roles as any[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No roles defined.</p>}
-                {(roles as any[]).map((role: any) => (
-                  <label key={role.id} className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editFormData.roleIds.includes(role.id)}
-                      onChange={() => setEditFormData((f) => ({ ...f, roleIds: toggleSelection(f.roleIds, role.id) }))}
-                      className="rounded border-border"
-                    />
-                    <span>{role.name}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className={labelCls}>Groups</label>
-              <div className="rounded-lg border border-border p-2 max-h-[140px] overflow-auto bg-muted/40 space-y-1.5">
-                {(groups as any[]).length === 0 && <p className="text-xs text-muted-foreground px-1 py-1">No groups defined.</p>}
-                {(groups as any[]).map((group: any) => (
-                  <label key={group.id} className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={editFormData.groupIds.includes(group.id)}
-                      onChange={() => setEditFormData((f) => ({ ...f, groupIds: toggleSelection(f.groupIds, group.id) }))}
-                      className="rounded border-border"
-                    />
-                    <span>{group.name}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="flex gap-2 justify-end pt-2">
-            <Button onClick={() => { setEditModalOpen(false); setIdentityToEdit(null) }} variant="secondary" className="h-9 rounded-lg">
+        <Stack gap="md">
+          <IdentityFormFields
+            form={editFormData}
+            setForm={setEditFormData}
+            scopes={scopes as any[]}
+            roles={roles as any[]}
+            groups={groups as any[]}
+          />
+          {editFormError && <Alert color="red" variant="light">{editFormError}</Alert>}
+          <Group justify="flex-end" gap="xs" pt="xs">
+            <Button onClick={() => { setEditModalOpen(false); setIdentityToEdit(null) }} variant="default">
               Cancel
             </Button>
             <Button
               onClick={handleSaveEdit}
-              disabled={!editFormData.name || updateIdentity.isPending}
-              variant="primary"
-              className="h-9 rounded-lg"
+              disabled={!editFormData.name}
+              loading={updateIdentity.isPending}
             >
-              {updateIdentity.isPending ? 'Saving…' : 'Save Changes'}
+              Save Changes
             </Button>
-          </div>
-          {editFormError && <p className="text-xs text-rose-600">{editFormError}</p>}
-        </div>
+          </Group>
+        </Stack>
       </Modal>
 
       <Modal isOpen={manageModalOpen} onClose={() => { setManageModalOpen(false); setIdentityToManage(null) }} title={`Manage Credentials${identityToManage ? `: ${identityToManage.name}` : ''}`} size="lg">
@@ -718,10 +718,12 @@ const ServiceIdentities = () => {
         isOpen={!!identityToDelete}
         title="Delete Service Identity"
         message={`Delete service identity "${identityToDelete?.name ?? ''}"? This will permanently revoke all associated credentials.`}
+        variant="danger"
+        pending={deleteIdentity.isPending}
         onConfirm={handleDelete}
         onCancel={() => setIdentityToDelete(null)}
       />
-    </div>
+    </Stack>
   )
 }
 

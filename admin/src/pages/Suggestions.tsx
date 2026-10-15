@@ -1,13 +1,8 @@
-import { Table, TableHeaderRow, TableBody, TableRow } from '../components/ui/Table'
+import { Anchor, Box, Button, Group, Image, NativeSelect, Stack, Table, Text, Textarea, UnstyledButton } from '@mantine/core'
 import { Lightbulb, RefreshCw } from 'lucide-react'
-import { PageHeader, TableSkeleton, EmptyState } from '../components/PageHeader'
+import { PageHeader, SearchInput, SectionCard, StatusBadge, TableSkeleton } from '@nexus/design'
 import { useEffect, useState } from 'react'
-import StatusBadge from '../components/ui/StatusBadge'
-import Button from '../components/ui/Button'
-import Card from '../components/ui/Card'
-import ListSearch from '../components/ListSearch'
-import Select from '../components/ui/Select'
-import Textarea from '../components/ui/Textarea'
+import EmptyState from '../components/EmptyState'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { useAdminSuggestions, useUpdateAdminSuggestion, type AdminSuggestion } from '../hooks/useApi'
 
@@ -17,7 +12,7 @@ const statusTone = (status: AdminSuggestion['status']) => {
   if (status === 'completed') return 'success' as const
   if (status === 'declined') return 'danger' as const
   if (status === 'in_review') return 'info' as const
-  if (status === 'planned') return 'accent' as const
+  if (status === 'planned') return 'approved' as const
   return 'neutral' as const
 }
 
@@ -51,23 +46,21 @@ const Suggestions = () => {
   }
 
   return (
-    <div>
+    <Stack gap="lg">
       <PageHeader eyebrow="Feedback" title="Suggestions" />
 
-      <div className="mb-4">
-        <ListSearch value={searchInput} onChange={setSearchInput} placeholder="Search suggestions…" />
-      </div>
+      <SearchInput value={searchInput} onChange={setSearchInput} placeholder="Search suggestions…" maw={360} />
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)]">
-        <Table>
-          <TableHeaderRow>
-            <h4 className="text-sm font-semibold text-foreground">Inbox</h4>
-            <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
-              <RefreshCw size={12} className={isFetching ? 'animate-spin' : ''} />
+      <Box style={{ display: 'grid', gap: 'var(--mantine-spacing-md)', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', alignItems: 'start' }}>
+        <SectionCard
+          flush
+          title="Inbox"
+          actions={
+            <Button variant="subtle" size="xs" leftSection={<RefreshCw size={14} />} onClick={() => refetch()} loading={isFetching} disabled={isFetching}>
               Refresh
             </Button>
-          </TableHeaderRow>
-
+          }
+        >
           {isLoading ? (
             <TableSkeleton rows={5} />
           ) : !suggestions?.length ? (
@@ -76,85 +69,97 @@ const Suggestions = () => {
               description="Portal users can submit product ideas from the Suggestions app."
             />
           ) : (
-            <TableBody>
-              {suggestions.map((item) => (
-                <TableRow
-                  key={item.id}
-                  className={`flex cursor-pointer items-center justify-between px-5 py-3.5 transition-colors hover:bg-muted/50 ${
-                    selected?.id === item.id ? 'bg-muted/60' : ''
-                  }`}
-                  onClick={() => setSelectedId(item.id)}
-                >
-                  <div className="min-w-0 space-y-0.5">
-                    <p className="truncate text-sm font-medium text-foreground">{item.title}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {item.kind === 'existing_app' ? (item.appName ?? 'Existing app') : (item.proposedName || 'New system')}
-                      {item.author ? ` · ${item.author.email}` : ''}
-                    </p>
-                  </div>
-                  <StatusBadge tone={statusTone(item.status)}>{statusLabel(item.status)}</StatusBadge>
-                </TableRow>
-              ))}
-            </TableBody>
+            <Table verticalSpacing="sm" highlightOnHover>
+              <Table.Tbody>
+                {suggestions.map((item) => {
+                  const isSelected = selected?.id === item.id
+                  return (
+                    <Table.Tr
+                      key={item.id}
+                      onClick={() => setSelectedId(item.id)}
+                      bg={isSelected ? 'var(--nx-color-accent-soft)' : undefined}
+                      style={{ cursor: 'pointer' }}
+                      aria-selected={isSelected}
+                    >
+                      <Table.Td pl="lg" style={{ maxWidth: 0, width: '100%' }}>
+                        <UnstyledButton onClick={() => setSelectedId(item.id)} w="100%" style={{ minWidth: 0 }}>
+                          <Text size="sm" fw={500} truncate>{item.title}</Text>
+                          <Text size="xs" c="dimmed" truncate>
+                            {item.kind === 'existing_app' ? (item.appName ?? 'Existing app') : (item.proposedName || 'New system')}
+                            {item.author ? ` · ${item.author.email}` : ''}
+                          </Text>
+                        </UnstyledButton>
+                      </Table.Td>
+                      <Table.Td pr="lg" ta="right">
+                        <StatusBadge status={statusTone(item.status)} size="sm" tt="capitalize">{statusLabel(item.status)}</StatusBadge>
+                      </Table.Td>
+                    </Table.Tr>
+                  )
+                })}
+              </Table.Tbody>
+            </Table>
           )}
-        </Table>
+        </SectionCard>
 
-        <Card className="p-5">
+        <SectionCard>
           {!selected ? (
-            <div className="flex h-full min-h-48 flex-col items-center justify-center text-center text-sm text-muted-foreground">
-              <Lightbulb size={20} className="mb-2" />
-              Select a suggestion to review it.
-            </div>
+            <Stack align="center" justify="center" gap="xs" mih={192} ta="center">
+              <Lightbulb size={20} color="var(--nx-color-text-muted)" />
+              <Text size="sm" c="dimmed">Select a suggestion to review it.</Text>
+            </Stack>
           ) : (
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm font-semibold text-foreground">{selected.title}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
+            <Stack gap="md">
+              <Box>
+                <Text size="sm" fw={600}>{selected.title}</Text>
+                <Text size="xs" c="dimmed" mt={4}>
                   {selected.kind === 'existing_app' ? (selected.appName ?? 'Existing app') : (selected.proposedName || 'New system')}
-                </p>
+                </Text>
                 {selected.author ? (
-                  <p className="mt-2 text-xs text-foreground">
+                  <Text size="xs" mt="xs">
                     Author: {selected.author.givenName} {selected.author.familyName} ({selected.author.email})
-                  </p>
+                  </Text>
                 ) : (
-                  <p className="mt-2 text-xs text-muted-foreground">Author hidden</p>
+                  <Text size="xs" c="dimmed" mt="xs">Author hidden</Text>
                 )}
-              </div>
+              </Box>
 
-              <p className="whitespace-pre-wrap text-sm text-foreground">{selected.body}</p>
+              <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>{selected.body}</Text>
 
               {selected.imageUrls.length > 0 && (
-                <div className="flex flex-wrap gap-2">
+                <Group gap="xs">
                   {selected.imageUrls.map((url) => (
-                    <a key={url} href={url} target="_blank" rel="noreferrer">
-                      <img src={url} alt="" className="h-16 w-16 rounded-lg border border-border object-cover" />
-                    </a>
+                    <Anchor key={url} href={url} target="_blank" rel="noreferrer">
+                      <Image src={url} alt="" w={64} h={64} radius="md" fit="cover" style={{ border: '1px solid var(--nx-color-border)' }} />
+                    </Anchor>
                   ))}
-                </div>
+                </Group>
               )}
 
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</label>
-                <Select value={status} onChange={(event) => setStatus(event.target.value as AdminSuggestion['status'])}>
-                  {STATUSES.map((value) => (
-                    <option key={value} value={value}>{statusLabel(value)}</option>
-                  ))}
-                </Select>
-              </div>
+              <NativeSelect
+                label="Status"
+                value={status}
+                onChange={(event) => setStatus(event.currentTarget.value as AdminSuggestion['status'])}
+                data={STATUSES.map((value) => ({ value, label: statusLabel(value) }))}
+              />
 
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">Internal notes</label>
-                <Textarea value={internalNotes} onChange={(event) => setInternalNotes(event.target.value)} />
-              </div>
+              <Textarea
+                label="Internal notes"
+                value={internalNotes}
+                onChange={(event) => setInternalNotes(event.currentTarget.value)}
+                autosize
+                minRows={3}
+              />
 
-              <Button onClick={handleSave} disabled={updateSuggestion.isPending}>
-                {updateSuggestion.isPending ? 'Saving…' : 'Save'}
-              </Button>
-            </div>
+              <Group justify="flex-end">
+                <Button onClick={handleSave} loading={updateSuggestion.isPending} disabled={updateSuggestion.isPending}>
+                  Save
+                </Button>
+              </Group>
+            </Stack>
           )}
-        </Card>
-      </div>
-    </div>
+        </SectionCard>
+      </Box>
+    </Stack>
   )
 }
 

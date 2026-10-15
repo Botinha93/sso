@@ -1,15 +1,26 @@
-import Card from '../components/ui/Card'
-import Textarea from '../components/ui/Textarea'
-import Select from '../components/ui/Select'
-import { useEffect, useMemo, useState } from 'react'
-import { ArrowUpRight, RefreshCw, Save, Sparkles, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import {
+  Alert,
+  Box,
+  Button,
+  ColorInput,
+  Group,
+  Image,
+  Paper,
+  SegmentedControl,
+  Select,
+  SimpleGrid,
+  Stack,
+  Text,
+  Textarea,
+  TextInput,
+  Title,
+  UnstyledButton
+} from '@mantine/core'
+import { PageHeader, PageHeaderSkeleton, RefreshButton, SectionCard } from '@nexus/design'
+import { ArrowUpRight, CheckCircle2, Save, Sparkles, Trash2, XCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { PageHeader, PageHeaderSkeleton, Skeleton } from '../components/PageHeader'
 import { useApps, useClients, useInstanceSettings, useUpdateInstanceSettings } from '../hooks/useApi'
-import ColorInput from '../components/ColorInput'
-import Button from '../components/ui/Button'
-import Input from '../components/ui/Input'
-import React from 'react';
 
 type UiSurface = 'admin_login' | 'consent' | 'portal_login' | 'portal_launcher'
 
@@ -37,7 +48,10 @@ const surfaces: Array<{ key: UiSurface; label: string; route: string }> = [
   { key: 'portal_launcher', label: 'Portal Launcher', route: '/portal/' },
 ]
 
-const labelCls = 'mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground'
+const presetColors = [
+  '#0f172a', '#111827', '#0b1220', '#1d4ed8', '#0ea5e9', '#14b8a6', '#22c55e',
+  '#84cc16', '#eab308', '#f97316', '#ef4444', '#ec4899', '#8b5cf6', '#64748b'
+]
 
 const emptyDraft: UiSurfaceCustomization = {
   title: '',
@@ -210,209 +224,211 @@ export default function UiCustomizations() {
     }
   }
 
-  const previewStyles: React.CSSProperties = {
-    background: draft.backgroundCss?.trim() || 'linear-gradient(135deg, #eff6ff 0%, #f8fafc 55%, #e2e8f0 100%)',
+  const previewStyles: CSSProperties = {
+    background: draft.backgroundCss?.trim() || 'var(--nx-color-surface-sunken)',
   }
 
   if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <PageHeaderSkeleton blocks={3} />
-      </div>
-    )
+    return <PageHeaderSkeleton blocks={3} />
   }
 
   return (
-    <div className="space-y-6">
+    <Stack gap="lg">
       <PageHeader
-        eyebrow="Branding And UX"
+        eyebrow="Branding and UX"
         title="Experience Customization"
         description="Configure titles, visual accents, logos, and backgrounds for hosted interaction surfaces. You can define global defaults and override by OAuth client or app."
-        action={
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={() => refetch()} disabled={isFetching}>
-              <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
-              Refresh
+        actions={
+          <Group gap="xs" wrap="nowrap">
+            <RefreshButton onRefresh={() => refetch()} loading={isFetching} withLastUpdated={false} />
+            <Button onClick={saveAll} loading={updateSettings.isPending} leftSection={<Save size={16} />}>
+              Save all
             </Button>
-            <Button variant="primary" onClick={saveAll} disabled={updateSettings.isPending}>
-              <Save size={14} />
-              {updateSettings.isPending ? 'Saving...' : 'Save All'}
-            </Button>
-          </div>
+          </Group>
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="p-5">
-          <h2 className="text-base font-semibold text-foreground">Editor</h2>
-          <p className="mt-2 text-xs text-muted-foreground">Select scope and surface, update fields, apply to scope, then save all changes.</p>
+      {(message || error) ? (
+        <Alert
+          color={error ? 'red' : 'green'}
+          icon={error ? <XCircle size={16} /> : <CheckCircle2 size={16} />}
+          withCloseButton
+          onClose={() => { setMessage(null); setError(null) }}
+        >
+          {error ?? message}
+        </Alert>
+      ) : null}
 
-          <div className="mt-4 grid gap-4">
-            <div>
-              <label className={labelCls}>Scope</label>
-              <div className="grid grid-cols-3 gap-2">
-                {(['default', 'client', 'app'] as Scope[]).map((value) => (
-                  <Button
-                    key={value}
-                    onClick={() => setScope(value)}
-                    className={`capitalize ${scope === value ? 'border-primary bg-sky-600 text-white hover:bg-sky-500' : ''}`}
-                    variant={scope === value ? 'primary' : 'secondary'}
-                  >
-                    {value}
-                  </Button>
-                ))}
-              </div>
-            </div>
+      <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg">
+        <SectionCard
+          title="Editor"
+          description="Select scope and surface, update fields, apply to scope, then save all changes."
+          footer={
+            <>
+              <Button variant="default" color="red" c="red" leftSection={<Trash2 size={16} />} onClick={clearScopedCustomization}>
+                Clear draft
+              </Button>
+              <Button variant="default" leftSection={<Sparkles size={16} />} onClick={saveScopedCustomization}>
+                Apply to scope
+              </Button>
+            </>
+          }
+        >
+          <Stack gap="md">
+            <Stack gap={6}>
+              <Text size="sm" fw={500}>Scope</Text>
+              <SegmentedControl
+                fullWidth
+                value={scope}
+                onChange={(value) => setScope(value as Scope)}
+                data={[
+                  { value: 'default', label: 'Default' },
+                  { value: 'client', label: 'Client' },
+                  { value: 'app', label: 'App' }
+                ]}
+                aria-label="Scope"
+              />
+            </Stack>
 
             {scope === 'client' ? (
-              <div>
-                <label className={labelCls}>Client Override Target</label>
-                <Select value={clientId} onChange={(e) => setClientId(e.target.value)}>
-                  {clientOptions.length === 0 ? <option value="">No clients available</option> : null}
-                  {clientOptions.map((option) => (
-                    <option key={option.id} value={option.id}>{option.name} ({option.id})</option>
-                  ))}
-                </Select>
-              </div>
+              <Select
+                label="Client override target"
+                value={clientId || null}
+                onChange={(value) => setClientId(value ?? '')}
+                data={clientOptions.map((option) => ({ value: option.id, label: `${option.name} (${option.id})` }))}
+                placeholder={clientOptions.length === 0 ? 'No clients available' : 'Select a client'}
+                disabled={clientOptions.length === 0}
+                allowDeselect={false}
+                searchable
+              />
             ) : null}
 
             {scope === 'app' ? (
-              <div>
-                <label className={labelCls}>App Override Target</label>
-                <Select value={appId} onChange={(e) => setAppId(e.target.value)}>
-                  {appOptions.length === 0 ? <option value="">No apps available</option> : null}
-                  {appOptions.map((option) => (
-                    <option key={option.id} value={option.id}>{option.name} ({option.id})</option>
-                  ))}
-                </Select>
-              </div>
+              <Select
+                label="App override target"
+                value={appId || null}
+                onChange={(value) => setAppId(value ?? '')}
+                data={appOptions.map((option) => ({ value: option.id, label: `${option.name} (${option.id})` }))}
+                placeholder={appOptions.length === 0 ? 'No apps available' : 'Select an app'}
+                disabled={appOptions.length === 0}
+                allowDeselect={false}
+                searchable
+              />
             ) : null}
 
-            <div>
-              <label className={labelCls}>Surface</label>
-              <div className="grid grid-cols-2 gap-2">
-                {surfaces.map((item) => (
-                  <Button
-                    key={item.key}
-                    onClick={() => setSurface(item.key)}
-                    variant={surface === item.key ? 'primary' : 'secondary'}
-                    className={`justify-start text-left ${surface === item.key ? 'border-primary bg-sky-600 text-white hover:bg-sky-500' : ''}`}
-                  >
-                    {item.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className={labelCls}>Title</label>
-              <Input value={draft.title ?? ''} onChange={(e) => setDraft((v) => ({ ...v, title: e.target.value }))} placeholder="Welcome back" />
-            </div>
-
-            <div>
-              <label className={labelCls}>Subtitle</label>
-              <Input value={draft.subtitle ?? ''} onChange={(e) => setDraft((v) => ({ ...v, subtitle: e.target.value }))} placeholder="Sign in with your enterprise account" />
-            </div>
-
-            <div>
-              <label className={labelCls}>Logo URL</label>
-              <Input value={draft.logoUrl ?? ''} onChange={(e) => setDraft((v) => ({ ...v, logoUrl: e.target.value }))} placeholder="https://example.com/logo.svg" />
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className={labelCls}>Primary Color</label>
-                <ColorInput
-                  value={draft.primaryColor ?? ''}
-                  onChange={(value) => setDraft((v) => ({ ...v, primaryColor: value }))}
-                  placeholder="#0f172a"
-                  defaultColor="#0f172a"
-                />
-              </div>
-              <div>
-                <label className={labelCls}>Accent Color</label>
-                <ColorInput
-                  value={draft.accentColor ?? ''}
-                  onChange={(value) => setDraft((v) => ({ ...v, accentColor: value }))}
-                  placeholder="#0ea5e9"
-                  defaultColor="#0ea5e9"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className={labelCls}>Background CSS</label>
-              <Textarea
-                value={draft.backgroundCss ?? ''}
-                onChange={(e) => setDraft((v) => ({ ...v, backgroundCss: e.target.value }))}
-                className="min-h-[100px] w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20"
-                placeholder="linear-gradient(130deg, #e2e8f0, #f8fafc)"
+            <Stack gap={6}>
+              <Text size="sm" fw={500}>Surface</Text>
+              <SegmentedControl
+                fullWidth
+                value={surface}
+                onChange={(value) => setSurface(value as UiSurface)}
+                data={surfaces.map((item) => ({ value: item.key, label: item.label }))}
+                aria-label="Surface"
               />
-            </div>
+            </Stack>
 
-            <div className="flex flex-wrap gap-2">
-              <Button variant="secondary" onClick={saveScopedCustomization}>
-                <Sparkles size={14} />
-                Apply To Scope
-              </Button>
-              <Button variant="danger" onClick={clearScopedCustomization}>
-                <Trash2 size={14} />
-                Clear Draft
-              </Button>
-            </div>
-          </div>
-        </Card>
+            <TextInput
+              label="Title"
+              value={draft.title ?? ''}
+              onChange={(e) => { const value = e.currentTarget.value; setDraft((v) => ({ ...v, title: value })) }}
+              placeholder="Welcome back"
+            />
+            <TextInput
+              label="Subtitle"
+              value={draft.subtitle ?? ''}
+              onChange={(e) => { const value = e.currentTarget.value; setDraft((v) => ({ ...v, subtitle: value })) }}
+              placeholder="Sign in with your enterprise account"
+            />
+            <TextInput
+              label="Logo URL"
+              value={draft.logoUrl ?? ''}
+              onChange={(e) => { const value = e.currentTarget.value; setDraft((v) => ({ ...v, logoUrl: value })) }}
+              placeholder="https://example.com/logo.svg"
+            />
 
-        <Card className="p-5">
-          <h2 className="text-base font-semibold text-foreground">Preview</h2>
-          <p className="mt-2 text-xs text-muted-foreground">Preview approximates the selected surface styling. Final rendering can vary by page layout.</p>
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+              <ColorInput
+                label="Primary color"
+                value={draft.primaryColor ?? ''}
+                onChange={(value) => setDraft((v) => ({ ...v, primaryColor: value }))}
+                placeholder="#0f172a"
+                format="hex"
+                swatches={presetColors}
+                swatchesPerRow={7}
+                ff="monospace"
+              />
+              <ColorInput
+                label="Accent color"
+                value={draft.accentColor ?? ''}
+                onChange={(value) => setDraft((v) => ({ ...v, accentColor: value }))}
+                placeholder="#0ea5e9"
+                format="hex"
+                swatches={presetColors}
+                swatchesPerRow={7}
+                ff="monospace"
+              />
+            </SimpleGrid>
 
-          <div className="mt-4 overflow-hidden rounded-2xl border border-border" style={previewStyles}>
-            <div className="min-h-[300px] px-6 py-8" style={{ color: draft.primaryColor?.trim() || '#0f172a' }}>
-              {draft.logoUrl?.trim() ? (
-                <img src={draft.logoUrl} alt="Customization logo" className="mb-5 h-10 w-auto max-w-[180px] rounded object-contain" />
-              ) : (
-                <div className="mb-5 inline-flex h-10 items-center rounded-lg bg-card/70 px-3 text-xs font-semibold text-muted-foreground">Logo preview</div>
-              )}
-              <h3 className="text-2xl font-bold tracking-tight">{draft.title?.trim() || 'Sign in to continue'}</h3>
-              <p className="mt-2 max-w-md text-sm opacity-90">{draft.subtitle?.trim() || 'Use your organization account to access protected applications.'}</p>
-              <button
-                type="button"
-                className="mt-5 rounded-lg px-4 py-2 text-sm font-semibold text-white"
-                style={{ backgroundColor: draft.accentColor?.trim() || '#0ea5e9' }}
-              >
-                Continue
-              </button>
-            </div>
-          </div>
+            <Textarea
+              label="Background CSS"
+              value={draft.backgroundCss ?? ''}
+              onChange={(e) => { const value = e.currentTarget.value; setDraft((v) => ({ ...v, backgroundCss: value })) }}
+              autosize
+              minRows={3}
+              styles={{ input: { fontFamily: 'var(--mantine-font-family-monospace)' } }}
+              placeholder="linear-gradient(130deg, #e2e8f0, #f8fafc)"
+            />
+          </Stack>
+        </SectionCard>
 
-          <div className="mt-5 rounded-lg border border-border bg-muted/50 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Open Surface</p>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              {surfaces.map((item) => (
-                <Link
-                  key={item.key}
-                  to={item.route}
-                  className="inline-flex items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground hover:bg-muted/50"
+        <SectionCard
+          title="Preview"
+          description="Preview approximates the selected surface styling. Final rendering can vary by page layout."
+        >
+          <Stack gap="lg">
+            <Paper withBorder radius="lg" style={{ ...previewStyles, overflow: 'hidden' }}>
+              <Box mih={300} px="xl" py="xl" style={{ color: draft.primaryColor?.trim() || 'var(--mantine-color-text)' }}>
+                {draft.logoUrl?.trim() ? (
+                  <Image src={draft.logoUrl} alt="Customization logo" h={40} w="auto" maw={180} fit="contain" radius="sm" mb="lg" />
+                ) : (
+                  <Paper radius="md" px="sm" py={10} mb="lg" display="inline-block" bg="var(--nx-color-surface)">
+                    <Text size="xs" fw={600} c="dimmed">Logo preview</Text>
+                  </Paper>
+                )}
+                <Title order={3} fz={24} fw={700} c="inherit">{draft.title?.trim() || 'Sign in to continue'}</Title>
+                <Text size="sm" mt="xs" maw={448} c="inherit" opacity={0.9}>{draft.subtitle?.trim() || 'Use your organization account to access protected applications.'}</Text>
+                <Button
+                  mt="lg"
+                  color={draft.accentColor?.trim() || undefined}
+                  tabIndex={-1}
                 >
-                  {item.label}
-                  <ArrowUpRight size={14} />
-                </Link>
-              ))}
-            </div>
-          </div>
+                  Continue
+                </Button>
+              </Box>
+            </Paper>
 
-          <p className="mt-4 text-xs text-muted-foreground">
-            Scope precedence: default values are baseline, client overrides apply when a client context exists, and app overrides apply when an app context exists.
-          </p>
-        </Card>
-      </div>
+            <Stack gap="xs">
+              <Text size="sm" fw={500}>Open surface</Text>
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
+                {surfaces.map((item) => (
+                  <UnstyledButton key={item.key} component={Link} to={item.route}>
+                    <Paper withBorder radius="md" px="sm" py="xs" className="nx-interactive">
+                      <Group justify="space-between" wrap="nowrap">
+                        <Text size="sm">{item.label}</Text>
+                        <ArrowUpRight size={14} />
+                      </Group>
+                    </Paper>
+                  </UnstyledButton>
+                ))}
+              </SimpleGrid>
+            </Stack>
 
-      {(message || error) ? (
-        <div className={`rounded-xl border p-4 text-sm shadow-sm ${error ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
-          {error ?? message}
-        </div>
-      ) : null}
-    </div>
+            <Text size="xs" c="dimmed">
+              Scope precedence: default values are baseline, client overrides apply when a client context exists, and app overrides apply when an app context exists.
+            </Text>
+          </Stack>
+        </SectionCard>
+      </SimpleGrid>
+    </Stack>
   )
 }

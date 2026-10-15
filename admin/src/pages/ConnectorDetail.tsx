@@ -1,15 +1,23 @@
-import Card from '../components/ui/Card'
+import { Button, Group, Paper, SimpleGrid, Skeleton, Stack, Text } from '@mantine/core'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Play, RefreshCw } from 'lucide-react'
-import { PageHeader, Skeleton } from '../components/PageHeader'
-import Button from '../components/ui/Button'
+import { ArrowLeft, Play } from 'lucide-react'
+import { PageHeader, RefreshButton, SectionCard, StatusBadge, type Status } from '@nexus/design'
 import {
   useConnector,
   useConnectorRuns,
   useConnectorMappings,
   useTriggerConnectorSync,
+  type ConnectorRunDto,
 } from '../hooks/useApi'
-import React from 'react';
+
+const RUN_STATUS: Record<ConnectorRunDto['status'], Status> = {
+  pending: 'pending',
+  running: 'running',
+  succeeded: 'success',
+  failed: 'danger',
+  cancelled: 'neutral',
+}
+
 export default function ConnectorDetail() {
   const { id = '' } = useParams<{ id: string }>()
   const { data: connector, isLoading } = useConnector(id)
@@ -18,20 +26,20 @@ export default function ConnectorDetail() {
   const triggerSync = useTriggerConnectorSync()
 
   if (!id) {
-    return <div className="text-sm text-muted-foreground">Missing connector id.</div>
+    return <Text size="sm" c="dimmed">Missing connector id.</Text>
   }
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-14 w-72" />
-        <Skeleton className="h-48" />
-      </div>
+      <Stack gap="lg">
+        <Skeleton h={56} w={288} />
+        <Skeleton h={192} />
+      </Stack>
     )
   }
 
   if (!connector) {
-    return <div className="text-sm text-muted-foreground">Connector not found.</div>
+    return <Text size="sm" c="dimmed">Connector not found.</Text>
   }
 
   const runs = runsData?.data ?? []
@@ -39,66 +47,64 @@ export default function ConnectorDetail() {
   const isRefreshing = isRunsRefreshing || isMappingsRefreshing
 
   return (
-    <div className="space-y-6">
+    <>
       <PageHeader
         eyebrow="Data Sync"
         title={connector.name}
         description={`Connector detail for ${connector.type.toUpperCase()} (${connector.id})`}
-        action={
-          <div className="flex items-center gap-2">
-            <Link to="/connectors" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm text-muted-foreground hover:bg-muted/50">
-              <ArrowLeft size={13} /> Back
-            </Link>
-          <Button
-            variant="secondary"
-            onClick={() => { refetchRuns(); refetchMappings() }}
-            disabled={isRefreshing}
-          >
-            <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} /> Refresh
-          </Button>
-          <Button
-            variant="primary"
-            onClick={() => triggerSync.mutate(id)}
-            disabled={triggerSync.isPending}
-          >
-            <Play size={14} /> {triggerSync.isPending ? 'Syncing…' : 'Trigger Sync'}
-          </Button>
-        </div>
+        actions={
+          <Group gap="xs">
+            <Button component={Link} to="/connectors" variant="default" leftSection={<ArrowLeft size={16} />}>
+              Back
+            </Button>
+            <RefreshButton
+              onRefresh={() => { refetchRuns(); refetchMappings() }}
+              loading={isRefreshing}
+              lastUpdated={null}
+            />
+            <Button
+              onClick={() => triggerSync.mutate(id)}
+              loading={triggerSync.isPending}
+              leftSection={<Play size={16} />}
+            >
+              Trigger Sync
+            </Button>
+          </Group>
         }
       />
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card className="p-5">
-          <h2 className="text-sm font-semibold text-foreground">Recent Runs</h2>
-          <div className="mt-3 space-y-2">
+      <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="lg">
+        <SectionCard title="Recent Runs">
+          <Stack gap="xs">
             {runs.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No runs yet.</p>
+              <Text size="sm" c="dimmed">No runs yet.</Text>
             ) : runs.map((run) => (
-              <div key={run.id} className="rounded-lg border border-border bg-muted/50 p-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-foreground">{run.status}</span>
-                  <span className="text-xs text-muted-foreground">{run.id.slice(0, 8)}</span>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">Imported {run.recordsImported} · Failed {run.recordsFailed}</p>
-              </div>
+              <Paper key={run.id} withBorder radius="md" p="sm" bg="var(--nx-color-surface-sunken)">
+                <Group justify="space-between" wrap="nowrap">
+                  <StatusBadge status={RUN_STATUS[run.status] ?? 'neutral'}>{run.status}</StatusBadge>
+                  <Text size="xs" c="dimmed" ff="monospace">{run.id.slice(0, 8)}</Text>
+                </Group>
+                <Text size="xs" c="dimmed" mt={4} className="nx-tabular">
+                  Imported {run.recordsImported} · Failed {run.recordsFailed}
+                </Text>
+              </Paper>
             ))}
-          </div>
-        </Card>
+          </Stack>
+        </SectionCard>
 
-        <Card className="p-5">
-          <h2 className="text-sm font-semibold text-foreground">Field Mappings</h2>
-          <div className="mt-3 space-y-2">
+        <SectionCard title="Field Mappings">
+          <Stack gap="xs">
             {mappings.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No mappings configured.</p>
+              <Text size="sm" c="dimmed">No mappings configured.</Text>
             ) : mappings.map((mapping) => (
-              <div key={mapping.id} className="rounded-lg border border-border bg-muted/50 p-3 text-sm">
-                <p className="font-mono text-foreground">{mapping.sourceField} -&gt; {mapping.targetField}</p>
-                {mapping.transform ? <p className="mt-1 text-xs text-muted-foreground">Transform: {mapping.transform}</p> : null}
-              </div>
+              <Paper key={mapping.id} withBorder radius="md" p="sm" bg="var(--nx-color-surface-sunken)">
+                <Text size="sm" ff="monospace">{mapping.sourceField} -&gt; {mapping.targetField}</Text>
+                {mapping.transform ? <Text size="xs" c="dimmed" mt={4}>Transform: {mapping.transform}</Text> : null}
+              </Paper>
             ))}
-          </div>
-        </Card>
-      </div>
-    </div>
+          </Stack>
+        </SectionCard>
+      </SimpleGrid>
+    </>
   )
 }

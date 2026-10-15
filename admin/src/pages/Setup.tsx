@@ -1,12 +1,20 @@
-import Card from '../components/ui/Card'
-import Select from '../components/ui/Select'
 import { useState } from 'react'
+import { Alert, Button, Group, Image, NativeSelect, PasswordInput, Stack, Text, TextInput } from '@mantine/core'
+import { AuthCard, AuthLayout, ColorSchemeToggle } from '@nexus/design'
+import { AlertCircle, Settings2 } from 'lucide-react'
 import { useInitializeSetup } from '../hooks/useApi'
-import Button from '../components/ui/Button'
-import Input from '../components/ui/Input'
 import React from 'react';
 
-const labelCls = 'block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5'
+function AuthBrand() {
+  return (
+    <Group gap={10}>
+      <Image src="/logo.svg" alt="NexusID" w={32} h={32} radius="md" fit="contain" />
+      <Text fw={600} fz="lg">
+        NexusID
+      </Text>
+    </Group>
+  )
+}
 
 const Setup = () => {
   const [databaseProvider, setDatabaseProvider] = useState<'sqlite' | 'postgresql' | 'mysql'>('sqlite')
@@ -76,112 +84,109 @@ const Setup = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.14),_transparent_28%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] p-4 font-sans">
-      <Card className="w-full max-w-md overflow-hidden">
-        <div className="bg-[linear-gradient(180deg,_#020617_0%,_#0f172a_100%)] px-8 py-7">
-          <div className="text-xl font-semibold text-slate-50 tracking-tight">First-run Setup</div>
-          <p className="text-muted-foreground text-sm mt-1">Create the initial administrator account with your own username and email.</p>
-        </div>
+    <AuthLayout
+      contentWidth={440}
+      brand={<AuthBrand />}
+      topRight={<ColorSchemeToggle size="md" variant="default" />}
+    >
+      <AuthCard
+        icon={<Settings2 size={22} />}
+        title="First-run Setup"
+        subtitle="Create the initial administrator account with your own username and email."
+      >
+        <form onSubmit={onSubmit}>
+          <Stack gap="sm">
+            {error && (
+              <Alert color="red" icon={<AlertCircle size={16} />} role="alert">
+                {error}
+              </Alert>
+            )}
 
-        <form onSubmit={onSubmit} className="px-8 py-7 space-y-4">
-          {error && <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
-
-          <div>
-            <label className={labelCls}>Database Provider</label>
-            <Select
+            <NativeSelect
+              label="Database Provider"
               value={databaseProvider}
               onChange={e => setDatabaseProvider(e.target.value as 'sqlite' | 'postgresql' | 'mysql')}
-            >
-              <option value="sqlite">SQLite</option>
-              <option value="postgresql">PostgreSQL</option>
-              <option value="mysql">MySQL</option>
-            </Select>
-          </div>
+              data={[
+                { value: 'sqlite', label: 'SQLite' },
+                { value: 'postgresql', label: 'PostgreSQL' },
+                { value: 'mysql', label: 'MySQL' }
+              ]}
+            />
 
-          {databaseProvider === 'sqlite' ? (
-            <div>
-              <label className={labelCls}>SQLite Database Path</label>
-              <Input
+            {databaseProvider === 'sqlite' ? (
+              <TextInput
+                label="SQLite Database Path"
                 type="text"
                 value={databasePath}
                 onChange={e => setDatabasePath(e.target.value)}
                 placeholder="./data/sso.sqlite"
+                ff="monospace"
               />
-            </div>
-          ) : (
-            <div>
-              <label className={labelCls}>External Database URL</label>
-              <Input
+            ) : (
+              <TextInput
+                label="External Database URL"
                 type="text"
                 value={externalDatabaseUrl}
                 onChange={e => setExternalDatabaseUrl(e.target.value)}
                 placeholder={databaseProvider === 'postgresql' ? 'postgresql://user:pass@host:5432/sso' : 'mysql://user:pass@host:3306/sso'}
+                ff="monospace"
               />
-            </div>
-          )}
+            )}
 
-          <div>
-            <label className={labelCls}>Administrator Name</label>
-            <Input
+            <TextInput
+              label="Administrator Name"
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="Platform Administrator"
               autoFocus
             />
-          </div>
 
-          <div>
-            <label className={labelCls}>Administrator Email</label>
-            <Input
+            <TextInput
+              label="Administrator Email"
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="admin@yourcompany.com"
             />
-          </div>
 
-          <div>
-            <label className={labelCls}>Administrator Username</label>
-            <Input
+            <TextInput
+              label="Administrator Username"
               type="text"
               value={username}
               onChange={e => setUsername(e.target.value)}
               placeholder="admin"
             />
-          </div>
 
-          <div>
-            <label className={labelCls}>Password</label>
-            <Input
-              type="password"
+            <PasswordInput
+              label="Password"
               value={password}
               onChange={e => setPassword(e.target.value)}
               placeholder="••••••••"
+              autoComplete="new-password"
             />
-          </div>
 
-          <div>
-            <label className={labelCls}>Confirm Password</label>
-            <Input
-              type="password"
+            <PasswordInput
+              label="Confirm Password"
               value={confirm}
               onChange={e => setConfirm(e.target.value)}
               placeholder="••••••••"
+              autoComplete="new-password"
             />
-          </div>
 
-          <Button
-            variant="primary"
-            type="submit"
-            className="w-full"
-            disabled={initializeSetup.isPending}
-          >
-            {initializeSetup.isPending ? 'Initializing…' : 'Initialize Installation'}
-          </Button>
+            <Button
+              type="submit"
+              fullWidth
+              mt="xs"
+              disabled={initializeSetup.isPending}
+              loading={initializeSetup.isPending}
+            >
+              {initializeSetup.isPending ? 'Initializing…' : 'Initialize Installation'}
+            </Button>
+          </Stack>
         </form>
-      </Card>
-    </div>
+      </AuthCard>
+    </AuthLayout>
   )
 }
 

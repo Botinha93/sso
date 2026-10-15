@@ -1,8 +1,12 @@
 import { ReactElement, Suspense, lazy, useEffect, useState } from 'react'
+import { Alert, Anchor, AppShell, Box, Center, Group, Loader, Stack, Text } from '@mantine/core'
+import { useDisclosure } from '@mantine/hooks'
+import { AppHeaderBar, ColorSchemeToggle, hasPermission as nexusHasPermission } from '@nexus/design'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Routes, Route, useLocation, Navigate } from 'react-router-dom'
-import { Menu } from 'lucide-react'
-import Sidebar from './components/Sidebar'
+import { ShieldAlert } from 'lucide-react'
+import Sidebar, { AdminBrand } from './components/Sidebar'
+import LanguageSelector from './components/LanguageSelector'
 import ChangePasswordModal from './components/ChangePasswordModal'
 import { useAdminMe, useSetupStatus } from './hooks/useApi'
 import { useI18n, formatPasswordExpirationWarning } from './i18n'
@@ -45,11 +49,22 @@ const Setup = lazy(() => import('./pages/Setup'))
 const queryClient = new QueryClient()
 
 function FullScreenLoader({ label }: { label: string }) {
-  return <div className="h-screen grid place-items-center text-slate-500">{label}</div>
+  return (
+    <Center h="100vh">
+      <Stack align="center" gap="sm">
+        <Loader size="sm" />
+        <Text size="sm" c="dimmed">{label}</Text>
+      </Stack>
+    </Center>
+  )
 }
 
 function SectionLoader() {
-  return <div className="h-[50vh] grid place-items-center text-slate-500">Loading page…</div>
+  return (
+    <Center h="50vh">
+      <Loader size="sm" />
+    </Center>
+  )
 }
 
 function App() {
@@ -63,7 +78,7 @@ function App() {
 function AppContent() {
   const location = useLocation()
   const { t } = useI18n()
-  const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [mobileNavOpen, { toggle: toggleMobileNav, close: closeMobileNav }] = useDisclosure(false)
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
   const [passwordExpirationDays, setPasswordExpirationDays] = useState<number | null>(null)
   const [warningDismissed, setWarningDismissed] = useState(() => sessionStorage.getItem('passwordExpirationWarningDismissed') === '1')
@@ -74,8 +89,8 @@ function AppContent() {
     : formatPasswordExpirationWarning(t, passwordExpirationDays)
 
   useEffect(() => {
-    setMobileNavOpen(false)
-  }, [location.pathname])
+    closeMobileNav()
+  }, [location.pathname, closeMobileNav])
 
   useEffect(() => {
     const fromMe = (adminMe as { passwordExpirationWarning?: { daysRemaining?: number } } | undefined)?.passwordExpirationWarning?.daysRemaining
@@ -86,7 +101,7 @@ function AppContent() {
   }, [adminMe])
 
   const permissions: string[] = (adminMe as any)?.permissions ?? []
-  const hasPermission = (perm: string) => permissions.includes('*:*') || permissions.includes(perm)
+  const hasPermission = (perm: string) => nexusHasPermission(permissions, perm)
 
   if (setupLoading) {
     return <FullScreenLoader label="Loading setup…" />
@@ -114,13 +129,17 @@ function AppContent() {
 
   const require = (perm: string, element: ReactElement) => hasPermission(perm)
     ? element
-    : <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">You do not have permission to access this section.</div>
+    : (
+      <Alert color="yellow" icon={<ShieldAlert size={16} />}>
+        You do not have permission to access this section.
+      </Alert>
+    )
 
   const isAuthed = !meError && !!adminMe
+  const me = adminMe as { name?: string; email?: string; username?: string } | undefined
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Suspense fallback={<FullScreenLoader label="Loading page…" />}>
+    <Suspense fallback={<FullScreenLoader label="Loading page…" />}>
       <Routes location={location}>
         <Route path="/login" element={<Login />} />
         <Route path="/consent" element={<Consent />} />
@@ -130,111 +149,111 @@ function AppContent() {
           path="*"
           element={
             isAuthed ? (
-              <div className="flex min-h-screen w-full overflow-hidden bg-[image:var(--semantic-bg-page)] text-slate-700 font-sans">
-                <div className="hidden md:flex">
-                  <Sidebar permissions={permissions} onChangePassword={() => setChangePasswordOpen(true)} />
-                </div>
-
-                <div className={`fixed inset-0 z-40 md:hidden ${mobileNavOpen ? '' : 'pointer-events-none'}`}>
-                  <button
-                    type="button"
-                    aria-label="Close navigation menu"
-                    onClick={() => setMobileNavOpen(false)}
-                    className={`absolute inset-0 bg-slate-900/45 transition-opacity ${mobileNavOpen ? 'opacity-100' : 'opacity-0'}`}
+              <AppShell
+                header={{ height: 56 }}
+                navbar={{ width: 264, breakpoint: 'md', collapsed: { mobile: !mobileNavOpen } }}
+                padding={0}
+              >
+                <AppShell.Header>
+                  <AppHeaderBar
+                    brand={<AdminBrand />}
+                    burgerOpened={mobileNavOpen}
+                    onBurgerClick={toggleMobileNav}
+                    burgerHiddenFrom="md"
+                    burgerLabel="Toggle navigation menu"
+                    actions={
+                      <>
+                        <LanguageSelector visibleFrom="sm" />
+                        <ColorSchemeToggle size="lg" />
+                      </>
+                    }
                   />
-                  <div className={`relative h-full w-[88%] max-w-[320px] transition-transform ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                    <Sidebar permissions={permissions} onNavigate={() => setMobileNavOpen(false)} onChangePassword={() => setChangePasswordOpen(true)} />
-                  </div>
-                </div>
+                </AppShell.Header>
 
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <div className="flex h-12 items-center border-b border-slate-200/60 px-4 md:hidden">
-                    <button
-                      type="button"
-                      aria-label="Open navigation menu"
-                      onClick={() => setMobileNavOpen(true)}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700"
-                    >
-                      <Menu size={18} />
-                    </button>
-                    <p className="ml-3 text-sm font-semibold text-slate-900">NexusID Admin</p>
-                  </div>
+                <AppShell.Navbar>
+                  <Sidebar
+                    permissions={permissions}
+                    user={{ name: me?.name || me?.username, email: me?.email }}
+                    onNavigate={closeMobileNav}
+                    onChangePassword={() => setChangePasswordOpen(true)}
+                  />
+                </AppShell.Navbar>
 
-                <main className="admin-shell-main min-w-0 flex-1 overflow-auto">
-                  <div className="admin-shell-content admin-page-stack">
-                    {passwordExpirationWarning && !warningDismissed ? (
-                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <span>{passwordExpirationWarning}</span>
-                        <div className="flex shrink-0 items-center gap-3">
-                          <button
-                            type="button"
-                            className="font-medium text-amber-900 underline"
-                            onClick={() => setChangePasswordOpen(true)}
-                          >
-                            {t('password.change')}
-                          </button>
-                          <button
-                            type="button"
-                            className="text-amber-800 underline"
-                            onClick={() => {
-                              sessionStorage.removeItem('passwordExpirationWarning')
-                              sessionStorage.setItem('passwordExpirationWarningDismissed', '1')
-                              setWarningDismissed(true)
-                              setPasswordExpirationDays(null)
-                            }}
-                          >
-                            {t('password.dismiss')}
-                          </button>
-                        </div>
-                      </div>
-                    ) : null}
-                    <Suspense fallback={<SectionLoader />}>
-                    <Routes location={location}>
-                      <Route path="/" element={require('users:view', <Dashboard />)} />
-                      <Route path="/dashboard" element={require('users:view', <Dashboard />)} />
-                      <Route path="/clients" element={require('clients:view', <Clients />)} />
-                      <Route path="/users" element={require('users:view', <Users />)} />
-                      <Route path="/groups" element={require('groups:view', <Groups />)} />
-                      <Route path="/roles" element={require('roles:view', <Roles />)} />
-                      <Route path="/sessions" element={require('sessions:view', <Sessions />)} />
-                      <Route path="/devices" element={require('sessions:view', <Devices />)} />
-                      <Route path="/audit" element={require('audit_log:view', <AuditLog />)} />
-                      <Route path="/consents" element={require('consents:view', <Consents />)} />
-                      <Route path="/tenants" element={require('tenants:view', <Tenants />)} />
-                      <Route path="/apps" element={require('apps:view', <Apps />)} />
-                      <Route path="/federation" element={require('federation_providers:view', <FederationProviders />)} />
-                      <Route path="/authentication" element={require('authentication_flows:view', <AuthenticationFlows />)} />
-                      <Route path="/interaction-views" element={require('authentication_flows:view', <InteractionViews />)} />
-                      <Route path="/experience-customization" element={require('administration:view', <UiCustomizations />)} />
-                      <Route path="/user-attributes" element={require('user_attributes:view', <UserAttributes />)} />
-                      <Route path="/policies" element={require('policies:view', <Policies />)} />
-                      <Route path="/access-governance" element={require('administration:view', <AccessGovernance />)} />
-                      <Route path="/elevations" element={require('administration:view', <Elevations />)} />
-                      <Route path="/elevation-sessions" element={require('administration:view', <ElevationSessions />)} />
-                      <Route path="/events" element={require('events:view', <EventHooks />)} />
-                      <Route path="/suggestions" element={require('suggestions:view', <Suggestions />)} />
-                      <Route path="/administration" element={require('administration:view', <Administration />)} />
-                      <Route path="/service-identities" element={require('service_identities:view', <ServiceIdentities />)} />
-                      <Route path="/connectors" element={require('connectors:view', <Connectors />)} />
-                      <Route path="/plugins" element={require('plugins:view', <Plugins />)} />
-                      <Route path="/connectors/:id" element={require('connectors:view', <ConnectorDetail />)} />
-                      <Route path="/metrics" element={require('connectors:view', <Metrics />)} />
-                      <Route path="/documentation" element={require('users:view', <Documentation />)} />
-                    </Routes>
-                    </Suspense>
-                  </div>
-                </main>
-                </div>
+                <AppShell.Main style={{ background: 'var(--nx-color-canvas)' }}>
+                  <Box p={{ base: 'md', sm: 'lg', lg: 'xl' }} maw={1280} mx="auto">
+                    <Stack gap="lg">
+                      {passwordExpirationWarning && !warningDismissed ? (
+                        <Alert color="yellow">
+                          <Group justify="space-between" gap="sm" wrap="wrap">
+                            <Text size="sm">{passwordExpirationWarning}</Text>
+                            <Group gap="md">
+                              <Anchor component="button" type="button" size="sm" fw={500} onClick={() => setChangePasswordOpen(true)}>
+                                {t('password.change')}
+                              </Anchor>
+                              <Anchor
+                                component="button"
+                                type="button"
+                                size="sm"
+                                c="dimmed"
+                                onClick={() => {
+                                  sessionStorage.removeItem('passwordExpirationWarning')
+                                  sessionStorage.setItem('passwordExpirationWarningDismissed', '1')
+                                  setWarningDismissed(true)
+                                  setPasswordExpirationDays(null)
+                                }}
+                              >
+                                {t('password.dismiss')}
+                              </Anchor>
+                            </Group>
+                          </Group>
+                        </Alert>
+                      ) : null}
+                      <Suspense fallback={<SectionLoader />}>
+                        <Routes location={location}>
+                          <Route path="/" element={require('users:view', <Dashboard />)} />
+                          <Route path="/dashboard" element={require('users:view', <Dashboard />)} />
+                          <Route path="/clients" element={require('clients:view', <Clients />)} />
+                          <Route path="/users" element={require('users:view', <Users />)} />
+                          <Route path="/groups" element={require('groups:view', <Groups />)} />
+                          <Route path="/roles" element={require('roles:view', <Roles />)} />
+                          <Route path="/sessions" element={require('sessions:view', <Sessions />)} />
+                          <Route path="/devices" element={require('sessions:view', <Devices />)} />
+                          <Route path="/audit" element={require('audit_log:view', <AuditLog />)} />
+                          <Route path="/consents" element={require('consents:view', <Consents />)} />
+                          <Route path="/tenants" element={require('tenants:view', <Tenants />)} />
+                          <Route path="/apps" element={require('apps:view', <Apps />)} />
+                          <Route path="/federation" element={require('federation_providers:view', <FederationProviders />)} />
+                          <Route path="/authentication" element={require('authentication_flows:view', <AuthenticationFlows />)} />
+                          <Route path="/interaction-views" element={require('authentication_flows:view', <InteractionViews />)} />
+                          <Route path="/experience-customization" element={require('administration:view', <UiCustomizations />)} />
+                          <Route path="/user-attributes" element={require('user_attributes:view', <UserAttributes />)} />
+                          <Route path="/policies" element={require('policies:view', <Policies />)} />
+                          <Route path="/access-governance" element={require('administration:view', <AccessGovernance />)} />
+                          <Route path="/elevations" element={require('administration:view', <Elevations />)} />
+                          <Route path="/elevation-sessions" element={require('administration:view', <ElevationSessions />)} />
+                          <Route path="/events" element={require('events:view', <EventHooks />)} />
+                          <Route path="/suggestions" element={require('suggestions:view', <Suggestions />)} />
+                          <Route path="/administration" element={require('administration:view', <Administration />)} />
+                          <Route path="/service-identities" element={require('service_identities:view', <ServiceIdentities />)} />
+                          <Route path="/connectors" element={require('connectors:view', <Connectors />)} />
+                          <Route path="/plugins" element={require('plugins:view', <Plugins />)} />
+                          <Route path="/connectors/:id" element={require('connectors:view', <ConnectorDetail />)} />
+                          <Route path="/metrics" element={require('connectors:view', <Metrics />)} />
+                          <Route path="/documentation" element={require('users:view', <Documentation />)} />
+                        </Routes>
+                      </Suspense>
+                    </Stack>
+                  </Box>
+                </AppShell.Main>
                 <ChangePasswordModal isOpen={changePasswordOpen} onClose={() => setChangePasswordOpen(false)} />
-              </div>
+              </AppShell>
             ) : (
               <Navigate to="/login" replace />
             )
           }
         />
       </Routes>
-      </Suspense>
-    </div>
+    </Suspense>
   )
 }
 

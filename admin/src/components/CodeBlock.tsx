@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { Box, type BoxProps } from '@mantine/core'
 import Prism from 'prismjs'
 import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-json'
@@ -6,21 +7,18 @@ import 'prismjs/components/prism-typescript'
 
 type CodeLanguage = 'json' | 'javascript' | 'typescript' | 'bash' | 'markup' | 'text'
 
-const cx = (...values: Array<string | false | null | undefined>) => values.filter(Boolean).join(' ')
-
 const escapeHtml = (value: string) =>
   value
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
 
-export interface CodeBlockProps {
+export interface CodeBlockProps extends BoxProps {
   code: string
   language?: CodeLanguage
-  className?: string
 }
 
-export default function CodeBlock({ code, language = 'text', className }: CodeBlockProps) {
+export default function CodeBlock({ code, language = 'text', className, ...others }: CodeBlockProps) {
   const highlighted = useMemo(() => {
     const grammar = Prism.languages[language]
     if (!grammar) {
@@ -31,8 +29,8 @@ export default function CodeBlock({ code, language = 'text', className }: CodeBl
   }, [code, language])
 
   return (
-    <pre className={cx('code-block', className)}>
+    <Box component="pre" className={['code-block', className].filter(Boolean).join(' ')} {...others}>
       <code className={`language-${language}`} dangerouslySetInnerHTML={{ __html: highlighted }} />
-    </pre>
+    </Box>
   )
 }
