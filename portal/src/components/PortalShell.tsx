@@ -1,6 +1,6 @@
 import { AppShell, Box, Button, Group, Image, Menu, Stack, Text, ThemeIcon, UnstyledButton } from '@mantine/core'
 import { AppHeaderBar, ColorSchemeToggle, UserMenu } from '@nexus/design'
-import { Grid3X3, LayoutGrid, Lightbulb, Settings, Users as UsersIcon } from 'lucide-react'
+import { LayoutGrid, Lightbulb, Settings, Users as UsersIcon } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { logout, type PortalUser } from '../hooks'
 import { useI18n } from '../i18n'
@@ -61,9 +61,7 @@ export default function PortalShell({ user, brand, background, maw = 1120, child
             <UnstyledButton onClick={() => navigate('/')} aria-label={brand?.title ?? 'Account Portal'}>
               <Group gap={10} wrap="nowrap">
                 <ThemeIcon size={28} radius="md" variant="filled" color={brand?.primaryColor ?? undefined} aria-hidden style={{ overflow: 'hidden' }}>
-                  {brand?.logoUrl
-                    ? <Image src={brand.logoUrl} alt="Logo" w={28} h={28} fit="cover" />
-                    : <Grid3X3 size={16} />}
+                  <Image src={brand?.logoUrl ?? `${portalHome}logo.svg`} alt="Logo" w={28} h={28} fit="cover" />
                 </ThemeIcon>
                 <Text fw={600} fz={15} truncate="end">{brand?.title ?? 'Account Portal'}</Text>
               </Group>

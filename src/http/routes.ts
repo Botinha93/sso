@@ -4280,7 +4280,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.get("/portal/*", async (request, reply) => {
     const relativePath = String((request.params as Record<string, string>)["*"] ?? "");
 
-    if (relativePath.startsWith("assets/")) {
+    if (relativePath.startsWith("assets/") || ["favicon.svg", "logo.svg"].includes(relativePath)) {
       return sendFrontendFile(reply, "portal", relativePath);
     }
 

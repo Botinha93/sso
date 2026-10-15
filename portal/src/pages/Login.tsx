@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Alert, Button, Image, Paper, PasswordInput, Skeleton, Stack, TextInput, ThemeIcon } from '@mantine/core'
 import { AuthCard, AuthLayout, ColorSchemeToggle, OtpStep } from '@nexus/design'
-import { ArrowLeft, Lock, LogIn, Mail, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Lock, LogIn, Mail } from 'lucide-react'
 import LanguageSelector from '../components/LanguageSelector'
 import { useI18n } from '../i18n'
 import { extractErrorMessage, resolveLoginCredentialError } from '../lib/errors'
@@ -191,9 +191,7 @@ export default function Login() {
       color={ui?.primaryColor ?? undefined}
       style={{ overflow: 'hidden' }}
     >
-      {ui?.logoUrl
-        ? <Image src={ui.logoUrl} alt="Logo" w={56} h={56} fit="cover" />
-        : <ShieldCheck size={26} />}
+      <Image src={ui?.logoUrl ?? `${portalHome}logo.svg`} alt="Logo" w={56} h={56} fit="cover" />
     </ThemeIcon>
   )
 

@@ -201,6 +201,51 @@ const AttributeValueField = ({
   )
 }
 
+type CappedBadgeItem = {
+  key: string
+  label: string
+  color?: string
+  ff?: string
+  rightSection?: React.ReactNode
+}
+
+/**
+ * Table-cell badge list that cannot blow up the row: long labels are truncated
+ * (full text in a tooltip) and anything past `max` collapses into a "+N" badge.
+ */
+const CappedBadges = ({ items, max = 3 }: { items: CappedBadgeItem[]; max?: number }) => {
+  const visible = items.slice(0, max)
+  const hidden = items.slice(max)
+  return (
+    <Group gap={4}>
+      {visible.map((item) => (
+        <Tooltip key={item.key} label={item.label} openDelay={300} multiline maw={360}>
+          <Badge
+            variant="light"
+            color={item.color}
+            ff={item.ff}
+            tt="none"
+            maw={220}
+            pr={item.rightSection ? 2 : undefined}
+            rightSection={item.rightSection}
+          >
+            {item.label}
+          </Badge>
+        </Tooltip>
+      ))}
+      {hidden.length > 0 ? (
+        <Tooltip
+          multiline
+          maw={360}
+          label={<Stack gap={2}>{hidden.map((item) => <Text key={item.key} size="xs">{item.label}</Text>)}</Stack>}
+        >
+          <Badge variant="default" tt="none">+{hidden.length}</Badge>
+        </Tooltip>
+      ) : null}
+    </Group>
+  )
+}
+
 /** Bordered, scrollable list of checkboxes (apps, groups, roles pickers). */
 const CheckList = ({ children }: { children: React.ReactNode }) => (
   <Paper withBorder radius="md">
@@ -956,16 +1001,14 @@ const Users = () => {
                           </Box>
                         </Group>
                       </Table.Td>
-                      <Table.Td>
-                        <Group gap={4}>
-                          {assignedAppIds.length === 0 ? (
-                            <Badge variant="light">No Apps</Badge>
-                          ) : (
-                            assignedAppIds.map((assignedAppId) => {
-                              const directAppIds = user.directAppIds ?? []
-                              const inheritedAppIds = user.inheritedAppIds ?? []
-                              const isDirect = directAppIds.includes(assignedAppId)
-                              const isInherited = inheritedAppIds.includes(assignedAppId)
+                      <Table.Td maw={280}>
+                        {assignedAppIds.length === 0 ? (
+                          <Badge variant="light">No Apps</Badge>
+                        ) : (
+                          <CappedBadges
+                            items={assignedAppIds.map((assignedAppId) => {
+                              const isDirect = (user.directAppIds ?? []).includes(assignedAppId)
+                              const isInherited = (user.inheritedAppIds ?? []).includes(assignedAppId)
                               const sourceGroupNames = (user.inheritedAppSources ?? [])
                                 .filter((source) => source.appId === assignedAppId)
                                 .map((source) => source.groupName)
@@ -974,34 +1017,25 @@ const Users = () => {
                                   ? ` via ${sourceGroupNames.join(', ')}`
                                   : ' via group'
                                 : ''
-                              return (
-                                <Badge key={assignedAppId} variant="light" tt="none">
-                                  {appNameById.get(assignedAppId) ?? 'App'}
-                                  {suffix}
-                                </Badge>
-                              )
-                            })
-                          )}
-                        </Group>
+                              return { key: assignedAppId, label: `${appNameById.get(assignedAppId) ?? 'App'}${suffix}` }
+                            })}
+                          />
+                        )}
                       </Table.Td>
-                      <Table.Td>
+                      <Table.Td maw={280}>
                         <Stack gap={4}>
                           {user.roles.length > 0 ? (
-                            <Group gap={4}>
-                              {user.roles.map(r => (
-                                <Badge key={r} variant="light" color="gray" tt="none">{r}</Badge>
-                              ))}
-                            </Group>
+                            <CappedBadges items={user.roles.map((r) => ({ key: r, label: r, color: 'gray' }))} />
                           ) : null}
                           {user.customAttributes && Object.keys(user.customAttributes).length > 0 ? (
-                            <Group gap={4}>
-                              {Object.entries(user.customAttributes).map(([key, value]) => (
-                                <Badge key={key} variant="light" color="yellow" tt="none" ff="monospace">
-                                  {attributeByKey.get(key)?.name ?? key}: {value}
-                                  {user.inheritedCustomAttributes?.[key] === value && !user.directCustomAttributes?.[key] ? ' via group' : ''}
-                                </Badge>
-                              ))}
-                            </Group>
+                            <CappedBadges
+                              items={Object.entries(user.customAttributes).map(([key, value]) => ({
+                                key,
+                                label: `${attributeByKey.get(key)?.name ?? key}: ${value}${user.inheritedCustomAttributes?.[key] === value && !user.directCustomAttributes?.[key] ? ' via group' : ''}`,
+                                color: 'yellow',
+                                ff: 'monospace',
+                              }))}
+                            />
                           ) : null}
                           {user.roles.length === 0 && !(user.customAttributes && Object.keys(user.customAttributes).length > 0) ? (
                             <Text size="xs" c="dimmed">—</Text>
@@ -1011,32 +1045,26 @@ const Users = () => {
                       <Table.Td>
                         <Stack gap={6}>
                           {(user.groups ?? []).length > 0 ? (
-                            <Group gap={4}>
-                              {(user.groups ?? []).map((groupName) => (
-                                <Badge
-                                  key={groupName}
-                                  variant="light"
-                                  color="blue"
-                                  tt="none"
-                                  pr={2}
-                                  rightSection={
-                                    <CloseButton
-                                      size="xs"
-                                      iconSize={11}
-                                      onClick={() => {
-                                        const group = (groups as GroupItem[]).find((g) => g.name === groupName)
-                                        if (!group) return
-                                        removeUserGroup.mutate({ userId: user.id, groupId: group.id })
-                                      }}
-                                      title="Remove from group"
-                                      aria-label={`Remove from group ${groupName}`}
-                                    />
-                                  }
-                                >
-                                  {groupName}
-                                </Badge>
-                              ))}
-                            </Group>
+                            <CappedBadges
+                              items={(user.groups ?? []).map((groupName) => ({
+                                key: groupName,
+                                label: groupName,
+                                color: 'blue',
+                                rightSection: (
+                                  <CloseButton
+                                    size="xs"
+                                    iconSize={11}
+                                    onClick={() => {
+                                      const group = (groups as GroupItem[]).find((g) => g.name === groupName)
+                                      if (!group) return
+                                      removeUserGroup.mutate({ userId: user.id, groupId: group.id })
+                                    }}
+                                    title="Remove from group"
+                                    aria-label={`Remove from group ${groupName}`}
+                                  />
+                                ),
+                              }))}
+                            />
                           ) : null}
                           <Group gap={6} wrap="nowrap">
                             <Select
