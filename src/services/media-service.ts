@@ -71,7 +71,7 @@ export class MediaService {
   }
 
   async saveUploadedImage(input: {
-    bucket: "users" | "apps" | "suggestions";
+    bucket: "users" | "apps" | "suggestions" | "branding";
     ownerId: string;
     bytes: Buffer;
     mimeType: string;
@@ -97,7 +97,7 @@ export class MediaService {
    * Lists the files an owner has uploaded into a bucket, with size and
    * modification time, so callers can enforce quotas and clean up orphans.
    */
-  async listUploads(bucket: "users" | "apps" | "suggestions", ownerId: string): Promise<StoredUpload[]> {
+  async listUploads(bucket: "users" | "apps" | "suggestions" | "branding", ownerId: string): Promise<StoredUpload[]> {
     const relativeDir = join(bucket, ownerId).replaceAll("\\", "/");
     const directory = this.resolveUploadPath(relativeDir);
     let entries: Array<{ name: string; isFile: () => boolean }>;

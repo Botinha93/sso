@@ -148,3 +148,67 @@ test("administration settings update security thresholds immediately", async (t)
   assert.equal(lockedLogin.statusCode, 401);
   assert.match(lockedLogin.body, /temporarily locked/i);
 });
+test("ui customizations accept uploaded media paths and keep cleared defaults", async (t) => {
+  const { app, admin } = await createTestContext("integration-ui-customizations");
+
+  t.after(async () => {
+    await app.close();
+  });
+
+  const loginResponse = await app.inject({
+    method: "POST",
+    url: "/auth/login",
+    payload: {
+      email: admin.email,
+      password: admin.password,
+      clientId: "sso-admin-ui",
+      scope: ["openid", "profile", "email"]
+    }
+  });
+  assert.equal(loginResponse.statusCode, 200);
+  const sid = extractCookie(loginResponse.headers["set-cookie"], "sid");
+
+  const csrfResponse = await app.inject({ method: "GET", url: "/api/csrf-token", headers: { cookie: sid } });
+  const csrfToken = String(csrfResponse.json().csrf_token);
+  const csrfCookie = extractCookie(csrfResponse.headers["set-cookie"], "csrf_token");
+  const headers = { cookie: `${sid}; ${csrfCookie}`, "x-csrf-token": csrfToken };
+
+  const saveResponse = await app.inject({
+    method: "PUT",
+    url: "/api/admin/settings",
+    headers,
+    payload: {
+      uiCustomizations: {
+        defaultBySurface: {
+          admin_login: {},
+          portal_login: { title: "Acme", logoUrl: "/media/uploads/branding/instance/logo.png", primaryColor: "#1d4ed8" }
+        },
+        byClientId: {},
+        byAppId: {}
+      }
+    }
+  });
+  assert.equal(saveResponse.statusCode, 200, saveResponse.body);
+
+  const portal = await app.inject({ method: "GET", url: "/api/ui/customization?surface=portal_login" });
+  assert.equal(portal.json().customization.logoUrl, "/media/uploads/branding/instance/logo.png");
+  assert.equal(portal.json().customization.title, "Acme");
+
+  // A cleared default must not snap back to the built-in "NexusID" title.
+  const adminLogin = await app.inject({ method: "GET", url: "/api/ui/customization?surface=admin_login" });
+  assert.equal(adminLogin.json().customization.title, undefined);
+
+  const protocolRelative = await app.inject({
+    method: "PUT",
+    url: "/api/admin/settings",
+    headers,
+    payload: {
+      uiCustomizations: {
+        defaultBySurface: { portal_login: { logoUrl: "//evil.example/logo.png" } },
+        byClientId: {},
+        byAppId: {}
+      }
+    }
+  });
+  assert.equal(protocolRelative.statusCode, 422);
+});

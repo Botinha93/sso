@@ -676,7 +676,11 @@ const uiSurfaceSchema = z.enum(["admin_login", "consent", "portal_login", "porta
 const uiSurfaceCustomizationSchema = z.object({
   title: z.string().min(1).max(120).optional(),
   subtitle: z.string().min(1).max(300).optional(),
-  logoUrl: z.string().url().optional(),
+  // Absolute http(s) URLs or same-origin paths such as uploaded `/media/...` logos.
+  logoUrl: z.string().max(2048).refine(
+    (value) => /^https?:\/\//i.test(value) || /^\/(?![\/\\])/.test(value),
+    "Logo must be an http(s) URL or a path starting with /"
+  ).optional(),
   primaryColor: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/).optional(),
   accentColor: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/).optional(),
   backgroundCss: z.string().min(1).max(500).optional()

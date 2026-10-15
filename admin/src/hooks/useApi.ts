@@ -443,6 +443,12 @@ export function useUploadAppImage() {
   })
 }
 
+export function useUploadBrandingLogo() {
+  return useMutation({
+    mutationFn: (file: File) => uploadFetch(`${API_BASE}/settings/branding-logo`, file) as Promise<{ logoUrl: string }>
+  })
+}
+
 export function useDefaultUserAvatars(initials: string) {
   return useQuery({
     queryKey: ['default-user-avatars', initials],

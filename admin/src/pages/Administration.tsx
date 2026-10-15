@@ -83,7 +83,6 @@ interface SettingsForm {
   smtpUser: string
   smtpPass: string
   testEmailTo: string
-  uiCustomizationsText: string
   retentionEnabled: boolean
   retentionDays: Record<string, number>
 }
@@ -125,11 +124,6 @@ const defaultForm: SettingsForm = {
   smtpUser: '',
   smtpPass: '',
   testEmailTo: '',
-  uiCustomizationsText: JSON.stringify({
-    defaultBySurface: {},
-    byClientId: {},
-    byAppId: {}
-  }, null, 2),
   retentionEnabled: true,
   retentionDays: {},
 }
@@ -221,11 +215,6 @@ export default function Administration() {
       smtpUser: String((data as any).smtpUser ?? ''),
       smtpPass: String((data as any).smtpPass ?? ''),
       testEmailTo: String((data as any).emailFrom ?? ''),
-      uiCustomizationsText: JSON.stringify((data as any).uiCustomizations ?? {
-        defaultBySurface: {},
-        byClientId: {},
-        byAppId: {}
-      }, null, 2),
       retentionEnabled: (data as any).retention?.enabled !== false,
       retentionDays: { ...((data as any).retention?.policies ?? {}) },
     })
@@ -235,13 +224,6 @@ export default function Administration() {
     try {
       setSaveMessage(null)
       setSaveError(null)
-      let uiCustomizations: any
-      try {
-        uiCustomizations = JSON.parse(form.uiCustomizationsText)
-      } catch {
-        setSaveError('UI customizations must be valid JSON')
-        return
-      }
       await updateSettings.mutateAsync({
         databaseProvider: form.databaseProvider,
         databasePath: form.databaseProvider === 'sqlite' ? form.databasePath : undefined,
@@ -267,7 +249,6 @@ export default function Administration() {
         smtpSecure: form.smtpSecure,
         smtpUser: form.smtpUser || undefined,
         smtpPass: form.smtpPass || undefined,
-        uiCustomizations,
         retention: {
           enabled: form.retentionEnabled,
           policies: form.retentionDays,

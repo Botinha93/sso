@@ -139,7 +139,7 @@ export default function PasswordExpiration() {
         title={ui?.title ?? title}
         subtitle={ui?.subtitle ?? t("passwordExpiration.subtitle")}
         footer={showChangeForm && !expired ? (
-          <Button variant="subtle" color="gray" size="xs" leftSection={<ArrowLeft size={14} />} onClick={() => setShowChangeForm(false)}>
+          <Button variant="subtle" color={ui?.accentColor ?? "gray"} size="xs" leftSection={<ArrowLeft size={14} />} onClick={() => setShowChangeForm(false)}>
             {t("login.back")}
           </Button>
         ) : undefined}
@@ -192,6 +192,7 @@ export default function PasswordExpiration() {
                   type="submit"
                   fullWidth
                   mt="xs"
+                  color={ui?.primaryColor}
                   leftSection={<ShieldCheck size={16} />}
                   disabled={changePassword.isPending}
                   loading={changePassword.isPending}
@@ -202,7 +203,7 @@ export default function PasswordExpiration() {
             </form>
           ) : (
             <Stack gap="sm">
-              <Button fullWidth onClick={() => setShowChangeForm(true)}>
+              <Button fullWidth onClick={() => setShowChangeForm(true)} color={ui?.primaryColor}>
                 {t("password.change")}
               </Button>
               <Button variant="default" fullWidth onClick={continueToAuthorize}>

@@ -144,7 +144,7 @@ export default function Consent() {
             <Stack gap={8}>
               {scopes.map(s => (
                 <Group key={s} gap="xs" wrap="nowrap" align="flex-start">
-                  <Text c="green" lh={1} mt={2} component="span">
+                  <Text c={ui?.accentColor ?? "green"} lh={1} mt={2} component="span">
                     <ShieldCheck size={14} aria-hidden />
                   </Text>
                   <Text size="sm">{consentScopeLabel(t, s)}</Text>
@@ -160,7 +160,7 @@ export default function Consent() {
           )}
 
           <Group grow gap="sm">
-            <Button onClick={handleApprove} disabled={loading} loading={loading}>
+            <Button onClick={handleApprove} disabled={loading} loading={loading} color={ui?.primaryColor}>
               {loading ? t('consent.approving') : t('consent.allowAccess')}
             </Button>
             <Button variant="default" onClick={handleDeny} disabled={loading}>

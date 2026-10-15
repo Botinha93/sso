@@ -174,7 +174,7 @@ export default function Login() {
     <Button
       type="button"
       variant="subtle"
-      color="gray"
+      color={ui?.accentColor ?? 'gray'}
       size="xs"
       leftSection={<ArrowLeft size={14} />}
       onClick={resetChallengeState}

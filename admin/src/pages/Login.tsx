@@ -277,7 +277,7 @@ export default function Login() {
   const showAccountPicker = accountSelection && (accountLoading || !!cachedAccount);
 
   const backFooter = (
-    <Button variant="subtle" color="gray" size="xs" leftSection={<ArrowLeft size={14} />} onClick={resetToCredentials}>
+    <Button variant="subtle" color={ui?.accentColor ?? "gray"} size="xs" leftSection={<ArrowLeft size={14} />} onClick={resetToCredentials}>
       {t('login.back')}
     </Button>
   );
@@ -390,7 +390,7 @@ export default function Login() {
                 placeholder="••••••••"
                 leftSection={<Lock size={16} />}
               />
-              <Button type="submit" fullWidth mt="xs" loading={loading} disabled={loading}>
+              <Button type="submit" fullWidth mt="xs" loading={loading} disabled={loading} color={ui?.primaryColor}>
                 {loading ? t('login.signingIn') : t('login.updatePassword')}
               </Button>
             </Stack>
@@ -429,7 +429,7 @@ export default function Login() {
                 placeholder="••••••••"
                 leftSection={<Lock size={16} />}
               />
-              <Button type="submit" fullWidth mt="xs" loading={loading} disabled={loading}>
+              <Button type="submit" fullWidth mt="xs" loading={loading} disabled={loading} color={ui?.primaryColor}>
                 {loading ? t('login.signingIn') : t('login.signIn')}
               </Button>
             </Stack>

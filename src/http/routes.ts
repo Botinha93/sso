@@ -2716,6 +2716,23 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return deps.instanceSettingsService.updateSettings(input);
   });
 
+  // Stores a logo for UI customizations. The caller saves the returned URL into
+  // `uiCustomizations`; the file is not tied to a surface until then.
+  app.post("/api/admin/settings/branding-logo", async (request, reply) => {
+    const uploaded = await readImageUpload(request, reply);
+    if (!uploaded) {
+      return;
+    }
+
+    const saved = await deps.mediaService.saveUploadedImage({
+      bucket: "branding",
+      ownerId: "instance",
+      bytes: uploaded.bytes,
+      mimeType: uploaded.mimeType
+    });
+    return reply.status(200).send({ logoUrl: saved.url });
+  });
+
   // Read-only view of the background retention sweep: what each policy is set
   // to, what it has deleted since this process started, and how much is still
   // waiting. `?backlog=true` adds a count per policy, which scans the tables and
