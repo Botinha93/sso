@@ -145,7 +145,7 @@ test("administration settings update security thresholds immediately", async (t)
     }
   });
 
-  assert.equal(lockedLogin.statusCode, 401);
+  assert.equal(lockedLogin.statusCode, 423);
   assert.match(lockedLogin.body, /temporarily locked/i);
 });
 test("ui customizations accept uploaded media paths and keep cleared defaults", async (t) => {

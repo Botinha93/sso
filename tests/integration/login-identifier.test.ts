@@ -222,13 +222,13 @@ test("lockout triggered through the email also blocks login with the username", 
   }
 
   const lockedByEmail = await login("davi@jcdecor.com.br", "Change-Me-Now1!");
-  assert.equal(lockedByEmail.statusCode, 401, lockedByEmail.body);
+  assert.equal(lockedByEmail.statusCode, 423, lockedByEmail.body);
   assert.equal(lockedByEmail.json().code, "account_locked");
   assert.match(lockedByEmail.json().message, /temporarily locked/i);
 
   // Before the fix this succeeded: the lock was keyed by the typed identifier only.
   const lockedByUsername = await login("davi.ribeiro", "Change-Me-Now1!");
-  assert.equal(lockedByUsername.statusCode, 401, lockedByUsername.body);
+  assert.equal(lockedByUsername.statusCode, 423, lockedByUsername.body);
   assert.equal(lockedByUsername.json().code, "account_locked");
   assert.match(lockedByUsername.json().message, /temporarily locked/i);
   assert.ok(Number(lockedByUsername.json().retryAfterSeconds) > 0);

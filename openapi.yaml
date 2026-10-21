@@ -3456,6 +3456,54 @@ paths:
                     type: string
                   expiresIn:
                     type: integer
+        '400':
+          description: Flow requires an extra step (captcha_required, prompt_acknowledgement_required, risk_acknowledgement_required)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginError'
+        '401':
+          description: invalid_credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginError'
+        '403':
+          description: account_disabled, client_flow_not_allowed, password_login_disabled, login_blocked_risk, policy_denied, mfa_enrollment_required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginError'
+        '404':
+          description: client_not_found, tenant_not_found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginError'
+        '422':
+          description: invalid_request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginError'
+        '423':
+          description: account_locked (Retry-After header set)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginError'
+        '428':
+          description: Client is misconfigured (client_secret_missing, grants_missing, allowed_scopes_missing)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginError'
+        '429':
+          description: rate_limited
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginError'
   /auth/login/mfa:
     post:
       summary: Complete TOTP MFA login challenge
@@ -3478,6 +3526,24 @@ paths:
             application/json:
               schema:
                 type: object
+        '401':
+          description: mfa_ticket_invalid, invalid_mfa_code, account_unavailable (start the login again)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginError'
+        '403':
+          description: account_disabled, policy_denied, client_flow_not_allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginError'
+        '428':
+          description: Client is misconfigured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginError'
   /auth/logout:
     post:
       summary: End current browser session
@@ -3609,9 +3675,29 @@ paths:
                     items:
                       type: object
         '401':
-          description: User not found or no passkey enrolled
-        '400':
-          description: Invalid request parameters
+          description: webauthn_not_available (unknown account and no passkey look alike)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginError'
+        '404':
+          description: client_not_found, tenant_not_found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginError'
+        '422':
+          description: invalid_request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginError'
+        '428':
+          description: Client is misconfigured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginError'
   /auth/login/webauthn/finish:
     post:
       summary: Complete WebAuthn login with assertion
@@ -3648,9 +3734,23 @@ paths:
                   expiresIn:
                     type: integer
         '401':
-          description: Invalid assertion or signature
-        '400':
-          description: Invalid parameters
+          description: webauthn_transaction_invalid, webauthn_credential_invalid, webauthn_counter_replay, account_unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginError'
+        '403':
+          description: account_disabled, policy_denied, client_flow_not_allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginError'
+        '422':
+          description: invalid_request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginError'
   /api/account/mfa/totp:
     get:
       summary: Get TOTP enrollment status for current account
@@ -4834,6 +4934,61 @@ paths:
 
 components:
   schemas:
+    LoginError:
+      type: object
+      required: [error, reason, message]
+      description: Error returned by the /auth/login endpoints. Switch on `reason`; `message` is human-readable and may change.
+      properties:
+        error:
+          type: string
+          description: Error class name, e.g. LoginError, AccountLockedError, ClientMisconfiguredError
+        reason:
+          type: string
+          enum:
+            - invalid_request
+            - client_not_found
+            - tenant_not_found
+            - client_secret_missing
+            - grants_missing
+            - allowed_scopes_missing
+            - redirect_uris_missing
+            - client_flow_not_allowed
+            - password_login_disabled
+            - invalid_credentials
+            - account_locked
+            - account_disabled
+            - account_unavailable
+            - captcha_required
+            - prompt_acknowledgement_required
+            - risk_acknowledgement_required
+            - login_blocked_risk
+            - policy_denied
+            - mfa_enrollment_required
+            - mfa_ticket_invalid
+            - invalid_mfa_code
+            - password_change_ticket_invalid
+            - password_confirmation_mismatch
+            - password_policy_violation
+            - webauthn_not_available
+            - webauthn_transaction_invalid
+            - webauthn_credential_invalid
+            - webauthn_counter_replay
+            - rate_limited
+        message:
+          type: string
+        code:
+          type: string
+          description: Legacy alias, only set to account_locked
+        lockedUntil:
+          type: string
+          format: date-time
+        retryAfterSeconds:
+          type: integer
+        details:
+          type: array
+          description: Validation issues, present when reason is invalid_request
+          items:
+            type: object
     AuthenticationStage:
       type: object
       required: [type, required, order]

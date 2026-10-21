@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { nanoid } from "nanoid";
-import { AppError, AuthenticationError, ValidationError } from "../core/errors.js";
+import { AppError, AuthenticationError, ClientMisconfiguredError, LoginError, ValidationError, type ClientMisconfigurationReason } from "../core/errors.js";
 import type { JWTPayload } from "jose";
 import type { OAuthClient, User } from "../domain/models.js";
 import type {
@@ -61,6 +61,30 @@ interface CibaAuthorizationRecord {
   lastPolledAt?: Date;
 }
 
+/**
+ * First reason a client cannot complete an interactive sign-in, or undefined
+ * when its registration is usable. `redirectUris` only matters for flows that
+ * redirect back to the client (authorization_code).
+ */
+export const findClientMisconfiguration = (
+  client: Pick<OAuthClient, "secret" | "grants" | "allowedScopes" | "redirectUris">,
+  options: { requireRedirectUris?: boolean } = {}
+): ClientMisconfigurationReason | undefined => {
+  if (!client.secret?.trim()) {
+    return "client_secret_missing";
+  }
+  if (client.grants.length === 0) {
+    return "grants_missing";
+  }
+  if (client.allowedScopes.length === 0) {
+    return "allowed_scopes_missing";
+  }
+  if (options.requireRedirectUris && client.redirectUris.length === 0) {
+    return "redirect_uris_missing";
+  }
+  return undefined;
+};
+
 export class AuthService {
   private readonly deviceAuthorizations = new Map<string, DeviceAuthorizationRecord>();
   private readonly cibaAuthorizations = new Map<string, CibaAuthorizationRecord>();
@@ -106,11 +130,16 @@ export class AuthService {
     const normalized = identifier.trim();
     const candidates = await this.userService.findLoginCandidates(normalized);
     this.securityService.assertLoginAllowed(normalized, candidates.map((user) => user.id));
-    const matches = candidates.filter((user) => user.active && verifyPassword(password, user.passwordHash));
-    const user = pickUserForLoginIdentifier(normalized, matches);
+    const matches = candidates.filter((user) => verifyPassword(password, user.passwordHash));
+    const user = pickUserForLoginIdentifier(normalized, matches.filter((candidate) => candidate.active));
 
     if (!user) {
-      throw new AuthenticationError("Invalid credentials");
+      // Only an account whose password matched may be reported as disabled;
+      // anything else stays indistinguishable from a wrong password.
+      if (pickUserForLoginIdentifier(normalized, matches)) {
+        throw new LoginError("account_disabled");
+      }
+      throw new LoginError("invalid_credentials");
     }
 
     return user;
@@ -138,14 +167,15 @@ export class AuthService {
     userAgent?: string;
   }) {
     const user = await this.userService.findUserById(input.userId);
-    if (!user || !user.active) {
-      throw new AuthenticationError("User no longer exists");
+    if (!user) {
+      throw new LoginError("account_unavailable");
+    }
+    if (!user.active) {
+      throw new LoginError("account_disabled");
     }
 
-    const client = await this.requireClient(input.clientId);
-    await this.assertClientSupportsActiveFlow(client);
+    const { client, tenant } = await this.assertLoginTargetValid({ clientId: input.clientId, tenantSlug: input.tenantSlug });
     const allowedScope = input.scope.filter((scope) => client.allowedScopes.includes(scope));
-    const tenant = input.tenantSlug ? await this.tenantRepository.findBySlug(input.tenantSlug) : undefined;
 
     const session = await this.sessionRepository.create({
       userId: user.id,
@@ -197,6 +227,7 @@ export class AuthService {
   }) {
     await this.authenticationFlowService.assertGrantSupported("authorization_code");
     const client = await this.requireClient(input.clientId);
+    this.assertClientConfigured(client, { requireRedirectUris: true });
     await this.assertClientSupportsActiveFlow(client);
 
     if (!client.grants.includes("authorization_code")) {
@@ -314,6 +345,34 @@ export class AuthService {
     return client;
   }
 
+  /**
+   * Checks what a sign-in targets (client and tenant) before any credential is
+   * looked at, so a broken integration is reported as such and never burns a
+   * password attempt.
+   */
+  async assertLoginTargetValid(input: { clientId: string; tenantSlug?: string }) {
+    const client = await this.clientRepository.findById(input.clientId);
+    if (!client) {
+      throw new LoginError("client_not_found");
+    }
+    this.assertClientConfigured(client);
+    await this.assertClientSupportsActiveFlow(client);
+
+    const tenant = input.tenantSlug ? await this.tenantRepository.findBySlug(input.tenantSlug) : undefined;
+    if (input.tenantSlug && !tenant) {
+      throw new LoginError("tenant_not_found");
+    }
+
+    return { client, tenant };
+  }
+
+  private assertClientConfigured(client: OAuthClient, options: { requireRedirectUris?: boolean } = {}) {
+    const reason = findClientMisconfiguration(client, options);
+    if (reason) {
+      throw new ClientMisconfiguredError(reason);
+    }
+  }
+
   async authenticateClient(input: { clientId: string; clientSecret: string }) {
     const client = await this.requireClient(input.clientId);
     const provided = Buffer.from(input.clientSecret);
@@ -333,7 +392,7 @@ export class AuthService {
     }
 
     if (client.flowIds.length > 0 && !client.flowIds.includes(activeFlow.id)) {
-      throw new AuthenticationError("Client is not allowed to use the active authentication flow");
+      throw new LoginError("client_flow_not_allowed");
     }
   }
 

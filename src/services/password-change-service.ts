@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import { ValidationError } from "../core/errors.js";
+import { LoginError } from "../core/errors.js";
 
 interface LoginChallenge {
   ticket: string;
@@ -47,7 +47,7 @@ export class PasswordChangeService {
     this.purgeExpired();
     const challenge = this.loginChallenges.get(ticket);
     if (!challenge) {
-      throw new ValidationError("Invalid or expired password change ticket");
+      throw new LoginError("password_change_ticket_invalid");
     }
 
     this.loginChallenges.delete(ticket);

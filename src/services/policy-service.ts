@@ -1,6 +1,6 @@
 import { nanoid } from "nanoid";
 import { PolicyScriptRunner } from "./policy-script-runner.js";
-import { AuthenticationError, ValidationError } from "../core/errors.js";
+import { LoginError, ValidationError } from "../core/errors.js";
 import type {
   PolicyAssignmentRepository,
   PolicyDefinitionRepository,
@@ -933,7 +933,7 @@ export class PolicyService {
       const totpEnrolled = input.context?.totpEnrolled === true
         || input.user.customAttributes.mfa_enabled === "true";
       if (required && !totpEnrolled) {
-        throw new AuthenticationError("Two-factor authentication is required for this account");
+        throw new LoginError("mfa_enrollment_required");
       }
     }
   }
@@ -953,7 +953,7 @@ export class PolicyService {
   }) {
     const evaluation = await this.evaluateCustomJavascriptPolicy(input);
     if (!evaluation.allow) {
-      throw new AuthenticationError(evaluation.message ?? `Policy ${input.definition.key} rejected login`);
+      throw new LoginError("policy_denied", evaluation.message ?? `Policy ${input.definition.key} rejected login`);
     }
   }
 

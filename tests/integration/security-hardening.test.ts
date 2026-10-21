@@ -91,7 +91,7 @@ test("security hardening: lockout, endpoint throttling, and session anomaly audi
     userAgent: "lockout-after-threshold"
   });
 
-  assert.equal(lockedLogin.statusCode, 401);
+  assert.equal(lockedLogin.statusCode, 423);
   assert.equal(lockedLogin.json().code, "account_locked");
   assert.match(lockedLogin.json().message, /temporarily locked/i);
   assert.match(lockedLogin.json().message, /try again in \d+ minutes?/i);

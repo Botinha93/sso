@@ -4,7 +4,7 @@ import type { FastifyInstance } from "fastify";
 import type { AppConfig } from "../core/config.js";
 import type { AuthenticationStageType, FlowDesignation, GrantType, UiSurface, User } from "../domain/models.js";
 import { bootstrap } from "../bootstrap.js";
-import { AccountLockedError, AppError, AuthenticationError, ValidationError } from "../core/errors.js";
+import { AccountLockedError, AppError, AuthenticationError, LoginError, ValidationError } from "../core/errors.js";
 import { ensureExternalDatabaseSchema, saveRuntimeDatabaseConfig } from "../core/runtime-database-config.js";
 import { verifyPassword } from "../security/password.js";
 import { isJwtVerificationError } from "../security/jwt.js";
@@ -460,15 +460,24 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return path.startsWith("/auth") || path.startsWith("/oauth") || path.startsWith("/saml");
   }
 
+  function isLoginPath(path: string) {
+    return path === "/auth/login" || path.startsWith("/auth/login/");
+  }
+
   /**
-   * Extra response fields for a login lockout so clients can tell it apart from a
-   * wrong password and show how long to wait.
+   * Extra response fields that let clients tell a lockout (and how long to wait)
+   * or a misconfigured client (`reason`) apart from a wrong password.
    */
-  function lockoutResponseDetails(error: unknown) {
-    if (!(error instanceof AccountLockedError)) {
+  function errorResponseDetails(error: unknown) {
+    if (!(error instanceof LoginError)) {
       return {};
     }
+    if (!(error instanceof AccountLockedError)) {
+      return { reason: error.reason };
+    }
     return {
+      reason: error.reason,
+      // `code` predates `reason`; the admin and portal UIs still read it.
       code: "account_locked",
       lockedUntil: error.lockedUntil.toISOString(),
       retryAfterSeconds: error.retryAfterSeconds
@@ -480,9 +489,10 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       return "Token validation failed";
     }
 
-    if (error instanceof AccountLockedError) {
-      // A lockout is deliberately explained: hiding it behind "Authentication failed"
-      // makes a temporarily locked account look like a broken login.
+    if (error instanceof LoginError) {
+      // Login errors are written to be shown: hiding a lockout or a broken
+      // client behind "Authentication failed" sends users retrying a password
+      // that was never the problem. Each one only says what its reason allows.
       return error.message;
     }
 
@@ -760,6 +770,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         return reply.status(429).header("Retry-After", String(result.retryAfterSeconds)).send({
           error: "rate_limited",
           message: "Too many requests for this endpoint",
+          ...(isLoginPath(path) ? { reason: "rate_limited" } : {}),
           retryAfterSeconds: result.retryAfterSeconds
         });
       }
@@ -821,8 +832,6 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     captchaToken?: string;
     promptAcknowledged?: boolean;
   }) {
-    await deps.authenticationFlowService.assertStageEnabled("password");
-
     if (await deps.authenticationFlowService.isStageEnabled("risk_check")) {
       const riskScore = await deps.riskService.evaluateLoginRisk({
         userId: input.user.id,
@@ -851,16 +860,16 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       });
 
       if (riskScore.decision === "block") {
-        throw new AuthenticationError("Login blocked due to elevated risk");
+        throw new LoginError("login_blocked_risk");
       }
 
       if (riskScore.decision === "challenge" && input.promptAcknowledged !== true) {
-        throw new AuthenticationError("Additional verification required due to elevated risk");
+        throw new LoginError("risk_acknowledgement_required");
       }
     }
 
     if (await deps.authenticationFlowService.isStageEnabled("captcha") && !input.captchaToken) {
-      throw new AuthenticationError("Captcha verification is required");
+      throw new LoginError("captcha_required");
     }
 
     await enforcePoliciesForStage({
@@ -872,7 +881,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     });
 
     if (await deps.authenticationFlowService.isStageEnabled("prompt") && input.promptAcknowledged !== true) {
-      throw new AuthenticationError("Interactive prompt acknowledgement is required");
+      throw new LoginError("prompt_acknowledgement_required");
     }
   }
 
@@ -1886,7 +1895,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         return reply.status(err.statusCode).send({
           error: "invalid_grant",
           error_description: publicErrorMessageForPath("/oauth/token", err),
-          ...lockoutResponseDetails(err)
+          ...errorResponseDetails(err)
         });
       }
       throw err;
@@ -2202,6 +2211,12 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
   app.post("/auth/login", async (request, reply) => {
     const input = loginSchema.parse(request.body);
+    // Checked before the password so a broken integration never burns an
+    // attempt toward the user's lockout.
+    await deps.authService.assertLoginTargetValid({ clientId: input.clientId, tenantSlug: input.tenantSlug });
+    if (!await deps.authenticationFlowService.isStageEnabled("password")) {
+      throw new LoginError("password_login_disabled");
+    }
     try {
       const user = await deps.authService.validateUserCredentials(input.email, input.password);
       await enforcePreCredentialStages({
@@ -2256,33 +2271,37 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       return loginResult;
     } catch (err) {
       const reason = err instanceof Error ? err.message : "unknown";
-      await runBestEffort(request, "security.recordLoginFailure", async () => {
-        await deps.securityService.recordLoginFailure({
-          identifier: input.email,
-          userIds: await deps.authService.resolveLoginLockoutUserIds(input.email),
-          ip: request.ip,
-          reason
-        });
-      });
-      await runBestEffort(request, "risk.recordEvent", async () => {
-        await deps.riskService.recordEvent({
-          userId: undefined,
-          ip: request.ip,
-          confidence: 40,
-          reason: "failed_login",
-          decision: "challenge",
-          metadata: {
+      // Only a wrong password counts toward lockout and risk: every later
+      // failure happens after the password matched, so it is not guessing.
+      if (err instanceof LoginError && err.reason === "invalid_credentials") {
+        await runBestEffort(request, "security.recordLoginFailure", async () => {
+          await deps.securityService.recordLoginFailure({
             identifier: input.email,
-            grant: "interactive"
-          }
+            userIds: await deps.authService.resolveLoginLockoutUserIds(input.email),
+            ip: request.ip,
+            reason
+          });
         });
-      });
+        await runBestEffort(request, "risk.recordEvent", async () => {
+          await deps.riskService.recordEvent({
+            userId: undefined,
+            ip: request.ip,
+            confidence: 40,
+            reason: "failed_login",
+            decision: "challenge",
+            metadata: {
+              identifier: input.email,
+              grant: "interactive"
+            }
+          });
+        });
+      }
       await runBestEffort(request, "audit.login_failed", async () => {
         await deps.auditRepository.log({
           type: "login_failed",
           actorType: "user",
           ip: request.ip,
-          metadata: { email: input.email }
+          metadata: { email: input.email, ...(err instanceof LoginError ? { reason: err.reason } : {}) }
         });
       });
       await runBestEffort(request, "auth.login.failed", async () => {
@@ -2299,180 +2318,170 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.post("/auth/login/mfa", async (request, reply) => {
     const input = mfaLoginSchema.parse(request.body);
 
-    try {
-      const challenge = deps.totpService.consumeLoginChallenge(input.mfaTicket);
-      const user = await deps.userService.findUserById(challenge.userId);
+    const challenge = deps.totpService.consumeLoginChallenge(input.mfaTicket);
+    const user = await deps.userService.findUserById(challenge.userId);
 
-      if (!user) {
-        throw new AuthenticationError("User not found");
-      }
-
-      if (!await deps.totpService.verifyUserCode({ userId: user.id, code: input.code })) {
-        throw new AuthenticationError("Invalid one-time code");
-      }
-
-      const tenant = challenge.tenantSlug ? (await deps.tenantService.listTenants()).find((item) => item.slug === challenge.tenantSlug) : undefined;
-      await deps.policyService.enforceStagePolicies({
-        stage: "mfa_totp",
-        user,
-        tenantId: tenant?.id,
-        clientId: challenge.clientId,
-        ip: challenge.ip ?? request.ip
-      });
-
-      const loginResult = await completeInteractiveLogin({
-        user,
-        clientId: challenge.clientId,
-        scope: challenge.scope,
-        tenantSlug: challenge.tenantSlug,
-        ip: challenge.ip ?? request.ip,
-        userAgent: clientUserAgent(request)
-      });
-
-      await runBestEffort(request, "auth.login.succeeded.mfa_totp", async () => {
-        await deps.eventHookService.emit("auth.login.succeeded", {
-          userId: loginResult.session.userId,
-          clientId: loginResult.session.clientId,
-          sessionRef: toSessionRef(loginResult.session.id),
-          ip: request.ip,
-          mfa: "totp"
-        });
-      });
-
-      await setSessionCookie(reply, deps.instanceSettingsService, loginResult.session.id);
-      return loginResult;
-    } catch (err) {
-      return reply.status(401).send({ error: "invalid_grant", error_description: "MFA verification failed" });
+    if (!user) {
+      throw new LoginError("account_unavailable");
     }
+
+    if (!await deps.totpService.verifyUserCode({ userId: user.id, code: input.code })) {
+      throw new LoginError("invalid_mfa_code");
+    }
+
+    const tenant = challenge.tenantSlug ? (await deps.tenantService.listTenants()).find((item) => item.slug === challenge.tenantSlug) : undefined;
+    await deps.policyService.enforceStagePolicies({
+      stage: "mfa_totp",
+      user,
+      tenantId: tenant?.id,
+      clientId: challenge.clientId,
+      ip: challenge.ip ?? request.ip
+    });
+
+    const loginResult = await completeInteractiveLogin({
+      user,
+      clientId: challenge.clientId,
+      scope: challenge.scope,
+      tenantSlug: challenge.tenantSlug,
+      ip: challenge.ip ?? request.ip,
+      userAgent: clientUserAgent(request)
+    });
+
+    await runBestEffort(request, "auth.login.succeeded.mfa_totp", async () => {
+      await deps.eventHookService.emit("auth.login.succeeded", {
+        userId: loginResult.session.userId,
+        clientId: loginResult.session.clientId,
+        sessionRef: toSessionRef(loginResult.session.id),
+        ip: request.ip,
+        mfa: "totp"
+      });
+    });
+
+    await setSessionCookie(reply, deps.instanceSettingsService, loginResult.session.id);
+    return loginResult;
   });
 
   app.post("/auth/login/change-password", async (request, reply) => {
     const input = changePasswordLoginSchema.parse(request.body);
 
+    if (input.confirmPassword !== undefined && input.confirmPassword !== input.newPassword) {
+      throw new LoginError("password_confirmation_mismatch");
+    }
+
+    const challenge = deps.passwordChangeService.consumeLoginChallenge(input.changePasswordTicket);
+    const user = await deps.userService.findUserById(challenge.userId);
+    if (!user) {
+      throw new LoginError("account_unavailable");
+    }
+
     try {
-      if (input.confirmPassword !== undefined && input.confirmPassword !== input.newPassword) {
-        throw new ValidationError("New password and confirmation do not match");
-      }
-
-      const challenge = deps.passwordChangeService.consumeLoginChallenge(input.changePasswordTicket);
-      const user = await deps.userService.findUserById(challenge.userId);
-      if (!user) {
-        throw new AuthenticationError("User not found");
-      }
-
       await deps.policyService.enforceUserCreationPolicies(input.newPassword);
-      await deps.userService.resetPassword(user.id, input.newPassword);
-
-      const refreshedUser = await deps.userService.findUserById(user.id);
-      if (!refreshedUser) {
-        throw new AuthenticationError("User not found");
-      }
-
-      const mfaChallenge = await maybeIssueMfaChallenge({
-        user: refreshedUser,
-        clientId: challenge.clientId,
-        scope: challenge.scope,
-        tenantSlug: challenge.tenantSlug,
-        ip: challenge.ip ?? request.ip
-      });
-      if (mfaChallenge) {
-        return reply.status(mfaChallenge.statusCode).send(mfaChallenge.body);
-      }
-
-      const loginResult = await completeInteractiveLogin({
-        user: refreshedUser,
-        clientId: challenge.clientId,
-        scope: challenge.scope,
-        tenantSlug: challenge.tenantSlug,
-        ip: challenge.ip ?? request.ip,
-        userAgent: clientUserAgent(request)
-      });
-
-      await runBestEffort(request, "auth.login.succeeded.password_change", async () => {
-        await deps.eventHookService.emit("auth.login.succeeded", {
-          userId: loginResult.session.userId,
-          clientId: loginResult.session.clientId,
-          sessionRef: toSessionRef(loginResult.session.id),
-          ip: request.ip,
-          passwordChanged: true
-        });
-      });
-
-      await setSessionCookie(reply, deps.instanceSettingsService, loginResult.session.id);
-      return loginResult;
     } catch (err) {
       if (err instanceof ValidationError) {
-        return reply.status(err.statusCode).send({ error: "invalid_request", error_description: err.message });
+        throw new LoginError("password_policy_violation", err.message);
       }
-      return reply.status(401).send({ error: "invalid_grant", error_description: publicErrorMessageForPath("/auth/login/change-password", err instanceof AppError ? err : new AuthenticationError()) });
+      throw err;
     }
+    await deps.userService.resetPassword(user.id, input.newPassword);
+
+    const refreshedUser = await deps.userService.findUserById(user.id);
+    if (!refreshedUser) {
+      throw new LoginError("account_unavailable");
+    }
+
+    const mfaChallenge = await maybeIssueMfaChallenge({
+      user: refreshedUser,
+      clientId: challenge.clientId,
+      scope: challenge.scope,
+      tenantSlug: challenge.tenantSlug,
+      ip: challenge.ip ?? request.ip
+    });
+    if (mfaChallenge) {
+      return reply.status(mfaChallenge.statusCode).send(mfaChallenge.body);
+    }
+
+    const loginResult = await completeInteractiveLogin({
+      user: refreshedUser,
+      clientId: challenge.clientId,
+      scope: challenge.scope,
+      tenantSlug: challenge.tenantSlug,
+      ip: challenge.ip ?? request.ip,
+      userAgent: clientUserAgent(request)
+    });
+
+    await runBestEffort(request, "auth.login.succeeded.password_change", async () => {
+      await deps.eventHookService.emit("auth.login.succeeded", {
+        userId: loginResult.session.userId,
+        clientId: loginResult.session.clientId,
+        sessionRef: toSessionRef(loginResult.session.id),
+        ip: request.ip,
+        passwordChanged: true
+      });
+    });
+
+    await setSessionCookie(reply, deps.instanceSettingsService, loginResult.session.id);
+    return loginResult;
   });
 
   app.post("/auth/login/webauthn/begin", async (request, reply) => {
     const input = webauthnLoginBeginSchema.parse(request.body);
 
-    try {
-      const user = await deps.userService.findUserByLoginIdentifier(input.identifier.trim());
-      if (!user || !user.active) {
-        throw new AuthenticationError("Invalid credentials");
-      }
-
-      const challenge = await deps.webauthnService.startLogin({
-        user,
-        clientId: input.clientId,
-        scope: input.scope,
-        tenantSlug: input.tenantSlug,
-        ip: request.ip
-      });
-
-      return reply.status(200).send(challenge);
-    } catch (error) {
-      return reply.status(401).send({ error: "invalid_grant", error_description: "Authentication failed" });
+    await deps.authService.assertLoginTargetValid({ clientId: input.clientId, tenantSlug: input.tenantSlug });
+    // Same reason as an account without passkeys, so this cannot probe for accounts.
+    const user = await deps.userService.findUserByLoginIdentifier(input.identifier.trim());
+    if (!user || !user.active) {
+      throw new LoginError("webauthn_not_available");
     }
+
+    const challenge = await deps.webauthnService.startLogin({
+      user,
+      clientId: input.clientId,
+      scope: input.scope,
+      tenantSlug: input.tenantSlug,
+      ip: request.ip
+    });
+
+    return reply.status(200).send(challenge);
   });
 
   app.post("/auth/login/webauthn/finish", async (request, reply) => {
     const input = webauthnLoginFinishSchema.parse(request.body);
 
-    try {
-      const result = await deps.webauthnService.finishLogin(input);
-      const user = await deps.userService.findUserById(result.userId);
-      if (!user) {
-        throw new AuthenticationError("User not found");
-      }
-
-      await deps.policyService.enforceStagePolicies({
-        stage: "mfa_webauthn",
-        user,
-        tenantId: await resolveTenantId(result.tenantSlug),
-        clientId: result.clientId,
-        ip: result.ip ?? request.ip
-      });
-
-      const loginResult = await completeInteractiveLogin({
-        user,
-        clientId: result.clientId,
-        scope: result.scope,
-        tenantSlug: result.tenantSlug,
-        ip: result.ip ?? request.ip,
-        userAgent: clientUserAgent(request)
-      });
-
-      await runBestEffort(request, "auth.login.succeeded.mfa_webauthn", async () => {
-        await deps.eventHookService.emit("auth.login.succeeded", {
-          userId: loginResult.session.userId,
-          clientId: loginResult.session.clientId,
-          sessionRef: toSessionRef(loginResult.session.id),
-          ip: request.ip,
-          mfa: "webauthn"
-        });
-      });
-
-      await setSessionCookie(reply, deps.instanceSettingsService, loginResult.session.id);
-      return loginResult;
-    } catch (error) {
-      return reply.status(401).send({ error: "invalid_grant", error_description: "Authentication failed" });
+    const result = await deps.webauthnService.finishLogin(input);
+    const user = await deps.userService.findUserById(result.userId);
+    if (!user) {
+      throw new LoginError("account_unavailable");
     }
+
+    await deps.policyService.enforceStagePolicies({
+      stage: "mfa_webauthn",
+      user,
+      tenantId: await resolveTenantId(result.tenantSlug),
+      clientId: result.clientId,
+      ip: result.ip ?? request.ip
+    });
+
+    const loginResult = await completeInteractiveLogin({
+      user,
+      clientId: result.clientId,
+      scope: result.scope,
+      tenantSlug: result.tenantSlug,
+      ip: result.ip ?? request.ip,
+      userAgent: clientUserAgent(request)
+    });
+
+    await runBestEffort(request, "auth.login.succeeded.mfa_webauthn", async () => {
+      await deps.eventHookService.emit("auth.login.succeeded", {
+        userId: loginResult.session.userId,
+        clientId: loginResult.session.clientId,
+        sessionRef: toSessionRef(loginResult.session.id),
+        ip: request.ip,
+        mfa: "webauthn"
+      });
+    });
+
+    await setSessionCookie(reply, deps.instanceSettingsService, loginResult.session.id);
+    return loginResult;
   });
 
   app.get("/auth/federation/providers", async () => deps.federationService.listProviders());
@@ -4304,11 +4313,14 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {
       const path = request.url.split("?")[0];
+      if (error instanceof AccountLockedError) {
+        reply.header("Retry-After", String(error.retryAfterSeconds));
+      }
       if (isSensitiveProtocolPath(path)) {
         return reply.status(error.statusCode).send({
           error: error.name,
           message: publicErrorMessageForPath(path, error),
-          ...lockoutResponseDetails(error)
+          ...errorResponseDetails(error)
         });
       }
       return reply.status(error.statusCode).send({ error: error.name, message: error.message });
@@ -4318,6 +4330,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       return reply.status(422).send({
         error: "ValidationError",
         message: validationErrorMessageFromIssues(details),
+        ...(isLoginPath(request.url.split("?")[0]) ? { reason: "invalid_request" } : {}),
         details
       });
     }
@@ -4330,7 +4343,8 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         }
         return reply.status(429).send({
           error: "rate_limited",
-          message: error instanceof Error ? error.message : "Rate limit exceeded"
+          message: error instanceof Error ? error.message : "Rate limit exceeded",
+          ...(isLoginPath(request.url.split("?")[0]) ? { reason: "rate_limited" } : {})
         });
       }
     }

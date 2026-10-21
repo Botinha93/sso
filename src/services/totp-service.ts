@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import { ValidationError } from "../core/errors.js";
+import { LoginError, ValidationError } from "../core/errors.js";
 import type { AppConfig } from "../core/config.js";
 import type { TotpCredentialRepository } from "../repositories/contracts.js";
 import type { User } from "../domain/models.js";
@@ -156,7 +156,7 @@ export class TotpService {
     this.purgeExpired();
     const challenge = this.loginChallenges.get(ticket);
     if (!challenge) {
-      throw new ValidationError("Invalid or expired MFA ticket");
+      throw new LoginError("mfa_ticket_invalid");
     }
 
     this.loginChallenges.delete(ticket);

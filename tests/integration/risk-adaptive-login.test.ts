@@ -109,8 +109,8 @@ test("high-risk login requires prompt acknowledgement when risk_check is enabled
     }
   });
 
-  assert.equal(challenged.statusCode, 401);
-  assert.match(challenged.body, /elevated risk|verification required/i);
+  assert.equal(challenged.statusCode, 400);
+  assert.equal(challenged.json().reason, "risk_acknowledgement_required");
 
   const acknowledged = await app.inject({
     method: "POST",

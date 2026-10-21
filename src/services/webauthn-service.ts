@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { ValidationError } from "../core/errors.js";
+import { LoginError, ValidationError } from "../core/errors.js";
 import type { AppConfig } from "../core/config.js";
 import type { User, WebauthnCredential } from "../domain/models.js";
 import type { WebauthnCredentialRepository } from "../repositories/contracts.js";
@@ -108,7 +108,7 @@ export class WebauthnService {
 
     const credentials = await this.webauthnCredentialRepository.listByUserId(input.user.id);
     if (credentials.length === 0) {
-      throw new ValidationError("No WebAuthn credentials are registered for this account");
+      throw new LoginError("webauthn_not_available");
     }
 
     const challenge = this.generateChallenge();
@@ -144,22 +144,22 @@ export class WebauthnService {
 
     const pending = this.pendingLogins.get(input.loginId);
     if (!pending) {
-      throw new ValidationError("Invalid or expired WebAuthn login transaction");
+      throw new LoginError("webauthn_transaction_invalid");
     }
 
     this.pendingLogins.delete(input.loginId);
 
     if (!pending.allowedCredentialIds.includes(input.credentialId)) {
-      throw new ValidationError("Credential is not valid for this login challenge");
+      throw new LoginError("webauthn_credential_invalid");
     }
 
     const credential = await this.webauthnCredentialRepository.findByCredentialId(input.credentialId);
     if (!credential || credential.userId !== pending.userId) {
-      throw new ValidationError("Credential not found for this account");
+      throw new LoginError("webauthn_credential_invalid");
     }
 
     if (typeof input.signCount === "number" && input.signCount < credential.signCount) {
-      throw new ValidationError("WebAuthn signature counter replay detected");
+      throw new LoginError("webauthn_counter_replay");
     }
 
     await this.webauthnCredentialRepository.upsert({
