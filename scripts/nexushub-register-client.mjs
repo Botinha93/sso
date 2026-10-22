@@ -10,6 +10,21 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const profilePath = fileURLToPath(new URL("../config/nexushub-oidc-profile.json", import.meta.url));
+const loadProfile = async () => {
+  const profile = JSON.parse(await readFile(profilePath, "utf8"));
+  if (profile.profileId !== "nexushub" || profile.profileVersion !== 1) {
+    throw new Error("Unsupported NexusHub OIDC profile; review its profileId/profileVersion before provisioning");
+  }
+  if (!Array.isArray(profile.identityScopes) || !Array.isArray(profile.hubScopes) ||
+      profile.hubScopes.some((scope) => typeof scope.name !== "string" || typeof scope.description !== "string")) {
+    throw new Error("Invalid NexusHub OIDC profile scope catalog");
+  }
+  const scopes = [...profile.identityScopes, ...profile.hubScopes.map((scope) => scope.name)];
+  if (new Set(scopes).size !== scopes.length || scopes.length === 0 || scopes.some((scope) => !scope.trim())) {
+    throw new Error("NexusHub OIDC profile scopes must be non-empty and unique");
+  }
+  return { ...profile, scopes };
+};
 const required = (name) => {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`Missing required environment variable: ${name}`);
@@ -74,8 +89,11 @@ const run = async () => {
   const preflight = args.includes("--preflight");
   const issuer = issuerFromEnvironment();
   const hubOrigin = asHttpUrl(required("NEXUS_PUBLIC_ORIGIN"), "NEXUS_PUBLIC_ORIGIN");
-  const callbackUrl = new URL("/auth/callback", hubOrigin);
-  const profile = JSON.parse(await readFile(profilePath, "utf8"));
+  const profile = await loadProfile();
+  if (typeof profile.redirectPath !== "string" || !profile.redirectPath.startsWith("/") || profile.redirectPath.startsWith("//")) {
+    throw new Error("NexusHub OIDC profile redirectPath must be an absolute path on the configured Hub origin");
+  }
+  const callbackUrl = new URL(profile.redirectPath, hubOrigin);
 
   // Discovery completes before a local marker is created or any credentials are
   // read. The preflight is safe to run during development: it sends no token and

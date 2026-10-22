@@ -1,4 +1,6 @@
 {
+  "profileId": "nexushub",
+  "profileVersion": 1,
   "clientName": "NexusHub",
   "redirectPath": "/auth/callback",
   "grantTypes": [
@@ -9,18 +11,47 @@
     "code"
   ],
   "tokenEndpointAuthMethod": "client_secret_post",
-  "scopes": [
+  "identityScopes": [
     "openid",
     "profile",
-    "email",
-    "nexushub.installations:write",
-    "nexushub.operations:read",
-    "nexushub.operations:resume",
-    "nexushub.organizations:read",
-    "nexushub.organizations:write",
-    "nexushub.projects:read",
-    "nexushub.projects:write",
-    "nexushub.applications:read",
-    "nexushub.applications:write"
+    "email"
+  ],
+  "hubScopes": [
+    {
+      "name": "nexushub.installations:write",
+      "description": "Create and manage NexusHub application installations"
+    },
+    {
+      "name": "nexushub.operations:read",
+      "description": "Read NexusHub installation operation status"
+    },
+    {
+      "name": "nexushub.operations:resume",
+      "description": "Resume eligible NexusHub installation operations"
+    },
+    {
+      "name": "nexushub.organizations:read",
+      "description": "Read organizations available to the signed-in NexusHub user"
+    },
+    {
+      "name": "nexushub.organizations:write",
+      "description": "Create and update organizations in NexusHub"
+    },
+    {
+      "name": "nexushub.projects:read",
+      "description": "Read projects available to the signed-in NexusHub user"
+    },
+    {
+      "name": "nexushub.projects:write",
+      "description": "Create and update projects in NexusHub"
+    },
+    {
+      "name": "nexushub.applications:read",
+      "description": "Read registered application metadata in NexusHub"
+    },
+    {
+      "name": "nexushub.applications:write",
+      "description": "Register and update application metadata in NexusHub"
+    }
   ]
 }
