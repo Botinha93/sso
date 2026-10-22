@@ -22,7 +22,7 @@ The callback is derived as `${NEXUS_PUBLIC_ORIGIN}/auth/callback`, matching the 
 
 NexusID stores client-allowed scope names and the authorization flow will issue them when requested, so the Hub client can receive the custom scope strings from registration. For the discovery document and administrator scope catalog to expose these custom values, an administrator should also add the seven `nexushub.*` scopes through NexusID Admin → Scopes. The current scope-management API is session/CSRF based; the CLI does not try to create catalog entries with its client-registration bearer token.
 
-`NEXUSHUB_OIDC_CALLBACK_URL` is an example only; set it to the callback path actually configured by the Hub deployment. A second successful run registers another client, because NexusID's current dynamic registration endpoint issues a fresh client on each request and does not implement a Hub-specific idempotency key. Remove obsolete Hub clients through the supported NexusID Admin UI/API after confirming they are unused.
+The client registration API issues a fresh client on each request and does not implement a Hub-specific idempotency key. Remove obsolete Hub clients through the supported NexusID Admin UI/API after confirming they are unused.
 
 ## Operator and installer responsibilities
 
