@@ -271,6 +271,13 @@ class GetApiAdminElevationsSessionsQueryParams(TypedDict):
 class GetApiAdminGroupsByIdUsersPathParams(TypedDict):
     id: str
 
+class GetApiAdminGroupsByIdUsersQueryParams(TypedDict):
+    search: NotRequired[str]
+    active: NotRequired[bool]
+    page: NotRequired[int]
+    pageSize: NotRequired[int]
+    customAttribute_connect_jc_area_principal: NotRequired[str]
+
 class GetApiAdminGroupsByIdUsersResponse200(TypedDict):
     userIds: NotRequired[list[str]]
     users: NotRequired[list[GetApiAdminGroupsByIdUsersResponse200UsersItem]]
@@ -283,6 +290,7 @@ class GetApiAdminGroupsByIdUsersResponse200UsersItem(TypedDict):
     familyName: NotRequired[str]
     isServiceUser: NotRequired[bool]
     active: NotRequired[bool]
+    customAttributes: NotRequired[dict[str, str]]
 
 class GetApiAdminMeResponse200(TypedDict):
     id: NotRequired[str]
@@ -294,6 +302,12 @@ class GetApiAdminMeResponse200(TypedDict):
     roles: NotRequired[list[str]]
     groups: NotRequired[list[str]]
     permissions: NotRequired[list[str]]
+    passwordExpirationWarning: NotRequired[GetApiAdminMeResponse200PasswordExpirationWarning]
+
+class GetApiAdminMeResponse200PasswordExpirationWarning(TypedDict):
+    daysRemaining: NotRequired[int]
+    expiresAt: NotRequired[str]
+    message: NotRequired[str]
 
 class GetApiAdminMetricsAuthQueryParams(TypedDict):
     startHour: NotRequired[str]
@@ -461,9 +475,14 @@ class GetApiAdminUsersByIdRolesResponse200RolesItem(TypedDict):
 class GetApiAdminUsersQueryParams(TypedDict):
     search: NotRequired[str]
     q: NotRequired[str]
+    group: NotRequired[str]
+    active: NotRequired[bool]
+    page: NotRequired[int]
+    pageSize: NotRequired[int]
     limit: NotRequired[int]
     offset: NotRequired[int]
     appId: NotRequired[str]
+    customAttribute_connect_jc_area_principal: NotRequired[str]
 
 class GetApiAdminUsersResponse200(TypedDict):
     items: NotRequired[list[GetApiAdminUsersResponse200ItemsItem]]
@@ -497,6 +516,7 @@ class GetApiPortalMeResponse200(TypedDict):
     roles: NotRequired[list[str]]
     groups: NotRequired[list[str]]
     permissions: NotRequired[list[str]]
+    passwordExpirationWarning: NotRequired[GetApiPortalMeResponse200PasswordExpirationWarning]
     createdAt: NotRequired[str]
 
 class GetApiPortalMeResponse200AppsItem(TypedDict):
@@ -504,6 +524,11 @@ class GetApiPortalMeResponse200AppsItem(TypedDict):
     name: NotRequired[str]
     url: NotRequired[str | None]
     icon: NotRequired[str | None]
+
+class GetApiPortalMeResponse200PasswordExpirationWarning(TypedDict):
+    daysRemaining: NotRequired[int]
+    expiresAt: NotRequired[str]
+    message: NotRequired[str]
 
 class GetAuthFederationProvidersResponse200Item(TypedDict):
     id: NotRequired[str]
@@ -617,6 +642,15 @@ class GetWellKnownOpenidConfigurationResponse200(TypedDict):
 class IssuedServiceIdentityCredential(TypedDict):
     credential: ServiceIdentityCredential
     plainClientSecret: str
+
+class LoginError(TypedDict):
+    error: str
+    reason: Literal["invalid_request", "client_not_found", "tenant_not_found", "client_secret_missing", "grants_missing", "allowed_scopes_missing", "redirect_uris_missing", "client_flow_not_allowed", "password_login_disabled", "invalid_credentials", "account_locked", "account_disabled", "account_unavailable", "captcha_required", "prompt_acknowledgement_required", "risk_acknowledgement_required", "login_blocked_risk", "policy_denied", "mfa_enrollment_required", "mfa_ticket_invalid", "invalid_mfa_code", "password_change_ticket_invalid", "password_confirmation_mismatch", "password_policy_violation", "webauthn_not_available", "webauthn_transaction_invalid", "webauthn_credential_invalid", "webauthn_counter_replay", "rate_limited"]
+    message: str
+    code: NotRequired[str]
+    lockedUntil: NotRequired[str]
+    retryAfterSeconds: NotRequired[int]
+    details: NotRequired[list[dict[str, Any]]]
 
 class OAuthClient(TypedDict):
     id: str
@@ -815,6 +849,10 @@ class PostApiAdminAuthorizationCheckResponse200DecisionsItem(TypedDict):
     applied: NotRequired[bool]
     allow: NotRequired[bool]
     message: NotRequired[str]
+
+class PostApiAdminChangePasswordRequestBody(TypedDict):
+    currentPassword: str
+    newPassword: str
 
 class PostApiAdminClientsRequestBody(TypedDict):
     name: str
@@ -1266,6 +1304,7 @@ class PostOauthTokenRequestBodyOption3(TypedDict):
     client_id: str
     client_secret: str
     scope: NotRequired[str]
+    audience: NotRequired[str]
 
 class PostOauthTokenRequestBodyOption4(TypedDict):
     grant_type: Literal["password"]
@@ -1581,6 +1620,7 @@ PostApiAdminAuthenticationFlowsRequestBody: TypeAlias = "AuthenticationFlowCreat
 PostApiAdminAuthenticationFlowsResponse: TypeAlias = "PostApiAdminAuthenticationFlowsResponse201"
 PostApiAdminAuthenticationFlowsResponse201: TypeAlias = "AuthenticationFlow"
 PostApiAdminAuthorizationCheckResponse: TypeAlias = "PostApiAdminAuthorizationCheckResponse200"
+PostApiAdminChangePasswordResponse: TypeAlias = "None"
 PostApiAdminClientsResponse: TypeAlias = "PostApiAdminClientsResponse201"
 PostApiAdminClientsResponse201: TypeAlias = "OAuthClient"
 PostApiAdminConnectorsByIdMappingsResponse: TypeAlias = "PostApiAdminConnectorsByIdMappingsResponse201"
@@ -1791,12 +1831,14 @@ __all__ = [
     "GetApiAdminEventTypesResponse",
     "GetApiAdminFederationProvidersResponse",
     "GetApiAdminGroupsByIdUsersPathParams",
+    "GetApiAdminGroupsByIdUsersQueryParams",
     "GetApiAdminGroupsByIdUsersResponse",
     "GetApiAdminGroupsByIdUsersResponse200",
     "GetApiAdminGroupsByIdUsersResponse200UsersItem",
     "GetApiAdminGroupsResponse",
     "GetApiAdminMeResponse",
     "GetApiAdminMeResponse200",
+    "GetApiAdminMeResponse200PasswordExpirationWarning",
     "GetApiAdminMetricsAuthQueryParams",
     "GetApiAdminMetricsAuthResponse",
     "GetApiAdminMetricsAuthResponse200",
@@ -1873,6 +1915,7 @@ __all__ = [
     "GetApiPortalMeResponse",
     "GetApiPortalMeResponse200",
     "GetApiPortalMeResponse200AppsItem",
+    "GetApiPortalMeResponse200PasswordExpirationWarning",
     "GetAuthFederationProvidersResponse",
     "GetAuthFederationProvidersResponse200",
     "GetAuthFederationProvidersResponse200Item",
@@ -1912,6 +1955,7 @@ __all__ = [
     "GetWellKnownOpenidConfigurationResponse",
     "GetWellKnownOpenidConfigurationResponse200",
     "IssuedServiceIdentityCredential",
+    "LoginError",
     "OAuthClient",
     "PatchApiAdminConnectorsByIdPathParams",
     "PatchApiAdminConnectorsByIdRequestBody",
@@ -1983,6 +2027,8 @@ __all__ = [
     "PostApiAdminAuthorizationCheckResponse",
     "PostApiAdminAuthorizationCheckResponse200",
     "PostApiAdminAuthorizationCheckResponse200DecisionsItem",
+    "PostApiAdminChangePasswordRequestBody",
+    "PostApiAdminChangePasswordResponse",
     "PostApiAdminClientsRequestBody",
     "PostApiAdminClientsResponse",
     "PostApiAdminClientsResponse201",

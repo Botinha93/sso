@@ -1751,7 +1751,8 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         return await deps.authService.issueClientCredentialsTokens({
           clientId: parsed.data.client_id,
           clientSecret: parsed.data.client_secret,
-          scope: parsed.data.scope
+          scope: parsed.data.scope,
+          audience: parsed.data.audience
         });
       }
       if (parsed.data.grant_type === "password") {

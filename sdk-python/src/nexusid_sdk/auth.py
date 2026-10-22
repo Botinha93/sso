@@ -75,6 +75,7 @@ class AuthAPI:
         client_id: str,
         client_secret: str,
         scope: str | list[str] | None = None,
+        audience: str | list[str] | None = None,
     ) -> gm.PostOauthTokenResponse:
         payload: gm.PostOauthTokenRequestBodyOption3 = {
             "grant_type": "client_credentials",
@@ -84,6 +85,9 @@ class AuthAPI:
         serialized_scope = _serialize_scope(scope)
         if serialized_scope is not None:
             payload["scope"] = serialized_scope
+        serialized_audience = _serialize_audience(audience)
+        if serialized_audience is not None:
+            payload["audience"] = serialized_audience
 
         return cast(gm.PostOauthTokenResponse, self._client.post(
             "/oauth/token",

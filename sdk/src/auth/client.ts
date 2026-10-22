@@ -79,7 +79,8 @@ const clientCredentialsBody = (input: ClientCredentialsInput) => ({
   grant_type: "client_credentials" as const,
   client_id: input.clientId,
   client_secret: input.clientSecret,
-  scope: serializeScope(input.scope)
+  scope: serializeScope(input.scope),
+  audience: serializeAudience(input.audience)
 });
 
 const jwtBearerBody = (input: JwtBearerTokenInput) => ({

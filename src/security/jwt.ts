@@ -125,9 +125,10 @@ export class JwtService {
     scope: string[];
     roles?: string[];
     permissions?: string[];
+    audiences?: string[];
     accessTokenId: string;
   }) {
-    const { serviceIdentity, clientId, scope, roles, permissions, accessTokenId } = params;
+    const { serviceIdentity, clientId, scope, roles, permissions, audiences, accessTokenId } = params;
     const now = Math.floor(Date.now() / 1000);
     const scopeValue = scope.join(" ");
     const accessTtl = DEFAULT_ACCESS_TOKEN_TTL_SECONDS;
@@ -154,8 +155,9 @@ export class JwtService {
       .setIssuedAt(now)
       .setExpirationTime(now + accessTtl);
 
-    if (serviceIdentity.allowedAudiences.length > 0) {
-      tokenBuilder = tokenBuilder.setAudience(serviceIdentity.allowedAudiences);
+    const effectiveAudiences = audiences ?? serviceIdentity.allowedAudiences;
+    if (effectiveAudiences.length > 0) {
+      tokenBuilder = tokenBuilder.setAudience(effectiveAudiences);
     }
 
     const accessToken = await tokenBuilder.sign(this.keys.privateKey);

@@ -55,6 +55,8 @@ export interface ClientCredentialsInput {
   clientId: string;
   clientSecret: string;
   scope?: OAuthScope;
+  /** Optional audience narrowing for service identities; must be allowlisted by NexusID. */
+  audience?: OAuthAudience;
 }
 
 export interface JwtBearerTokenInput {

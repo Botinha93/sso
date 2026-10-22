@@ -193,6 +193,17 @@ The platform provides a comprehensive OpenAPI 3.0.3 specification with complete 
 - Machine-to-machine OAuth client ID/secret issuance and rotation
 - Credential usage telemetry
 
+Service identity credentials obtain access tokens from `POST /oauth/token` with
+`grant_type=client_credentials`. Administrators constrain tokens with
+`allowedScopes` and `allowedAudiences`; an optional `audience` request field
+(space- or comma-separated) selects a subset of that allowlist. NexusID signs
+the token with its configured issuer, and resource servers must validate both
+that issuer and their exact audience. Omitting `audience` preserves the existing
+behavior (all configured audiences are emitted; no audience claim is emitted
+when the allowlist is empty). The optional parameter is rejected for ordinary
+registered OAuth clients, whose client-credentials audience remains their
+client ID.
+
 **SAML**
 - Service provider configuration and metadata management
 - Assertion signing and encryption

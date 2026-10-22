@@ -459,6 +459,11 @@ paths:
                     client_id: { type: string }
                     client_secret: { type: string }
                     scope: { type: string }
+                    audience:
+                      type: string
+                      minLength: 1
+                      maxLength: 2048
+                      description: Optional space- or comma-separated audience list for service identity tokens. Every value must be in the identity's configured allowedAudiences; requesting a subset narrows the token. Omit to preserve legacy issuance behavior.
                 - type: object
                   required: [grant_type, username, password, client_id, client_secret]
                   properties:

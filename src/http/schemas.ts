@@ -228,7 +228,8 @@ export const clientCredentialsSchema = z.object({
   grant_type: z.literal("client_credentials"),
   client_id: z.string().min(2),
   client_secret: z.string().min(8),
-  scope: z.string().optional()
+  scope: z.string().optional(),
+  audience: z.string().trim().min(1).max(2048).optional()
 });
 
 export const passwordGrantSchema = z.object({

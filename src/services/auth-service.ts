@@ -458,11 +458,16 @@ export class AuthService {
     clientId: string;
     clientSecret: string;
     scope?: string;
+    audience?: string;
   }) {
     const client = await this.clientRepository.findById(input.clientId);
 
     if (!client) {
       return this.issueServiceIdentityClientCredentialsTokens(input);
+    }
+
+    if (input.audience !== undefined) {
+      throw new AppError("Audience is only supported for service identity credentials", 400);
     }
 
     await this.authenticationFlowService.assertGrantSupported("client_credentials");
@@ -501,6 +506,7 @@ export class AuthService {
     clientId: string;
     clientSecret: string;
     scope?: string;
+    audience?: string;
   }) {
     if (!this.serviceIdentityService) {
       throw new AuthenticationError("Unknown client");
@@ -520,6 +526,19 @@ export class AuthService {
       throw new AppError("Requested scope exceeds service identity policy", 400);
     }
 
+    // The issuer is always the configured NexusID issuer. Audience requests
+    // may only narrow the admin-configured service identity allowlist.
+    const requestedAudiences = input.audience === undefined
+      ? undefined
+      : Array.from(new Set(input.audience.split(/[\s,]+/).map((value) => value.trim()).filter(Boolean)));
+    if (requestedAudiences?.length === 0) {
+      throw new AppError("At least one audience must be requested", 400);
+    }
+    const allowedAudiences = new Set(serviceIdentity.allowedAudiences);
+    if (requestedAudiences?.some((audience) => !allowedAudiences.has(audience))) {
+      throw new AppError("Requested audience exceeds service identity policy", 400);
+    }
+
     const accessTokenId = nanoid();
     // Authorization claims are scope-gated, same as user access tokens:
     // embedding them unconditionally bloats tokens past proxy header limits.
@@ -533,6 +552,7 @@ export class AuthService {
       permissions: requestedScope.includes("permissions")
         ? await this.roleService.resolvePermissionsForUser(serviceIdentity.id)
         : undefined,
+      audiences: requestedAudiences,
       accessTokenId
     });
 
