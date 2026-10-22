@@ -232,6 +232,10 @@ Every endpoint includes:
 - App context is still modeled through the client, roles, permissions, and the effective app assignments on the user.
 - In other words, clients continue to exchange tokens through `/oauth/token`, while app visibility in the portal and admin APIs is resolved from the user's effective app assignments.
 
+## NexusHub Adoption
+
+An existing NexusID deployment can be adopted by NexusHub through standard OIDC discovery and admin-gated dynamic client registration. The installer contract, exact operator inputs, and limits on automatic provisioning are documented in [`docs/NEXUSHUB_ADOPTION.md`](./docs/NEXUSHUB_ADOPTION.md). Run `npm run nexushub:adopt` only with a dedicated operator token and a private output path; it registers a new Hub OAuth client and never changes existing users or signing keys.
+
 ## Security Notes
 
 - `POST /oauth/introspect` now requires `client_id` and `client_secret` in the request body.

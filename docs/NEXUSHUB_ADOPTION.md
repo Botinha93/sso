@@ -1,0 +1,33 @@
+# Adopt NexusID into NexusHub
+
+NexusHub can use an existing NexusID deployment through its standard OpenID Connect issuer. Adoption is additive: it registers one dedicated confidential OAuth client for Hub sign-in. It does not provision, migrate, reset, or delete user accounts; change signing keys; create user roles or app assignments; or replace NexusID's standalone authorization and token endpoints.
+
+## What the installer can configure
+
+The Hub installer can discover the configured issuer's authorization, token, and JWKS endpoints through `/.well-known/openid-configuration`, then register a NexusHub client through the advertised registration endpoint. NexusID's existing dynamic client registration endpoint must be enabled in `admin` mode (`DYNAMIC_CLIENT_REGISTRATION=admin`). The registration request uses an administrator bearer access token and requests only `authorization_code` and `refresh_token` grants with `openid profile email` scopes. Authorization code flow is PKCE-required by NexusID.
+
+The registration produces an opaque client ID and secret. Save them as Hub server-side credentials; do not put the secret in browser code, source control, a public app manifest, or a URL. NexusHub must use the exact callback URL registered here. NexusID validates redirect URLs against its normal client/instance policy. Existing deployments that reject the callback should be fixed by an administrator through the supported policy; do not weaken redirect validation for Hub.
+
+Example, run from this repository on a trusted operator machine:
+
+```sh
+export NEXUSID_ISSUER='https://id.example.com'
+export NEXUSID_ADMIN_ACCESS_TOKEN='…'
+export NEXUSHUB_OIDC_CALLBACK_URL='https://hub.example.com/auth/oidc/callback'
+export NEXUSHUB_OIDC_CONFIG_OUT='/etc/nexushub/nexusid-oidc.json'
+npm run nexushub:adopt
+```
+
+The output is created exclusively (an existing path is never overwritten) with owner-only permissions. It contains the discovered OIDC endpoints, registered client ID and secret, exact callback, and requested scopes. The script does not print the secret. If the client registration succeeds but the local config cannot be written, the command reports that the new client must be removed in NexusID Admin before retrying.
+
+`NEXUSHUB_OIDC_CALLBACK_URL` is an example only; set it to the callback path actually configured by the Hub deployment. A second successful run registers another client, because NexusID's current dynamic registration endpoint issues a fresh client on each request and does not implement a Hub-specific idempotency key. Remove obsolete Hub clients through the supported NexusID Admin UI/API after confirming they are unused.
+
+## Operator and installer responsibilities
+
+An operator must provide a reachable NexusID issuer and an administrator access token authorized to register clients. The installer must verify the discovery issuer matches the operator-supplied issuer, request only the required scopes/grants, persist the one-time returned secret privately, and fail without weakening OIDC validation if registration is unavailable. Configure the Hub server with the saved issuer, client ID, client secret, and callback. Keep the NexusID client secret on the Hub server.
+
+The current NexusID APIs do not provide a Hub-specific enrollment endpoint or a transactional operation covering OAuth client creation and Hub secret storage. Therefore an installer can safely adopt OIDC using the existing admin-gated dynamic-registration endpoint, but it cannot autonomously bootstrap NexusID administrator credentials, users, app assignments, signing keys, or policies. Those remain explicit NexusID operator setup. This is intentional: NexusHub must not silently assume control of an existing identity tenant.
+
+## Standalone compatibility
+
+The issuer's existing discovery, authorize, token, JWKS, UserInfo, logout, and client-management interfaces remain in place. Dynamic registration remains disabled by default and retains its existing `disabled`, `admin`, and `open` modes. Hub adoption only requires `admin` mode for the registration step; after registration the regular OIDC client flow does not depend on dynamic registration staying enabled.

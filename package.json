@@ -26,6 +26,7 @@
     "check:sdk": "npm --prefix sdk run check",
     "check:sdk:python": "npm run generate:sdk:python:models && python -m compileall sdk-python/src",
     "check:sdk:openapi-drift": "node scripts/check-sdk-openapi-drift.mjs",
+    "nexushub:adopt": "node scripts/nexushub-register-client.mjs",
     "docs:sdk:api-reference": "node scripts/generate-sdk-api-reference.mjs",
     "docs:sdk": "npm run docs:sdk:api-reference",
     "release:sdk:prepare": "node scripts/release-sdk.mjs --version=0.1.1 --dry-run",
