@@ -167,6 +167,12 @@ const run = async () => {
   const preflight = args.includes("--preflight");
   const issuer = issuerFromEnvironment();
   const hubOrigin = asHttpUrl(required("NEXUS_PUBLIC_ORIGIN"), "NEXUS_PUBLIC_ORIGIN");
+  // The callback is derived from the public origin, not a base URL. Reject
+  // paths and query strings instead of silently discarding an operator typo
+  // when resolving the profile's absolute callback path.
+  if (hubOrigin.pathname !== "/" || hubOrigin.search) {
+    throw new Error("NEXUS_PUBLIC_ORIGIN must be an origin without a path or query string");
+  }
   const profile = await loadProfile();
   const callbackUrl = new URL(profile.redirectPath, hubOrigin);
 
