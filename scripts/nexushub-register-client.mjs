@@ -37,7 +37,8 @@ const run = async () => {
   issuerUrl.pathname = issuerUrl.pathname.replace(/\/+$/, "");
   issuerUrl.search = "";
   issuerUrl.hash = "";
-  const callbackUrl = asHttpUrl(required("NEXUSHUB_OIDC_CALLBACK_URL"), "NEXUSHUB_OIDC_CALLBACK_URL");
+  const hubOrigin = asHttpUrl(required("NEXUS_PUBLIC_ORIGIN"), "NEXUS_PUBLIC_ORIGIN");
+  const callbackUrl = new URL("/auth/callback", hubOrigin);
   const outputPath = path.resolve(required("NEXUSHUB_OIDC_CONFIG_OUT"));
   const adminToken = required("NEXUSID_ADMIN_ACCESS_TOKEN");
 
@@ -65,7 +66,18 @@ const run = async () => {
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
       token_endpoint_auth_method: "client_secret_post",
-      scope: "openid profile email"
+      scope: [
+        "openid",
+        "profile",
+        "email",
+        "nexushub.installations:write",
+        "nexushub.operations:read",
+        "nexushub.operations:resume",
+        "nexushub.organizations:read",
+        "nexushub.organizations:write",
+        "nexushub.projects:read",
+        "nexushub.projects:write"
+      ].join(" ")
     })
   });
   if (!registerResponse.ok) {
@@ -90,7 +102,18 @@ const run = async () => {
     clientId: client.client_id,
     clientSecret: client.client_secret,
     redirectUri: callbackUrl.href,
-    scopes: ["openid", "profile", "email"],
+    scopes: [
+      "openid",
+      "profile",
+      "email",
+      "nexushub.installations:write",
+      "nexushub.operations:read",
+      "nexushub.operations:resume",
+      "nexushub.organizations:read",
+      "nexushub.organizations:write",
+      "nexushub.projects:read",
+      "nexushub.projects:write"
+    ],
     tokenEndpointAuthMethod: client.token_endpoint_auth_method
   };
 

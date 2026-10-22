@@ -4,7 +4,7 @@ NexusHub can use an existing NexusID deployment through its standard OpenID Conn
 
 ## What the installer can configure
 
-The Hub installer can discover the configured issuer's authorization, token, and JWKS endpoints through `/.well-known/openid-configuration`, then register a NexusHub client through the advertised registration endpoint. NexusID's existing dynamic client registration endpoint must be enabled in `admin` mode (`DYNAMIC_CLIENT_REGISTRATION=admin`). The registration request uses an administrator bearer access token and requests only `authorization_code` and `refresh_token` grants with `openid profile email` scopes. Authorization code flow is PKCE-required by NexusID.
+The Hub installer can discover the configured issuer's authorization, token, and JWKS endpoints through `/.well-known/openid-configuration`, then register a NexusHub client through the advertised registration endpoint. NexusID's existing dynamic client registration endpoint must be enabled in `admin` mode (`DYNAMIC_CLIENT_REGISTRATION=admin`). The registration request uses an administrator bearer access token and requests only `authorization_code` and `refresh_token` grants. It requests the identity scopes `openid profile email` and the Hub's least-privilege API scopes: `nexushub.installations:write`, `nexushub.operations:read`, `nexushub.operations:resume`, `nexushub.organizations:read`, `nexushub.organizations:write`, `nexushub.projects:read`, and `nexushub.projects:write`. Authorization code flow is PKCE-required by NexusID.
 
 The registration produces an opaque client ID and secret. Save them as Hub server-side credentials; do not put the secret in browser code, source control, a public app manifest, or a URL. NexusHub must use the exact callback URL registered here. NexusID validates redirect URLs against its normal client/instance policy. Existing deployments that reject the callback should be fixed by an administrator through the supported policy; do not weaken redirect validation for Hub.
 
@@ -13,12 +13,14 @@ Example, run from this repository on a trusted operator machine:
 ```sh
 export NEXUSID_ISSUER='https://id.example.com'
 export NEXUSID_ADMIN_ACCESS_TOKEN='…'
-export NEXUSHUB_OIDC_CALLBACK_URL='https://hub.example.com/auth/oidc/callback'
+export NEXUS_PUBLIC_ORIGIN='https://hub.example.com'
 export NEXUSHUB_OIDC_CONFIG_OUT='/etc/nexushub/nexusid-oidc.json'
 npm run nexushub:adopt
 ```
 
-The output is created exclusively (an existing path is never overwritten) with owner-only permissions. It contains the discovered OIDC endpoints, registered client ID and secret, exact callback, and requested scopes. The script does not print the secret. If the client registration succeeds but the local config cannot be written, the command reports that the new client must be removed in NexusID Admin before retrying.
+The callback is derived as `${NEXUS_PUBLIC_ORIGIN}/auth/callback`, matching the Hub server configuration. The output is created exclusively (an existing path is never overwritten) with owner-only permissions. It contains the discovered OIDC endpoints, registered client ID and secret, exact callback, and requested scopes. The script does not print the secret. If the client registration succeeds but the local config cannot be written, the command reports that the new client must be removed in NexusID Admin before retrying.
+
+NexusID stores client-allowed scope names and the authorization flow will issue them when requested, so the Hub client can receive the custom scope strings from registration. For the discovery document and administrator scope catalog to expose these custom values, an administrator should also add the seven `nexushub.*` scopes through NexusID Admin → Scopes. The current scope-management API is session/CSRF based; the CLI does not try to create catalog entries with its client-registration bearer token.
 
 `NEXUSHUB_OIDC_CALLBACK_URL` is an example only; set it to the callback path actually configured by the Hub deployment. A second successful run registers another client, because NexusID's current dynamic registration endpoint issues a fresh client on each request and does not implement a Hub-specific idempotency key. Remove obsolete Hub clients through the supported NexusID Admin UI/API after confirming they are unused.
 
