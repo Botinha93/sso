@@ -91,7 +91,48 @@ const fetchJson = async (url, options = {}) => {
     headers: { accept: "application/json", ...options.headers }
   });
   if (!response.ok) throw new Error(`NexusID discovery failed with HTTP ${response.status}`);
-  return response.json();
+  return parseBoundedJson(response, 256 * 1024, "NexusID discovery document");
+};
+
+// Discovery and registration are operator-facing bootstrap inputs. Bound the
+// response independently of Content-Length so a proxy or compromised issuer
+// cannot make the installer buffer an unbounded body before validation.
+const readBoundedText = async (response, maxBytes, description) => {
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    await response.body?.cancel().catch(() => {});
+    throw new Error(`${description} exceeds the ${maxBytes}-byte limit`);
+  }
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let total = 0;
+  let text = "";
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => {});
+        throw new Error(`${description} exceeds the ${maxBytes}-byte limit`);
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+    return text;
+  } finally {
+    reader.releaseLock();
+  }
+};
+
+const parseBoundedJson = async (response, maxBytes, description) => {
+  const body = await readBoundedText(response, maxBytes, description);
+  try {
+    return JSON.parse(body);
+  } catch {
+    throw new Error(`${description} is not valid JSON`);
+  }
 };
 
 const discover = async (issuer) => {
@@ -187,7 +228,7 @@ const run = async () => {
     if (!response.ok) {
       let errorCode = "registration_failed";
       try {
-        const error = await response.json();
+        const error = await parseBoundedJson(response, 64 * 1024, "NexusID registration error response");
         if (typeof error.error === "string") errorCode = error.error;
       } catch {}
       // The current NexusID handler returns these statuses before creating a
@@ -198,7 +239,7 @@ const run = async () => {
     }
 
     registrationMayHaveCreatedClient = true;
-    const client = await response.json();
+    const client = await parseBoundedJson(response, 64 * 1024, "NexusID registration response");
     if (typeof client.client_id !== "string" || typeof client.client_secret !== "string") {
       throw new Error("NexusID returned an incomplete client registration response; reservation retained for manual reconciliation");
     }
