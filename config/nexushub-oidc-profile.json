@@ -1,0 +1,26 @@
+{
+  "clientName": "NexusHub",
+  "redirectPath": "/auth/callback",
+  "grantTypes": [
+    "authorization_code",
+    "refresh_token"
+  ],
+  "responseTypes": [
+    "code"
+  ],
+  "tokenEndpointAuthMethod": "client_secret_post",
+  "scopes": [
+    "openid",
+    "profile",
+    "email",
+    "nexushub.installations:write",
+    "nexushub.operations:read",
+    "nexushub.operations:resume",
+    "nexushub.organizations:read",
+    "nexushub.organizations:write",
+    "nexushub.projects:read",
+    "nexushub.projects:write",
+    "nexushub.applications:read",
+    "nexushub.applications:write"
+  ]
+}
