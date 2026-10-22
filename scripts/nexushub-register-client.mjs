@@ -3,14 +3,13 @@
 /**
  * Adopt an existing NexusID instance into NexusHub by registering a confidential
  * OAuth client. This does not create users, roles, app assignments, or modify
- * existing clients.
+ * existing clients. The unauthenticated --preflight mode only reads discovery.
  */
 import { open, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const profilePath = fileURLToPath(new URL("../config/nexushub-oidc-profile.json", import.meta.url));
-
 const required = (name) => {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`Missing required environment variable: ${name}`);
@@ -25,84 +24,131 @@ const asHttpUrl = (value, name) => {
     throw new Error(`${name} must be an absolute HTTP(S) URL`);
   }
   if (!["https:", "http:"].includes(url.protocol)) throw new Error(`${name} must use HTTP(S)`);
-  if (url.protocol === "http:" && !["localhost", "127.0.0.1", "::1"].includes(url.hostname)) {
+  if (url.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)) {
     throw new Error(`${name} must use HTTPS outside localhost`);
   }
-  if (url.username || url.password || url.hash) {
-    throw new Error(`${name} must not contain credentials or a fragment`);
-  }
+  if (url.username || url.password || url.hash) throw new Error(`${name} must not contain credentials or a fragment`);
   return url;
 };
 
+const issuerFromEnvironment = () => {
+  const issuer = asHttpUrl(required("NEXUSID_ISSUER"), "NEXUSID_ISSUER");
+  if (issuer.search) throw new Error("NEXUSID_ISSUER must not contain a query string");
+  issuer.pathname = issuer.pathname.replace(/\/+$/, "");
+  issuer.search = "";
+  issuer.hash = "";
+  return issuer;
+};
+
+const fetchJson = async (url, options = {}) => {
+  const response = await fetch(url, {
+    ...options,
+    signal: AbortSignal.timeout(10_000),
+    headers: { accept: "application/json", ...options.headers }
+  });
+  if (!response.ok) throw new Error(`NexusID discovery failed with HTTP ${response.status}`);
+  return response.json();
+};
+
+const discover = async (issuer) => {
+  const discoveryUrl = new URL(".well-known/openid-configuration", `${issuer.href.replace(/\/$/, "")}/`);
+  const discovery = await fetchJson(discoveryUrl, { redirect: "error" });
+  const expectedIssuer = issuer.href.replace(/\/$/, "");
+  if (discovery.issuer !== expectedIssuer) throw new Error("NexusID discovery issuer does not match NEXUSID_ISSUER");
+  for (const field of ["authorization_endpoint", "token_endpoint", "jwks_uri", "registration_endpoint"]) {
+    if (typeof discovery[field] !== "string") throw new Error(`NexusID discovery document is missing ${field}`);
+    const endpoint = asHttpUrl(discovery[field], `NexusID ${field}`);
+    if (endpoint.protocol !== issuer.protocol) throw new Error(`NexusID ${field} must use the issuer's transport security`);
+    if (field === "registration_endpoint" && endpoint.origin !== issuer.origin) {
+      throw new Error("NexusID registration_endpoint must share the issuer origin because the operator bearer token is sent there");
+    }
+  }
+  return discovery;
+};
+
 const run = async () => {
-  const issuerUrl = asHttpUrl(required("NEXUSID_ISSUER"), "NEXUSID_ISSUER");
-  if (issuerUrl.search) throw new Error("NEXUSID_ISSUER must not contain a query string");
-  issuerUrl.pathname = issuerUrl.pathname.replace(/\/+$/, "");
-  issuerUrl.search = "";
-  issuerUrl.hash = "";
+  const args = process.argv.slice(2);
+  if (args.some((arg) => arg !== "--preflight" || args.length > 1)) {
+    throw new Error("Usage: npm run nexushub:adopt | npm run nexushub:preflight");
+  }
+  const preflight = args.includes("--preflight");
+  const issuer = issuerFromEnvironment();
   const hubOrigin = asHttpUrl(required("NEXUS_PUBLIC_ORIGIN"), "NEXUS_PUBLIC_ORIGIN");
   const callbackUrl = new URL("/auth/callback", hubOrigin);
-  const outputPath = path.resolve(required("NEXUSHUB_OIDC_CONFIG_OUT"));
-  const adminToken = required("NEXUSID_ADMIN_ACCESS_TOKEN");
   const profile = JSON.parse(await readFile(profilePath, "utf8"));
 
-  // Reserve the destination before the remote side effect. NexusID's registration
-  // endpoint does not support idempotency keys, so a second invocation must not
-  // create another client when this installation already has a config file.
+  // Discovery completes before a local marker is created or any credentials are
+  // read. The preflight is safe to run during development: it sends no token and
+  // performs no remote mutation.
+  const discovery = await discover(issuer);
+  if (preflight) {
+    console.log(`NexusID discovery is compatible for issuer ${discovery.issuer}.`);
+    console.log(`Registration endpoint: ${discovery.registration_endpoint}`);
+    console.log(`Callback to configure: ${callbackUrl.href}`);
+    console.log("No operator credential was read and no client registration was attempted.");
+    console.log("Registration still requires the broad clients:add permission; NexusID has no Hub-specific permission, profile lookup, or idempotency key.");
+    return;
+  }
+
+  const outputPath = path.resolve(required("NEXUSHUB_OIDC_CONFIG_OUT"));
+  const adminToken = required("NEXUSID_ADMIN_ACCESS_TOKEN");
+  // Reserve only after discovery has succeeded. An existing file, including an
+  // ambiguity marker, is never overwritten by a retry.
   let file;
   try {
     file = await open(outputPath, "wx", 0o600);
     await file.writeFile(`${JSON.stringify({ status: "registration_in_progress" }, null, 2)}\n`, "utf8");
     await file.sync();
   } catch {
-    throw new Error(`Could not reserve private config at ${outputPath}; an existing file is never overwritten. If this is a stale registration_in_progress file, first check NexusID Admin for an existing NexusHub client before removing it.`);
+    throw new Error(`Could not reserve private config at ${outputPath}; an existing file is never overwritten. If this is a stale registration_in_progress file, check NexusID Admin for an existing NexusHub client before removing it.`);
   }
 
-  let registrationAttempted = false;
+  let registrationMayHaveCreatedClient = false;
   try {
-    const discoveryUrl = new URL(".well-known/openid-configuration", `${issuerUrl.href.replace(/\/$/, "")}/`);
-    const discoveryResponse = await fetch(discoveryUrl, { headers: { accept: "application/json" } });
-    if (!discoveryResponse.ok) throw new Error(`NexusID discovery failed with HTTP ${discoveryResponse.status}`);
-    const discovery = await discoveryResponse.json();
-    if (discovery.issuer !== issuerUrl.href.replace(/\/$/, "")) {
-      throw new Error("NexusID discovery issuer does not match NEXUSID_ISSUER");
-    }
-    if (!discovery.registration_endpoint || !discovery.authorization_endpoint || !discovery.token_endpoint) {
-      throw new Error("NexusID discovery document is missing required OIDC endpoints");
+    let response;
+    try {
+      // Redirects are forbidden so the operator bearer token cannot be forwarded
+      // to a different endpoint. A timeout or connection loss remains ambiguous.
+      response = await fetch(discovery.registration_endpoint, {
+        method: "POST",
+        redirect: "error",
+        signal: AbortSignal.timeout(15_000),
+        headers: {
+          authorization: `Bearer ${adminToken}`,
+          "content-type": "application/json",
+          accept: "application/json"
+        },
+        body: JSON.stringify({
+          client_name: profile.clientName,
+          redirect_uris: [callbackUrl.href],
+          grant_types: profile.grantTypes,
+          response_types: profile.responseTypes,
+          token_endpoint_auth_method: profile.tokenEndpointAuthMethod,
+          scope: profile.scopes.join(" ")
+        })
+      });
+    } catch (error) {
+      registrationMayHaveCreatedClient = true;
+      throw new Error(`NexusID registration outcome is ambiguous (${error instanceof Error ? error.name : "network error"}). The reservation was retained; reconcile in NexusID Admin before retrying.`);
     }
 
-    registrationAttempted = true;
-    const registerResponse = await fetch(discovery.registration_endpoint, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${adminToken}`,
-        "content-type": "application/json",
-        accept: "application/json"
-      },
-      body: JSON.stringify({
-        client_name: profile.clientName,
-        redirect_uris: [callbackUrl.href],
-        grant_types: profile.grantTypes,
-        response_types: profile.responseTypes,
-        token_endpoint_auth_method: profile.tokenEndpointAuthMethod,
-        scope: profile.scopes.join(" ")
-      })
-    });
-    if (!registerResponse.ok) {
+    if (!response.ok) {
       let errorCode = "registration_failed";
       try {
-        const error = await registerResponse.json();
+        const error = await response.json();
         if (typeof error.error === "string") errorCode = error.error;
       } catch {}
-      throw new Error(`NexusID client registration failed (HTTP ${registerResponse.status}, ${errorCode})`);
+      // The current NexusID handler returns these statuses before creating a
+      // client: disabled/unauthorized (403/401) and validation errors (400).
+      // Other statuses may originate after a write or in an intermediary.
+      registrationMayHaveCreatedClient = ![400, 401, 403].includes(response.status);
+      throw new Error(`NexusID client registration failed (HTTP ${response.status}, ${errorCode})${registrationMayHaveCreatedClient ? "; outcome may be ambiguous, reservation retained for manual reconciliation" : "; no client was created, safe to correct the cause and retry"}`);
     }
 
-    // A successful response means a client may exist even if parsing or storing
-    // the response fails; preserve the reservation for manual reconciliation.
-    registrationAttempted = true;
-    const client = await registerResponse.json();
+    registrationMayHaveCreatedClient = true;
+    const client = await response.json();
     if (typeof client.client_id !== "string" || typeof client.client_secret !== "string") {
-      throw new Error("NexusID returned an incomplete client registration response");
+      throw new Error("NexusID returned an incomplete client registration response; reservation retained for manual reconciliation");
     }
     const config = {
       issuer: discovery.issuer,
@@ -121,13 +167,13 @@ const run = async () => {
       await file.writeFile(`${JSON.stringify(config, null, 2)}\n`, { encoding: "utf8" });
       await file.sync();
     } catch {
-      throw new Error(`NexusID registered client ${client.client_id}, but its credentials could not be saved at ${outputPath}. The reserved file was retained to prevent accidental duplicate registration; recover the secret from the registration response if available or remove this client in NexusID Admin before retrying.`);
+      throw new Error(`NexusID registered client ${client.client_id}, but its credentials could not be saved at ${outputPath}. The reservation was retained; remove this client in NexusID Admin before retrying unless the returned secret can be recovered securely.`);
     }
     await file.close();
     console.log(`Registered NexusHub OAuth client ${client.client_id}. Credentials saved to ${outputPath} with owner-only permissions.`);
   } catch (error) {
     await file.close().catch(() => {});
-    if (!registrationAttempted) await unlink(outputPath).catch(() => {});
+    if (!registrationMayHaveCreatedClient) await unlink(outputPath).catch(() => {});
     throw error;
   }
 };
