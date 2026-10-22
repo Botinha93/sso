@@ -107,6 +107,14 @@ const discover = async (issuer) => {
       throw new Error("NexusID registration_endpoint must share the issuer origin because the operator bearer token is sent there");
     }
   }
+  // The Hub's token exchange currently sends its confidential-client secret in
+  // the request body. OAuth metadata defaults to client_secret_basic when this
+  // field is omitted, so accepting an absent list would produce a config that
+  // cannot complete the Hub's code exchange.
+  if (!Array.isArray(discovery.token_endpoint_auth_methods_supported) ||
+      !discovery.token_endpoint_auth_methods_supported.includes(profile.tokenEndpointAuthMethod)) {
+    throw new Error(`NexusID discovery must explicitly support ${profile.tokenEndpointAuthMethod} for the Hub token exchange`);
+  }
   return discovery;
 };
 
@@ -193,6 +201,9 @@ const run = async () => {
     const client = await response.json();
     if (typeof client.client_id !== "string" || typeof client.client_secret !== "string") {
       throw new Error("NexusID returned an incomplete client registration response; reservation retained for manual reconciliation");
+    }
+    if (client.token_endpoint_auth_method !== profile.tokenEndpointAuthMethod) {
+      throw new Error(`NexusID registered the client with ${String(client.token_endpoint_auth_method)} instead of ${profile.tokenEndpointAuthMethod}; reservation retained for manual reconciliation`);
     }
     const config = {
       issuer: discovery.issuer,
