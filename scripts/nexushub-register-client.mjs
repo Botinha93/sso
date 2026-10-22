@@ -10,17 +10,46 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const profilePath = fileURLToPath(new URL("../config/nexushub-oidc-profile.json", import.meta.url));
+const expectedHubScopes = [
+  "nexushub.installations:write",
+  "nexushub.operations:read",
+  "nexushub.operations:resume",
+  "nexushub.organizations:read",
+  "nexushub.organizations:write",
+  "nexushub.projects:read",
+  "nexushub.projects:write",
+  "nexushub.applications:read",
+  "nexushub.applications:write"
+];
 const loadProfile = async () => {
   const profile = JSON.parse(await readFile(profilePath, "utf8"));
   if (profile.profileId !== "nexushub" || profile.profileVersion !== 1) {
     throw new Error("Unsupported NexusHub OIDC profile; review its profileId/profileVersion before provisioning");
   }
-  if (!Array.isArray(profile.identityScopes) || !Array.isArray(profile.hubScopes) ||
-      profile.hubScopes.some((scope) => typeof scope.name !== "string" || typeof scope.description !== "string")) {
-    throw new Error("Invalid NexusHub OIDC profile scope catalog");
+  if (profile.clientName !== "NexusHub" ||
+      profile.tokenEndpointAuthMethod !== "client_secret_post" ||
+      !Array.isArray(profile.grantTypes) || profile.grantTypes.length !== 2 ||
+      !profile.grantTypes.includes("authorization_code") || !profile.grantTypes.includes("refresh_token") ||
+      !Array.isArray(profile.responseTypes) || profile.responseTypes.length !== 1 || profile.responseTypes[0] !== "code") {
+    throw new Error("Invalid NexusHub OIDC client profile; expected the reviewed confidential authorization-code profile");
+  }
+  if (typeof profile.redirectPath !== "string" || !profile.redirectPath.startsWith("/") ||
+      profile.redirectPath.startsWith("//") || profile.redirectPath.includes("\\") ||
+      /[?#\u0000-\u001f]/.test(profile.redirectPath) ||
+      profile.redirectPath.split("/").some((segment) => segment === "." || segment === "..")) {
+    throw new Error("NexusHub OIDC profile redirectPath must be a clean absolute path without query, fragment, or traversal segments");
+  }
+  if (!Array.isArray(profile.identityScopes) || profile.identityScopes.length !== 3 ||
+      !["openid", "profile", "email"].every((scope) => profile.identityScopes.includes(scope)) ||
+      !Array.isArray(profile.hubScopes) || profile.hubScopes.length !== 9 ||
+      profile.hubScopes.some((scope) => !scope || typeof scope.name !== "string" ||
+        !/^nexushub\.[a-z][a-z0-9-]*(?::[a-z][a-z0-9-]*)?$/.test(scope.name) ||
+        typeof scope.description !== "string" || !scope.description.trim()) ||
+      expectedHubScopes.some((name) => !profile.hubScopes.some((scope) => scope.name === name))) {
+    throw new Error("Invalid NexusHub OIDC profile scope catalog; review the versioned identity and Hub scope set");
   }
   const scopes = [...profile.identityScopes, ...profile.hubScopes.map((scope) => scope.name)];
-  if (new Set(scopes).size !== scopes.length || scopes.length === 0 || scopes.some((scope) => !scope.trim())) {
+  if (new Set(scopes).size !== scopes.length || scopes.some((scope) => !scope.trim())) {
     throw new Error("NexusHub OIDC profile scopes must be non-empty and unique");
   }
   return { ...profile, scopes };
@@ -90,9 +119,6 @@ const run = async () => {
   const issuer = issuerFromEnvironment();
   const hubOrigin = asHttpUrl(required("NEXUS_PUBLIC_ORIGIN"), "NEXUS_PUBLIC_ORIGIN");
   const profile = await loadProfile();
-  if (typeof profile.redirectPath !== "string" || !profile.redirectPath.startsWith("/") || profile.redirectPath.startsWith("//")) {
-    throw new Error("NexusHub OIDC profile redirectPath must be an absolute path on the configured Hub origin");
-  }
   const callbackUrl = new URL(profile.redirectPath, hubOrigin);
 
   // Discovery completes before a local marker is created or any credentials are
