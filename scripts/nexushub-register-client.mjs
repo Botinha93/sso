@@ -76,7 +76,9 @@ const run = async () => {
         "nexushub.organizations:read",
         "nexushub.organizations:write",
         "nexushub.projects:read",
-        "nexushub.projects:write"
+        "nexushub.projects:write",
+        "nexushub.applications:read",
+        "nexushub.applications:write"
       ].join(" ")
     })
   });
@@ -112,7 +114,9 @@ const run = async () => {
       "nexushub.organizations:read",
       "nexushub.organizations:write",
       "nexushub.projects:read",
-      "nexushub.projects:write"
+      "nexushub.projects:write",
+      "nexushub.applications:read",
+      "nexushub.applications:write"
     ],
     tokenEndpointAuthMethod: client.token_endpoint_auth_method
   };
