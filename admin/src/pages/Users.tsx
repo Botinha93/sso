@@ -952,7 +952,7 @@ const Users = () => {
             action={<Button size="xs" onClick={openCreate}>New User</Button>}
           />
         ) : (
-          <Table.ScrollContainer minWidth={1080}>
+          <Table.ScrollContainer minWidth={1080} type="native">
             <Table highlightOnHover verticalSpacing="sm">
               <Table.Thead>
                 <Table.Tr>
@@ -971,7 +971,7 @@ const Users = () => {
                   <Table.Th>Roles & attributes</Table.Th>
                   <Table.Th>Groups</Table.Th>
                   <Table.Th>Status</Table.Th>
-                  <Table.Th w={150} />
+                  <Table.Th w={150} className="table-sticky-actions" />
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -1097,7 +1097,10 @@ const Users = () => {
                           <Badge variant="light" color="red">Inactive</Badge>
                         )}
                       </Table.Td>
-                      <Table.Td>
+                      <Table.Td
+                        className="table-sticky-actions"
+                        style={isSelected ? { backgroundImage: 'linear-gradient(var(--nx-color-accent-soft), var(--nx-color-accent-soft))' } : undefined}
+                      >
                         <Group gap={2} justify="flex-end" wrap="nowrap">
                           <Tooltip label="Reset password">
                             <ActionIcon

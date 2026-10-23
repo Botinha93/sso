@@ -92,3 +92,20 @@ body {
 .code-block .token.deleted {
   color: var(--nx-syntax-deleted);
 }
+
+/* Keeps a table's row actions in view when the table scrolls horizontally. */
+.table-sticky-actions {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background-color: var(--mantine-color-body);
+  box-shadow: inset 1px 0 0 var(--nx-color-border);
+}
+
+[data-mantine-color-scheme='dark'] .table-sticky-actions {
+  background-color: var(--nx-color-surface);
+}
+
+.mantine-Table-tr[data-hover]:hover > .table-sticky-actions {
+  background-color: var(--tr-hover-bg);
+}
