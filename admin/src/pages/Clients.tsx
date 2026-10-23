@@ -39,6 +39,7 @@ interface OAuthClient {
   grants: string[]
   requirePkce: boolean
   resources: string[]
+  resourceMetadata?: Record<string, { label: string; description: string }>
   flowIds: string[]
   accessTokenTtlSeconds?: number | null
   refreshTokenTtlSeconds?: number | null
@@ -184,10 +185,21 @@ const Clients = () => {
   const handleRemoveResource = (resource: string) => {
     if (!resourcesClient) return
     const updated = (resourcesClient.resources ?? []).filter(r => r !== resource)
+    const resourceMetadata = { ...(resourcesClient.resourceMetadata ?? {}) }
+    delete resourceMetadata[resource]
     updateClient.mutate(
-      { id: resourcesClient.id, resources: updated },
-      { onSuccess: () => setResourcesClient(c => c ? { ...c, resources: updated } : null) }
+      { id: resourcesClient.id, resources: updated, resourceMetadata },
+      { onSuccess: () => setResourcesClient(c => c ? { ...c, resources: updated, resourceMetadata } : null) }
     )
+  }
+
+  const saveResourceMetadata = (resource: string, field: 'label' | 'description', value: string) => {
+    if (!resourcesClient) return
+    const resourceMetadata = { ...(resourcesClient.resourceMetadata ?? {}) }
+    const current = resourceMetadata[resource] ?? { label: '', description: '' }
+    resourceMetadata[resource] = { ...current, [field]: value }
+    setResourcesClient(c => c ? { ...c, resourceMetadata } : null)
+    updateClient.mutate({ id: resourcesClient.id, resourceMetadata })
   }
 
   const toggleScope = (scopeName: string) => {
@@ -674,7 +686,7 @@ const Clients = () => {
       {/* Resources modal */}
       <Modal isOpen={!!resourcesClient} onClose={() => setResourcesClient(null)} title={`Resources: ${resourcesClient?.name ?? ''}`}>
         <Stack gap="md">
-          <Text size="xs" c="dimmed">Define the resource identifiers for this client. These appear as selectable resources in the role permission matrix.</Text>
+          <Text size="xs" c="dimmed">Define resource identifiers for this client. NexusHub consent requires an administrator-owned label and description for each audience.</Text>
           <Group gap="xs" wrap="nowrap">
             <TextInput
               value={newResource}
@@ -700,6 +712,7 @@ const Clients = () => {
             )}
             {(resourcesClient?.resources ?? []).map(r => (
               <Paper key={r} withBorder radius="md" px="sm" py={6} bg="var(--nx-color-surface-sunken)">
+                <Stack gap="xs">
                 <Group justify="space-between" wrap="nowrap">
                   <Text size="sm" ff="monospace" truncate>{r}</Text>
                   <ActionIcon
@@ -712,6 +725,9 @@ const Clients = () => {
                     <X size={13} />
                   </ActionIcon>
                 </Group>
+                <TextInput label="Trusted consent label" placeholder="Customer conversations" value={resourcesClient?.resourceMetadata?.[r]?.label ?? ''} onChange={e => saveResourceMetadata(r, 'label', e.currentTarget.value)} />
+                <TextInput label="Trusted consent description" placeholder="Read and update conversations you have access to." value={resourcesClient?.resourceMetadata?.[r]?.description ?? ''} onChange={e => saveResourceMetadata(r, 'description', e.currentTarget.value)} />
+                </Stack>
               </Paper>
             ))}
           </Stack>

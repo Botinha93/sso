@@ -205,7 +205,10 @@ export const authorizeSchema = z.object({
   code_challenge_method: z.enum(["S256", "plain"]).optional(),
   consent: z.enum(["approve", "deny"]).optional(),
   password_warning: z.enum(["continue"]).optional(),
-  response_mode: z.enum(["query", "fragment", "form_post"]).optional()
+  response_mode: z.enum(["query", "fragment", "form_post"]).optional(),
+  nexushub_profile: z.literal("nexushub:1").optional(),
+  nexushub_installation_id: z.string().trim().min(1).max(200).optional(),
+  resource_audience: z.string().trim().min(1).max(512).optional()
 });
 
 export const authorizationCodeTokenSchema = z.object({
@@ -384,10 +387,12 @@ export const createClientSchema = z.object({
   grants: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"])).min(1),
   requirePkce: z.boolean().default(false),
   resources: z.array(z.string().min(1)).default([]),
+  resourceMetadata: z.record(z.object({ label: z.string().trim().min(1).max(120), description: z.string().trim().min(1).max(500) })).default({}),
   flowIds: z.array(z.string().min(1)).default([]),
   accessTokenTtlSeconds: accessTokenTtlSchema.optional(),
   refreshTokenTtlSeconds: refreshTokenTtlSchema.optional()
 }).superRefine((input, ctx) => {
+  for (const resource of Object.keys(input.resourceMetadata)) if (!input.resources.includes(resource)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["resourceMetadata", resource], message: "Metadata may only describe a configured resource audience" });
   if (input.grants.includes("authorization_code") && input.redirectUris.length === 0) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -406,6 +411,7 @@ export const updateClientSchema = z.object({
   grants: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"])).optional(),
   requirePkce: z.boolean().optional(),
   resources: z.array(z.string().min(1)).optional(),
+  resourceMetadata: z.record(z.object({ label: z.string().trim().min(1).max(120), description: z.string().trim().min(1).max(500) })).optional(),
   flowIds: z.array(z.string().min(1)).optional(),
   accessTokenTtlSeconds: accessTokenTtlSchema.nullable().optional(),
   refreshTokenTtlSeconds: refreshTokenTtlSchema.nullable().optional()
@@ -849,7 +855,10 @@ export const tokenExchangeSchema = z.object({
   audience: z.string().optional(),
   scope: z.string().optional(),
   client_id: z.string().optional(),
-  client_secret: z.string().optional()
+  client_secret: z.string().optional(),
+  /** Opt-in NexusHub delegation profile; generic RFC 8693 remains unchanged. */
+  nexushub_profile: z.literal("nexushub:1").optional(),
+  nexushub_installation_id: z.string().trim().min(1).max(200).optional()
 });
 
 // ---------------------------------------------------------------------------

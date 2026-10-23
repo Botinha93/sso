@@ -5,7 +5,8 @@
   "redirectPath": "/auth/callback",
   "grantTypes": [
     "authorization_code",
-    "refresh_token"
+    "refresh_token",
+    "token_exchange"
   ],
   "responseTypes": [
     "code"

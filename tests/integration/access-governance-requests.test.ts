@@ -149,17 +149,14 @@ test("access governance request intake and listing", async (t) => {
   assert.equal(approved.id, created.id);
   assert.equal(approved.status, "approved");
 
-  const usersAfterApprovalResponse = await app.inject({
+  const approvedRolesResponse = await app.inject({
     method: "GET",
-    url: "/api/admin/users",
-    headers: {
-      cookie: sid
-    }
+    url: `/api/admin/users/${subject.id}/roles`,
+    headers: { cookie: sid }
   });
-  assert.equal(usersAfterApprovalResponse.statusCode, 200);
-  const usersAfterApproval = usersAfterApprovalResponse.json() as Array<{ id: string; roles: string[] }>;
-  const approvedSubject = usersAfterApproval.find((user) => user.id === subject.id);
-  assert.ok(approvedSubject?.roles.includes(role.name));
+  assert.equal(approvedRolesResponse.statusCode, 200);
+  const approvedRoles = approvedRolesResponse.json() as { roleIds: string[] };
+  assert.ok(approvedRoles.roleIds.includes(role.id), "approval should assign the requested role to the subject");
 
   const secondRequestResponse = await app.inject({
     method: "POST",
@@ -254,18 +251,15 @@ test("access governance request intake and listing", async (t) => {
   const expiredRequests = expiredListResponse.json() as Array<{ id: string; status: string }>;
   assert.ok(expiredRequests.some((request) => request.id === expiringRequest.id && request.status === "expired"));
 
-  const usersAfterExpiryResponse = await app.inject({
+  const rolesAfterExpiryResponse = await app.inject({
     method: "GET",
-    url: "/api/admin/users",
-    headers: {
-      cookie: sid
-    }
+    url: `/api/admin/users/${subject.id}/roles`,
+    headers: { cookie: sid }
   });
-  assert.equal(usersAfterExpiryResponse.statusCode, 200);
-  const usersAfterExpiry = usersAfterExpiryResponse.json() as Array<{ id: string; roles: string[] }>;
-  const subjectAfterExpiry = usersAfterExpiry.find((user) => user.id === subject.id);
-  assert.ok(subjectAfterExpiry?.roles.includes(role.name));
-  assert.equal(subjectAfterExpiry?.roles.includes(expiringRole.name), false);
+  assert.equal(rolesAfterExpiryResponse.statusCode, 200);
+  const rolesAfterExpiry = rolesAfterExpiryResponse.json() as { roleIds: string[] };
+  assert.ok(rolesAfterExpiry.roleIds.includes(role.id));
+  assert.equal(rolesAfterExpiry.roleIds.includes(expiringRole.id), false);
 
   const invalidTransitionResponse = await app.inject({
     method: "POST",

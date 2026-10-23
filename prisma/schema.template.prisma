@@ -72,12 +72,31 @@ model Client {
   grantsJson             String  @map("grants_json")
   requirePkce            Int     @map("require_pkce")
   resourcesJson          String  @default("[]") @map("resources_json")
+  resourceMetadataJson   String  @default("{}") @map("resource_metadata_json")
   flowIdsJson            String  @default("[]") @map("flow_ids_json")
   accessTokenTtlSeconds  Int?    @map("access_token_ttl_seconds")
   refreshTokenTtlSeconds Int?    @map("refresh_token_ttl_seconds")
   createdAt              String  @map("created_at")
 
   @@map("oauth_clients")
+}
+
+model NexusBusManagementEnrollment {
+  enrollmentId       String  @id @map("enrollment_id")
+  installationId     String  @unique @map("installation_id")
+  serviceIdentityId  String  @unique @map("service_identity_id")
+  credentialId       String  @unique @map("credential_id")
+  credentialHash     String  @map("credential_hash")
+  organizationId     String  @map("organization_id")
+  projectId          String? @map("project_id")
+  tenant             String
+  app                String
+  rolesJson          String  @map("roles_json")
+  status             String
+  createdAt          String  @map("created_at")
+  revokedAt          String? @map("revoked_at")
+
+  @@map("nexusbus_management_enrollments")
 }
 
 model Scope {

@@ -165,6 +165,33 @@ export class JwtService {
     return { accessToken, tokenType: "Bearer", expiresIn: accessTtl, scope: scopeValue };
   }
 
+  async issueNexusBusManagementToken(params: {
+    subject: string;
+    tenant: string;
+    app: string;
+    hubScope: { organizationId: string; projectId?: string };
+    roles: string[];
+    tokenId: string;
+    lifetimeSeconds: number;
+  }) {
+    const now = Math.floor(Date.now() / 1000);
+    const lifetimeSeconds = Math.min(300, Math.max(1, Math.floor(params.lifetimeSeconds)));
+    return await new SignJWT({
+      tenant: params.tenant,
+      app: params.app,
+      roles: [...params.roles],
+      hub_scope: { ...params.hubScope }
+    })
+      .setProtectedHeader({ alg: "RS256", kid: this.keys.kid })
+      .setIssuer(this.appConfig.issuer)
+      .setAudience("nexusbus-management")
+      .setSubject(params.subject)
+      .setJti(params.tokenId)
+      .setIssuedAt(now)
+      .setExpirationTime(now + lifetimeSeconds)
+      .sign(this.keys.privateKey);
+  }
+
   async issueUserAccessToken(params: {
     user: User;
     client: OAuthClient;

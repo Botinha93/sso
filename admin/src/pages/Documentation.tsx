@@ -317,6 +317,8 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'DELETE', path: '/api/portal/account', auth: 'session+csrf', description: 'Deletes current portal account and revokes active sessions/tokens.' },
   { method: 'POST', path: '/api/portal/avatar', auth: 'session+csrf', description: 'Uploads current user avatar (multipart image file) and returns the resolved avatar URL.' },
   { method: 'GET', path: '/api/account/password-expiration', auth: 'session', description: 'Returns the current session user password expiration status used by the hosted SSO password warning screen.' },
+  { method: 'GET', path: '/api/account/nexushub-consents', auth: 'session', description: 'Lists active NexusHub delegated-user grants for the current account.' },
+  { method: 'DELETE', path: '/api/account/nexushub-consents', auth: 'session+csrf', description: 'Revokes one NexusHub delegated-user grant by client, installation, and resource tuple.' },
   { method: 'GET', path: '/api/account/mfa/totp', auth: 'session', description: 'Returns TOTP enrollment status for the current account.' },
   { method: 'POST', path: '/api/account/mfa/totp/enroll', auth: 'session+csrf', description: 'Starts TOTP enrollment and returns secret/otpauth URI.' },
   { method: 'POST', path: '/api/account/mfa/totp/verify', auth: 'session+csrf', description: 'Verifies TOTP enrollment code and enables MFA.' },

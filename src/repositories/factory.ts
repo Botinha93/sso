@@ -11,6 +11,9 @@ import type {
   AuthorizationCodeRepository,
   ClientRepository,
   ConsentRepository,
+  NexusHubDelegationConsentRepository,
+  NexusHubDelegationTokenRepository,
+  NexusBusManagementEnrollmentRepository,
   DeprovisioningQueueRepository,
   ElevationSessionRepository,
   ElevationRequestRepository,
@@ -75,6 +78,9 @@ export interface RepositoryBundle {
   webauthnCredentialRepository: WebauthnCredentialRepository;
   authorizationCodeRepository: AuthorizationCodeRepository;
   consentRepository: ConsentRepository;
+  nexusHubDelegationConsentRepository: NexusHubDelegationConsentRepository;
+  nexusHubDelegationTokenRepository: NexusHubDelegationTokenRepository;
+  nexusBusManagementEnrollmentRepository: NexusBusManagementEnrollmentRepository;
   refreshTokenRepository: RefreshTokenRepository;
   accessTokenRepository: AccessTokenRepository;
   auditRepository: AuditRepository;

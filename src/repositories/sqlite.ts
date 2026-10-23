@@ -262,6 +262,7 @@ export class SqliteDatabase {
         image_url TEXT,
         url TEXT,
         resources_json TEXT NOT NULL DEFAULT '[]',
+        resource_metadata_json TEXT NOT NULL DEFAULT '{}',
         created_at TEXT NOT NULL
       );
 
@@ -961,6 +962,9 @@ export class SqliteDatabase {
     const hasResourcesColumn = clientColumns.some((column) => column.name === "resources_json");
     if (!hasResourcesColumn) {
       this.connection.exec("ALTER TABLE oauth_clients ADD COLUMN resources_json TEXT NOT NULL DEFAULT '[]';");
+    }
+    if (!clientColumns.some((column) => column.name === "resource_metadata_json")) {
+      this.connection.exec("ALTER TABLE oauth_clients ADD COLUMN resource_metadata_json TEXT NOT NULL DEFAULT '{}';");
     }
     const hasFlowIdsColumn = clientColumns.some((column) => column.name === "flow_ids_json");
     if (!hasFlowIdsColumn) {

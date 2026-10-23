@@ -8,6 +8,7 @@ import type {
   AuditEvent,
   AuthorizationCode,
   Consent,
+  NexusHubDelegationConsent,
   ElevationRequest,
   ElevationSession,
   EventHook,
@@ -194,6 +195,52 @@ export interface ConsentRepository {
   findByUserAndClient(userId: string, clientId: string): Awaitable<Consent | undefined>;
   list(): Awaitable<Consent[]>;
   revoke(id: string): Awaitable<void>;
+}
+
+export interface NexusHubDelegationConsentRepository {
+  upsert(input: Omit<NexusHubDelegationConsent, "id" | "createdAt" | "updatedAt" | "revokedAt">): Awaitable<NexusHubDelegationConsent>;
+  findActive(input: Pick<NexusHubDelegationConsent, "userId" | "clientId" | "installationId" | "resource">, now?: Date): Awaitable<NexusHubDelegationConsent | undefined>;
+  listByUser(userId: string, now?: Date): Awaitable<NexusHubDelegationConsent[]>;
+  revoke(input: Pick<NexusHubDelegationConsent, "userId" | "clientId" | "installationId" | "resource">, at?: Date): Awaitable<void>;
+}
+
+export type NexusHubDelegationToken = {
+  tokenId: string;
+  userId: string;
+  clientId: string;
+  installationId: string;
+  resource: string;
+  expiresAt: Date;
+  revokedAt?: Date;
+};
+
+export interface NexusHubDelegationTokenRepository {
+  record(input: NexusHubDelegationToken): Awaitable<boolean>;
+  findActive(tokenId: string, now?: Date): Awaitable<NexusHubDelegationToken | undefined>;
+  revokeGrant(input: Pick<NexusHubDelegationToken, "userId" | "clientId" | "installationId" | "resource">, at?: Date): Awaitable<string[]>;
+}
+
+export type NexusBusManagementEnrollment = {
+  enrollmentId: string;
+  installationId: string;
+  serviceIdentityId: string;
+  credentialId: string;
+  credentialHash: string;
+  organizationId: string;
+  projectId?: string;
+  tenant: string;
+  app: string;
+  roles: string[];
+  status: "active" | "revoked";
+  createdAt: Date;
+  revokedAt?: Date;
+};
+
+export interface NexusBusManagementEnrollmentRepository {
+  create(input: Omit<NexusBusManagementEnrollment, "createdAt" | "revokedAt" | "status">): Promise<NexusBusManagementEnrollment>;
+  findByServiceIdentity(serviceIdentityId: string): Promise<NexusBusManagementEnrollment | undefined>;
+  findByCredential(credentialId: string): Promise<NexusBusManagementEnrollment | undefined>;
+  revoke(serviceIdentityId: string, at?: Date): Promise<boolean>;
 }
 
 export interface RefreshTokenRepository {

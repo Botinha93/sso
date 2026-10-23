@@ -30,6 +30,7 @@ export class ClientService {
     grants: GrantType[];
     requirePkce: boolean;
     resources?: string[];
+    resourceMetadata?: Record<string, { label: string; description: string }>;
     flowIds?: string[];
     accessTokenTtlSeconds?: number;
     refreshTokenTtlSeconds?: number;
@@ -38,6 +39,7 @@ export class ClientService {
     return this.clientRepository.create({
       ...input,
       resources: input.resources ?? [],
+      resourceMetadata: input.resourceMetadata ?? {},
       flowIds: input.flowIds ?? []
     });
   }
@@ -51,6 +53,7 @@ export class ClientService {
     grants: GrantType[];
     requirePkce: boolean;
     resources: string[];
+    resourceMetadata: Record<string, { label: string; description: string }>;
     flowIds: string[];
     accessTokenTtlSeconds: number | null;
     refreshTokenTtlSeconds: number | null;
@@ -67,12 +70,22 @@ export class ClientService {
     if (input.grants !== undefined) patch.grants = input.grants;
     if (input.requirePkce !== undefined) patch.requirePkce = input.requirePkce;
     if (input.resources !== undefined) patch.resources = input.resources;
+    if (input.resourceMetadata !== undefined) patch.resourceMetadata = input.resourceMetadata;
     if (input.flowIds !== undefined) patch.flowIds = input.flowIds;
     if (input.accessTokenTtlSeconds !== undefined) {
       patch.accessTokenTtlSeconds = input.accessTokenTtlSeconds === null ? undefined : input.accessTokenTtlSeconds;
     }
     if (input.refreshTokenTtlSeconds !== undefined) {
       patch.refreshTokenTtlSeconds = input.refreshTokenTtlSeconds === null ? undefined : input.refreshTokenTtlSeconds;
+    }
+    const current = await this.clientRepository.findById(id);
+    if (!current) return undefined;
+    if (input.resources !== undefined && input.resourceMetadata === undefined) {
+      patch.resourceMetadata = Object.fromEntries(Object.entries(current.resourceMetadata ?? {}).filter(([resource]) => input.resources!.includes(resource)));
+    }
+    const target = { ...current, ...patch };
+    if (Object.keys(target.resourceMetadata ?? {}).some((resource) => !target.resources.includes(resource))) {
+      throw new Error("Resource metadata may only describe an audience configured on this client");
     }
     return this.clientRepository.update(id, patch);
   }

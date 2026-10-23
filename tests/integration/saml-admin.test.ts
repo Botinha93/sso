@@ -1,32 +1,36 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, before, after } from "node:test";
+import assert from "node:assert/strict";
 import { buildApp } from "../../src/app.js";
 import type { FastifyInstance } from "fastify";
+import { createTestContext } from "../helpers/test-app.js";
 
 describe("SAML Admin Routes", () => {
   let app: FastifyInstance;
   let adminCookie: string;
 
-  beforeAll(async () => {
-    app = await buildApp();
+  before(async () => {
+    const context = await createTestContext("integration-saml-admin");
+    app = context.app;
 
-    // login as admin
     const loginRes = await app.inject({
       method: "POST",
       url: "/auth/login",
       payload: {
-        username: "admin",
-        password: "northstar-default-admin-password"
+        email: context.admin.username,
+        password: context.admin.password,
+        clientId: "sso-admin-ui",
+        scope: ["openid", "profile", "email"]
       }
     });
 
-    expect(loginRes.statusCode).toBe(200);
+    assert.equal(loginRes.statusCode, 200, loginRes.body);
     const setCookie = loginRes.headers["set-cookie"];
     adminCookie = Array.isArray(setCookie)
       ? setCookie.map((c) => c.split(";")[0]).join("; ")
       : String(setCookie).split(";")[0];
   });
 
-  afterAll(async () => {
+  after(async () => {
     await app.close();
   });
 
@@ -46,11 +50,11 @@ describe("SAML Admin Routes", () => {
         }
       });
 
-      expect(res.statusCode).toBe(201);
+      assert.equal(res.statusCode, 201);
       const body = JSON.parse(res.body);
-      expect(body).toHaveProperty("id");
-      expect(body.entityId).toBe("https://example.com/sp");
-      expect(body.enabled).toBe(true);
+      assert.ok(Object.hasOwn(body, "id"));
+      assert.equal(body.entityId, "https://example.com/sp");
+      assert.equal(body.enabled, true);
     });
 
     it("should reject with invalid ACS URL", async () => {
@@ -68,12 +72,12 @@ describe("SAML Admin Routes", () => {
         }
       });
 
-      expect(res.statusCode).toBe(400);
+      assert.equal(res.statusCode, 400);
     });
   });
 
   describe("GET /api/admin/saml/service-providers", () => {
-    beforeAll(async () => {
+    before(async () => {
       // Create a test provider
       await app.inject({
         method: "POST",
@@ -97,13 +101,13 @@ describe("SAML Admin Routes", () => {
         headers: { cookie: adminCookie }
       });
 
-      expect(res.statusCode).toBe(200);
+      assert.equal(res.statusCode, 200);
       const body = JSON.parse(res.body);
-      expect(body).toHaveProperty("items");
-      expect(Array.isArray(body.items)).toBe(true);
-      expect(body).toHaveProperty("total");
-      expect(body).toHaveProperty("limit");
-      expect(body).toHaveProperty("offset");
+      assert.ok(Object.hasOwn(body, "items"));
+      assert.equal(Array.isArray(body.items), true);
+      assert.ok(Object.hasOwn(body, "total"));
+      assert.ok(Object.hasOwn(body, "limit"));
+      assert.ok(Object.hasOwn(body, "offset"));
     });
 
     it("should respect pagination limit parameter", async () => {
@@ -113,17 +117,17 @@ describe("SAML Admin Routes", () => {
         headers: { cookie: adminCookie }
       });
 
-      expect(res.statusCode).toBe(200);
+      assert.equal(res.statusCode, 200);
       const body = JSON.parse(res.body);
-      expect(body.limit).toBe(2);
-      expect(body.offset).toBe(0);
+      assert.equal(body.limit, 2);
+      assert.equal(body.offset, 0);
     });
   });
 
   describe("GET /api/admin/saml/service-providers/:id", () => {
     let providerId: string;
 
-    beforeAll(async () => {
+    before(async () => {
       // Create a test provider and extract ID
       const createRes = await app.inject({
         method: "POST",
@@ -150,10 +154,10 @@ describe("SAML Admin Routes", () => {
         headers: { cookie: adminCookie }
       });
 
-      expect(res.statusCode).toBe(200);
+      assert.equal(res.statusCode, 200);
       const body = JSON.parse(res.body);
-      expect(body.id).toBe(providerId);
-      expect(body.entityId).toMatch(/fetch-sp/);
+      assert.equal(body.id, providerId);
+      assert.match(body.entityId, /fetch-sp/);
     });
 
     it("should return 404 for non-existent provider", async () => {
@@ -163,14 +167,14 @@ describe("SAML Admin Routes", () => {
         headers: { cookie: adminCookie }
       });
 
-      expect(res.statusCode).toBe(404);
+      assert.equal(res.statusCode, 404);
     });
   });
 
   describe("PATCH /api/admin/saml/service-providers/:id", () => {
     let providerId: string;
 
-    beforeAll(async () => {
+    before(async () => {
       const createRes = await app.inject({
         method: "POST",
         url: "/api/admin/saml/service-providers",
@@ -201,10 +205,10 @@ describe("SAML Admin Routes", () => {
         }
       });
 
-      expect(res.statusCode).toBe(200);
+      assert.equal(res.statusCode, 200);
       const body = JSON.parse(res.body);
-      expect(body.enabled).toBe(false);
-      expect(body.sloUrl).toBe("https://update-sp.com/saml/slo");
+      assert.equal(body.enabled, false);
+      assert.equal(body.sloUrl, "https://update-sp.com/saml/slo");
     });
 
     it("should apply partial updates", async () => {
@@ -218,18 +222,18 @@ describe("SAML Admin Routes", () => {
         }
       });
 
-      expect(res.statusCode).toBe(200);
+      assert.equal(res.statusCode, 200);
       const body = JSON.parse(res.body);
-      expect(body.nameIdFormat).toBe("emailAddress");
+      assert.equal(body.nameIdFormat, "emailAddress");
       // Verify other fields are unchanged
-      expect(body.sloUrl).toBe("https://update-sp.com/saml/slo");
+      assert.equal(body.sloUrl, "https://update-sp.com/saml/slo");
     });
   });
 
   describe("DELETE /api/admin/saml/service-providers/:id", () => {
     let providerId: string;
 
-    beforeAll(async () => {
+    before(async () => {
       const createRes = await app.inject({
         method: "POST",
         url: "/api/admin/saml/service-providers",
@@ -256,7 +260,7 @@ describe("SAML Admin Routes", () => {
         cookies: { csrf_token: "test-token" }
       });
 
-      expect(deleteRes.statusCode).toBe(204);
+      assert.equal(deleteRes.statusCode, 204);
 
       // Verify it's deleted
       const getRes = await app.inject({
@@ -265,7 +269,7 @@ describe("SAML Admin Routes", () => {
         headers: { cookie: adminCookie }
       });
 
-      expect(getRes.statusCode).toBe(404);
+      assert.equal(getRes.statusCode, 404);
     });
   });
 
@@ -277,11 +281,11 @@ describe("SAML Admin Routes", () => {
         headers: { cookie: adminCookie }
       });
 
-      expect(res.statusCode).toBe(200);
+      assert.equal(res.statusCode, 200);
       const body = JSON.parse(res.body);
-      expect(body).toHaveProperty("items");
-      expect(Array.isArray(body.items)).toBe(true);
-      expect(body).toHaveProperty("total");
+      assert.ok(Object.hasOwn(body, "items"));
+      assert.equal(Array.isArray(body.items), true);
+      assert.ok(Object.hasOwn(body, "total"));
     });
 
     it("should support pagination on audit listing", async () => {
@@ -291,10 +295,10 @@ describe("SAML Admin Routes", () => {
         headers: { cookie: adminCookie }
       });
 
-      expect(res.statusCode).toBe(200);
+      assert.equal(res.statusCode, 200);
       const body = JSON.parse(res.body);
-      expect(body.limit).toBe(10);
-      expect(body.offset).toBe(0);
+      assert.equal(body.limit, 10);
+      assert.equal(body.offset, 0);
     });
   });
 });

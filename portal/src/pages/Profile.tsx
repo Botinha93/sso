@@ -45,9 +45,9 @@ interface Props {
   user: PortalUser
 }
 
-type Section = 'profile' | 'password' | 'totp' | 'danger'
+type Section = 'profile' | 'password' | 'totp' | 'nexushub' | 'danger'
 
-const PROFILE_SECTIONS: Section[] = ['profile', 'password', 'totp', 'danger']
+const PROFILE_SECTIONS: Section[] = ['profile', 'password', 'totp', 'nexushub', 'danger']
 
 function resolveProfileSection(value: string | null): Section {
   return PROFILE_SECTIONS.includes(value as Section) ? (value as Section) : 'profile'
@@ -75,6 +75,7 @@ export default function Profile({ user }: Props) {
               <Tabs.Tab value="profile" leftSection={<User size={16} />}>{t('profile.nav.profile')}</Tabs.Tab>
               <Tabs.Tab value="password" leftSection={<KeyRound size={16} />}>{t('profile.nav.password')}</Tabs.Tab>
               <Tabs.Tab value="totp" leftSection={<ShieldCheck size={16} />}>{t('profile.nav.twoFactor')}</Tabs.Tab>
+              <Tabs.Tab value="nexushub" leftSection={<Fingerprint size={16} />}>NexusHub access</Tabs.Tab>
               <Tabs.Tab value="danger" color="red" leftSection={<AlertTriangle size={16} />}>{t('profile.nav.account')}</Tabs.Tab>
             </Tabs.List>
           </Tabs>
@@ -85,9 +86,56 @@ export default function Profile({ user }: Props) {
         {section === 'profile' && <ProfileSection user={user} />}
         {section === 'password' && <PasswordSection />}
         {section === 'totp' && <TotpSection />}
+        {section === 'nexushub' && <NexusHubConsentSection />}
         {section === 'danger' && <DangerSection user={user} onDeleted={() => navigate('/')} />}
       </Box>
     </PortalShell>
+  )
+}
+
+function NexusHubConsentSection() {
+  const [consents, setConsents] = useState<Array<{ id: string; clientId: string; installationId: string; resource: string; scopes: string[]; expiresAt: string }>>([])
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  const load = async () => {
+    const response = await fetch('/api/account/nexushub-consents', { credentials: 'include' })
+    if (!response.ok) throw new Error(`Could not load NexusHub access (${response.status})`)
+    const data = await response.json() as { consents: typeof consents }
+    setConsents(data.consents)
+  }
+  useEffect(() => { void load().catch((e) => setError(e.message)).finally(() => setLoading(false)) }, [])
+  const revoke = async (consent: typeof consents[number]) => {
+    setError('')
+    try {
+      const csrfResponse = await fetch('/api/csrf-token', { credentials: 'include' })
+      if (!csrfResponse.ok) throw new Error('Could not prepare the account security request')
+      const csrf = await csrfResponse.json() as { csrf_token: string }
+      const response = await fetch('/api/account/nexushub-consents', {
+        method: 'DELETE', credentials: 'include', headers: { 'content-type': 'application/json', 'x-csrf-token': csrf.csrf_token },
+        body: JSON.stringify({ client_id: consent.clientId, installation_id: consent.installationId, resource: consent.resource })
+      })
+      if (!response.ok) throw new Error(`Could not revoke NexusHub access (${response.status})`)
+      await load()
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not revoke access') }
+  }
+  return (
+    <SectionCard title="NexusHub delegated access" description="Applications can act for you only within these approved resources and installations. Grants expire after 30 days.">
+      <Stack gap="sm">
+        {error && <Alert color="red" role="alert">{error}</Alert>}
+        {loading ? <Text size="sm">Loading…</Text> : consents.length === 0 ? <Text size="sm" c="dimmed">No active NexusHub grants.</Text> : consents.map((consent) => (
+          <Paper key={consent.id} withBorder p="sm" radius="md">
+            <Group justify="space-between" align="flex-start" wrap="nowrap">
+              <Stack gap={2} style={{ minWidth: 0 }}>
+                <Text size="sm" fw={600} style={{ overflowWrap: 'anywhere' }}>{consent.resource}</Text>
+                <Text size="xs" c="dimmed">Scopes: {consent.scopes.join(', ') || 'none'}</Text>
+                <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>Installation {consent.installationId} · expires {new Date(consent.expiresAt).toLocaleDateString()}</Text>
+              </Stack>
+              <Button size="xs" color="red" variant="light" leftSection={<Trash2 size={14} />} aria-label={`Revoke NexusHub access to ${consent.resource} for installation ${consent.installationId}`} onClick={() => void revoke(consent)}>Revoke</Button>
+            </Group>
+          </Paper>
+        ))}
+      </Stack>
+    </SectionCard>
   )
 }
 

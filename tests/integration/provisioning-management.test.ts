@@ -44,8 +44,8 @@ test("admin provisioning mappings and reconcile jobs lifecycle", async (t) => {
     },
     payload: {
       name: "workday_manager",
-      sourceAttribute: "enterprise.manager",
-      targetAttribute: "customAttributes.managerId",
+      sourceAttribute: "enterprise_manager",
+      targetAttribute: "customAttributes.manager_id",
       transformExpression: "value?.toLowerCase()",
       enabled: true
     }
@@ -55,6 +55,36 @@ test("admin provisioning mappings and reconcile jobs lifecycle", async (t) => {
   const createdMapping = createMappingResponse.json() as { id: string; name: string; enabled: boolean };
   assert.equal(createdMapping.name, "workday_manager");
   assert.equal(createdMapping.enabled, true);
+
+  const attributeResponse = await app.inject({
+    method: "POST",
+    url: "/api/admin/user-attributes",
+    headers: {
+      cookie: authCookies,
+      "x-csrf-token": csrfToken
+    },
+    payload: {
+      key: "manager_id",
+      name: "Manager ID",
+      description: "External manager identifier used by provisioning.",
+      type: "text",
+      enabled: true
+    }
+  });
+  assert.equal(attributeResponse.statusCode, 201, attributeResponse.body);
+  const sourceAttributeResponse = await app.inject({
+    method: "POST",
+    url: "/api/admin/user-attributes",
+    headers: { cookie: authCookies, "x-csrf-token": csrfToken },
+    payload: {
+      key: "enterprise_manager",
+      name: "Enterprise Manager",
+      description: "Source manager identifier from the HR system.",
+      type: "text",
+      enabled: true
+    }
+  });
+  assert.equal(sourceAttributeResponse.statusCode, 201, sourceAttributeResponse.body);
 
   const createUserResponse = await app.inject({
     method: "POST",
@@ -70,8 +100,8 @@ test("admin provisioning mappings and reconcile jobs lifecycle", async (t) => {
       givenName: "Mapping",
       familyName: "Target",
       customAttributes: {
-        "enterprise.manager": "MANAGER-123",
-        managerId: "stale"
+        enterprise_manager: "MANAGER-123",
+        manager_id: "stale"
       },
       roleIds: [],
       groupIds: []
@@ -90,7 +120,7 @@ test("admin provisioning mappings and reconcile jobs lifecycle", async (t) => {
 
   assert.equal(listMappingsResponse.statusCode, 200);
   const mappings = listMappingsResponse.json() as Array<{ id: string; sourceAttribute: string }>;
-  assert.ok(mappings.some((mapping) => mapping.id === createdMapping.id && mapping.sourceAttribute === "enterprise.manager"));
+  assert.ok(mappings.some((mapping) => mapping.id === createdMapping.id && mapping.sourceAttribute === "enterprise_manager"));
 
   const reconcileResponse = await app.inject({
     method: "POST",
@@ -138,7 +168,7 @@ test("admin provisioning mappings and reconcile jobs lifecycle", async (t) => {
   assert.equal(usersResponse.statusCode, 200);
   const users = usersResponse.json() as Array<{ id: string; customAttributes: Record<string, string> }>;
   const reconciledUser = users.find((user) => user.id === createdUser.id);
-  assert.equal(reconciledUser?.customAttributes.managerId, "manager-123");
+  assert.equal(reconciledUser?.customAttributes.manager_id, "manager-123");
 
   const listJobsResponse = await app.inject({
     method: "GET",

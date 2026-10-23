@@ -28,10 +28,18 @@ const loadProfile = async () => {
   }
   if (profile.clientName !== "NexusHub" ||
       profile.tokenEndpointAuthMethod !== "client_secret_post" ||
-      !Array.isArray(profile.grantTypes) || profile.grantTypes.length !== 2 ||
+      !Array.isArray(profile.grantTypes) || profile.grantTypes.length !== 3 ||
       !profile.grantTypes.includes("authorization_code") || !profile.grantTypes.includes("refresh_token") ||
+      !profile.grantTypes.includes("token_exchange") ||
       !Array.isArray(profile.responseTypes) || profile.responseTypes.length !== 1 || profile.responseTypes[0] !== "code") {
     throw new Error("Invalid NexusHub OIDC client profile; expected the reviewed confidential authorization-code profile");
+  }
+  // The Hub API registers this exact route in services/hub-api/src/oidc.ts.
+  // Allowing another syntactically safe path here would issue a client that
+  // cannot complete login, while keeping profileVersion at 1 would make that
+  // unreviewed contract change look compatible.
+  if (profile.redirectPath !== "/auth/callback") {
+    throw new Error("NexusHub OIDC profile v1 redirectPath must be exactly /auth/callback");
   }
   if (typeof profile.redirectPath !== "string" || !profile.redirectPath.startsWith("/") ||
       profile.redirectPath.startsWith("//") || profile.redirectPath.includes("\\") ||
@@ -135,7 +143,7 @@ const parseBoundedJson = async (response, maxBytes, description) => {
   }
 };
 
-const discover = async (issuer) => {
+const discover = async (issuer, profile) => {
   const discoveryUrl = new URL(".well-known/openid-configuration", `${issuer.href.replace(/\/$/, "")}/`);
   const discovery = await fetchJson(discoveryUrl, { redirect: "error" });
   const expectedIssuer = issuer.href.replace(/\/$/, "");
@@ -179,7 +187,7 @@ const run = async () => {
   // Discovery completes before a local marker is created or any credentials are
   // read. The preflight is safe to run during development: it sends no token and
   // performs no remote mutation.
-  const discovery = await discover(issuer);
+  const discovery = await discover(issuer, profile);
   if (preflight) {
     console.log(`NexusID discovery is compatible for issuer ${discovery.issuer}.`);
     console.log(`Registration endpoint: ${discovery.registration_endpoint}`);
@@ -187,6 +195,14 @@ const run = async () => {
     console.log("No operator credential was read and no client registration was attempted.");
     console.log("Registration still requires the broad clients:add permission; NexusID has no Hub-specific permission, profile lookup, or idempotency key.");
     return;
+  }
+
+  // NexusID currently exposes only broad clients:add authorization for this
+  // registration endpoint. Require an explicit operator acknowledgement so a
+  // Hub installer cannot silently treat this manual adoption path as a
+  // least-privilege, idempotent managed provisioning API.
+  if (process.env.NEXUSID_ACKNOWLEDGE_BROAD_CLIENTS_ADD !== "true") {
+    throw new Error("NexusID has no Hub-scoped, idempotent client provisioning API. For this operator-managed RFC 7591 registration only, set NEXUSID_ACKNOWLEDGE_BROAD_CLIENTS_ADD=true after reviewing docs/NEXUSHUB_ADOPTION.md; managed NexusHub provisioning remains gated on issuer-side ownership, authorization, transactional profile storage, and secret recovery.");
   }
 
   const outputPath = path.resolve(required("NEXUSHUB_OIDC_CONFIG_OUT"));
@@ -266,7 +282,9 @@ const run = async () => {
 
     try {
       await file.truncate(0);
-      await file.writeFile(`${JSON.stringify(config, null, 2)}\n`, { encoding: "utf8" });
+      const contents = Buffer.from(`${JSON.stringify(config, null, 2)}\n`, "utf8");
+      const written = await file.write(contents, 0, contents.length, 0);
+      if (written.bytesWritten !== contents.length) throw new Error("Incomplete credential write");
       await file.sync();
     } catch {
       throw new Error(`NexusID registered client ${client.client_id}, but its credentials could not be saved at ${outputPath}. The reservation was retained; remove this client in NexusID Admin before retrying unless the returned secret can be recovered securely.`);

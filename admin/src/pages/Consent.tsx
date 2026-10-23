@@ -15,6 +15,8 @@ interface UiCustomization {
   backgroundCss?: string;
 }
 
+interface HubResourceMetadata { resource: string; label: string; description: string }
+
 async function fetchCsrfToken(): Promise<string> {
   const res = await fetch('/api/csrf-token', { credentials: 'include' });
   if (!res.ok) {
@@ -41,11 +43,16 @@ export default function Consent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ui, setUi] = useState<UiCustomization | null>(null);
+  const [hubResourceMetadata, setHubResourceMetadata] = useState<HubResourceMetadata | null>(null);
+  const [hubResourceChecked, setHubResourceChecked] = useState(false);
 
   const clientId = searchParams.get("client_id") || "Unknown App";
   const scope = searchParams.get("scope") || "openid";
   const scopes = scope.split(" ").filter(Boolean);
   const redirectUri = searchParams.get("redirect_uri") || "/";
+  const hubProfile = searchParams.get("nexushub_profile") === "nexushub:1";
+  const hubInstallationId = searchParams.get("nexushub_installation_id") || "";
+  const hubResource = searchParams.get("resource_audience") || "";
 
   React.useEffect(() => {
     void (async () => {
@@ -61,6 +68,18 @@ export default function Consent() {
       }
     })();
   }, [clientId]);
+
+  React.useEffect(() => {
+    if (!hubProfile || !clientId || !hubResource) { setHubResourceChecked(true); return }
+    void (async () => {
+      try {
+        const query = new URLSearchParams({ client_id: clientId, resource_audience: hubResource });
+        const res = await fetch(`/oauth/nexushub/resource-metadata?${query.toString()}`, { credentials: 'include' });
+        if (res.ok) setHubResourceMetadata(await res.json() as HubResourceMetadata);
+      } catch { /* Missing metadata disables approval below. */ }
+      finally { setHubResourceChecked(true) }
+    })();
+  }, [hubProfile, clientId, hubResource]);
 
   // The decision is recorded server-side (session + CSRF token) and then the
   // browser returns to /oauth/authorize, which finds the stored consent. A
@@ -81,7 +100,12 @@ export default function Consent() {
           client_id: searchParams.get("client_id"),
           redirect_uri: searchParams.get("redirect_uri"),
           scope,
-          decision
+          decision,
+          ...(hubProfile ? {
+            nexushub_profile: "nexushub:1",
+            nexushub_installation_id: hubInstallationId,
+            resource_audience: hubResource
+          } : {})
         })
       });
 
@@ -153,6 +177,21 @@ export default function Consent() {
             </Stack>
           </Paper>
 
+          {hubProfile && (
+            <Paper withBorder radius="md" p="md" bg="var(--nx-color-surface-sunken)">
+              <Text size="sm" fw={600} mb={4}>NexusHub cross-application access</Text>
+              <Text size="sm">Allow this Hub installation to act for you in the application below for 30 days.</Text>
+              {hubResourceMetadata ? <>
+                <Text size="sm" fw={600} mt="xs">{hubResourceMetadata.label}</Text>
+                <Text size="sm">{hubResourceMetadata.description}</Text>
+              </> : <Alert color="red" icon={<AlertCircle size={16} />} mt="sm" role="alert">
+                {hubResourceChecked ? `Unrecognized resource audience: ${hubResource}. An administrator must configure a trusted label and description before you can approve this request.` : 'Verifying the requested application with NexusID…'}
+              </Alert>}
+              <Text size="xs" c="dimmed" mt="xs" style={{ overflowWrap: 'anywhere' }}>Resource audience: {hubResource}</Text>
+              <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>Hub installation: {hubInstallationId}</Text>
+            </Paper>
+          )}
+
           {error && (
             <Alert color="red" icon={<AlertCircle size={16} />} role="alert">
               {error}
@@ -160,7 +199,7 @@ export default function Consent() {
           )}
 
           <Group grow gap="sm">
-            <Button onClick={handleApprove} disabled={loading} loading={loading} color={ui?.primaryColor}>
+            <Button onClick={handleApprove} disabled={loading || (hubProfile && (!hubResourceChecked || !hubResourceMetadata))} loading={loading} color={ui?.primaryColor}>
               {loading ? t('consent.approving') : t('consent.allowAccess')}
             </Button>
             <Button variant="default" onClick={handleDeny} disabled={loading}>

@@ -631,6 +631,34 @@ paths:
                     type: integer
                   iat:
                     type: integer
+  /oauth/nexushub/delegation/introspect:
+    post:
+      summary: Check a NexusHub delegated resource token
+      description: Authenticated NexusID client check bound to the exact registered Hub installation and source resource audience. Returns inactive after the corresponding user grant is revoked or the token expires.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, client_id, client_secret, resource_audience]
+              properties:
+                token: { type: string }
+                client_id: { type: string }
+                client_secret: { type: string, writeOnly: true }
+                resource_audience: { type: string, format: uri }
+      responses:
+        '200':
+          description: Active only for a live token bound to this Hub client and exact resource audience
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [active]
+                properties:
+                  active: { type: boolean }
+        '400': { description: Invalid request }
+        '401': { description: Client authentication failed }
   /oauth/token/revoke:
     post:
       summary: RFC7009 token revocation
@@ -4175,6 +4203,178 @@ paths:
           description: Service identity deleted successfully
         '404':
           description: Service identity not found
+
+  /api/admin/service-identities/{id}/nexushub-enrollment:
+    put:
+      summary: Bind one NexusHub installation to a service identity credential
+      description: Requires deployment-admin session authentication and the opt-in NEXUSID_NEXUSHUB_PROVISIONING_ENABLED flag. NexusID creates the immutable installation ID and pins the canonical HTTPS origin and profile nexushub:1.
+      tags: [Workload Identity]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [credentialId, publicOrigin]
+              properties:
+                credentialId: { type: string }
+                publicOrigin: { type: string, format: uri, example: https://hub.example.com }
+                adoptClientId: { type: string, description: Explicitly bind an existing exact-profile client for machine adopt-existing mode }
+      responses:
+        '201': { description: Enrollment created; installation ID and allowed profile are returned }
+        '200': { description: Exact existing binding returned idempotently }
+        '400': { description: Invalid origin or inactive credential }
+        '409': { description: Service identity is already bound to another installation }
+    delete:
+      summary: Revoke a NexusHub installation enrollment
+      tags: [Workload Identity]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: Enrollment revoked }
+        '404': { description: Active enrollment not found }
+
+  /api/nexushub/v1/client-profile:
+    put:
+      summary: Ensure or adopt the enrolled NexusHub OAuth client profile
+      description: Requires an active enrolled service identity bearer token with the dedicated NexusHub provisioning audience. The profile fields are issuer-derived. The Hub supplies its own secret; NexusID never returns it. Retries converge on an installation-derived reserved client ID. Adopt-existing only succeeds for that ID when the exact profile and supplied secret match.
+      tags: [Workload Identity]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [profileId, profileVersion, clientSecret]
+              properties:
+                profileId: { type: string, const: nexushub }
+                profileVersion: { type: integer, const: 1 }
+                mode: { type: string, enum: [ensure, adopt-existing], default: ensure }
+                clientId: { type: string, description: Must be the reserved ID derived by NexusID for this installation }
+                clientSecret: { type: string, minLength: 32, maxLength: 128, writeOnly: true }
+      responses:
+        '201': { description: Client profile created; secret is not included in the response }
+        '200': { description: Exact profile replay or existing client adoption; secret is not included }
+        '400': { description: Invalid profile request }
+        '401': { description: Missing or invalid service identity token }
+        '403': { description: Credential is not bound to the active installation enrollment }
+        '404': { description: Reserved client ID does not exist in adopt-existing mode }
+        '409': { description: Client ID is not installation-owned or existing client differs from the reviewed profile }
+        '503': { description: Provisioning unavailable or outcome is unknown; retry the same request }
+
+  /api/admin/service-identities/{id}/nexusbus-management-enrollment:
+    put:
+      summary: Enroll a service identity for NexusBus installation management
+      description: Opt-in NexusBus management profile. The exact organization/project, Bus tenant/app, and maximum roles must match the deployment-admin-approved NEXUSID_NEXUSBUS_MANAGEMENT_BINDINGS_JSON registry. The dedicated secret is returned once and is independent of service identity OAuth credentials.
+      tags: [Workload Identity]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organizationId, tenant, app, roles]
+              properties:
+                organizationId: { type: string }
+                projectId: { type: string }
+                tenant: { type: string }
+                app: { type: string }
+                roles:
+                  type: array
+                  minItems: 1
+                  uniqueItems: true
+                  items: { type: string, enum: [nexusbus.installation.read, nexusbus.installation.apply] }
+      responses:
+        '201':
+          description: Enrollment created; clientSecret is shown only once
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [enrollmentId, installationId, credentialId, clientId, clientSecret, audience, roles]
+                    properties:
+                      enrollmentId: { type: string }
+                      installationId: { type: string }
+                      credentialId: { type: string }
+                      clientId: { type: string }
+                      clientSecret: { type: string, writeOnly: true }
+                      audience: { type: string, const: nexusbus-management }
+                      organizationId: { type: string }
+                      projectId: { type: string }
+                      tenant: { type: string }
+                      app: { type: string }
+                      roles: { type: array, items: { type: string } }
+                      expiresIn: { type: integer, const: 300 }
+        '403': { description: Binding is not in the approved deployment registry }
+        '409': { description: This service identity already has a management enrollment }
+    delete:
+      summary: Revoke a NexusBus management enrollment
+      tags: [Workload Identity]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: Enrollment revoked }
+        '404': { description: Active enrollment not found }
+
+  /api/nexusbus/v1/token:
+    post:
+      summary: Mint a short-lived NexusBus management token
+      description: Uses the dedicated NexusBus enrollment secret. Generic client_credentials and delegated-user tokens are not accepted. Token claims are derived from the current enrollment and approved registry binding.
+      tags: [Workload Identity]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [grant_type, client_id, client_secret, roles]
+              properties:
+                grant_type: { type: string, const: nexusbus_management }
+                client_id: { type: string, description: Enrollment credential ID }
+                client_secret: { type: string, format: password, writeOnly: true }
+                roles:
+                  type: array
+                  minItems: 1
+                  uniqueItems: true
+                  items: { type: string, enum: [nexusbus.installation.read, nexusbus.installation.apply] }
+      responses:
+        '200':
+          description: Signed token with exact audience nexusbus-management and a maximum lifetime of 300 seconds
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [access_token, token_type, expires_in, audience]
+                properties:
+                  access_token: { type: string }
+                  token_type: { type: string, const: Bearer }
+                  expires_in: { type: integer, const: 300 }
+                  audience: { type: string, const: nexusbus-management }
+        '401': { description: Invalid, revoked, or unauthorized management credential/role }
+        '404': { description: Feature disabled }
 
   /api/admin/service-identities/{id}/credentials:
     post:

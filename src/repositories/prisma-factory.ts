@@ -73,6 +73,96 @@ const ensureAppAssignmentTables = async (prisma: PrismaClientLike & Record<strin
   `;
 };
 
+const ensureNexusHubDelegationConsentTable = async (prisma: PrismaClientLike & Record<string, unknown>, provider: AppConfig["databaseProvider"]) => {
+  const execute = (prisma as any).$executeRawUnsafe?.bind(prisma);
+  if (!execute) throw new Error("Database adapter cannot initialize NexusHub delegation consent storage");
+  const idType = provider === "mysql" ? "VARCHAR(191)" : "TEXT";
+  const hashType = provider === "mysql" ? "CHAR(64)" : "TEXT";
+  const valueType = provider === "mysql" ? "VARCHAR(512)" : "TEXT";
+  const scopesType = provider === "mysql" ? "VARCHAR(2048)" : "TEXT";
+  const timeType = provider === "mysql" ? "VARCHAR(40)" : "TEXT";
+  await execute(`CREATE TABLE IF NOT EXISTS nexushub_delegation_consents (
+    id ${idType} PRIMARY KEY,
+    tuple_hash ${hashType} NOT NULL UNIQUE,
+    user_id ${idType} NOT NULL,
+    client_id ${idType} NOT NULL,
+    installation_id ${valueType} NOT NULL,
+    resource ${valueType} NOT NULL,
+    scopes_json ${scopesType} NOT NULL DEFAULT '[]',
+    expires_at ${timeType} NOT NULL,
+    revoked_at ${timeType},
+    created_at ${timeType} NOT NULL,
+    updated_at ${timeType} NOT NULL
+  )`);
+  // Upgrade installations that already have the initial tuple-only table.
+  // Keep provider-specific duplicate-column handling narrow so real migration
+  // failures still stop startup.
+  try {
+    await execute(`ALTER TABLE nexushub_delegation_consents ADD COLUMN scopes_json ${scopesType} NOT NULL DEFAULT '[]'`);
+  } catch (error) {
+    const candidate = error as { code?: string; meta?: { code?: string; message?: string }; message?: string };
+    const code = candidate.code ?? candidate.meta?.code;
+    const message = `${candidate.message ?? ''} ${candidate.meta?.message ?? ''}`;
+    const alreadyExists = code === "42701" || code === "ER_DUP_FIELDNAME" || /duplicate column|column .* already exists/i.test(message);
+    if (!alreadyExists) throw error;
+  }
+};
+
+const ensureNexusHubDelegationTokenTable = async (prisma: PrismaClientLike & Record<string, unknown>, provider: AppConfig["databaseProvider"]) => {
+  const execute = (prisma as any).$executeRawUnsafe?.bind(prisma);
+  if (!execute) throw new Error("Database adapter cannot initialize NexusHub delegation token storage");
+  const id = provider === "mysql" ? "VARCHAR(191)" : "TEXT";
+  const value = provider === "mysql" ? "VARCHAR(512)" : "TEXT";
+  const time = provider === "mysql" ? "VARCHAR(40)" : "TEXT";
+  await execute(`CREATE TABLE IF NOT EXISTS nexushub_delegation_tokens (
+    token_id ${id} PRIMARY KEY, user_id ${id} NOT NULL, client_id ${id} NOT NULL,
+    installation_id ${value} NOT NULL, resource ${value} NOT NULL,
+    expires_at ${time} NOT NULL, revoked_at ${time}
+  )`);
+};
+
+const ensureNexusBusManagementEnrollmentTable = async (prisma: PrismaClientLike & Record<string, unknown>, provider: AppConfig["databaseProvider"]) => {
+  const execute = (prisma as any).$executeRawUnsafe?.bind(prisma);
+  if (!execute) throw new Error("Database adapter cannot initialize NexusBus management enrollment storage");
+  const id = provider === "mysql" ? "VARCHAR(191)" : "TEXT";
+  const value = provider === "mysql" ? "VARCHAR(512)" : "TEXT";
+  const roles = provider === "mysql" ? "VARCHAR(2048)" : "TEXT";
+  const time = provider === "mysql" ? "VARCHAR(40)" : "TEXT";
+  await execute(`CREATE TABLE IF NOT EXISTS nexusbus_management_enrollments (
+    enrollment_id ${id} PRIMARY KEY,
+    installation_id ${id} NOT NULL UNIQUE,
+    service_identity_id ${id} NOT NULL UNIQUE,
+    credential_id ${id} NOT NULL UNIQUE,
+    credential_hash ${id} NOT NULL,
+    organization_id ${value} NOT NULL,
+    project_id ${value},
+    tenant ${value} NOT NULL,
+    app ${value} NOT NULL,
+    roles_json ${roles} NOT NULL,
+    status ${id} NOT NULL,
+    created_at ${time} NOT NULL,
+    revoked_at ${time}
+  )`);
+};
+
+const ensureOAuthResourceMetadataColumn = async (prisma: PrismaClientLike & Record<string, unknown>, provider: AppConfig["databaseProvider"]) => {
+  const execute = (prisma as any).$executeRawUnsafe?.bind(prisma);
+  if (!execute) throw new Error("Database adapter cannot initialize OAuth resource metadata storage");
+  // MySQL does not permit defaults on TEXT/BLOB columns. The administrator-
+  // authored metadata is a small JSON object; VARCHAR supports '{}' defaults
+  // across the supported MySQL versions.
+  const columnType = provider === "mysql" ? "VARCHAR(8192)" : "TEXT";
+  try {
+    await execute(`ALTER TABLE oauth_clients ADD COLUMN resource_metadata_json ${columnType} NOT NULL DEFAULT '{}'`);
+  } catch (error) {
+    const candidate = error as { code?: string; meta?: { code?: string; message?: string }; message?: string };
+    const code = candidate.code ?? candidate.meta?.code;
+    const message = `${candidate.message ?? ''} ${candidate.meta?.message ?? ''}`;
+    const alreadyExists = code === "42701" || code === "ER_DUP_FIELDNAME" || /duplicate column|column .* already exists/i.test(message);
+    if (!alreadyExists) throw error;
+  }
+};
+
 const ensureSuggestionsTable = async (prisma: PrismaClientLike & Record<string, unknown>, provider: AppConfig["databaseProvider"]) => {
   if (provider === "postgresql") {
     await (prisma as any).$queryRaw`
@@ -250,6 +340,10 @@ export async function getPrismaClient(config: AppConfig): Promise<PrismaClientLi
   const module = await loadPrismaClientModule(config.databaseProvider);
   const prisma = new module.PrismaClient() as PrismaClientLike & Record<string, unknown>;
   await ensureAppAssignmentTables(prisma, config.databaseProvider);
+  await ensureNexusHubDelegationConsentTable(prisma, config.databaseProvider);
+  await ensureNexusHubDelegationTokenTable(prisma, config.databaseProvider);
+  await ensureNexusBusManagementEnrollmentTable(prisma, config.databaseProvider);
+  await ensureOAuthResourceMetadataColumn(prisma, config.databaseProvider);
   await ensureSuggestionsTable(prisma, config.databaseProvider);
   await ensureRetentionIndexes(prisma, config.databaseProvider);
   return prisma;

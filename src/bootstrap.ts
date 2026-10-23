@@ -104,6 +104,9 @@ export const bootstrap = async (config: AppConfig) => {
     webauthnCredentialRepository,
     authorizationCodeRepository,
     consentRepository,
+    nexusHubDelegationConsentRepository,
+    nexusHubDelegationTokenRepository,
+    nexusBusManagementEnrollmentRepository,
     refreshTokenRepository,
     accessTokenRepository,
     auditRepository,
@@ -615,6 +618,9 @@ export const bootstrap = async (config: AppConfig) => {
     oidcService,
     auditRepository,
     policyDecisionLogRepository,
+    nexusHubDelegationConsentRepository,
+    nexusHubDelegationTokenRepository,
+    nexusBusManagementEnrollmentRepository,
     dispose: async () => {
       retentionService.stop();
       await eventHookService.waitForIdle();

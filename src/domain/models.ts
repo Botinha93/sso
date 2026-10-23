@@ -82,6 +82,8 @@ export interface OAuthClient {
   grants: GrantType[];
   requirePkce: boolean;
   resources: string[];
+  /** Administrator-owned display metadata for OAuth resource audiences. */
+  resourceMetadata?: Record<string, { label: string; description: string }>;
   flowIds: string[];
   accessTokenTtlSeconds?: number;
   refreshTokenTtlSeconds?: number;
@@ -492,6 +494,21 @@ export interface Consent {
   updatedAt: Date;
 }
 
+/** A user's opt-in grant for one Hub installation to act against one resource. */
+export interface NexusHubDelegationConsent {
+  id: string;
+  userId: string;
+  clientId: string;
+  installationId: string;
+  resource: string;
+  /** Exact OAuth scopes approved for this resource-specific delegation. */
+  scopes: string[];
+  expiresAt: Date;
+  revokedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface RefreshTokenRecord {
   id: string;
   tokenId: string;
@@ -533,12 +550,16 @@ export type AuditEventType =
   | "account_lockout"
   | "logout"
   | "token_issued"
+  | "token_exchange_denied"
   | "token_refreshed"
   | "token_revoked"
-  | "consent_granted"
   | "consent_revoked"
   | "consent_granted"
   | "consent_denied"
+  | "nexusbus_management_enrollment_created"
+  | "nexusbus_management_enrollment_revoked"
+  | "nexusbus_management_token_issued"
+  | "nexusbus_management_token_denied"
   | "session_revoked"
   | "session_anomaly_detected"
   | "client_created"
@@ -590,7 +611,11 @@ export type AuditEventType =
   | "plugin_runtime_console"
   | "plugin_runtime_log"
   | "suggestion_created"
-  | "suggestion_updated";
+  | "suggestion_updated"
+  | "nexushub_installation_enrolled"
+  | "nexushub_installation_revoked"
+  | "nexushub_client_profile_created"
+  | "nexushub_client_profile_replayed";
 
 export type ElevationStatus = "pending" | "approved" | "active" | "revoked" | "expired";
 export type ElevationSessionStatus = "active" | "revoked" | "expired";

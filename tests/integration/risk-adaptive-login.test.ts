@@ -89,8 +89,8 @@ test("high-risk login requires prompt acknowledgement when risk_check is enabled
         grant_type: "password",
         username: `unknown-user-${i}@example.com`,
         password: "invalid-password",
-        client_id: "sso-admin-ui",
-        client_secret: "invalid-secret",
+        client_id: "sso-password-cli",
+        client_secret: "super-secret-password-client",
         scope: "openid profile email"
       }
     });

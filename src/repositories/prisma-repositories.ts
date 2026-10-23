@@ -1,4 +1,5 @@
 import { nanoid } from "nanoid";
+import { createHash } from "node:crypto";
 import type {
   AccessTokenRecord,
   AccessReviewCampaign,
@@ -10,6 +11,7 @@ import type {
   AuthenticationFlow,
   AuthorizationCode,
   Consent,
+  NexusHubDelegationConsent,
   DeprovisioningQueueItem,
   ElevationSession,
   ElevationRequest,
@@ -48,10 +50,10 @@ import type {
   UserRoleAssignment
 } from "../domain/models.js";
 import { RETENTION_POLICY_KEYS, normalizeRetentionSettings, type RetentionPolicyKey } from "../domain/retention.js";
-import type { AuditSearchQuery, AuditStats, RetentionRepository } from "./contracts.js";
+import type { AuditSearchQuery, AuditStats, RetentionRepository, NexusBusManagementEnrollment, NexusHubDelegationToken } from "./contracts.js";
 import type { RepositoryBundle } from "./factory.js";
 import type { RiskEvent, RiskDecision, RiskReason, ServiceIdentity, ServiceIdentityCredential, ServiceIdentityStatus, Connector, ConnectorRun, ConnectorMapping, AuthMetricRollup, Suggestion } from "../domain/models.js";
-import type { GroupAppAssignmentRepository, RiskEventRepository, ServiceIdentityRepository, ServiceIdentityCredentialRepository, UserAppAssignmentRepository, ConnectorRepository, ConnectorRunRepository, ConnectorMappingRepository, AuthMetricRepository, SuggestionRepository } from "./contracts.js";
+import type { GroupAppAssignmentRepository, RiskEventRepository, ServiceIdentityRepository, ServiceIdentityCredentialRepository, UserAppAssignmentRepository, ConnectorRepository, ConnectorRunRepository, ConnectorMappingRepository, AuthMetricRepository, SuggestionRepository, NexusHubDelegationConsentRepository, NexusHubDelegationTokenRepository, NexusBusManagementEnrollmentRepository } from "./contracts.js";
 
 type PrismaRow = Record<string, unknown>;
 
@@ -248,6 +250,7 @@ const mapClient = (row: PrismaRow): OAuthClient => {
     grants: parseStringArray(row.grantsJson) as OAuthClient["grants"],
     requirePkce: asBoolean(row.requirePkce),
     resources: parseStringArray(row.resourcesJson),
+    resourceMetadata: parseObjectRecord(readField(row, "resourceMetadataJson", "resource_metadata_json")) as OAuthClient["resourceMetadata"],
     flowIds: parseStringArray(row.flowIdsJson),
     accessTokenTtlSeconds: typeof accessTtl === "number" ? accessTtl : accessTtl != null ? Number(accessTtl) || undefined : undefined,
     refreshTokenTtlSeconds: typeof refreshTtl === "number" ? refreshTtl : refreshTtl != null ? Number(refreshTtl) || undefined : undefined,
@@ -1098,6 +1101,7 @@ class PrismaClientRepository {
         grantsJson: JSON.stringify(client.grants),
         requirePkce: asBooleanInt(client.requirePkce),
         resourcesJson: JSON.stringify(client.resources),
+        resourceMetadataJson: JSON.stringify(client.resourceMetadata ?? {}),
         flowIdsJson: JSON.stringify(client.flowIds),
         accessTokenTtlSeconds: client.accessTokenTtlSeconds ?? null,
         refreshTokenTtlSeconds: client.refreshTokenTtlSeconds ?? null,
@@ -1135,6 +1139,7 @@ class PrismaClientRepository {
         grantsJson: JSON.stringify(updated.grants),
         requirePkce: asBooleanInt(updated.requirePkce),
         resourcesJson: JSON.stringify(updated.resources),
+        resourceMetadataJson: JSON.stringify(updated.resourceMetadata ?? {}),
         flowIdsJson: JSON.stringify(updated.flowIds),
         accessTokenTtlSeconds: updated.accessTokenTtlSeconds ?? null,
         refreshTokenTtlSeconds: updated.refreshTokenTtlSeconds ?? null
@@ -1742,6 +1747,130 @@ class PrismaConsentRepository {
 
   async revoke(id: string): Promise<void> {
     await this.prisma.consent.delete({ where: { id } }).catch(() => undefined);
+  }
+}
+
+const delegationTupleHash = (input: Pick<NexusHubDelegationConsent, "userId" | "clientId" | "installationId" | "resource">) =>
+  createHash("sha256").update(JSON.stringify([input.userId, input.clientId, input.installationId, input.resource])).digest("hex");
+const delegationPlaceholders = (count: number) => Array.from({ length: count }, (_, index) => process.env.DATABASE_PROVIDER === "postgresql" ? `$${index + 1}` : "?");
+
+class PrismaNexusHubDelegationConsentRepository implements NexusHubDelegationConsentRepository {
+  constructor(private readonly prisma: PrismaClientLike & Record<string, unknown>) {}
+
+  async upsert(input: Omit<NexusHubDelegationConsent, "id" | "createdAt" | "updatedAt" | "revokedAt">): Promise<NexusHubDelegationConsent> {
+    const now = new Date();
+    const grant: NexusHubDelegationConsent = { ...input, id: nanoid(), createdAt: now, updatedAt: now };
+    const values = [delegationTupleHash(input), grant.id, input.userId, input.clientId, input.installationId, input.resource, JSON.stringify(input.scopes), input.expiresAt.toISOString(), now.toISOString(), now.toISOString()];
+    const placeholders = delegationPlaceholders(10);
+    const sql = process.env.DATABASE_PROVIDER === "mysql"
+      ? `INSERT INTO nexushub_delegation_consents (tuple_hash,id,user_id,client_id,installation_id,resource,scopes_json,expires_at,revoked_at,created_at,updated_at) VALUES (${placeholders[0]},${placeholders[1]},${placeholders[2]},${placeholders[3]},${placeholders[4]},${placeholders[5]},${placeholders[6]},${placeholders[7]},NULL,${placeholders[8]},${placeholders[9]}) ON DUPLICATE KEY UPDATE id=VALUES(id),scopes_json=VALUES(scopes_json),expires_at=VALUES(expires_at),revoked_at=NULL,updated_at=VALUES(updated_at)`
+      : `INSERT INTO nexushub_delegation_consents (tuple_hash,id,user_id,client_id,installation_id,resource,scopes_json,expires_at,revoked_at,created_at,updated_at) VALUES (${placeholders[0]},${placeholders[1]},${placeholders[2]},${placeholders[3]},${placeholders[4]},${placeholders[5]},${placeholders[6]},${placeholders[7]},NULL,${placeholders[8]},${placeholders[9]}) ON CONFLICT(tuple_hash) DO UPDATE SET id=excluded.id,scopes_json=excluded.scopes_json,expires_at=excluded.expires_at,revoked_at=NULL,updated_at=excluded.updated_at`;
+    await (this.prisma as any).$executeRawUnsafe(sql, ...values);
+    return (await this.findActive(input, now)) ?? grant;
+  }
+
+  async findActive(input: Pick<NexusHubDelegationConsent, "userId" | "clientId" | "installationId" | "resource">, now = new Date()): Promise<NexusHubDelegationConsent | undefined> {
+    const query = (this.prisma as any).$queryRawUnsafe;
+    const p = delegationPlaceholders(2);
+    const rows = await query.call(this.prisma, `SELECT * FROM nexushub_delegation_consents WHERE tuple_hash = ${p[0]} AND revoked_at IS NULL AND expires_at > ${p[1]} LIMIT 1`, delegationTupleHash(input), now.toISOString()) as PrismaRow[];
+    const row = rows[0];
+    if (!row) return undefined;
+    return {
+      id: String(readField(row, "id")), userId: String(readField(row, "user_id")), clientId: String(readField(row, "client_id")),
+      installationId: String(readField(row, "installation_id")), resource: String(readField(row, "resource")),
+      scopes: JSON.parse(String(readField(row, "scopes_json") ?? "[]")) as string[],
+      expiresAt: asDate(readField(row, "expires_at")), revokedAt: readField(row, "revoked_at") ? asDate(readField(row, "revoked_at")) : undefined,
+      createdAt: asDate(readField(row, "created_at")), updatedAt: asDate(readField(row, "updated_at"))
+    };
+  }
+
+  async listByUser(userId: string, now = new Date()): Promise<NexusHubDelegationConsent[]> {
+    const p = delegationPlaceholders(2);
+    const rows = await (this.prisma as any).$queryRawUnsafe(`SELECT * FROM nexushub_delegation_consents WHERE user_id = ${p[0]} AND revoked_at IS NULL AND expires_at > ${p[1]} ORDER BY updated_at DESC`, userId, now.toISOString()) as PrismaRow[];
+    return rows.map((row) => ({
+      id: String(readField(row, "id")), userId: String(readField(row, "user_id")), clientId: String(readField(row, "client_id")),
+      installationId: String(readField(row, "installation_id")), resource: String(readField(row, "resource")),
+      scopes: JSON.parse(String(readField(row, "scopes_json") ?? "[]")) as string[],
+      expiresAt: asDate(readField(row, "expires_at")), createdAt: asDate(readField(row, "created_at")), updatedAt: asDate(readField(row, "updated_at"))
+    }));
+  }
+
+  async revoke(input: Pick<NexusHubDelegationConsent, "userId" | "clientId" | "installationId" | "resource">, at = new Date()): Promise<void> {
+    const p = delegationPlaceholders(3);
+    await (this.prisma as any).$executeRawUnsafe(`UPDATE nexushub_delegation_consents SET revoked_at = ${p[0]}, updated_at = ${p[1]} WHERE tuple_hash = ${p[2]} AND revoked_at IS NULL`, at.toISOString(), at.toISOString(), delegationTupleHash(input));
+  }
+}
+
+class PrismaNexusHubDelegationTokenRepository implements NexusHubDelegationTokenRepository {
+  constructor(private readonly prisma: PrismaClientLike & Record<string, unknown>) {}
+  async record(input: NexusHubDelegationToken): Promise<boolean> {
+    const p = delegationPlaceholders(6);
+    await (this.prisma as any).$executeRawUnsafe(`INSERT INTO nexushub_delegation_tokens (token_id,user_id,client_id,installation_id,resource,expires_at,revoked_at) VALUES (${p[0]},${p[1]},${p[2]},${p[3]},${p[4]},${p[5]},NULL)`, input.tokenId, input.userId, input.clientId, input.installationId, input.resource, input.expiresAt.toISOString());
+    const consent = await (this.prisma as any).$queryRawUnsafe(`SELECT id FROM nexushub_delegation_consents WHERE tuple_hash = ${delegationPlaceholders(1)[0]} AND revoked_at IS NULL AND expires_at > ${delegationPlaceholders(2)[1]} LIMIT 1`, delegationTupleHash(input), new Date().toISOString()) as PrismaRow[];
+    if (consent.length) return true;
+    await (this.prisma as any).$executeRawUnsafe(`UPDATE nexushub_delegation_tokens SET revoked_at = ${delegationPlaceholders(2)[0]} WHERE token_id = ${delegationPlaceholders(2)[1]}`, new Date().toISOString(), input.tokenId);
+    return false;
+  }
+  async findActive(tokenId: string, now = new Date()): Promise<NexusHubDelegationToken | undefined> {
+    const p = delegationPlaceholders(2);
+    const rows = await (this.prisma as any).$queryRawUnsafe(`SELECT * FROM nexushub_delegation_tokens WHERE token_id = ${p[0]} AND revoked_at IS NULL AND expires_at > ${p[1]} LIMIT 1`, tokenId, now.toISOString()) as PrismaRow[];
+    const row = rows[0];
+    return row ? { tokenId: String(readField(row,"token_id")), userId: String(readField(row,"user_id")), clientId: String(readField(row,"client_id")), installationId: String(readField(row,"installation_id")), resource: String(readField(row,"resource")), expiresAt: asDate(readField(row,"expires_at")) } : undefined;
+  }
+  async revokeGrant(input: Pick<NexusHubDelegationToken,"userId"|"clientId"|"installationId"|"resource">, at = new Date()): Promise<string[]> {
+    const p = delegationPlaceholders(4);
+    const query = (this.prisma as any).$queryRawUnsafe;
+    const rows = await query.call(this.prisma, `SELECT token_id FROM nexushub_delegation_tokens WHERE user_id=${p[0]} AND client_id=${p[1]} AND installation_id=${p[2]} AND resource=${p[3]} AND revoked_at IS NULL`, input.userId, input.clientId, input.installationId, input.resource) as PrismaRow[];
+    const ids = rows.map((row) => String(readField(row,"token_id")));
+    const u = delegationPlaceholders(5);
+    await (this.prisma as any).$executeRawUnsafe(`UPDATE nexushub_delegation_tokens SET revoked_at=${u[0]} WHERE user_id=${u[1]} AND client_id=${u[2]} AND installation_id=${u[3]} AND resource=${u[4]} AND revoked_at IS NULL`, at.toISOString(), input.userId, input.clientId, input.installationId, input.resource);
+    return ids;
+  }
+}
+
+const managementPlaceholders = (count: number) => Array.from({ length: count }, (_, index) => process.env.DATABASE_PROVIDER === "postgresql" ? `$${index + 1}` : "?");
+const mapBusEnrollment = (row: PrismaRow): NexusBusManagementEnrollment => ({
+  enrollmentId: String(readField(row, "enrollment_id", "enrollmentId")),
+  installationId: String(readField(row, "installation_id", "installationId")),
+  serviceIdentityId: String(readField(row, "service_identity_id", "serviceIdentityId")),
+  credentialId: String(readField(row, "credential_id", "credentialId")),
+  credentialHash: String(readField(row, "credential_hash", "credentialHash")),
+  organizationId: String(readField(row, "organization_id", "organizationId")),
+  projectId: readField(row, "project_id", "projectId") == null ? undefined : String(readField(row, "project_id", "projectId")),
+  tenant: String(readField(row, "tenant")), app: String(readField(row, "app")),
+  roles: JSON.parse(String(readField(row, "roles_json", "rolesJson") ?? "[]")) as string[],
+  status: String(readField(row, "status")) as NexusBusManagementEnrollment["status"],
+  createdAt: asDate(readField(row, "created_at", "createdAt")),
+  revokedAt: readField(row, "revoked_at", "revokedAt") == null ? undefined : asDate(readField(row, "revoked_at", "revokedAt"))
+});
+
+class PrismaNexusBusManagementEnrollmentRepository implements NexusBusManagementEnrollmentRepository {
+  constructor(private readonly prisma: PrismaClientLike & Record<string, unknown>) {}
+
+  async create(input: Omit<NexusBusManagementEnrollment, "createdAt" | "revokedAt" | "status">): Promise<NexusBusManagementEnrollment> {
+    const values = [input.enrollmentId, input.installationId, input.serviceIdentityId, input.credentialId, input.credentialHash, input.organizationId, input.projectId ?? null, input.tenant, input.app, JSON.stringify(input.roles), "active", new Date().toISOString()];
+    const p = managementPlaceholders(values.length);
+    const sql = `INSERT INTO nexusbus_management_enrollments (enrollment_id,installation_id,service_identity_id,credential_id,credential_hash,organization_id,project_id,tenant,app,roles_json,status,created_at) VALUES (${p.join(",")})`;
+    await (this.prisma as any).$executeRawUnsafe(sql, ...values);
+    return (await this.findByServiceIdentity(input.serviceIdentityId))!;
+  }
+
+  async findByServiceIdentity(serviceIdentityId: string): Promise<NexusBusManagementEnrollment | undefined> {
+    const p = managementPlaceholders(1);
+    const rows = asRowArray(await (this.prisma as any).$queryRawUnsafe(`SELECT * FROM nexusbus_management_enrollments WHERE service_identity_id = ${p[0]} LIMIT 1`, serviceIdentityId));
+    return rows[0] ? mapBusEnrollment(rows[0]) : undefined;
+  }
+
+  async findByCredential(credentialId: string): Promise<NexusBusManagementEnrollment | undefined> {
+    const p = managementPlaceholders(1);
+    const rows = asRowArray(await (this.prisma as any).$queryRawUnsafe(`SELECT * FROM nexusbus_management_enrollments WHERE credential_id = ${p[0]} LIMIT 1`, credentialId));
+    return rows[0] ? mapBusEnrollment(rows[0]) : undefined;
+  }
+
+  async revoke(serviceIdentityId: string, at = new Date()): Promise<boolean> {
+    const p = managementPlaceholders(3);
+    const changed = await (this.prisma as any).$executeRawUnsafe(`UPDATE nexusbus_management_enrollments SET status = ${p[0]}, revoked_at = ${p[1]} WHERE service_identity_id = ${p[2]} AND status = 'active'`, "revoked", at.toISOString(), serviceIdentityId);
+    return Number(changed) === 1;
   }
 }
 
@@ -3459,6 +3588,9 @@ export const createPrismaRepositories = (prisma: PrismaClientLike): RepositoryBu
   webauthnCredentialRepository: new PrismaWebauthnCredentialRepository(prisma),
   authorizationCodeRepository: new PrismaAuthorizationCodeRepository(prisma),
   consentRepository: new PrismaConsentRepository(prisma),
+  nexusHubDelegationConsentRepository: new PrismaNexusHubDelegationConsentRepository(prisma as PrismaClientLike & Record<string, unknown>),
+  nexusHubDelegationTokenRepository: new PrismaNexusHubDelegationTokenRepository(prisma as PrismaClientLike & Record<string, unknown>),
+  nexusBusManagementEnrollmentRepository: new PrismaNexusBusManagementEnrollmentRepository(prisma as PrismaClientLike & Record<string, unknown>),
   refreshTokenRepository: new PrismaRefreshTokenRepository(prisma),
   accessTokenRepository: new PrismaAccessTokenRepository(prisma),
   auditRepository: new PrismaAuditRepository(prisma),
