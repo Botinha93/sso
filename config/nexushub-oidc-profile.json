@@ -47,6 +47,10 @@
       "description": "Create and update projects in NexusHub"
     },
     {
+      "name": "nexushub.project-membership:check",
+      "description": "Issue current project membership checkpoints for bound Context spaces"
+    },
+    {
       "name": "nexushub.applications:read",
       "description": "Read registered application metadata in NexusHub"
     },

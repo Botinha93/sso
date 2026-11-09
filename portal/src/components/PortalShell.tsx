@@ -1,5 +1,5 @@
 import { AppShell, Box, Button, Group, Image, Menu, Stack, Text, ThemeIcon, UnstyledButton } from '@mantine/core'
-import { AppHeaderBar, ColorSchemeToggle, UserMenu } from '@nexus/design'
+import { AppHeaderBar, ColorSchemeToggle, UserMenu } from '@botinha93/nexus-design'
 import { LayoutGrid, Lightbulb, Settings, Users as UsersIcon } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { logout, type PortalUser } from '../hooks'

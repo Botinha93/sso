@@ -8,6 +8,7 @@ import Login from './pages/Login'
 import Profile from './pages/Profile'
 import Users from './pages/Users'
 import Suggestions from './pages/Suggestions'
+import Consent from './pages/Consent'
 
 export default function App() {
   const { language } = useI18n()
@@ -57,6 +58,7 @@ export default function App() {
   if (error || !user) {
     return (
       <Routes>
+        <Route path="/consent" element={<Login />} />
         <Route path="*" element={<Login />} />
       </Routes>
     )
@@ -68,6 +70,7 @@ export default function App() {
 
   return (
     <Routes>
+      <Route path="/consent" element={<Consent />} />
       <Route path="/" element={<Launcher user={user} />} />
       <Route path="/profile" element={<Profile user={user} />} />
       <Route path="/suggestions" element={<Suggestions user={user} />} />

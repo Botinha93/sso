@@ -543,6 +543,67 @@ export function useGroupUsers(groupId?: string) {
   })
 }
 
+// --- Effective permissions ---
+export interface EffectiveRole {
+  id: string
+  name: string
+  scope: 'platform' | 'tenant'
+  appId?: string | null
+  permissions: string[]
+  direct: boolean
+  viaGroupIds: string[]
+}
+
+export interface ApplicablePolicySummary {
+  policyId: string
+  key: string
+  name: string
+  category: 'authentication' | 'authorization'
+  effect: 'allow' | 'deny'
+  resourcePattern?: string
+  actionPattern?: string
+  priority?: number
+  decisionStrategy?: 'deny_overrides' | 'allow_overrides' | 'first_applicable'
+  matchedScope: 'user' | 'group' | 'tenant' | 'global'
+  matchedScopeId?: string
+}
+
+export interface ActiveElevation {
+  id: string
+  resource: string
+  action: string
+  expiresAt: string
+}
+
+export function useUserEffectivePermissions(userId?: string) {
+  return useQuery({
+    queryKey: ['effective-permissions', 'user', userId ?? 'none'],
+    queryFn: () => jsonFetch(`${API_BASE}/users/${userId}/effective-permissions`) as Promise<{
+      userId: string
+      roles: EffectiveRole[]
+      groups: Array<{ id: string; name: string }>
+      permissions: string[]
+      applicablePolicies: ApplicablePolicySummary[]
+      activeElevations: ActiveElevation[]
+    }>,
+    enabled: Boolean(userId)
+  })
+}
+
+export function useGroupEffectivePermissions(groupId?: string) {
+  return useQuery({
+    queryKey: ['effective-permissions', 'group', groupId ?? 'none'],
+    queryFn: () => jsonFetch(`${API_BASE}/groups/${groupId}/effective-permissions`) as Promise<{
+      groupId: string
+      roles: Array<{ id: string; name: string; scope: 'platform' | 'tenant'; appId?: string | null; permissions: string[] }>
+      permissions: string[]
+      applicablePolicies: ApplicablePolicySummary[]
+      memberCount: number
+    }>,
+    enabled: Boolean(groupId)
+  })
+}
+
 export function useCreateGroup() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -1858,6 +1919,20 @@ export function useIssueServiceIdentityCredential() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ expiresInDays })
       }) as Promise<{ credential: ServiceIdentityCredentialDto; plainClientSecret: string }>,
+    onSuccess: (_data, { id }) => queryClient.invalidateQueries({ queryKey: ['service-identity', id] })
+  })
+}
+
+export function useEnrollNexusHubServiceIdentity() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, credentialId, publicOrigin, liberideOrigin, adoptClientId }: {
+      id: string; credentialId: string; publicOrigin: string; liberideOrigin?: string; adoptClientId?: string
+    }) => jsonFetch(`${API_BASE}/service-identities/${encodeURIComponent(id)}/nexushub-enrollment`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credentialId, publicOrigin, ...(liberideOrigin ? { liberideOrigin } : {}), ...(adoptClientId ? { adoptClientId } : {}) })
+    }) as Promise<{ data: { installationId: string; publicOrigin: string; liberideOrigin?: string; profileVersions: string[] } }>,
     onSuccess: (_data, { id }) => queryClient.invalidateQueries({ queryKey: ['service-identity', id] })
   })
 }

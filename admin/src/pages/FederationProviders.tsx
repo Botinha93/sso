@@ -27,7 +27,7 @@ import {
   UnstyledButton,
   VisuallyHidden
 } from '@mantine/core'
-import { PageHeader, RefreshButton, SearchInput, SectionCard, StatusBadge, TableSkeleton } from '@nexus/design'
+import { PageHeader, RefreshButton, SearchInput, SectionCard, StatusBadge, TableSkeleton } from '@botinha93/nexus-design'
 import { AppWindow, CheckCircle2, ChevronDown, ChevronUp, MoreHorizontal, Pencil, Plus, Shield, Trash2, Upload } from 'lucide-react'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import ConfirmDialog from '../components/ConfirmDialog'

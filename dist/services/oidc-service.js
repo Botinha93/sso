@@ -22,6 +22,7 @@ export class OidcService {
             registration_endpoint: `${issuer}/connect/register`,
             jwks_uri: `${issuer}/.well-known/jwks.json`,
             userinfo_endpoint: `${issuer}/oauth/userinfo`,
+            end_session_endpoint: `${issuer}/oauth/logout`,
             frontchannel_logout_supported: true,
             frontchannel_logout_session_supported: true,
             backchannel_logout_supported: true,
@@ -56,8 +57,15 @@ export class OidcService {
         const keys = this.jwtService.getSigningKeys();
         const now = Math.floor(Date.now() / 1000);
         const scopeValue = input.scopes.join(" ");
-        const accessTtl = resolveAccessTokenTtlSeconds(input.client);
-        let tokenBuilder = new SignJWT({ scope: scopeValue })
+        const configuredTtl = resolveAccessTokenTtlSeconds(input.client);
+        const accessTtl = input.maxLifetimeSeconds === undefined
+            ? configuredTtl
+            : Math.min(configuredTtl, Math.max(1, Math.floor(input.maxLifetimeSeconds)));
+        let tokenBuilder = new SignJWT({
+            scope: scopeValue,
+            ...(input.actorClientId ? { act: { sub: input.actorClientId } } : {}),
+            ...(input.additionalClaims ?? {})
+        })
             .setProtectedHeader({ alg: "RS256", kid: keys.kid })
             .setIssuer(this.appConfig.issuer)
             .setSubject(input.sub)

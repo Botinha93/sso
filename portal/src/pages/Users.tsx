@@ -1,5 +1,5 @@
 import { Alert, Badge, Box, Button, Center, Checkbox, Group, Loader, NativeSelect, Paper, PasswordInput, ScrollArea, SimpleGrid, Stack, Text, TextInput } from '@mantine/core'
-import { PageHeader, SearchInput, SectionCard } from '@nexus/design'
+import { PageHeader, SearchInput, SectionCard } from '@botinha93/nexus-design'
 import { Trash2, UserPlus, Users as UsersIcon } from 'lucide-react'
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import type { PortalUser } from '../hooks'

@@ -15,7 +15,7 @@ import {
   TextInput,
   Tooltip,
 } from '@mantine/core'
-import { CardSkeleton, PageHeader, SectionCard, SettingRow, SettingsList } from '@nexus/design'
+import { CardSkeleton, PageHeader, SectionCard, SettingRow, SettingsList } from '@botinha93/nexus-design'
 import { AlertTriangle, Check, Fingerprint, ImageUp, KeyRound, Save, ShieldCheck, Trash2, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'

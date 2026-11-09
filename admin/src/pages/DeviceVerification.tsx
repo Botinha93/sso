@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Alert, Button, Group, Image, PasswordInput, Stack, Text, TextInput } from '@mantine/core'
-import { AuthCard, AuthLayout, ColorSchemeToggle } from '@nexus/design'
+import { AuthCard, AuthLayout, ColorSchemeToggle } from '@botinha93/nexus-design'
 import { AlertCircle, CheckCircle2, Lock, MonitorSmartphone, ShieldCheck, User, XCircle } from 'lucide-react'
 import LanguageSelector from '../components/LanguageSelector'
 import { useI18n } from '../i18n'

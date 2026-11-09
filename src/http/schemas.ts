@@ -215,7 +215,7 @@ export const authorizationCodeTokenSchema = z.object({
   grant_type: z.literal("authorization_code"),
   code: z.string().min(8),
   client_id: z.string().min(2),
-  client_secret: z.string().min(8),
+  client_secret: z.string().min(8).optional(),
   redirect_uri: z.string().url(),
   code_verifier: z.string().optional()
 });
@@ -507,7 +507,7 @@ export const dynamicClientRegistrationSchema = z.object({
   grant_types: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"])).optional(),
   response_types: z.array(z.enum(["code", "token", "code token", "code id_token", "id_token token", "code id_token token"])).optional(),
   scope: z.string().optional(),
-  token_endpoint_auth_method: z.enum(["client_secret_post"]).default("client_secret_post")
+  token_endpoint_auth_method: z.enum(["client_secret_post", "none"]).default("client_secret_post")
 });
 
 const userAttributeTypeSchema = z.enum(["text", "number", "boolean", "date", "json"]);
@@ -858,7 +858,12 @@ export const tokenExchangeSchema = z.object({
   client_secret: z.string().optional(),
   /** Opt-in NexusHub delegation profile; generic RFC 8693 remains unchanged. */
   nexushub_profile: z.literal("nexushub:1").optional(),
-  nexushub_installation_id: z.string().trim().min(1).max(200).optional()
+  nexushub_installation_id: z.string().trim().min(1).max(200).optional(),
+  /** Optional Hub-authenticated app actor assertion, derived from Hub registration state. */
+  nexushub_actor_app_id: z.string().regex(/^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+$/).max(200).optional(),
+  nexushub_actor_registration_id: z.string().uuid().optional(),
+  nexushub_actor_organization_id: z.string().uuid().optional(),
+  nexushub_actor_project_id: z.string().uuid().optional()
 });
 
 // ---------------------------------------------------------------------------

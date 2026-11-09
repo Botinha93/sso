@@ -34,9 +34,12 @@ mkdirSync(generatedRoot, { recursive: true });
 
 for (const { name, provider, output, databaseUrl } of providers) {
   const schemaPath = join(prismaDir, `schema.${name}.generated.prisma`);
-  const schema = template
+  const providerSchema = template
     .replaceAll("__PROVIDER__", provider)
     .replaceAll("__OUTPUT_DIR__", output);
+  const schema = provider === "mysql"
+    ? providerSchema.replace(/^(\s+\w+Json\s+String\??)(\s+)/gm, "$1 @db.LongText$2")
+    : providerSchema;
 
   rmSync(join(generatedRoot, name), { recursive: true, force: true });
   writeFileSync(schemaPath, schema, "utf8");

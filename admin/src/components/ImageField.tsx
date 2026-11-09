@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ImageField as NexusImageField } from '@nexus/design'
+import { ImageField as NexusImageField } from '@botinha93/nexus-design'
 
 export type DefaultImageOption = {
   key: string

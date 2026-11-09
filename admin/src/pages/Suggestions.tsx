@@ -1,6 +1,6 @@
 import { Anchor, Box, Button, Group, Image, NativeSelect, Stack, Table, Text, Textarea, UnstyledButton } from '@mantine/core'
 import { Lightbulb, RefreshCw } from 'lucide-react'
-import { PageHeader, SearchInput, SectionCard, StatusBadge, TableSkeleton } from '@nexus/design'
+import { PageHeader, SearchInput, SectionCard, StatusBadge, TableSkeleton } from '@botinha93/nexus-design'
 import { useEffect, useState } from 'react'
 import EmptyState from '../components/EmptyState'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'

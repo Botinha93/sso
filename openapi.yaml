@@ -546,6 +546,28 @@ paths:
                   type: string
                 scope:
                   type: string
+                nexushub_profile:
+                  type: string
+                  enum: [nexushub:1]
+                  description: Opt-in NexusHub user-delegation profile.
+                nexushub_installation_id:
+                  type: string
+                  maxLength: 200
+                  description: Must equal the authenticated Hub OAuth client ID.
+                nexushub_actor_app_id:
+                  type: string
+                  pattern: '^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+$'
+                  maxLength: 200
+                  description: Hub-asserted current application identity; requires all other nexushub_actor_* fields.
+                nexushub_actor_registration_id:
+                  type: string
+                  format: uuid
+                nexushub_actor_organization_id:
+                  type: string
+                  format: uuid
+                nexushub_actor_project_id:
+                  type: string
+                  format: uuid
                 binding_message:
                   type: string
                 user_code:
@@ -650,6 +672,34 @@ paths:
       responses:
         '200':
           description: Active only for a live token bound to this Hub client and exact resource audience
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [active]
+                properties:
+                  active: { type: boolean }
+        '400': { description: Invalid request }
+        '401': { description: Client authentication failed }
+  /oauth/nexushub/delegation/resource-introspect:
+    post:
+      summary: Check a delegated token for an independently registered resource server
+      description: The authenticated caller must have the exact resource audience in its administrator-managed resources allowlist. The token must be a live NexusHub delegation bound to that single source audience and active in both access-token and delegation revocation records.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, client_id, client_secret, resource_audience]
+              properties:
+                token: { type: string }
+                client_id: { type: string }
+                client_secret: { type: string, writeOnly: true }
+                resource_audience: { type: string, format: uri }
+      responses:
+        '200':
+          description: Active only for a live token and an audience registered on the authenticated caller
           content:
             application/json:
               schema:
@@ -1422,6 +1472,99 @@ paths:
                       type: string
         '404':
           description: User not found
+  /api/admin/users/{id}/effective-permissions:
+    get:
+      summary: Full effective-access report for a user
+      description: |
+        Aggregates everything that currently grants or could grant access to
+        this user: effective roles (direct + inherited via groups) annotated
+        with their source, the groups the user belongs to, the flattened
+        permission set, ABAC policy assignments whose scope applies to the
+        user (informational — a definitive allow/deny still requires a
+        resource+action via `/api/admin/policies/evaluate`), and any
+        currently active elevation sessions. Unlike `/permissions` and
+        `/roles`, this endpoint is meant to answer "what can this user do and
+        why" in one call rather than just listing flattened RBAC permissions.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: tenantId
+          schema:
+            type: string
+          description: Restrict tenant-scoped role assignments and policies to this tenant
+      responses:
+        '200':
+          description: User's effective-access report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId:
+                    type: string
+                  roles:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        scope:
+                          type: string
+                          enum: [platform, tenant]
+                        appId:
+                          type: string
+                          nullable: true
+                        permissions:
+                          type: array
+                          items:
+                            type: string
+                        direct:
+                          type: boolean
+                          description: Assigned directly to the user, as opposed to inherited via a group
+                        viaGroupIds:
+                          type: array
+                          items:
+                            type: string
+                  groups:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                  permissions:
+                    type: array
+                    items:
+                      type: string
+                  applicablePolicies:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApplicablePolicySummary'
+                  activeElevations:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        resource:
+                          type: string
+                        action:
+                          type: string
+                        expiresAt:
+                          type: string
+                          format: date-time
+        '404':
+          description: User not found
   /api/admin/groups/{id}/users:
     get:
       summary: List users that belong to a group
@@ -1496,6 +1639,67 @@ paths:
                           type: object
                           additionalProperties:
                             type: string
+        '404':
+          description: Group not found
+  /api/admin/groups/{id}/effective-permissions:
+    get:
+      summary: Full effective-access report for a group
+      description: |
+        Aggregates the roles directly assigned to the group, the flattened
+        permission set those roles grant to every member, ABAC policy
+        assignments whose scope applies to the group (informational — see
+        `/api/admin/policies/evaluate` for an actual decision), and the
+        group's member count for context on blast radius.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: tenantId
+          schema:
+            type: string
+          description: Restrict policy scope matching to this tenant
+      responses:
+        '200':
+          description: Group's effective-access report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  groupId:
+                    type: string
+                  roles:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        scope:
+                          type: string
+                          enum: [platform, tenant]
+                        appId:
+                          type: string
+                          nullable: true
+                        permissions:
+                          type: array
+                          items:
+                            type: string
+                  permissions:
+                    type: array
+                    items:
+                      type: string
+                  applicablePolicies:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApplicablePolicySummary'
+                  memberCount:
+                    type: integer
         '404':
           description: Group not found
   /api/admin/provisioning/tokens:
@@ -4274,6 +4478,97 @@ paths:
         '409': { description: Client ID is not installation-owned or existing client differs from the reviewed profile }
         '503': { description: Provisioning unavailable or outcome is unknown; retry the same request }
 
+  /api/nexushub/v1/client-profile/credential-rotation:
+    put:
+      summary: Stage a managed NexusHub OAuth client credential
+      description: Requires the active enrolled service identity. The existing verifier remains valid and the candidate verifier overlaps for at most 15 minutes. The candidate secret is never returned; store it durably in the Hub before activation. Reusing an operationId with different secret material conflicts.
+      tags: [Workload Identity]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [profileId, profileVersion, operationId, clientSecret]
+              properties:
+                profileId: { type: string, enum: [nexushub, liberide] }
+                profileVersion: { type: integer, const: 1 }
+                operationId: { type: string, minLength: 16, maxLength: 128 }
+                clientSecret: { type: string, minLength: 32, maxLength: 128, writeOnly: true }
+      responses:
+        '201': { description: Candidate staged; active credential remains valid }
+        '200': { description: Idempotent stage retry; returns the durable pending or active operation state and no secret }
+        '400': { description: Invalid request }
+        '403': { description: Enrollment is inactive or caller credential is not bound }
+        '409': { description: Another operation is pending, operation ID conflicts, or the candidate equals the active credential }
+        '503': { description: Managed credential storage is unavailable }
+
+  /api/nexushub/v1/client-profile/{profileId}/credential-rotation:
+    get:
+      summary: Read managed credential rotation status
+      description: Returns the current profile generation and pending operation metadata, or the durable status for the supplied operationId (including terminal activated, aborted, expired, or conflict state after later rotations). Operation-specific generation is that operation's resulting generation when activated and its base generation otherwise. It never returns a verifier or secret.
+      tags: [Workload Identity]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: profileId
+          required: true
+          schema: { type: string, enum: [nexushub, liberide] }
+        - in: query
+          name: operationId
+          required: false
+          schema: { type: string, minLength: 16, maxLength: 128 }
+      responses:
+        '200': { description: Managed profile credential status }
+        '403': { description: Enrollment is inactive or caller credential is not bound }
+        '404': { description: Managed profile is not provisioned }
+
+  /api/nexushub/v1/client-profile/credential-rotation/activate:
+    post:
+      summary: Activate a staged managed OAuth credential
+      description: Call only after the Hub has durably stored and validated the candidate secret. Activation atomically retires the previous verifier. Replaying an activated operation ID is safe after a lost response.
+      tags: [Workload Identity]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [profileId, profileVersion, operationId]
+              properties:
+                profileId: { type: string, enum: [nexushub, liberide] }
+                profileVersion: { type: integer, const: 1 }
+                operationId: { type: string, minLength: 16, maxLength: 128 }
+      responses:
+        '200': { description: Credential activated or activation replayed }
+        '400': { description: Invalid request }
+        '403': { description: Enrollment is inactive or caller credential is not bound }
+        '409': { description: Operation is missing, expired, or conflicts with current state }
+
+  /api/nexushub/v1/client-profile/{profileId}/credential-rotation/{operationId}:
+    delete:
+      summary: Abort a pending managed OAuth credential rotation
+      description: Removes the pending verifier only; the active verifier remains unchanged. An operation that is activated or expired cannot be aborted.
+      tags: [Workload Identity]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: profileId
+          required: true
+          schema: { type: string, enum: [nexushub, liberide] }
+        - in: path
+          name: operationId
+          required: true
+          schema: { type: string, minLength: 16, maxLength: 128 }
+      responses:
+        '204': { description: Pending verifier removed }
+        '403': { description: Enrollment is inactive or caller credential is not bound }
+        '409': { description: Operation is not pending }
+
   /api/admin/service-identities/{id}/nexusbus-management-enrollment:
     put:
       summary: Enroll a service identity for NexusBus installation management
@@ -4319,6 +4614,14 @@ paths:
                       clientId: { type: string }
                       clientSecret: { type: string, writeOnly: true }
                       audience: { type: string, const: nexusbus-management }
+                      producerCredential:
+                        type: object
+                        description: Present only when NEXUSID_NEXUSBUS_PRODUCER_ENABLED is true; this secret is independent from the management credential.
+                        required: [credentialId, clientSecret, audience]
+                        properties:
+                          credentialId: { type: string }
+                          clientSecret: { type: string, format: password, writeOnly: true }
+                          audience: { type: string, const: nexusbus }
                       organizationId: { type: string }
                       projectId: { type: string }
                       tenant: { type: string }
@@ -4375,6 +4678,74 @@ paths:
                   audience: { type: string, const: nexusbus-management }
         '401': { description: Invalid, revoked, or unauthorized management credential/role }
         '404': { description: Feature disabled }
+
+  /api/nexusbus/v1/producer-token:
+    post:
+      summary: Mint a short-lived NexusBus application publisher token
+      description: Uses a separate issuer-owned producer credential returned only when NEXUSID_NEXUSBUS_PRODUCER_ENABLED is enabled. This credential cannot mint management tokens. NexusID derives tenant and app claims from its active approved enrollment; Hub-managed NexusBus policy remains responsible for exact event-member publish authorization.
+      tags: [Workload Identity]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [grant_type, client_id, client_secret]
+              properties:
+                grant_type: { type: string, const: nexusbus_producer }
+                client_id: { type: string, description: Separate producer credential ID }
+                client_secret: { type: string, format: password, writeOnly: true }
+      responses:
+        '200':
+          description: Signed NexusBus token with a maximum lifetime of 60 seconds
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [access_token, token_type, expires_in, audience]
+                properties:
+                  access_token: { type: string }
+                  token_type: { type: string, const: Bearer }
+                  expires_in: { type: integer, const: 60 }
+                  audience: { type: string, const: nexusbus }
+        '401': { description: Unknown, invalid, revoked, or unapproved producer credential }
+        '404': { description: Feature disabled }
+
+  /api/nexusbus/v1/management-enrollment-proof:
+    post:
+      summary: Issue a short-lived NexusID assertion for the active NexusBus management enrollment
+      description: Opt-in endpoint. The request supplies the enrolled management credential, opaque Hub-generated challenge, and immutable Hub instance ID returned with that challenge. NexusID derives its issuer-assigned Hub installation and immutable Bus binding from active records; the supplied Hub instance ID is cryptographically bound to the one-use challenge. The signed assertion explicitly does not assert Hub owner consent. The Hub must verify the NexusID signature, atomically consume its exact stored challenge, verify owner consent independently, and recheck current status/revocation before any apply operation.
+      tags: [Workload Identity]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [client_id, client_secret, challenge, hub_instance_id]
+              properties:
+                client_id: { type: string, description: Enrollment credential ID }
+                client_secret: { type: string, format: password, writeOnly: true }
+                challenge: { type: string, minLength: 32, maxLength: 128, pattern: '^[A-Za-z0-9_-]+$' }
+                hub_instance_id: { type: string, format: uuid, description: Immutable Hub identity returned by the owner-authorized challenge endpoint }
+      responses:
+        '200':
+          description: RS256 JWT with typ nexusbus-management-enrollment-proof.v1+jwt, exact active enrollment revision/status, issuer, 60-second expiry, and no owner-consent assertion
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [assertion, token_type, expires_in, audience]
+                properties:
+                  assertion: { type: string }
+                  token_type: { type: string, const: Bearer }
+                  expires_in: { type: integer, const: 60 }
+                  audience: { type: string, const: nexushub-nexusbus-management-proof }
+        '400': { description: Invalid request }
+        '401': { description: Credential, Hub enrollment, Bus enrollment, or approved binding is inactive }
+        '404': { description: Feature is disabled }
 
   /api/admin/service-identities/{id}/credentials:
     post:
@@ -5139,6 +5510,45 @@ paths:
 
 components:
   schemas:
+    ApplicablePolicySummary:
+      type: object
+      description: |
+        An ABAC policy whose scope assignment applies to a user or group,
+        picked by precedence (user > group > tenant > global). Informational:
+        it does not evaluate to an actual allow/deny without a concrete
+        resource+action (see `/api/admin/policies/evaluate`).
+      properties:
+        policyId:
+          type: string
+        key:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+          enum: [authentication, authorization]
+        effect:
+          type: string
+          enum: [allow, deny]
+        resourcePattern:
+          type: string
+          nullable: true
+        actionPattern:
+          type: string
+          nullable: true
+        priority:
+          type: integer
+          nullable: true
+        decisionStrategy:
+          type: string
+          enum: [deny_overrides, allow_overrides, first_applicable]
+          nullable: true
+        matchedScope:
+          type: string
+          enum: [user, group, tenant, global]
+        matchedScopeId:
+          type: string
+          nullable: true
     LoginError:
       type: object
       required: [error, reason, message]

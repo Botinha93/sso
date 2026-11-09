@@ -1,4 +1,5 @@
-import { jwtVerify, SignJWT } from "jose";
+import { decodeProtectedHeader, jwtVerify, SignJWT } from "jose";
+import { randomUUID } from "node:crypto";
 import type { SigningKeys } from "./keys.js";
 import type { AppConfig } from "../core/config.js";
 import type { OAuthClient, ServiceIdentity, TokenBundle, User } from "../domain/models.js";
@@ -30,10 +31,11 @@ export class JwtService {
     accessTokenId: string;
     refreshTokenId: string;
     tenantId?: string;
+    nonce?: string;
     idTokenClaims?: Record<string, unknown>;
     accessTokenAuthorizationClaims?: { roles?: string[]; groups?: string[]; permissions?: string[] };
   }): Promise<TokenBundle> {
-    const { user, client, scope, accessTokenId, refreshTokenId, tenantId, idTokenClaims, accessTokenAuthorizationClaims } = params;
+    const { user, client, scope, accessTokenId, refreshTokenId, tenantId, nonce, idTokenClaims, accessTokenAuthorizationClaims } = params;
     const now = Math.floor(Date.now() / 1000);
     const scopeValue = scope.join(" ");
     const accessTtl = resolveAccessTokenTtlSeconds(client);
@@ -65,7 +67,7 @@ export class JwtService {
       .setExpirationTime(now + accessTtl)
       .sign(this.keys.privateKey);
 
-    const idToken = await new SignJWT(idTokenClaims ?? {})
+    const idToken = await new SignJWT({ ...(idTokenClaims ?? {}), ...(nonce ? { nonce } : {}) })
       .setProtectedHeader({ alg: "RS256", kid: this.keys.kid })
       .setIssuer(this.appConfig.issuer)
       .setAudience(client.id)
@@ -192,6 +194,62 @@ export class JwtService {
       .sign(this.keys.privateKey);
   }
 
+  /** App publisher token. Its audience and claims are purpose-separated from management tokens. */
+  async issueNexusBusProducerToken(params: { subject: string; installationId: string; tenant: string; app: string; tokenId: string; lifetimeSeconds: number }) {
+    const now = Math.floor(Date.now() / 1000);
+    const lifetimeSeconds = Math.min(60, Math.max(1, Math.floor(params.lifetimeSeconds)));
+    return await new SignJWT({ tenant: params.tenant, app: params.app, installation_id: params.installationId })
+      .setProtectedHeader({ alg: "RS256", kid: this.keys.kid })
+      .setIssuer(this.appConfig.issuer)
+      .setSubject(params.subject)
+      .setAudience("nexusbus")
+      .setJti(params.tokenId)
+      .setIssuedAt(now)
+      .setExpirationTime(now + lifetimeSeconds)
+      .sign(this.keys.privateKey);
+  }
+
+  async issueNexusBusManagementEnrollmentProof(params: {
+    subject: string;
+    challenge: string;
+    hubInstanceId: string;
+    hubInstallationId: string;
+    enrollment: {
+      enrollmentId: string;
+      revision: number;
+      status: "active" | "revoked";
+      credentialId: string;
+      installationId: string;
+      organizationId: string;
+      projectId?: string;
+      tenant: string;
+      app: string;
+      roles: string[];
+    };
+  }) {
+    const now = Math.floor(Date.now() / 1000);
+    return await new SignJWT({
+      proof_version: 1,
+      purpose: "nexusbus.management-enrollment-proof",
+      challenge: params.challenge,
+      hub_instance_id: params.hubInstanceId,
+      hub_installation_id: params.hubInstallationId,
+      enrollment: {
+        ...params.enrollment,
+        roles: [...params.enrollment.roles].sort()
+      },
+      owner_consent: "not_asserted"
+    })
+      .setProtectedHeader({ alg: "RS256", kid: this.keys.kid, typ: "nexusbus-management-enrollment-proof.v1+jwt" })
+      .setIssuer(this.appConfig.issuer)
+      .setAudience("nexushub-nexusbus-management-proof")
+      .setSubject(params.subject)
+      .setJti(randomUUID())
+      .setIssuedAt(now)
+      .setExpirationTime(now + 60)
+      .sign(this.keys.privateKey);
+  }
+
   async issueUserAccessToken(params: {
     user: User;
     client: OAuthClient;
@@ -263,7 +321,7 @@ export class JwtService {
 
   getJwks() {
     return {
-      keys: [this.keys.jwk]
+      keys: this.keys.verificationJwks
     };
   }
 
@@ -272,7 +330,15 @@ export class JwtService {
   }
 
   async verifyAccessToken(token: string) {
-    const { payload } = await jwtVerify(token, this.keys.publicKey, {
+    const kid = decodeProtectedHeader(token).kid;
+    const signingKey = this.keys.verificationKeys.find((entry) => entry.kid === kid)?.key;
+    if (!signingKey) {
+      const error = new Error("Token signing key is not in the active NexusID verification key set");
+      error.name = "JWTInvalid";
+      Object.assign(error, { code: "ERR_JWT_INVALID" });
+      throw error;
+    }
+    const { payload } = await jwtVerify(token, signingKey, {
       // Tokens minted before the issuer was normalised carry a trailing slash.
       issuer: [this.appConfig.issuer, `${this.appConfig.issuer}/`],
       algorithms: ["RS256"]

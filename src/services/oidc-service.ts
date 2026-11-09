@@ -20,6 +20,7 @@ export class OidcService {
       issuer,
       authorization_endpoint: `${issuer}/oauth/authorize`,
       token_endpoint: `${issuer}/oauth/token`,
+      token_exchange_endpoint: `${issuer}/oauth/token/exchange`,
       device_authorization_endpoint: `${issuer}/oauth/device/authorize`,
       backchannel_authentication_endpoint: `${issuer}/oauth/ciba/authenticate`,
       registration_endpoint: `${issuer}/connect/register`,
@@ -35,7 +36,7 @@ export class OidcService {
       backchannel_token_delivery_modes_supported: ["poll", "ping", "push"],
       subject_types_supported: ["public"],
       id_token_signing_alg_values_supported: ["RS256"],
-      token_endpoint_auth_methods_supported: ["client_secret_post"],
+      token_endpoint_auth_methods_supported: ["client_secret_post", "none"],
       scopes_supported: scopesSupported,
       claims_supported: [...OIDC_CLAIMS_SUPPORTED],
       grant_types_supported: [
@@ -65,6 +66,7 @@ export class OidcService {
     client?: OAuthClient;
     maxLifetimeSeconds?: number;
     actorClientId?: string;
+    actorApplication?: { appId: string; registrationId: string; organizationId: string; projectId: string };
     additionalClaims?: Record<string, string>;
   }) {
     const { SignJWT } = await import("jose");
@@ -79,7 +81,13 @@ export class OidcService {
 
     let tokenBuilder = new SignJWT({
       scope: scopeValue,
-      ...(input.actorClientId ? { act: { sub: input.actorClientId } } : {}),
+      ...(input.actorApplication ? { act: {
+        sub: input.actorApplication.appId,
+        registration_id: input.actorApplication.registrationId,
+        organization_id: input.actorApplication.organizationId,
+        project_id: input.actorApplication.projectId,
+        act: { sub: input.actorClientId },
+      } } : input.actorClientId ? { act: { sub: input.actorClientId } } : {}),
       ...(input.additionalClaims ?? {})
     })
       .setProtectedHeader({ alg: "RS256", kid: keys.kid })

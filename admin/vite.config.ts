@@ -9,26 +9,27 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    host: '127.0.0.1',
     proxy: {
       '/api': {
-        target: 'http://localhost:4000',
+        target: process.env.NEXUSID_ADMIN_API_PROXY_TARGET ?? 'http://localhost:4000',
         changeOrigin: true,
       },
       // Anchored so the SPA route /authentication is not proxied to the API.
       '^/auth(/|$)': {
-        target: 'http://localhost:4000',
+        target: process.env.NEXUSID_ADMIN_API_PROXY_TARGET ?? 'http://localhost:4000',
         changeOrigin: true,
       },
       '/oauth': {
-        target: 'http://localhost:4000',
+        target: process.env.NEXUSID_ADMIN_API_PROXY_TARGET ?? 'http://localhost:4000',
         changeOrigin: true,
       },
       '/media': {
-        target: 'http://localhost:4000',
+        target: process.env.NEXUSID_ADMIN_API_PROXY_TARGET ?? 'http://localhost:4000',
         changeOrigin: true,
       },
       '/.well-known': {
-        target: 'http://localhost:4000',
+        target: process.env.NEXUSID_ADMIN_API_PROXY_TARGET ?? 'http://localhost:4000',
         changeOrigin: true,
       }
     }

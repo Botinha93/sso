@@ -58,7 +58,7 @@ const DEVICE_ERROR_MESSAGES: Record<string, string> = {
 
 export const resolveDeviceVerificationError = (
   errorPayload: unknown,
-  t: (key: string) => string,
+  t: (key: string, params?: Record<string, string>) => string,
 ) => {
   if (isAccountLockedPayload(errorPayload)) {
     return t('login.accountLocked', { minutes: lockedRetryMinutes(errorPayload) })

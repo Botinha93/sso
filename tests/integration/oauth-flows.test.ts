@@ -43,7 +43,7 @@ test("OAuth/OIDC grant flows: authorization_code, refresh, client_credentials, p
   assert.equal(loginResponse.statusCode, 200);
   const sid = extractCookie(loginResponse.headers["set-cookie"], "sid");
 
-  const codeVerifier = "code-verifier-for-integration-tests";
+  const codeVerifier = "code-verifier-for-integration-tests-0123456789-abcdef";
   const codeChallenge = createHash("sha256").update(codeVerifier).digest("base64url");
 
   const authorizeCodeUrl = `/oauth/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent("http://localhost:3000/callback")}&scope=${encodeURIComponent("openid profile email roles groups permissions")}&state=abc123&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`;

@@ -15,7 +15,7 @@ import type {
 } from "../repositories/contracts.js";
 import { verifyPassword } from "../security/password.js";
 import { hashOpaqueToken } from "../security/token-hash.js";
-import { JwtService, resolveAccessTokenTtlSeconds, resolveRefreshTokenTtlSeconds } from "../security/jwt.js";
+import { isJwtVerificationError, JwtService, resolveAccessTokenTtlSeconds, resolveRefreshTokenTtlSeconds } from "../security/jwt.js";
 import { AuthenticationFlowService } from "./authentication-flow-service.js";
 import { GroupService } from "./group-service.js";
 import { RoleService } from "./role-service.js";
@@ -67,10 +67,10 @@ interface CibaAuthorizationRecord {
  * redirect back to the client (authorization_code).
  */
 export const findClientMisconfiguration = (
-  client: Pick<OAuthClient, "secret" | "grants" | "allowedScopes" | "redirectUris">,
+  client: Pick<OAuthClient, "secret" | "grants" | "allowedScopes" | "redirectUris" | "tokenEndpointAuthMethod" | "requirePkce">,
   options: { requireRedirectUris?: boolean } = {}
 ): ClientMisconfigurationReason | undefined => {
-  if (!client.secret?.trim()) {
+  if ((client.tokenEndpointAuthMethod ?? "client_secret_post") !== "none" && !client.secret?.trim()) {
     return "client_secret_missing";
   }
   if (client.grants.length === 0) {
@@ -222,6 +222,7 @@ export class AuthService {
     userId: string;
     redirectUri: string;
     scope: string[];
+    nonce?: string;
     codeChallenge?: string;
     codeChallengeMethod?: "S256";
   }) {
@@ -254,6 +255,7 @@ export class AuthService {
       userId: input.userId,
       redirectUri: input.redirectUri,
       scope: input.scope.filter((scope) => client.allowedScopes.includes(scope)),
+      nonce: input.nonce,
       codeChallenge: input.codeChallenge,
       codeChallengeMethod: input.codeChallengeMethod,
       expiresAt: new Date(Date.now() + 1000 * 60 * 10)
@@ -263,7 +265,7 @@ export class AuthService {
   async exchangeAuthorizationCode(input: {
     code: string;
     clientId: string;
-    clientSecret: string;
+    clientSecret?: string;
     redirectUri: string;
     codeVerifier?: string;
     ip?: string;
@@ -279,10 +281,19 @@ export class AuthService {
       throw new ValidationError("Authorization code has expired");
     }
 
-    const client = await this.authenticateClient({
-      clientId: input.clientId,
-      clientSecret: input.clientSecret
-    });
+    const registeredClient = await this.clientRepository.findById(input.clientId);
+    if (!registeredClient) throw new AuthenticationError("Unknown client");
+    const authMethod = registeredClient.tokenEndpointAuthMethod ?? "client_secret_post";
+    let client: OAuthClient;
+    if (authMethod === "none") {
+      if (!registeredClient.requirePkce || !input.codeVerifier || input.clientSecret !== undefined) {
+        throw new AuthenticationError("Public clients require PKCE and must not send a client_secret");
+      }
+      client = registeredClient;
+    } else {
+      if (!input.clientSecret) throw new AuthenticationError("Client authentication failed");
+      client = await this.authenticateClient({ clientId: input.clientId, clientSecret: input.clientSecret });
+    }
 
     if (!client.grants.includes("authorization_code")) {
       throw new AuthenticationError("Client does not support authorization_code grant");
@@ -293,8 +304,8 @@ export class AuthService {
     }
 
     if (authorizationCode.codeChallenge) {
-      if (!input.codeVerifier) {
-        throw new ValidationError("code_verifier is required for this authorization code");
+      if (!input.codeVerifier || !/^[A-Za-z0-9._~-]{43,128}$/.test(input.codeVerifier)) {
+        throw new ValidationError("code_verifier must be 43 to 128 PKCE characters");
       }
 
       const challenge = createHash("sha256")
@@ -331,7 +342,8 @@ export class AuthService {
       user,
       client,
       sessionId: session.id,
-      scope: authorizationCode.scope
+      scope: authorizationCode.scope,
+      idTokenNonce: authorizationCode.nonce
     });
   }
 
@@ -375,6 +387,11 @@ export class AuthService {
 
   async authenticateClient(input: { clientId: string; clientSecret: string }) {
     const client = await this.requireClient(input.clientId);
+    const managedCheck = this.clientRepository.authenticateManagedProfileSecret
+      ? await this.clientRepository.authenticateManagedProfileSecret(input.clientId, input.clientSecret)
+      : undefined;
+    if (managedCheck === true) return client;
+    if (managedCheck === false) throw new AuthenticationError("Invalid client credentials");
     const provided = Buffer.from(input.clientSecret);
     const actual = Buffer.from(client.secret);
 
@@ -411,7 +428,18 @@ export class AuthService {
       throw new AuthenticationError("Client does not support refresh_token grant");
     }
 
-    const payload = await this.jwtService.verifyAccessToken(input.refreshToken);
+    let payload: Awaited<ReturnType<JwtService["verifyAccessToken"]>>;
+    try {
+      payload = await this.jwtService.verifyAccessToken(input.refreshToken);
+    } catch (error) {
+      // JOSE verification errors are not AppErrors. Normalize malformed,
+      // expired, and otherwise invalid refresh JWTs to the OAuth token error
+      // path so clients receive invalid_grant (401), not an internal 500.
+      if (isJwtVerificationError(error)) {
+        throw new AuthenticationError("Invalid refresh token");
+      }
+      throw error;
+    }
 
     if (payload.type !== "refresh" || !payload.jti || !payload.sub) {
       throw new AuthenticationError("Invalid refresh token");
@@ -1389,6 +1417,7 @@ export class AuthService {
     client: Awaited<ReturnType<AuthService["requireClient"]>>;
     sessionId: string;
     scope: string[];
+    idTokenNonce?: string;
     tenantId?: string;
     rotatedFromTokenId?: string;
   }) {
@@ -1408,6 +1437,7 @@ export class AuthService {
       accessTokenId,
       refreshTokenId,
       tenantId: input.tenantId,
+      nonce: input.idTokenNonce,
       idTokenClaims,
       accessTokenAuthorizationClaims
     });

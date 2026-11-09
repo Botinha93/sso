@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Alert, Button, Group, Image, NativeSelect, PasswordInput, Stack, Text, TextInput } from '@mantine/core'
-import { AuthCard, AuthLayout, ColorSchemeToggle } from '@nexus/design'
+import { AuthCard, AuthLayout, ColorSchemeToggle } from '@botinha93/nexus-design'
 import { AlertCircle, Settings2 } from 'lucide-react'
 import { useInitializeSetup } from '../hooks/useApi'
 import React from 'react';

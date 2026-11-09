@@ -13,7 +13,7 @@ import {
 import React from 'react';
 import { Badge, Box, Card, Grid, Group, Paper, SimpleGrid, Skeleton, Stack, Text, Tooltip } from '@mantine/core'
 import { AreaChart } from '@mantine/charts'
-import { MeterBar, MetricRow, PageHeader, PageHeaderSkeleton, SectionCard, StatCard, StatGroup } from '@nexus/design'
+import { MeterBar, MetricRow, PageHeader, PageHeaderSkeleton, SectionCard, StatCard, StatGroup } from '@botinha93/nexus-design'
 import { Link } from 'react-router-dom'
 import {
   useAccessRequests,

@@ -20,6 +20,8 @@ This repository provides a first-party identity platform aligned with OAuth 2.0 
 - User federation, authentication flows, policies, events/hooks, and audit logs
 - Multi-app assignments for users and groups, including user app access inherited from group membership
 
+The admin console and account portal share the Nexus Design component library. NexusID pins the verified 0.1.2 package artifact at `vendor/nexus-design-0.1.2.tgz`, so standalone `npm ci` and Docker builds do not require credentials for a private package registry. The existing login, consent, launcher, profile, user, and administration screens consume the shared components and theme.
+
 ## SDKs
 
 - TypeScript SDK: `sdk/`
@@ -100,6 +102,8 @@ Notes:
 - To perform a one-time SQLite import into PostgreSQL/MySQL at startup, set `MIGRATE_FROM_SQLITE_PATH` and keep `INIT_SENTINEL_PATH` on persistent storage so the import is not repeated on restart.
 - Set `COOKIE_SECRET` for every deployment. In production, startup now fails if it is missing.
 - Set `TRUST_PROXY=true` only when the app is actually behind a trusted reverse proxy or load balancer.
+
+Standalone deployments do not require NexusHub or NexusBus configuration. To verify a clean, isolated standalone startup (including setup, local signing keys, OIDC discovery, login, and client registration), run `npm run test:standalone-process`. The process acceptance uses a temporary SQLite database and a whitelisted environment, so Hub/Bus settings from the caller's shell cannot affect the result.
 
 ## Node Distribution Bundle
 

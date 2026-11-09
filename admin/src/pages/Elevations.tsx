@@ -1,5 +1,5 @@
 import ElevationPanel from '../components/ElevationPanel'
-import { PageHeader } from '@nexus/design'
+import { PageHeader } from '@botinha93/nexus-design'
 import React from 'react';
 
 export default function Elevations() {

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ActionIcon, Badge, Box, Button, Code, Group, NativeSelect, Stack, Switch, Table, Text, TextInput, Tooltip } from '@mantine/core'
 import { Plus, Send, Trash2, Webhook } from 'lucide-react'
-import { PageHeader, PageHeaderSkeleton, SearchInput, SectionCard } from '@nexus/design'
+import { PageHeader, PageHeaderSkeleton, SearchInput, SectionCard } from '@botinha93/nexus-design'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import EmptyState from '../components/EmptyState'
 import {

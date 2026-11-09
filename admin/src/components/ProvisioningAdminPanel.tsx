@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Alert, Button, Code, Group, Paper, SimpleGrid, Stack, Table, Text, TextInput } from '@mantine/core'
-import { CopyField, SectionCard, StatusBadge } from '@nexus/design'
+import { CopyField, SectionCard, StatusBadge } from '@botinha93/nexus-design'
 import { AlertCircle, AlertTriangle, CheckCircle2, Clock, XCircle } from 'lucide-react'
 import {
   useCreateProvisioningMapping,

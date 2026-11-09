@@ -1,7 +1,7 @@
 import { Button, Group, Paper, SimpleGrid, Skeleton, Stack, Text } from '@mantine/core'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Play } from 'lucide-react'
-import { PageHeader, RefreshButton, SectionCard, StatusBadge, type Status } from '@nexus/design'
+import { PageHeader, RefreshButton, SectionCard, StatusBadge, type Status } from '@botinha93/nexus-design'
 import {
   useConnector,
   useConnectorRuns,

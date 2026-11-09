@@ -77,6 +77,8 @@ export interface OAuthClient {
   appId?: string;
   name: string;
   secret: string;
+  /** OAuth token endpoint authentication. Missing legacy values mean client_secret_post. */
+  tokenEndpointAuthMethod?: "client_secret_post" | "none";
   redirectUris: string[];
   allowedScopes: string[];
   grants: GrantType[];
@@ -133,6 +135,7 @@ export interface AuthorizationCode {
   userId: string;
   redirectUri: string;
   scope: string[];
+  nonce?: string;
   codeChallenge?: string;
   codeChallengeMethod?: "S256";
   expiresAt: Date;
@@ -560,6 +563,12 @@ export type AuditEventType =
   | "nexusbus_management_enrollment_revoked"
   | "nexusbus_management_token_issued"
   | "nexusbus_management_token_denied"
+  | "nexusbus_management_credential_rotation_staged"
+  | "nexusbus_management_credential_rotation_activated"
+  | "nexusbus_token_issued"
+  | "nexusbus_token_denied"
+  | "nexusbus_app_producer_enrollment_created"
+  | "nexusbus_app_producer_enrollment_revoked"
   | "session_revoked"
   | "session_anomaly_detected"
   | "client_created"
@@ -615,7 +624,10 @@ export type AuditEventType =
   | "nexushub_installation_enrolled"
   | "nexushub_installation_revoked"
   | "nexushub_client_profile_created"
-  | "nexushub_client_profile_replayed";
+  | "nexushub_client_profile_replayed"
+  | "nexushub_client_credential_rotation_staged"
+  | "nexushub_client_credential_rotation_activated"
+  | "nexushub_client_credential_rotation_aborted";
 
 export type ElevationStatus = "pending" | "approved" | "active" | "revoked" | "expired";
 export type ElevationSessionStatus = "active" | "revoked" | "expired";

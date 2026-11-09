@@ -27,7 +27,7 @@ test("OAuth grant enforcement across authorize/token/device/token-exchange paths
     client_secret: "super-secret-admin-client"
   };
 
-  const codeVerifier = "grant-enforcement-verifier";
+  const codeVerifier = "grant-enforcement-verifier-0123456789-abcdefghijkl";
   const codeChallenge = createHash("sha256").update(codeVerifier).digest("base64url");
 
   const authCodeUrl = `/oauth/authorize?response_type=code&client_id=${encodeURIComponent(limited.client_id)}&redirect_uri=${encodeURIComponent("http://localhost:3000/callback")}&scope=${encodeURIComponent("openid profile email")}&state=enforce-state&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`;
@@ -240,7 +240,7 @@ test("OAuth endpoint supports hybrid, jwt-bearer, saml2-bearer, and ciba grants"
   assert.equal(advancedRegister.statusCode, 201);
   const advancedClient = advancedRegister.json() as { client_id: string; client_secret: string };
 
-  const codeVerifier = "hybrid-flow-verifier";
+  const codeVerifier = "hybrid-flow-verifier-0123456789-abcdefghijkl";
   const codeChallenge = createHash("sha256").update(codeVerifier).digest("base64url");
 
   const hybridAuthorizeUrl = `/oauth/authorize?response_type=${encodeURIComponent("code token")}&response_mode=fragment&client_id=${encodeURIComponent(advancedClient.client_id)}&redirect_uri=${encodeURIComponent("http://localhost:3000/callback")}&scope=${encodeURIComponent("openid profile email")}&state=hybrid-state&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`;

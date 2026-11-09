@@ -67,6 +67,7 @@ model Client {
   appId                  String? @map("app_id")
   name                   String
   secret                 String
+  tokenEndpointAuthMethod String @default("client_secret_post") @map("token_endpoint_auth_method")
   redirectUrisJson       String  @map("redirect_uris_json")
   allowedScopesJson      String  @map("allowed_scopes_json")
   grantsJson             String  @map("grants_json")
@@ -87,6 +88,13 @@ model NexusBusManagementEnrollment {
   serviceIdentityId  String  @unique @map("service_identity_id")
   credentialId       String  @unique @map("credential_id")
   credentialHash     String  @map("credential_hash")
+  activeCredentialId String? @unique @map("active_credential_id")
+  activeCredentialHash String? @map("active_credential_hash")
+  pendingCredentialId String? @unique @map("pending_credential_id")
+  pendingCredentialHash String? @map("pending_credential_hash")
+  pendingCredentialCreatedAt String? @map("pending_credential_created_at")
+  producerCredentialId String? @unique @map("producer_credential_id")
+  producerCredentialHash String? @map("producer_credential_hash")
   organizationId     String  @map("organization_id")
   projectId          String? @map("project_id")
   tenant             String
@@ -150,6 +158,7 @@ model AuthorizationCode {
   userId             String  @map("user_id")
   redirectUri        String  @map("redirect_uri")
   scopeJson          String  @map("scope_json")
+  nonce              String?
   codeChallenge      String? @map("code_challenge")
   codeChallengeMethod String? @map("code_challenge_method")
   expiresAt          String  @map("expires_at")

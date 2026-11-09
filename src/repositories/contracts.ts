@@ -104,6 +104,13 @@ export interface ClientRepository {
   list(): Awaitable<OAuthClient[]>;
   update(id: string, input: Partial<Omit<OAuthClient, "id" | "createdAt">>): Awaitable<OAuthClient | undefined>;
   delete(id: string): Awaitable<void>;
+  /** undefined means this is an ordinary client; true/false means managed profile authentication owns the decision. */
+  authenticateManagedProfileSecret?(clientId: string, secret: string): Promise<boolean | undefined>;
+  ensureManagedProfileCredential?(input: { clientId: string; installationId: string; profileId: "nexushub" | "liberide"; profileVersion: 1; secret: string }): Promise<{ generation: number }>;
+  stageManagedProfileCredential?(input: { clientId: string; operationId: string; secret: string; expiresAt: Date }): Promise<{ state: "staged" | "replayed" | "conflict"; generation?: number; pendingExpiresAt?: Date }>;
+  activateManagedProfileCredential?(input: { clientId: string; operationId: string; now?: Date }): Promise<{ state: "activated" | "replayed" | "conflict"; generation?: number }>;
+  abortManagedProfileCredential?(input: { clientId: string; operationId: string }): Promise<boolean>;
+  managedProfileCredentialStatus?(clientId: string, now?: Date, operationId?: string): Promise<{ generation: number; profileId: "nexushub" | "liberide"; profileVersion: 1; installationId: string; pendingOperationId?: string; pendingExpiresAt?: Date; activatedOperationId?: string; operationState?: "staging" | "pending" | "activated" | "aborted" | "expired" | "conflict" } | undefined>;
 }
 
 export interface ScopeRepository {
@@ -136,6 +143,24 @@ export interface WebauthnCredentialRepository {
 export interface AuthorizationCodeRepository {
   create(input: Omit<AuthorizationCode, "id" | "createdAt">): Awaitable<AuthorizationCode>;
   consume(code: string): Awaitable<AuthorizationCode | undefined>;
+}
+
+export type OAuthConsentRequestTicket = {
+  userId: string;
+  clientId: string;
+  redirectUri: string;
+  scopes: string[];
+  state: string;
+  nonce: string;
+  authorization: Record<string, string>;
+  expiresAt: Date;
+};
+
+export interface OAuthConsentRequestRepository {
+  create(ticket: string, input: OAuthConsentRequestTicket): Promise<void>;
+  /** Atomically consumes a live ticket only when every reviewed binding matches. */
+  consume(ticket: string, expected: Pick<OAuthConsentRequestTicket, "userId" | "clientId" | "redirectUri" | "scopes" | "state" | "nonce">, now?: Date): Promise<OAuthConsentRequestTicket | undefined>;
+  deleteExpired(now?: Date): Promise<number>;
 }
 
 export interface TenantRepository {
@@ -217,6 +242,7 @@ export type NexusHubDelegationToken = {
 export interface NexusHubDelegationTokenRepository {
   record(input: NexusHubDelegationToken): Awaitable<boolean>;
   findActive(tokenId: string, now?: Date): Awaitable<NexusHubDelegationToken | undefined>;
+  revokeToken(tokenId: string, at?: Date): Awaitable<void>;
   revokeGrant(input: Pick<NexusHubDelegationToken, "userId" | "clientId" | "installationId" | "resource">, at?: Date): Awaitable<string[]>;
 }
 
@@ -226,6 +252,14 @@ export type NexusBusManagementEnrollment = {
   serviceIdentityId: string;
   credentialId: string;
   credentialHash: string;
+  activeCredentialId?: string;
+  activeCredentialHash?: string;
+  pendingCredentialId?: string;
+  pendingCredentialHash?: string;
+  pendingCredentialCreatedAt?: Date;
+  /** Separate event-publisher credential; never accepted by the management grant. */
+  producerCredentialId?: string;
+  producerCredentialHash?: string;
   organizationId: string;
   projectId?: string;
   tenant: string;
@@ -240,8 +274,36 @@ export interface NexusBusManagementEnrollmentRepository {
   create(input: Omit<NexusBusManagementEnrollment, "createdAt" | "revokedAt" | "status">): Promise<NexusBusManagementEnrollment>;
   findByServiceIdentity(serviceIdentityId: string): Promise<NexusBusManagementEnrollment | undefined>;
   findByCredential(credentialId: string): Promise<NexusBusManagementEnrollment | undefined>;
+  findByProducerCredential(credentialId: string): Promise<NexusBusManagementEnrollment | undefined>;
+  stageCredentialRotation(input: { serviceIdentityId: string; activeCredentialId: string; activeCredentialHash: string; pendingCredentialId: string; pendingCredentialHash: string; at?: Date }): Promise<"staged" | "active" | "conflict">;
+  activateCredentialRotation(input: { serviceIdentityId: string; pendingCredentialId: string; pendingCredentialHash: string; at?: Date }): Promise<"activated" | "already_active" | "conflict">;
   revoke(serviceIdentityId: string, at?: Date): Promise<boolean>;
+  createAppProducer?(input: Omit<NexusBusAppProducerEnrollment, "createdAt" | "revokedAt" | "status">): Promise<NexusBusAppProducerEnrollment>;
+  findAppProducerByCredential?(credentialId: string): Promise<NexusBusAppProducerEnrollment | undefined>;
+  findAppProducerByEnrollment?(enrollmentId: string): Promise<NexusBusAppProducerEnrollment | undefined>;
+  revokeAppProducer?(enrollmentId: string, hubInstallationId: string, at?: Date): Promise<boolean>;
 }
+
+export type NexusBusAppProducerEnrollment = {
+  enrollmentId: string;
+  assertionId: string;
+  hubInstallationId: string;
+  organizationId: string;
+  projectId: string;
+  applicationRegistrationId: string;
+  appId: string;
+  tenant: string;
+  eventService: string;
+  eventMember: string;
+  serviceVersion: string;
+  descriptorHash: string;
+  role: "event.publish";
+  credentialId: string;
+  credentialHash: string;
+  status: "active" | "revoked";
+  createdAt: Date;
+  revokedAt?: Date;
+};
 
 export interface RefreshTokenRepository {
   create(input: Omit<RefreshTokenRecord, "id" | "createdAt">): Awaitable<RefreshTokenRecord>;

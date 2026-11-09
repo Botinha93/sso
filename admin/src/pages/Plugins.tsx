@@ -1,7 +1,7 @@
 import { Alert, Badge, Box, Button, Checkbox, FileInput, Grid, Group, List, Paper, SimpleGrid, Stack, Text, TextInput, Textarea, TagsInput } from '@mantine/core'
 import { useMemo, useState } from 'react'
 import { CheckCircle2, FileArchive, ShieldAlert, Trash2, UploadCloud, Info } from 'lucide-react'
-import { CopyField, PageHeader, SectionCard, TableSkeleton } from '@nexus/design'
+import { CopyField, PageHeader, SectionCard, TableSkeleton } from '@botinha93/nexus-design'
 import CodeBlock from '../components/CodeBlock'
 import EmptyState from '../components/EmptyState'
 import {

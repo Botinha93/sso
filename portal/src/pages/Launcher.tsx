@@ -1,5 +1,5 @@
 import { Alert, Anchor, Avatar, Badge, Box, Group, Paper, SimpleGrid, Text, Title } from '@mantine/core'
-import { AppTile, AppTileGrid } from '@nexus/design'
+import { AppTile, AppTileGrid } from '@botinha93/nexus-design'
 import { Lightbulb, Settings, Users as UsersIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useEffect, useMemo, useState } from 'react'

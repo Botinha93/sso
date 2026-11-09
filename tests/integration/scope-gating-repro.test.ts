@@ -37,7 +37,7 @@ test("repro: permissions must not appear when scope not requested", async (t) =>
   assert.equal(loginResponse.statusCode, 200);
   const sid = extractCookie(loginResponse.headers["set-cookie"], "sid");
 
-  const codeVerifier = "code-verifier-for-scope-gating-repro";
+  const codeVerifier = "code-verifier-for-scope-gating-repro-0123456789";
   const codeChallenge = createHash("sha256").update(codeVerifier).digest("base64url");
 
   // Request ONLY openid profile email — no roles/groups/permissions.

@@ -121,6 +121,26 @@ const ensureNexusHubDelegationTokenTable = async (prisma: PrismaClientLike & Rec
   )`);
 };
 
+const ensureOAuthConsentRequestTable = async (prisma: PrismaClientLike & Record<string, unknown>, provider: AppConfig["databaseProvider"]) => {
+  const execute = (prisma as any).$executeRawUnsafe?.bind(prisma);
+  if (!execute) throw new Error("Database adapter cannot initialize OAuth consent request storage");
+  const id = provider === "mysql" ? "VARCHAR(191)" : "TEXT";
+  const value = provider === "mysql" ? "VARCHAR(2048)" : "TEXT";
+  const time = provider === "mysql" ? "VARCHAR(40)" : "TEXT";
+  await execute(`CREATE TABLE IF NOT EXISTS oauth_consent_request_tickets (
+    ticket_hash CHAR(64) PRIMARY KEY,
+    user_id ${id} NOT NULL,
+    client_id ${id} NOT NULL,
+    redirect_uri ${value} NOT NULL,
+    scopes_json ${value} NOT NULL,
+    state_hash CHAR(64) NOT NULL,
+    nonce_hash CHAR(64) NOT NULL,
+    authorization_json TEXT NOT NULL,
+    expires_at ${time} NOT NULL,
+    consumed_at ${time}
+  )`);
+};
+
 const ensureNexusBusManagementEnrollmentTable = async (prisma: PrismaClientLike & Record<string, unknown>, provider: AppConfig["databaseProvider"]) => {
   const execute = (prisma as any).$executeRawUnsafe?.bind(prisma);
   if (!execute) throw new Error("Database adapter cannot initialize NexusBus management enrollment storage");
@@ -134,6 +154,13 @@ const ensureNexusBusManagementEnrollmentTable = async (prisma: PrismaClientLike 
     service_identity_id ${id} NOT NULL UNIQUE,
     credential_id ${id} NOT NULL UNIQUE,
     credential_hash ${id} NOT NULL,
+    active_credential_id ${id} UNIQUE,
+    active_credential_hash ${id},
+    pending_credential_id ${id} UNIQUE,
+    pending_credential_hash ${id},
+    pending_credential_created_at ${time},
+    producer_credential_id ${id} UNIQUE,
+    producer_credential_hash ${id},
     organization_id ${value} NOT NULL,
     project_id ${value},
     tenant ${value} NOT NULL,
@@ -142,6 +169,71 @@ const ensureNexusBusManagementEnrollmentTable = async (prisma: PrismaClientLike 
     status ${id} NOT NULL,
     created_at ${time} NOT NULL,
     revoked_at ${time}
+  )`);
+  for (const [column, type] of [["producer_credential_id", id], ["producer_credential_hash", id], ["pending_credential_id", id], ["pending_credential_hash", id], ["pending_credential_created_at", time], ["active_credential_id", id], ["active_credential_hash", id]] as const) {
+    try { await execute(`ALTER TABLE nexusbus_management_enrollments ADD COLUMN ${column} ${type}${column.endsWith("_id") ? " UNIQUE" : ""}`); }
+    catch (error) {
+      const candidate = error as { code?: string; meta?: { code?: string; message?: string }; message?: string };
+      const code = candidate.code ?? candidate.meta?.code;
+      const message = `${candidate.message ?? ""} ${candidate.meta?.message ?? ""}`;
+      if (!(code === "42701" || code === "ER_DUP_FIELDNAME" || /duplicate column|column .* already exists/i.test(message))) throw error;
+    }
+  }
+  await execute(`CREATE TABLE IF NOT EXISTS nexusbus_app_producer_enrollments (
+    enrollment_id ${id} PRIMARY KEY,
+    assertion_id ${id} NOT NULL UNIQUE,
+    hub_installation_id ${id} NOT NULL,
+    organization_id ${value} NOT NULL,
+    project_id ${value} NOT NULL,
+    application_registration_id ${id} NOT NULL,
+    app_id ${value} NOT NULL,
+    tenant ${value} NOT NULL,
+    event_service ${value} NOT NULL,
+    event_member ${value} NOT NULL,
+    service_version ${value} NOT NULL,
+    descriptor_hash ${value} NOT NULL,
+    role ${value} NOT NULL,
+    credential_id ${id} NOT NULL UNIQUE,
+    credential_hash ${id} NOT NULL,
+    status ${id} NOT NULL,
+    created_at ${time} NOT NULL,
+    revoked_at ${time}
+  )`);
+};
+
+const ensureNexusHubManagedClientCredentialTable = async (prisma: PrismaClientLike & Record<string, unknown>, provider: AppConfig["databaseProvider"]) => {
+  const execute = (prisma as any).$executeRawUnsafe?.bind(prisma);
+  if (!execute) throw new Error("Database adapter cannot initialize NexusHub managed client credential storage");
+  const id = provider === "mysql" ? "VARCHAR(191)" : "TEXT";
+  const shortValue = provider === "mysql" ? "VARCHAR(512)" : "TEXT";
+  const time = provider === "mysql" ? "VARCHAR(40)" : "TEXT";
+  await execute(`CREATE TABLE IF NOT EXISTS nexushub_managed_client_credentials (
+    client_id ${id} PRIMARY KEY,
+    installation_id ${id} NOT NULL,
+    profile_id ${id} NOT NULL,
+    profile_version INTEGER NOT NULL,
+    active_salt ${shortValue} NOT NULL,
+    active_verifier ${shortValue} NOT NULL,
+    generation INTEGER NOT NULL,
+    pending_operation_id ${id},
+    pending_salt ${shortValue},
+    pending_verifier ${shortValue},
+    pending_expires_at ${time},
+    activated_operation_id ${id},
+    updated_at ${time} NOT NULL,
+    UNIQUE (installation_id, profile_id, profile_version)
+  )`);
+  await execute(`CREATE TABLE IF NOT EXISTS nexushub_managed_client_credential_operations (
+    client_id ${id} NOT NULL,
+    operation_id ${id} NOT NULL,
+    generation INTEGER NOT NULL,
+    state ${id} NOT NULL,
+    candidate_salt ${shortValue} NOT NULL,
+    candidate_verifier ${shortValue} NOT NULL,
+    expires_at ${time} NOT NULL,
+    created_at ${time} NOT NULL,
+    updated_at ${time} NOT NULL,
+    PRIMARY KEY (client_id, operation_id)
   )`);
 };
 
@@ -158,6 +250,35 @@ const ensureOAuthResourceMetadataColumn = async (prisma: PrismaClientLike & Reco
     const candidate = error as { code?: string; meta?: { code?: string; message?: string }; message?: string };
     const code = candidate.code ?? candidate.meta?.code;
     const message = `${candidate.message ?? ''} ${candidate.meta?.message ?? ''}`;
+    const alreadyExists = code === "42701" || code === "ER_DUP_FIELDNAME" || /duplicate column|column .* already exists/i.test(message);
+    if (!alreadyExists) throw error;
+  }
+};
+
+const ensureOAuthTokenEndpointAuthMethodColumn = async (prisma: PrismaClientLike & Record<string, unknown>) => {
+  const execute = (prisma as any).$executeRawUnsafe?.bind(prisma);
+  if (!execute) throw new Error("Database adapter cannot initialize OAuth client authentication method storage");
+  try {
+    await execute("ALTER TABLE oauth_clients ADD COLUMN token_endpoint_auth_method VARCHAR(32) NOT NULL DEFAULT 'client_secret_post'");
+  } catch (error) {
+    const candidate = error as { code?: string; meta?: { code?: string; message?: string }; message?: string };
+    const code = candidate.code ?? candidate.meta?.code;
+    const message = `${candidate.message ?? ''} ${candidate.meta?.message ?? ''}`;
+    const alreadyExists = code === "42701" || code === "ER_DUP_FIELDNAME" || /duplicate column|column .* already exists/i.test(message);
+    if (!alreadyExists) throw error;
+  }
+};
+
+const ensureAuthorizationCodeNonceColumn = async (prisma: PrismaClientLike & Record<string, unknown>, provider: AppConfig["databaseProvider"]) => {
+  if (provider === "sqlite") return;
+  const execute = (prisma as any).$executeRawUnsafe?.bind(prisma);
+  if (!execute) throw new Error("Database adapter cannot initialize authorization-code nonce storage");
+  try {
+    await execute("ALTER TABLE authorization_codes ADD COLUMN nonce TEXT");
+  } catch (error) {
+    const candidate = error as { code?: string; meta?: { code?: string; message?: string }; message?: string };
+    const code = candidate.code ?? candidate.meta?.code;
+    const message = `${candidate.message ?? ""} ${candidate.meta?.message ?? ""}`;
     const alreadyExists = code === "42701" || code === "ER_DUP_FIELDNAME" || /duplicate column|column .* already exists/i.test(message);
     if (!alreadyExists) throw error;
   }
@@ -342,8 +463,12 @@ export async function getPrismaClient(config: AppConfig): Promise<PrismaClientLi
   await ensureAppAssignmentTables(prisma, config.databaseProvider);
   await ensureNexusHubDelegationConsentTable(prisma, config.databaseProvider);
   await ensureNexusHubDelegationTokenTable(prisma, config.databaseProvider);
+  await ensureOAuthConsentRequestTable(prisma, config.databaseProvider);
   await ensureNexusBusManagementEnrollmentTable(prisma, config.databaseProvider);
+  await ensureNexusHubManagedClientCredentialTable(prisma, config.databaseProvider);
   await ensureOAuthResourceMetadataColumn(prisma, config.databaseProvider);
+  await ensureOAuthTokenEndpointAuthMethodColumn(prisma);
+  await ensureAuthorizationCodeNonceColumn(prisma, config.databaseProvider);
   await ensureSuggestionsTable(prisma, config.databaseProvider);
   await ensureRetentionIndexes(prisma, config.databaseProvider);
   return prisma;

@@ -15,7 +15,7 @@ import {
   TextInput,
   Textarea,
 } from '@mantine/core'
-import { SectionCard } from '@nexus/design'
+import { SectionCard } from '@botinha93/nexus-design'
 import { useState } from 'react'
 import {
   useAuthorizationCheck,

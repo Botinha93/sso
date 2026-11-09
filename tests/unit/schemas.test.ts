@@ -55,6 +55,25 @@ test("dynamic registration schema accepts optional app_id", () => {
   assert.equal(parsed.app_id, "app-1");
 });
 
+test("dynamic registration schema accepts a public PKCE client", () => {
+  const parsed = dynamicClientRegistrationSchema.parse({
+    client_name: "Browser App",
+    redirect_uris: ["https://app.example.test/auth/callback"],
+    grant_types: ["authorization_code"],
+    token_endpoint_auth_method: "none"
+  });
+  assert.equal(parsed.token_endpoint_auth_method, "none");
+});
+
+test("authorization-code token schema permits a secret-free public client request", () => {
+  const parsed = tokenSchema.parse({
+    grant_type: "authorization_code", code: "authorization-code-123", client_id: "public-client",
+    redirect_uri: "https://app.example.test/auth/callback", code_verifier: "a".repeat(43)
+  });
+  assert.equal(parsed.grant_type, "authorization_code");
+  assert.equal(parsed.client_secret, undefined);
+});
+
 test("user schemas accept service-user flag", () => {
   const created = createUserSchema.parse({
     email: "service@example.com",

@@ -1,7 +1,7 @@
 import { Trash2, CheckSquare } from 'lucide-react'
 import { useState } from 'react'
 import { ActionIcon, Badge, Group, Stack, Table, Text, Tooltip } from '@mantine/core'
-import { PageHeader, RefreshButton, SearchInput, SectionCard, TableSkeleton } from '@nexus/design'
+import { PageHeader, RefreshButton, SearchInput, SectionCard, TableSkeleton } from '@botinha93/nexus-design'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EmptyState from '../components/EmptyState'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'

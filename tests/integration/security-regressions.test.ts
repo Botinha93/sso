@@ -143,6 +143,103 @@ test("consent cannot be granted through a crafted GET link; it requires POST /oa
   assert.equal(deniedLocation.searchParams.get("state"), "s1");
 });
 
+test("browser consent tickets bind the signed-in user, registered callback, scopes, and one-use decision", async (t) => {
+  const { app, admin } = await createTestContext("sec-consent-ticket");
+  t.after(async () => { await app.close(); });
+  const registered = await registerClientAsAdmin(app, admin, {
+    client_name: "Scoped Browser Consent",
+    redirect_uris: ["http://localhost:3000/callback"],
+    grant_types: ["authorization_code"],
+    scope: "openid profile email"
+  });
+  assert.equal(registered.statusCode, 201, registered.body);
+  const clientId = (registered.json() as { client_id: string }).client_id;
+  const sid = await loginAsAdmin(app, admin);
+  const challenge = createHash("sha256").update("consent-ticket-verifier").digest("base64url");
+  const authorization = new URLSearchParams({
+    response_type: "code", client_id: clientId, redirect_uri: "http://localhost:3000/callback",
+    scope: "openid profile email ignored.scope", state: "state-consent-ticket", nonce: "nonce-consent-ticket",
+    code_challenge: challenge, code_challenge_method: "S256", account_selection: "continue"
+  });
+  const unauthenticated = await app.inject({ method: "GET", url: `/oauth/consent/request?${authorization}` });
+  assert.equal(unauthenticated.statusCode, 401);
+  const preview = await app.inject({ method: "GET", url: `/oauth/consent/request?${authorization}`, headers: { cookie: sid } });
+  assert.equal(preview.statusCode, 200, preview.body);
+  const challengeData = preview.json() as { requestId: string; client: { name: string }; redirectUri: string; scopes: string[]; state: string; authorization: Record<string, string> };
+  assert.equal(challengeData.client.name, "Scoped Browser Consent");
+  assert.equal(challengeData.redirectUri, "http://localhost:3000/callback");
+  assert.deepEqual(challengeData.scopes, ["openid", "profile", "email"]);
+  assert.equal(challengeData.state, "state-consent-ticket");
+  assert.equal(challengeData.authorization.code_challenge, challenge);
+  assert.equal(challengeData.authorization.scope, "openid profile email");
+  const csrf = await getCsrf(app, sid);
+  const body = { consent_request_id: challengeData.requestId, client_id: clientId, redirect_uri: challengeData.redirectUri, scope: challengeData.scopes.join(" "), state: challengeData.authorization.state, nonce: challengeData.authorization.nonce, decision: "approve" };
+  const noCsrf = await app.inject({ method: "POST", url: "/oauth/consent", headers: { cookie: sid }, payload: body });
+  assert.equal(noCsrf.statusCode, 403);
+  const altered = await app.inject({ method: "POST", url: "/oauth/consent", headers: csrf.headers, payload: { ...body, scope: "openid" } });
+  assert.equal(altered.statusCode, 400);
+  assert.equal(altered.json().error, "invalid_consent_request");
+  const approved = await app.inject({ method: "POST", url: "/oauth/consent", headers: csrf.headers, payload: body });
+  assert.equal(approved.statusCode, 200, approved.body);
+  assert.equal(approved.json().decision, "approve");
+  const resumed = await app.inject({ method: "GET", url: `/oauth/authorize?${new URLSearchParams({ ...challengeData.authorization, account_selection: "continue" })}`, headers: { cookie: sid } });
+  assert.equal(resumed.statusCode, 302, resumed.body);
+  const callback = new URL(String(resumed.headers.location));
+  assert.equal(callback.searchParams.get("state"), "state-consent-ticket");
+  assert.ok(callback.searchParams.get("code"));
+  const replay = await app.inject({ method: "POST", url: "/oauth/consent", headers: csrf.headers, payload: body });
+  assert.equal(replay.statusCode, 400);
+  assert.equal(replay.json().error, "invalid_consent_request");
+  authorization.set("state", "state-consent-denied");
+  const denialPreview = await app.inject({ method: "GET", url: `/oauth/consent/request?${authorization}`, headers: { cookie: sid } });
+  assert.equal(denialPreview.statusCode, 200, denialPreview.body);
+  const denialData = denialPreview.json() as { requestId: string; client: { id: string }; redirectUri: string; scopes: string[]; authorization: Record<string, string> };
+  const denied = await app.inject({ method: "POST", url: "/oauth/consent", headers: csrf.headers, payload: { consent_request_id: denialData.requestId, client_id: denialData.client.id, redirect_uri: denialData.redirectUri, scope: denialData.scopes.join(" "), state: denialData.authorization.state, nonce: denialData.authorization.nonce, decision: "deny" } });
+  assert.equal(denied.statusCode, 200, denied.body);
+  const denialContinuation = new URLSearchParams({ ...denialData.authorization, account_selection: "continue", consent: "deny" });
+  const deniedAuthorization = await app.inject({ method: "GET", url: `/oauth/authorize?${denialContinuation}`, headers: { cookie: sid } });
+  assert.equal(deniedAuthorization.statusCode, 302);
+  const denialCallback = new URL(String(deniedAuthorization.headers.location));
+  assert.equal(denialCallback.searchParams.get("error"), "access_denied");
+  assert.equal(denialCallback.searchParams.get("state"), "state-consent-denied");
+});
+
+test("browser consent ticket survives issuer process restart and is consumed from persistent storage", async (t) => {
+  const { app, admin } = await createTestContext("sec-consent-restart");
+  let restarted: import("fastify").FastifyInstance | undefined;
+  let firstClosed = false;
+  t.after(async () => { await restarted?.close(); if (!firstClosed) await app.close(); });
+  const registered = await registerClientAsAdmin(app, admin, {
+    client_name: "Restart Consent Client", redirect_uris: ["http://localhost:3000/restart-callback"],
+    grant_types: ["authorization_code"], scope: "openid profile"
+  });
+  assert.equal(registered.statusCode, 201, registered.body);
+  const clientId = (registered.json() as { client_id: string }).client_id;
+  const sid = await loginAsAdmin(app, admin);
+  const query = new URLSearchParams({ response_type: "code", client_id: clientId, redirect_uri: "http://localhost:3000/restart-callback", scope: "openid profile", state: "restart-bound-state", nonce: "restart-bound-nonce", code_challenge: createHash("sha256").update("restart-verifier").digest("base64url"), code_challenge_method: "S256" });
+  const preview = await app.inject({ method: "GET", url: `/oauth/consent/request?${query}`, headers: { cookie: sid } });
+  assert.equal(preview.statusCode, 200, preview.body);
+  const data = preview.json() as { requestId: string; client: { id: string }; redirectUri: string; scopes: string[]; authorization: Record<string, string> };
+
+  // Rebuild a second application instance over the same configured database.
+  // The old browser session and consent ticket must be resolved by shared DB state.
+  await app.close();
+  firstClosed = true;
+  const { buildApp } = await import("../../src/app.js");
+  restarted = await buildApp();
+  await restarted.ready();
+  const csrf = await getCsrf(restarted, sid);
+  const approved = await restarted.inject({ method: "POST", url: "/oauth/consent", headers: csrf.headers, payload: {
+    consent_request_id: data.requestId, client_id: data.client.id, redirect_uri: data.redirectUri, scope: data.scopes.join(" "), state: data.authorization.state, nonce: data.authorization.nonce, decision: "approve"
+  } });
+  assert.equal(approved.statusCode, 200, approved.body);
+  const replay = await restarted.inject({ method: "POST", url: "/oauth/consent", headers: csrf.headers, payload: {
+    consent_request_id: data.requestId, client_id: data.client.id, redirect_uri: data.redirectUri, scope: data.scopes.join(" "), state: data.authorization.state, nonce: data.authorization.nonce, decision: "approve"
+  } });
+  assert.equal(replay.statusCode, 400);
+  assert.equal(replay.json().error, "invalid_consent_request");
+});
+
 test("response_mode=form_post escapes reflected values and ships a nonce-only CSP", async (t) => {
   const { app, admin } = await createTestContext("sec-form-post-xss");
   t.after(async () => {

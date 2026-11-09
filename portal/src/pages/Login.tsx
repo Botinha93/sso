@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Alert, Button, Image, Paper, PasswordInput, Skeleton, Stack, TextInput, ThemeIcon } from '@mantine/core'
-import { AuthCard, AuthLayout, ColorSchemeToggle, OtpStep } from '@nexus/design'
+import { AuthCard, AuthLayout, ColorSchemeToggle, OtpStep } from '@botinha93/nexus-design'
 import { ArrowLeft, Lock, LogIn, Mail } from 'lucide-react'
 import LanguageSelector from '../components/LanguageSelector'
 import { useI18n } from '../i18n'
 import { extractErrorMessage, resolveLoginCredentialError } from '../lib/errors'
+import { oauthLoginContinuation } from '../lib/oauth-continuation'
 
 const portalHome = import.meta.env.BASE_URL
 
@@ -149,6 +150,14 @@ export default function Login() {
 
       const json = await res.json().catch(() => ({} as Record<string, unknown>))
       storePasswordExpirationWarning(json)
+      // Preserve the issuer-generated authorization request through interactive
+      // authentication. The continuation target is a fixed local route; the
+      // query values are revalidated by /oauth/authorize before use.
+      const authorizationContinuation = oauthLoginContinuation(window.location.search)
+      if (authorizationContinuation) {
+        window.location.href = authorizationContinuation
+        return
+      }
       window.location.href = portalHome
     } catch {
       setError(t('login.networkError'))

@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type {
   AccessTokenRecord,
   AccessReviewCampaign,
@@ -50,10 +50,11 @@ import type {
   UserRoleAssignment
 } from "../domain/models.js";
 import { RETENTION_POLICY_KEYS, normalizeRetentionSettings, type RetentionPolicyKey } from "../domain/retention.js";
-import type { AuditSearchQuery, AuditStats, RetentionRepository, NexusBusManagementEnrollment, NexusHubDelegationToken } from "./contracts.js";
+import { makeSecretVerifier, verifySecret } from "../security/managed-profile-secret.js";
+import type { AuditSearchQuery, AuditStats, RetentionRepository, NexusBusManagementEnrollment, NexusHubDelegationToken, OAuthConsentRequestRepository, OAuthConsentRequestTicket } from "./contracts.js";
 import type { RepositoryBundle } from "./factory.js";
 import type { RiskEvent, RiskDecision, RiskReason, ServiceIdentity, ServiceIdentityCredential, ServiceIdentityStatus, Connector, ConnectorRun, ConnectorMapping, AuthMetricRollup, Suggestion } from "../domain/models.js";
-import type { GroupAppAssignmentRepository, RiskEventRepository, ServiceIdentityRepository, ServiceIdentityCredentialRepository, UserAppAssignmentRepository, ConnectorRepository, ConnectorRunRepository, ConnectorMappingRepository, AuthMetricRepository, SuggestionRepository, NexusHubDelegationConsentRepository, NexusHubDelegationTokenRepository, NexusBusManagementEnrollmentRepository } from "./contracts.js";
+import type { GroupAppAssignmentRepository, RiskEventRepository, ServiceIdentityRepository, ServiceIdentityCredentialRepository, UserAppAssignmentRepository, ConnectorRepository, ConnectorRunRepository, ConnectorMappingRepository, AuthMetricRepository, SuggestionRepository, NexusHubDelegationConsentRepository, NexusHubDelegationTokenRepository, NexusBusManagementEnrollmentRepository, NexusBusAppProducerEnrollment } from "./contracts.js";
 
 type PrismaRow = Record<string, unknown>;
 
@@ -83,7 +84,15 @@ const asRowArray = (rows: PrismaRow[] | PrismaRow | null | undefined): PrismaRow
 
 const usesInsensitiveStringFilters = () => {
   const provider = process.env.DATABASE_PROVIDER;
-  return provider === "postgresql" || provider === "mysql";
+  // Prisma exposes query `mode` only for PostgreSQL; SQLite/MySQL use the
+  // portable LOWER(...) repository path (and MySQL's native collation).
+  return provider === "postgresql";
+};
+
+const isUniqueConstraintError = (error: unknown) => {
+  const candidate = error as { code?: unknown; meta?: { code?: unknown }; message?: unknown } | null;
+  return candidate?.code === "P2002" || candidate?.meta?.code === "23505" || candidate?.meta?.code === "1062" ||
+    (typeof candidate?.message === "string" && /unique constraint|duplicate entry/i.test(candidate.message));
 };
 
 type PrismaClientLike = {
@@ -245,6 +254,7 @@ const mapClient = (row: PrismaRow): OAuthClient => {
     appId: row.appId ? String(row.appId) : undefined,
     name: String(row.name),
     secret: String(row.secret),
+    tokenEndpointAuthMethod: String(readField(row, "tokenEndpointAuthMethod", "token_endpoint_auth_method") ?? "client_secret_post") as OAuthClient["tokenEndpointAuthMethod"],
     redirectUris: parseStringArray(row.redirectUrisJson),
     allowedScopes: parseStringArray(row.allowedScopesJson),
     grants: parseStringArray(row.grantsJson) as OAuthClient["grants"],
@@ -301,6 +311,7 @@ const mapAuthorizationCode = (row: PrismaRow): AuthorizationCode => ({
   userId: String(row.userId),
   redirectUri: String(row.redirectUri),
   scope: parseStringArray(row.scopeJson),
+  nonce: row.nonce ? String(row.nonce) : undefined,
   codeChallenge: row.codeChallenge ? String(row.codeChallenge) : undefined,
   codeChallengeMethod: row.codeChallengeMethod ? "S256" : undefined,
   expiresAt: asDate(row.expiresAt),
@@ -1088,6 +1099,206 @@ class PrismaUserRepository {
 class PrismaClientRepository {
   constructor(private readonly prisma: PrismaClientLike) {}
 
+  private managedQuery(sql: string, ...values: unknown[]) {
+    return (this.prisma as any).$queryRawUnsafe(sql, ...values) as Promise<PrismaRow[]>;
+  }
+
+  private managedQueryOn(database: any, sql: string, ...values: unknown[]) {
+    return database.$queryRawUnsafe(sql, ...values) as Promise<PrismaRow[]>;
+  }
+
+  private managedExec(sql: string, ...values: unknown[]) {
+    return (this.prisma as any).$executeRawUnsafe(sql, ...values) as Promise<number>;
+  }
+
+  private managedExecOn(database: any, sql: string, ...values: unknown[]) {
+    return database.$executeRawUnsafe(sql, ...values) as Promise<number>;
+  }
+
+  private managedPlaceholder(index: number) {
+    return process.env.DATABASE_PROVIDER === "postgresql" ? `$${index}` : "?";
+  }
+
+  private managedRow(row?: PrismaRow) {
+    if (!row) return undefined;
+    return {
+      clientId: String(readField(row, "client_id", "clientId")),
+      installationId: String(readField(row, "installation_id", "installationId")),
+      profileId: String(readField(row, "profile_id", "profileId")),
+      profileVersion: Number(readField(row, "profile_version", "profileVersion")),
+      activeSalt: String(readField(row, "active_salt", "activeSalt")),
+      activeVerifier: String(readField(row, "active_verifier", "activeVerifier")),
+      generation: Number(readField(row, "generation")),
+      pendingOperationId: readField(row, "pending_operation_id", "pendingOperationId") as string | null,
+      pendingSalt: readField(row, "pending_salt", "pendingSalt") as string | null,
+      pendingVerifier: readField(row, "pending_verifier", "pendingVerifier") as string | null,
+      pendingExpiresAt: readField(row, "pending_expires_at", "pendingExpiresAt") as string | null,
+      activatedOperationId: readField(row, "activated_operation_id", "activatedOperationId") as string | null
+    };
+  }
+
+  async ensureManagedProfileCredential(input: { clientId: string; installationId: string; profileId: "nexushub" | "liberide"; profileVersion: 1; secret: string }): Promise<{ generation: number }> {
+    const p = (index: number) => this.managedPlaceholder(index);
+    let rows = await this.managedQuery(`SELECT * FROM nexushub_managed_client_credentials WHERE client_id = ${p(1)}`, input.clientId);
+    let row = this.managedRow(rows[0]);
+    if (!row) {
+      const verifier = await makeSecretVerifier(input.secret);
+      try {
+        await this.managedExec(`INSERT INTO nexushub_managed_client_credentials (client_id,installation_id,profile_id,profile_version,active_salt,active_verifier,generation,updated_at) VALUES (${[1,2,3,4,5,6,7,8].map(p).join(",")})`, input.clientId, input.installationId, input.profileId, input.profileVersion, verifier.salt, verifier.verifier, 1, new Date().toISOString());
+      } catch {
+        // A concurrent ensure may have inserted the marker. Reload and
+        // validate it; never fall back to the legacy OAuth verifier.
+      }
+      rows = await this.managedQuery(`SELECT * FROM nexushub_managed_client_credentials WHERE client_id = ${p(1)}`, input.clientId);
+      row = this.managedRow(rows[0]);
+    }
+    if (!row || row.installationId !== input.installationId || row.profileId !== input.profileId || row.profileVersion !== input.profileVersion) throw new Error("managed_profile_binding_conflict");
+    const matches = await verifySecret(input.secret, row.activeSalt, row.activeVerifier) ||
+      Boolean(row.pendingSalt && row.pendingVerifier && row.pendingExpiresAt && Date.parse(row.pendingExpiresAt) > Date.now() && await verifySecret(input.secret, row.pendingSalt, row.pendingVerifier));
+    if (!matches) throw new Error("managed_profile_credential_conflict");
+    // The generic OAuth column remains required by legacy schemas, but must
+    // never retain a valid managed verifier after this row is marked managed.
+    const unusableLegacyValue = randomBytes(32).toString("base64url");
+    await this.managedExec(`UPDATE oauth_clients SET secret=${p(1)} WHERE id=${p(2)}`, unusableLegacyValue, input.clientId);
+    return { generation: row.generation };
+  }
+
+  async authenticateManagedProfileSecret(clientId: string, secret: string): Promise<boolean | undefined> {
+    const p = this.managedPlaceholder(1);
+    const rows = await this.managedQuery(`SELECT * FROM nexushub_managed_client_credentials WHERE client_id = ${p}`, clientId);
+    const row = this.managedRow(rows[0]);
+    if (!row) return undefined;
+    if (await verifySecret(secret, row.activeSalt, row.activeVerifier)) return true;
+    if (!row.pendingSalt || !row.pendingVerifier || !row.pendingExpiresAt || Date.parse(row.pendingExpiresAt) <= Date.now()) return false;
+    return verifySecret(secret, row.pendingSalt, row.pendingVerifier);
+  }
+
+  async stageManagedProfileCredential(input: { clientId: string; operationId: string; secret: string; expiresAt: Date }): Promise<{ state: "staged" | "replayed" | "conflict"; generation?: number; pendingExpiresAt?: Date }> {
+    const p = (index: number) => this.managedPlaceholder(index);
+    const now = new Date();
+    if (input.expiresAt.getTime() <= now.getTime() || input.expiresAt.getTime() > now.getTime() + 15 * 60 * 1000) return { state: "conflict" };
+    const makeVerifier = await makeSecretVerifier(input.secret);
+    try {
+      return await (this.prisma as any).$transaction(async (tx: any) => {
+        const query = (sql: string, ...values: unknown[]) => this.managedQueryOn(tx, sql, ...values);
+        const exec = (sql: string, ...values: unknown[]) => this.managedExecOn(tx, sql, ...values);
+        const transactionNow = Date.now();
+        if (input.expiresAt.getTime() <= transactionNow || input.expiresAt.getTime() > transactionNow + 15 * 60 * 1000) return { state: "conflict" as const };
+        const priorRows = await query(`SELECT * FROM nexushub_managed_client_credential_operations WHERE client_id=${p(1)} AND operation_id=${p(2)}`, input.clientId, input.operationId);
+        const prior = priorRows[0];
+        let candidate = makeVerifier;
+        if (prior) {
+          const sameCandidate = await verifySecret(input.secret, String(readField(prior, "candidate_salt", "candidateSalt")), String(readField(prior, "candidate_verifier", "candidateVerifier")));
+          const state = String(readField(prior, "state"));
+          const recordedExpiry = new Date(String(readField(prior, "expires_at", "expiresAt")));
+          if (state === "pending" && recordedExpiry > now && sameCandidate) return { state: "replayed" as const, generation: Number(readField(prior, "generation")), pendingExpiresAt: recordedExpiry };
+          if (state === "activated" && sameCandidate) return { state: "replayed" as const, generation: Number(readField(prior, "generation")) + 1 };
+          if (state !== "staging" || !sameCandidate || recordedExpiry <= now) return { state: "conflict" as const };
+          candidate = { salt: String(readField(prior, "candidate_salt", "candidateSalt")), verifier: String(readField(prior, "candidate_verifier", "candidateVerifier")) };
+        }
+
+        const rows = await query(`SELECT * FROM nexushub_managed_client_credentials WHERE client_id=${p(1)}`, input.clientId);
+        const row = this.managedRow(rows[0]);
+        if (!row) return { state: "conflict" as const };
+        if (row.pendingOperationId && row.pendingExpiresAt && Date.parse(row.pendingExpiresAt) > now.getTime()) {
+          if (row.pendingOperationId === input.operationId && row.pendingSalt && row.pendingVerifier && await verifySecret(input.secret, row.pendingSalt, row.pendingVerifier)) return { state: "replayed" as const, generation: row.generation, pendingExpiresAt: new Date(row.pendingExpiresAt) };
+          if (!prior) await exec(`INSERT INTO nexushub_managed_client_credential_operations (client_id,operation_id,generation,state,candidate_salt,candidate_verifier,expires_at,created_at,updated_at) VALUES (${[1,2,3,4,5,6,7,8,9].map(p).join(",")})`, input.clientId, input.operationId, row.generation, "conflict", makeVerifier.salt, makeVerifier.verifier, input.expiresAt.toISOString(), now.toISOString(), now.toISOString());
+          return { state: "conflict" as const };
+        }
+        if (row.pendingOperationId) await exec(`UPDATE nexushub_managed_client_credential_operations SET state='expired',updated_at=${p(1)} WHERE client_id=${p(2)} AND operation_id=${p(3)} AND state='pending'`, now.toISOString(), input.clientId, row.pendingOperationId);
+        if (await verifySecret(input.secret, row.activeSalt, row.activeVerifier)) {
+          if (!prior) await exec(`INSERT INTO nexushub_managed_client_credential_operations (client_id,operation_id,generation,state,candidate_salt,candidate_verifier,expires_at,created_at,updated_at) VALUES (${[1,2,3,4,5,6,7,8,9].map(p).join(",")})`, input.clientId, input.operationId, row.generation, "conflict", makeVerifier.salt, makeVerifier.verifier, input.expiresAt.toISOString(), now.toISOString(), now.toISOString());
+          return { state: "conflict" as const };
+        }
+
+        if (!prior) {
+          await exec(`INSERT INTO nexushub_managed_client_credential_operations (client_id,operation_id,generation,state,candidate_salt,candidate_verifier,expires_at,created_at,updated_at) VALUES (${[1,2,3,4,5,6,7,8,9].map(p).join(",")})`, input.clientId, input.operationId, row.generation, "staging", candidate.salt, candidate.verifier, input.expiresAt.toISOString(), now.toISOString(), now.toISOString());
+        }
+        const changed = await exec(`UPDATE nexushub_managed_client_credentials SET pending_operation_id=${p(1)},pending_salt=${p(2)},pending_verifier=${p(3)},pending_expires_at=${p(4)},updated_at=${p(5)} WHERE client_id=${p(6)} AND generation=${p(7)} AND (pending_operation_id IS NULL OR pending_expires_at <= ${p(8)})`, input.operationId, candidate.salt, candidate.verifier, input.expiresAt.toISOString(), now.toISOString(), input.clientId, row.generation, now.toISOString());
+        if (changed !== 1) {
+          await exec(`UPDATE nexushub_managed_client_credential_operations SET state='conflict',updated_at=${p(1)} WHERE client_id=${p(2)} AND operation_id=${p(3)} AND state='staging'`, now.toISOString(), input.clientId, input.operationId);
+          return { state: "conflict" as const };
+        }
+        await exec(`UPDATE nexushub_managed_client_credential_operations SET state='pending',generation=${p(1)},updated_at=${p(2)} WHERE client_id=${p(3)} AND operation_id=${p(4)} AND state='staging'`, row.generation, now.toISOString(), input.clientId, input.operationId);
+        return { state: "staged" as const, generation: row.generation, pendingExpiresAt: input.expiresAt };
+      });
+    } catch {
+      // A concurrent request with the same operation ID may win the unique
+      // operation-row insert. Re-read only to return status; never reveal the
+      // verifier or candidate secret.
+      const operations = await this.managedQuery(`SELECT * FROM nexushub_managed_client_credential_operations WHERE client_id=${p(1)} AND operation_id=${p(2)}`, input.clientId, input.operationId);
+      const operation = operations[0];
+      if (operation && String(readField(operation, "state")) === "pending" && await verifySecret(input.secret, String(readField(operation, "candidate_salt", "candidateSalt")), String(readField(operation, "candidate_verifier", "candidateVerifier")))) return { state: "replayed", generation: Number(readField(operation, "generation")), pendingExpiresAt: new Date(String(readField(operation, "expires_at", "expiresAt"))) };
+      return { state: "conflict" };
+    }
+  }
+
+  async activateManagedProfileCredential(input: { clientId: string; operationId: string; now?: Date }): Promise<{ state: "activated" | "replayed" | "conflict"; generation?: number }> {
+    const p = (index: number) => this.managedPlaceholder(index);
+    const now = input.now ?? new Date();
+    return (this.prisma as any).$transaction(async (tx: any) => {
+      const query = (sql: string, ...values: unknown[]) => this.managedQueryOn(tx, sql, ...values);
+      const exec = (sql: string, ...values: unknown[]) => this.managedExecOn(tx, sql, ...values);
+      const operations = await query(`SELECT state,generation FROM nexushub_managed_client_credential_operations WHERE client_id=${p(1)} AND operation_id=${p(2)}`, input.clientId, input.operationId);
+      const state = String(readField(operations[0] ?? {}, "state"));
+      if (state === "activated") return { state: "replayed" as const, generation: Number(readField(operations[0], "generation")) + 1 };
+      if (state !== "pending") return { state: "conflict" as const };
+      const changed = await exec(`UPDATE nexushub_managed_client_credentials SET active_salt=pending_salt,active_verifier=pending_verifier,generation=generation+1,activated_operation_id=pending_operation_id,pending_operation_id=NULL,pending_salt=NULL,pending_verifier=NULL,pending_expires_at=NULL,updated_at=${p(1)} WHERE client_id=${p(2)} AND pending_operation_id=${p(3)} AND pending_expires_at > ${p(4)}`, now.toISOString(), input.clientId, input.operationId, now.toISOString());
+      if (changed !== 1) {
+        // Another activation may have committed while this transaction waited
+        // on the conditional credential update. Re-read with a lock so both
+        // PostgreSQL READ COMMITTED and MySQL's default repeatable-read mode
+        // observe the committed operation state before deciding this is stale.
+        const lockSuffix = process.env.DATABASE_PROVIDER === "sqlite" ? "" : " FOR UPDATE";
+        const latest = await query(`SELECT state,generation,expires_at FROM nexushub_managed_client_credential_operations WHERE client_id=${p(1)} AND operation_id=${p(2)}${lockSuffix}`, input.clientId, input.operationId);
+        const latestState = String(readField(latest[0] ?? {}, "state"));
+        if (latestState === "activated") return { state: "replayed" as const, generation: Number(readField(latest[0], "generation")) + 1 };
+        const expiresAt = new Date(String(readField(latest[0] ?? {}, "expires_at", "expiresAt")));
+        if (latestState === "pending" && expiresAt <= now) {
+          await exec(`UPDATE nexushub_managed_client_credential_operations SET state='expired',updated_at=${p(1)} WHERE client_id=${p(2)} AND operation_id=${p(3)} AND state='pending'`, now.toISOString(), input.clientId, input.operationId);
+        }
+        return { state: "conflict" as const };
+      }
+      await exec(`UPDATE nexushub_managed_client_credential_operations SET state='activated',updated_at=${p(1)} WHERE client_id=${p(2)} AND operation_id=${p(3)} AND state='pending'`, now.toISOString(), input.clientId, input.operationId);
+      const rows = await query(`SELECT generation FROM nexushub_managed_client_credentials WHERE client_id=${p(1)}`, input.clientId);
+      return { state: "activated" as const, generation: Number(readField(rows[0] ?? {}, "generation")) };
+    });
+  }
+
+  async abortManagedProfileCredential(input: { clientId: string; operationId: string }): Promise<boolean> {
+    const p = (index: number) => this.managedPlaceholder(index);
+    const now = new Date().toISOString();
+    return (this.prisma as any).$transaction(async (tx: any) => {
+      const exec = (sql: string, ...values: unknown[]) => this.managedExecOn(tx, sql, ...values);
+      const changed = await exec(`UPDATE nexushub_managed_client_credentials SET pending_operation_id=NULL,pending_salt=NULL,pending_verifier=NULL,pending_expires_at=NULL,updated_at=${p(1)} WHERE client_id=${p(2)} AND pending_operation_id=${p(3)}`, now, input.clientId, input.operationId);
+      if (changed !== 1) return false;
+      await exec(`UPDATE nexushub_managed_client_credential_operations SET state='aborted',updated_at=${p(1)} WHERE client_id=${p(2)} AND operation_id=${p(3)} AND state='pending'`, now, input.clientId, input.operationId);
+      return true;
+    });
+  }
+
+  async managedProfileCredentialStatus(clientId: string, now = new Date(), operationId?: string) {
+    const rows = await this.managedQuery(`SELECT * FROM nexushub_managed_client_credentials WHERE client_id = ${this.managedPlaceholder(1)}`, clientId);
+    const row = this.managedRow(rows[0]);
+    if (!row) return undefined;
+    const pendingExpiresAt = row.pendingExpiresAt ? new Date(row.pendingExpiresAt) : undefined;
+    if (operationId) {
+      const opRows = await this.managedQuery(`SELECT state,generation,expires_at FROM nexushub_managed_client_credential_operations WHERE client_id=${this.managedPlaceholder(1)} AND operation_id=${this.managedPlaceholder(2)}`, clientId, operationId);
+      const op = opRows[0];
+      if (!op) return { generation: row.generation, profileId: row.profileId as "nexushub" | "liberide", profileVersion: row.profileVersion as 1, installationId: row.installationId, operationState: "conflict" as const };
+      let operationState = String(readField(op, "state")) as "staging" | "pending" | "activated" | "aborted" | "expired" | "conflict";
+      const operationExpiry = new Date(String(readField(op, "expires_at", "expiresAt")));
+      if (operationState === "pending" && operationExpiry <= now) {
+        await this.managedExec(`UPDATE nexushub_managed_client_credential_operations SET state='expired',updated_at=${this.managedPlaceholder(1)} WHERE client_id=${this.managedPlaceholder(2)} AND operation_id=${this.managedPlaceholder(3)} AND state='pending'`, now.toISOString(), clientId, operationId);
+        operationState = "expired";
+      }
+      const baseGeneration = Number(readField(op, "generation"));
+      const operationGeneration = operationState === "activated" ? baseGeneration + 1 : baseGeneration;
+      return { generation: operationGeneration, profileId: row.profileId as "nexushub" | "liberide", profileVersion: row.profileVersion as 1, installationId: row.installationId, operationState, ...(operationState === "pending" ? { pendingOperationId: operationId, pendingExpiresAt: operationExpiry } : {}) };
+    }
+    return { generation: row.generation, profileId: row.profileId as "nexushub" | "liberide", profileVersion: row.profileVersion as 1, installationId: row.installationId, ...(row.pendingOperationId && pendingExpiresAt && pendingExpiresAt > now ? { pendingOperationId: row.pendingOperationId, pendingExpiresAt } : {}), ...(row.activatedOperationId ? { activatedOperationId: row.activatedOperationId } : {}) };
+  }
+
   async create(input: Omit<OAuthClient, "createdAt">): Promise<OAuthClient> {
     const client: OAuthClient = { ...input, resources: input.resources ?? [], flowIds: input.flowIds ?? [], createdAt: new Date() };
     await this.prisma.client.create({
@@ -1096,6 +1307,7 @@ class PrismaClientRepository {
         appId: client.appId ?? null,
         name: client.name,
         secret: client.secret,
+        tokenEndpointAuthMethod: client.tokenEndpointAuthMethod ?? "client_secret_post",
         redirectUrisJson: JSON.stringify(client.redirectUris),
         allowedScopesJson: JSON.stringify(client.allowedScopes),
         grantsJson: JSON.stringify(client.grants),
@@ -1134,6 +1346,7 @@ class PrismaClientRepository {
         appId: updated.appId ?? null,
         name: updated.name,
         secret: updated.secret,
+        tokenEndpointAuthMethod: updated.tokenEndpointAuthMethod ?? "client_secret_post",
         redirectUrisJson: JSON.stringify(updated.redirectUris),
         allowedScopesJson: JSON.stringify(updated.allowedScopes),
         grantsJson: JSON.stringify(updated.grants),
@@ -1315,6 +1528,7 @@ class PrismaAuthorizationCodeRepository {
         userId: code.userId,
         redirectUri: code.redirectUri,
         scopeJson: JSON.stringify(code.scope),
+        nonce: code.nonce ?? null,
         codeChallenge: code.codeChallenge ?? null,
         codeChallengeMethod: code.codeChallengeMethod ?? null,
         expiresAt: code.expiresAt.toISOString(),
@@ -1581,12 +1795,18 @@ class PrismaUserAppAssignmentRepository implements UserAppAssignmentRepository {
     }
 
     const assignment: UserAppAssignment = { ...input, id: nanoid(), createdAt: new Date() };
-    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
-      INSERT INTO user_app_assignments (id, user_id, app_id, created_at)
-      VALUES (${assignment.id}, ${assignment.userId}, ${assignment.appId}, ${assignment.createdAt.toISOString()})
-      RETURNING *
-    `;
-    return mapUserAppAssignment(rows[0]);
+    try {
+      const rows = await (this.prisma as any).$transaction(async (tx: any) => {
+        await tx.$executeRaw`INSERT INTO user_app_assignments (id, user_id, app_id, created_at) VALUES (${assignment.id}, ${assignment.userId}, ${assignment.appId}, ${assignment.createdAt.toISOString()})`;
+        return tx.$queryRaw`SELECT * FROM user_app_assignments WHERE id = ${assignment.id}`;
+      });
+      return mapUserAppAssignment(rows[0]);
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) throw error;
+      const rows = await this.prisma.$queryRaw<PrismaRow[]>`SELECT * FROM user_app_assignments WHERE user_id = ${assignment.userId} AND app_id = ${assignment.appId}`;
+      if (rows[0]) return mapUserAppAssignment(rows[0]);
+      throw error;
+    }
   }
 
   async list(): Promise<UserAppAssignment[]> {
@@ -1621,12 +1841,18 @@ class PrismaGroupAppAssignmentRepository implements GroupAppAssignmentRepository
     }
 
     const assignment: GroupAppAssignment = { ...input, id: nanoid(), createdAt: new Date() };
-    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
-      INSERT INTO group_app_assignments (id, group_id, app_id, created_at)
-      VALUES (${assignment.id}, ${assignment.groupId}, ${assignment.appId}, ${assignment.createdAt.toISOString()})
-      RETURNING *
-    `;
-    return mapGroupAppAssignment(rows[0]);
+    try {
+      const rows = await (this.prisma as any).$transaction(async (tx: any) => {
+        await tx.$executeRaw`INSERT INTO group_app_assignments (id, group_id, app_id, created_at) VALUES (${assignment.id}, ${assignment.groupId}, ${assignment.appId}, ${assignment.createdAt.toISOString()})`;
+        return tx.$queryRaw`SELECT * FROM group_app_assignments WHERE id = ${assignment.id}`;
+      });
+      return mapGroupAppAssignment(rows[0]);
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) throw error;
+      const rows = await this.prisma.$queryRaw<PrismaRow[]>`SELECT * FROM group_app_assignments WHERE group_id = ${assignment.groupId} AND app_id = ${assignment.appId}`;
+      if (rows[0]) return mapGroupAppAssignment(rows[0]);
+      throw error;
+    }
   }
 
   async listByGroup(groupId: string): Promise<GroupAppAssignment[]> {
@@ -1752,6 +1978,47 @@ class PrismaConsentRepository {
 
 const delegationTupleHash = (input: Pick<NexusHubDelegationConsent, "userId" | "clientId" | "installationId" | "resource">) =>
   createHash("sha256").update(JSON.stringify([input.userId, input.clientId, input.installationId, input.resource])).digest("hex");
+
+const consentTicketHash = (ticket: string) => createHash("sha256").update(ticket).digest("hex");
+const consentBindingHash = (value: string) => createHash("sha256").update(value).digest("hex");
+const consentTicketPlaceholders = (count: number) => Array.from({ length: count }, (_, index) => process.env.DATABASE_PROVIDER === "postgresql" ? `$${index + 1}` : "?");
+
+class PrismaOAuthConsentRequestRepository implements OAuthConsentRequestRepository {
+  constructor(private readonly prisma: PrismaClientLike) {}
+
+  async create(ticket: string, input: OAuthConsentRequestTicket): Promise<void> {
+    const p = consentTicketPlaceholders(9);
+    await (this.prisma as any).$executeRawUnsafe(
+      `INSERT INTO oauth_consent_request_tickets (ticket_hash,user_id,client_id,redirect_uri,scopes_json,state_hash,nonce_hash,authorization_json,expires_at,consumed_at) VALUES (${p[0]},${p[1]},${p[2]},${p[3]},${p[4]},${p[5]},${p[6]},${p[7]},${p[8]},NULL)`,
+      consentTicketHash(ticket), input.userId, input.clientId, input.redirectUri, JSON.stringify(input.scopes), consentBindingHash(input.state), consentBindingHash(input.nonce), JSON.stringify(input.authorization), input.expiresAt.toISOString()
+    );
+  }
+
+  async consume(ticket: string, expected: Pick<OAuthConsentRequestTicket, "userId" | "clientId" | "redirectUri" | "scopes" | "state" | "nonce">, now = new Date()): Promise<OAuthConsentRequestTicket | undefined> {
+    const p = consentTicketPlaceholders(9);
+    const hash = consentTicketHash(ticket);
+    const changed = await (this.prisma as any).$executeRawUnsafe(
+      `UPDATE oauth_consent_request_tickets SET consumed_at = ${p[0]} WHERE ticket_hash = ${p[1]} AND user_id = ${p[2]} AND client_id = ${p[3]} AND redirect_uri = ${p[4]} AND scopes_json = ${p[5]} AND state_hash = ${p[6]} AND nonce_hash = ${p[7]} AND expires_at > ${p[8]} AND consumed_at IS NULL`,
+      now.toISOString(), hash, expected.userId, expected.clientId, expected.redirectUri, JSON.stringify(expected.scopes), consentBindingHash(expected.state), consentBindingHash(expected.nonce), now.toISOString()
+    );
+    if (Number(changed) !== 1) return undefined;
+    const q = consentTicketPlaceholders(1);
+    const rows = await (this.prisma as any).$queryRawUnsafe(`SELECT * FROM oauth_consent_request_tickets WHERE ticket_hash = ${q[0]} LIMIT 1`, hash) as PrismaRow[];
+    const row = rows[0];
+    if (!row) return undefined;
+    return {
+      userId: String(readField(row, "user_id", "userId")), clientId: String(readField(row, "client_id", "clientId")),
+      redirectUri: String(readField(row, "redirect_uri", "redirectUri")), scopes: JSON.parse(String(readField(row, "scopes_json", "scopesJson"))),
+      state: expected.state, nonce: expected.nonce, authorization: JSON.parse(String(readField(row, "authorization_json", "authorizationJson"))),
+      expiresAt: new Date(String(readField(row, "expires_at", "expiresAt")))
+    };
+  }
+
+  async deleteExpired(now = new Date()): Promise<number> {
+    const p = consentTicketPlaceholders(1);
+    return Number(await (this.prisma as any).$executeRawUnsafe(`DELETE FROM oauth_consent_request_tickets WHERE expires_at <= ${p[0]} OR consumed_at IS NOT NULL`, now.toISOString()));
+  }
+}
 const delegationPlaceholders = (count: number) => Array.from({ length: count }, (_, index) => process.env.DATABASE_PROVIDER === "postgresql" ? `$${index + 1}` : "?");
 
 class PrismaNexusHubDelegationConsentRepository implements NexusHubDelegationConsentRepository {
@@ -1817,6 +2084,13 @@ class PrismaNexusHubDelegationTokenRepository implements NexusHubDelegationToken
     const row = rows[0];
     return row ? { tokenId: String(readField(row,"token_id")), userId: String(readField(row,"user_id")), clientId: String(readField(row,"client_id")), installationId: String(readField(row,"installation_id")), resource: String(readField(row,"resource")), expiresAt: asDate(readField(row,"expires_at")) } : undefined;
   }
+  async revokeToken(tokenId: string, at = new Date()): Promise<void> {
+    const p = delegationPlaceholders(2);
+    await (this.prisma as any).$executeRawUnsafe(
+      `UPDATE nexushub_delegation_tokens SET revoked_at=${p[0]} WHERE token_id=${p[1]} AND revoked_at IS NULL`,
+      at.toISOString(), tokenId
+    );
+  }
   async revokeGrant(input: Pick<NexusHubDelegationToken,"userId"|"clientId"|"installationId"|"resource">, at = new Date()): Promise<string[]> {
     const p = delegationPlaceholders(4);
     const query = (this.prisma as any).$queryRawUnsafe;
@@ -1835,6 +2109,13 @@ const mapBusEnrollment = (row: PrismaRow): NexusBusManagementEnrollment => ({
   serviceIdentityId: String(readField(row, "service_identity_id", "serviceIdentityId")),
   credentialId: String(readField(row, "credential_id", "credentialId")),
   credentialHash: String(readField(row, "credential_hash", "credentialHash")),
+  activeCredentialId: readField(row, "active_credential_id", "activeCredentialId") == null ? undefined : String(readField(row, "active_credential_id", "activeCredentialId")),
+  activeCredentialHash: readField(row, "active_credential_hash", "activeCredentialHash") == null ? undefined : String(readField(row, "active_credential_hash", "activeCredentialHash")),
+  pendingCredentialId: readField(row, "pending_credential_id", "pendingCredentialId") == null ? undefined : String(readField(row, "pending_credential_id", "pendingCredentialId")),
+  pendingCredentialHash: readField(row, "pending_credential_hash", "pendingCredentialHash") == null ? undefined : String(readField(row, "pending_credential_hash", "pendingCredentialHash")),
+  pendingCredentialCreatedAt: readField(row, "pending_credential_created_at", "pendingCredentialCreatedAt") == null ? undefined : asDate(readField(row, "pending_credential_created_at", "pendingCredentialCreatedAt")),
+  producerCredentialId: readField(row, "producer_credential_id", "producerCredentialId") == null ? undefined : String(readField(row, "producer_credential_id", "producerCredentialId")),
+  producerCredentialHash: readField(row, "producer_credential_hash", "producerCredentialHash") == null ? undefined : String(readField(row, "producer_credential_hash", "producerCredentialHash")),
   organizationId: String(readField(row, "organization_id", "organizationId")),
   projectId: readField(row, "project_id", "projectId") == null ? undefined : String(readField(row, "project_id", "projectId")),
   tenant: String(readField(row, "tenant")), app: String(readField(row, "app")),
@@ -1844,13 +2125,62 @@ const mapBusEnrollment = (row: PrismaRow): NexusBusManagementEnrollment => ({
   revokedAt: readField(row, "revoked_at", "revokedAt") == null ? undefined : asDate(readField(row, "revoked_at", "revokedAt"))
 });
 
+const mapBusAppProducer = (row: PrismaRow): NexusBusAppProducerEnrollment => ({
+  enrollmentId: String(readField(row, "enrollment_id", "enrollmentId")),
+  assertionId: String(readField(row, "assertion_id", "assertionId")),
+  hubInstallationId: String(readField(row, "hub_installation_id", "hubInstallationId")),
+  organizationId: String(readField(row, "organization_id", "organizationId")),
+  projectId: String(readField(row, "project_id", "projectId")),
+  applicationRegistrationId: String(readField(row, "application_registration_id", "applicationRegistrationId")),
+  appId: String(readField(row, "app_id", "appId")), tenant: String(readField(row, "tenant")),
+  eventService: String(readField(row, "event_service", "eventService")), eventMember: String(readField(row, "event_member", "eventMember")),
+  serviceVersion: String(readField(row, "service_version", "serviceVersion")), descriptorHash: String(readField(row, "descriptor_hash", "descriptorHash")),
+  role: String(readField(row, "role")) as "event.publish", credentialId: String(readField(row, "credential_id", "credentialId")),
+  credentialHash: String(readField(row, "credential_hash", "credentialHash")), status: String(readField(row, "status")) as "active" | "revoked",
+  createdAt: asDate(readField(row, "created_at", "createdAt")),
+  revokedAt: readField(row, "revoked_at", "revokedAt") == null ? undefined : asDate(readField(row, "revoked_at", "revokedAt")),
+});
+
 class PrismaNexusBusManagementEnrollmentRepository implements NexusBusManagementEnrollmentRepository {
   constructor(private readonly prisma: PrismaClientLike & Record<string, unknown>) {}
 
-  async create(input: Omit<NexusBusManagementEnrollment, "createdAt" | "revokedAt" | "status">): Promise<NexusBusManagementEnrollment> {
-    const values = [input.enrollmentId, input.installationId, input.serviceIdentityId, input.credentialId, input.credentialHash, input.organizationId, input.projectId ?? null, input.tenant, input.app, JSON.stringify(input.roles), "active", new Date().toISOString()];
+  async createAppProducer(input: Omit<NexusBusAppProducerEnrollment, "createdAt" | "revokedAt" | "status">): Promise<NexusBusAppProducerEnrollment> {
+    const values = [input.enrollmentId, input.assertionId, input.hubInstallationId, input.organizationId, input.projectId,
+      input.applicationRegistrationId, input.appId, input.tenant, input.eventService, input.eventMember,
+      input.serviceVersion, input.descriptorHash, input.role, input.credentialId, input.credentialHash, "active", new Date().toISOString()];
     const p = managementPlaceholders(values.length);
-    const sql = `INSERT INTO nexusbus_management_enrollments (enrollment_id,installation_id,service_identity_id,credential_id,credential_hash,organization_id,project_id,tenant,app,roles_json,status,created_at) VALUES (${p.join(",")})`;
+    await (this.prisma as any).$executeRawUnsafe(
+      `INSERT INTO nexusbus_app_producer_enrollments (enrollment_id,assertion_id,hub_installation_id,organization_id,project_id,application_registration_id,app_id,tenant,event_service,event_member,service_version,descriptor_hash,role,credential_id,credential_hash,status,created_at) VALUES (${p.join(",")})`,
+      ...values,
+    );
+    const rows = asRowArray(await (this.prisma as any).$queryRawUnsafe(`SELECT * FROM nexusbus_app_producer_enrollments WHERE enrollment_id=${managementPlaceholders(1)[0]} LIMIT 1`, input.enrollmentId));
+    if (!rows[0]) throw new Error("NexusBus app producer enrollment readback failed");
+    return mapBusAppProducer(rows[0]);
+  }
+
+  async findAppProducerByCredential(credentialId: string): Promise<NexusBusAppProducerEnrollment | undefined> {
+    const rows = asRowArray(await (this.prisma as any).$queryRawUnsafe(`SELECT * FROM nexusbus_app_producer_enrollments WHERE credential_id=${managementPlaceholders(1)[0]} LIMIT 1`, credentialId));
+    return rows[0] ? mapBusAppProducer(rows[0]) : undefined;
+  }
+
+  async findAppProducerByEnrollment(enrollmentId: string): Promise<NexusBusAppProducerEnrollment | undefined> {
+    const rows = asRowArray(await (this.prisma as any).$queryRawUnsafe(`SELECT * FROM nexusbus_app_producer_enrollments WHERE enrollment_id=${managementPlaceholders(1)[0]} LIMIT 1`, enrollmentId));
+    return rows[0] ? mapBusAppProducer(rows[0]) : undefined;
+  }
+
+  async revokeAppProducer(enrollmentId: string, hubInstallationId: string, at = new Date()): Promise<boolean> {
+    const p = managementPlaceholders(4);
+    const changed = await (this.prisma as any).$executeRawUnsafe(
+      `UPDATE nexusbus_app_producer_enrollments SET status=${p[0]},revoked_at=${p[1]} WHERE enrollment_id=${p[2]} AND hub_installation_id=${p[3]} AND status='active'`,
+      "revoked", at.toISOString(), enrollmentId, hubInstallationId,
+    );
+    return Number(changed) === 1;
+  }
+
+  async create(input: Omit<NexusBusManagementEnrollment, "createdAt" | "revokedAt" | "status">): Promise<NexusBusManagementEnrollment> {
+    const values = [input.enrollmentId, input.installationId, input.serviceIdentityId, input.credentialId, input.credentialHash, input.producerCredentialId ?? null, input.producerCredentialHash ?? null, input.organizationId, input.projectId ?? null, input.tenant, input.app, JSON.stringify(input.roles), "active", new Date().toISOString()];
+    const p = managementPlaceholders(values.length);
+    const sql = `INSERT INTO nexusbus_management_enrollments (enrollment_id,installation_id,service_identity_id,credential_id,credential_hash,producer_credential_id,producer_credential_hash,organization_id,project_id,tenant,app,roles_json,status,created_at) VALUES (${p.join(",")})`;
     await (this.prisma as any).$executeRawUnsafe(sql, ...values);
     return (await this.findByServiceIdentity(input.serviceIdentityId))!;
   }
@@ -1862,8 +2192,14 @@ class PrismaNexusBusManagementEnrollmentRepository implements NexusBusManagement
   }
 
   async findByCredential(credentialId: string): Promise<NexusBusManagementEnrollment | undefined> {
+    const p = managementPlaceholders(4);
+    const rows = asRowArray(await (this.prisma as any).$queryRawUnsafe(`SELECT * FROM nexusbus_management_enrollments WHERE active_credential_id = ${p[0]} OR (active_credential_id IS NULL AND credential_id = ${p[1]}) OR pending_credential_id = ${p[2]} OR (active_credential_id IS NULL AND credential_id = ${p[3]}) LIMIT 1`, credentialId, credentialId, credentialId, credentialId));
+    return rows[0] ? mapBusEnrollment(rows[0]) : undefined;
+  }
+
+  async findByProducerCredential(credentialId: string): Promise<NexusBusManagementEnrollment | undefined> {
     const p = managementPlaceholders(1);
-    const rows = asRowArray(await (this.prisma as any).$queryRawUnsafe(`SELECT * FROM nexusbus_management_enrollments WHERE credential_id = ${p[0]} LIMIT 1`, credentialId));
+    const rows = asRowArray(await (this.prisma as any).$queryRawUnsafe(`SELECT * FROM nexusbus_management_enrollments WHERE producer_credential_id = ${p[0]} LIMIT 1`, credentialId));
     return rows[0] ? mapBusEnrollment(rows[0]) : undefined;
   }
 
@@ -1871,6 +2207,36 @@ class PrismaNexusBusManagementEnrollmentRepository implements NexusBusManagement
     const p = managementPlaceholders(3);
     const changed = await (this.prisma as any).$executeRawUnsafe(`UPDATE nexusbus_management_enrollments SET status = ${p[0]}, revoked_at = ${p[1]} WHERE service_identity_id = ${p[2]} AND status = 'active'`, "revoked", at.toISOString(), serviceIdentityId);
     return Number(changed) === 1;
+  }
+
+  async stageCredentialRotation(input: { serviceIdentityId: string; activeCredentialId: string; activeCredentialHash: string; pendingCredentialId: string; pendingCredentialHash: string; at?: Date }): Promise<"staged" | "active" | "conflict"> {
+    const before = await this.findByServiceIdentity(input.serviceIdentityId);
+    if (before?.status === "active" && before.activeCredentialId === input.pendingCredentialId && before.activeCredentialHash === input.pendingCredentialHash) return "active";
+    if (before?.status === "active" && (before.activeCredentialId ?? before.credentialId) === input.activeCredentialId &&
+        (before.activeCredentialHash ?? before.credentialHash) === input.activeCredentialHash &&
+        before.pendingCredentialId === input.pendingCredentialId && before.pendingCredentialHash === input.pendingCredentialHash) return "staged";
+    const p = managementPlaceholders(7);
+    const changed = await (this.prisma as any).$executeRawUnsafe(
+      `UPDATE nexusbus_management_enrollments SET pending_credential_id=${p[0]}, pending_credential_hash=${p[1]}, pending_credential_created_at=${p[2]} WHERE service_identity_id=${p[3]} AND COALESCE(active_credential_id,credential_id)=${p[4]} AND COALESCE(active_credential_hash,credential_hash)=${p[5]} AND status='active' AND (pending_credential_id IS NULL OR (pending_credential_id=${p[6]} AND pending_credential_hash=${p[1]}))`,
+      input.pendingCredentialId, input.pendingCredentialHash, (input.at ?? new Date()).toISOString(), input.serviceIdentityId, input.activeCredentialId, input.activeCredentialHash, input.pendingCredentialId,
+    );
+    if (Number(changed) === 1) return "staged";
+    const current = await this.findByServiceIdentity(input.serviceIdentityId);
+    if (current?.status === "active" && current.activeCredentialId === input.pendingCredentialId && current.activeCredentialHash === input.pendingCredentialHash) return "active";
+    if (current?.status === "active" && (current.activeCredentialId ?? current.credentialId) === input.activeCredentialId && (current.activeCredentialHash ?? current.credentialHash) === input.activeCredentialHash && current.pendingCredentialId === input.pendingCredentialId && current.pendingCredentialHash === input.pendingCredentialHash) return "staged";
+    return "conflict";
+  }
+
+  async activateCredentialRotation(input: { serviceIdentityId: string; pendingCredentialId: string; pendingCredentialHash: string; at?: Date }): Promise<"activated" | "already_active" | "conflict"> {
+    const p = managementPlaceholders(4);
+    const changed = await (this.prisma as any).$executeRawUnsafe(
+      `UPDATE nexusbus_management_enrollments SET active_credential_id=${p[0]}, active_credential_hash=${p[1]}, pending_credential_id=NULL, pending_credential_hash=NULL, pending_credential_created_at=NULL WHERE service_identity_id=${p[2]} AND pending_credential_id=${p[3]} AND pending_credential_hash=${p[1]} AND status='active'`,
+      input.pendingCredentialId, input.pendingCredentialHash, input.serviceIdentityId, input.pendingCredentialId,
+    );
+    if (Number(changed) === 1) return "activated";
+    const current = await this.findByServiceIdentity(input.serviceIdentityId);
+    return current?.status === "active" && current.activeCredentialId === input.pendingCredentialId && current.activeCredentialHash === input.pendingCredentialHash
+      ? "already_active" : "conflict";
   }
 }
 
@@ -3021,11 +3387,10 @@ class PrismaRiskEventRepository implements RiskEventRepository {
   async create(input: Omit<RiskEvent, "id" | "createdAt">): Promise<RiskEvent> {
     const id = nanoid();
     const now = new Date().toISOString();
-    const row = await this.prisma.$queryRaw<PrismaRow[]>`
-      INSERT INTO risk_events (id, user_id, ip, device_fingerprint_hash, geo, confidence, reason, decision, metadata_json, created_at)
-      VALUES (${id}, ${input.userId ?? null}, ${input.ip ?? null}, ${input.deviceFingerprintHash ?? null}, ${input.geo ?? null}, ${input.confidence}, ${input.reason}, ${input.decision}, ${input.metadata ? JSON.stringify(input.metadata) : null}, ${now})
-      RETURNING *
-    `;
+    const row = await (this.prisma as any).$transaction(async (tx: any) => {
+      await tx.$executeRaw`INSERT INTO risk_events (id, user_id, ip, device_fingerprint_hash, geo, confidence, reason, decision, metadata_json, created_at) VALUES (${id}, ${input.userId ?? null}, ${input.ip ?? null}, ${input.deviceFingerprintHash ?? null}, ${input.geo ?? null}, ${input.confidence}, ${input.reason}, ${input.decision}, ${input.metadata ? JSON.stringify(input.metadata) : null}, ${now})`;
+      return tx.$queryRaw`SELECT * FROM risk_events WHERE id = ${id}`;
+    });
     return this.mapRow(row[0]);
   }
 
@@ -3096,11 +3461,10 @@ class PrismaServiceIdentityRepository implements ServiceIdentityRepository {
   async create(input: Omit<ServiceIdentity, "id" | "createdAt" | "updatedAt">): Promise<ServiceIdentity> {
     const id = nanoid();
     const now = new Date().toISOString();
-    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
-      INSERT INTO service_identities (id, name, description, owner_id, app_id, status, allowed_scopes_json, allowed_audiences_json, metadata_json, created_at, updated_at)
-      VALUES (${id}, ${input.name}, ${input.description ?? null}, ${input.ownerId ?? null}, ${input.appId ?? null}, ${input.status}, ${JSON.stringify(input.allowedScopes)}, ${JSON.stringify(input.allowedAudiences)}, ${input.metadata ? JSON.stringify(input.metadata) : null}, ${now}, ${now})
-      RETURNING *
-    `;
+    const rows = await (this.prisma as any).$transaction(async (tx: any) => {
+      await tx.$executeRaw`INSERT INTO service_identities (id, name, description, owner_id, app_id, status, allowed_scopes_json, allowed_audiences_json, metadata_json, created_at, updated_at) VALUES (${id}, ${input.name}, ${input.description ?? null}, ${input.ownerId ?? null}, ${input.appId ?? null}, ${input.status}, ${JSON.stringify(input.allowedScopes)}, ${JSON.stringify(input.allowedAudiences)}, ${input.metadata ? JSON.stringify(input.metadata) : null}, ${now}, ${now})`;
+      return tx.$queryRaw`SELECT * FROM service_identities WHERE id = ${id}`;
+    });
     return this.mapRow(rows[0]);
   }
 
@@ -3118,13 +3482,15 @@ class PrismaServiceIdentityRepository implements ServiceIdentityRepository {
     const existing = await this.findById(id);
     if (!existing) return undefined;
 
-    const updated = { ...existing, ...input, updatedAt: new Date() };
-    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
-      UPDATE service_identities
-      SET name = ${updated.name}, description = ${updated.description ?? null}, owner_id = ${updated.ownerId ?? null}, app_id = ${updated.appId ?? null}, status = ${updated.status}, allowed_scopes_json = ${JSON.stringify(updated.allowedScopes)}, allowed_audiences_json = ${JSON.stringify(updated.allowedAudiences)}, metadata_json = ${updated.metadata ? JSON.stringify(updated.metadata) : null}, updated_at = ${updated.updatedAt.toISOString()}
-      WHERE id = ${id}
-      RETURNING *
-    `;
+    const rows = await (this.prisma as any).$transaction(async (tx: any) => {
+      const locked = process.env.DATABASE_PROVIDER === "sqlite"
+        ? await tx.$queryRaw`SELECT * FROM service_identities WHERE id = ${id}`
+        : await tx.$queryRaw`SELECT * FROM service_identities WHERE id = ${id} FOR UPDATE`;
+      if (!locked[0]) return [];
+      const updated = { ...this.mapRow(locked[0]), ...input, updatedAt: new Date() };
+      await tx.$executeRaw`UPDATE service_identities SET name = ${updated.name}, description = ${updated.description ?? null}, owner_id = ${updated.ownerId ?? null}, app_id = ${updated.appId ?? null}, status = ${updated.status}, allowed_scopes_json = ${JSON.stringify(updated.allowedScopes)}, allowed_audiences_json = ${JSON.stringify(updated.allowedAudiences)}, metadata_json = ${updated.metadata ? JSON.stringify(updated.metadata) : null}, updated_at = ${updated.updatedAt.toISOString()} WHERE id = ${id}`;
+      return tx.$queryRaw`SELECT * FROM service_identities WHERE id = ${id}`;
+    });
     return rows.length > 0 ? this.mapRow(rows[0]) : undefined;
   }
 
@@ -3154,11 +3520,10 @@ class PrismaServiceIdentityCredentialRepository implements ServiceIdentityCreden
   async create(input: Omit<ServiceIdentityCredential, "id" | "createdAt">): Promise<ServiceIdentityCredential> {
     const id = nanoid();
     const now = new Date().toISOString();
-    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
-      INSERT INTO service_identity_credentials (id, service_identity_id, client_id, client_secret_hash, expires_at, revoked_at, rotated_from_id, last_used_at, created_at)
-      VALUES (${id}, ${input.serviceIdentityId}, ${input.clientId}, ${input.clientSecretHash}, ${input.expiresAt?.toISOString() ?? null}, ${input.revokedAt?.toISOString() ?? null}, ${input.rotatedFromId ?? null}, ${input.lastUsedAt?.toISOString() ?? null}, ${now})
-      RETURNING *
-    `;
+    const rows = await (this.prisma as any).$transaction(async (tx: any) => {
+      await tx.$executeRaw`INSERT INTO service_identity_credentials (id, service_identity_id, client_id, client_secret_hash, expires_at, revoked_at, rotated_from_id, last_used_at, created_at) VALUES (${id}, ${input.serviceIdentityId}, ${input.clientId}, ${input.clientSecretHash}, ${input.expiresAt?.toISOString() ?? null}, ${input.revokedAt?.toISOString() ?? null}, ${input.rotatedFromId ?? null}, ${input.lastUsedAt?.toISOString() ?? null}, ${now})`;
+      return tx.$queryRaw`SELECT * FROM service_identity_credentials WHERE id = ${id}`;
+    });
     return this.mapRow(rows[0]);
   }
 
@@ -3224,11 +3589,10 @@ class PrismaConnectorRepository implements ConnectorRepository {
   async create(input: Omit<Connector, "id" | "createdAt" | "updatedAt">): Promise<Connector> {
     const id = nanoid();
     const now = new Date().toISOString();
-    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
-      INSERT INTO connectors (id, name, type, status, config_json, schedule, last_sync_at, created_at, updated_at)
-      VALUES (${id}, ${input.name}, ${input.type}, ${input.status}, ${JSON.stringify(input.config)}, ${input.schedule ?? null}, ${input.lastSyncAt?.toISOString() ?? null}, ${now}, ${now})
-      RETURNING *
-    `;
+    const rows = await (this.prisma as any).$transaction(async (tx: any) => {
+      await tx.$executeRaw`INSERT INTO connectors (id, name, type, status, config_json, schedule, last_sync_at, created_at, updated_at) VALUES (${id}, ${input.name}, ${input.type}, ${input.status}, ${JSON.stringify(input.config)}, ${input.schedule ?? null}, ${input.lastSyncAt?.toISOString() ?? null}, ${now}, ${now})`;
+      return tx.$queryRaw`SELECT * FROM connectors WHERE id = ${id}`;
+    });
     return this.mapRow(rows[0]);
   }
 
@@ -3237,10 +3601,15 @@ class PrismaConnectorRepository implements ConnectorRepository {
     if (!existing) return undefined;
 
     const merged = { ...existing, ...input, updatedAt: new Date() };
-    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
-      UPDATE connectors SET name = ${merged.name}, type = ${merged.type}, status = ${merged.status}, config_json = ${JSON.stringify(merged.config)}, schedule = ${merged.schedule ?? null}, last_sync_at = ${merged.lastSyncAt?.toISOString() ?? null}, updated_at = ${merged.updatedAt.toISOString()} WHERE id = ${id}
-      RETURNING *
-    `;
+    const rows = await (this.prisma as any).$transaction(async (tx: any) => {
+      const locked = process.env.DATABASE_PROVIDER === "sqlite"
+        ? await tx.$queryRaw`SELECT * FROM connectors WHERE id = ${id}`
+        : await tx.$queryRaw`SELECT * FROM connectors WHERE id = ${id} FOR UPDATE`;
+      if (!locked[0]) return [];
+      const latest = { ...this.mapRow(locked[0]), ...input, updatedAt: new Date() };
+      await tx.$executeRaw`UPDATE connectors SET name = ${latest.name}, type = ${latest.type}, status = ${latest.status}, config_json = ${JSON.stringify(latest.config)}, schedule = ${latest.schedule ?? null}, last_sync_at = ${latest.lastSyncAt?.toISOString() ?? null}, updated_at = ${latest.updatedAt.toISOString()} WHERE id = ${id}`;
+      return tx.$queryRaw`SELECT * FROM connectors WHERE id = ${id}`;
+    });
     return rows.length > 0 ? this.mapRow(rows[0]) : undefined;
   }
 
@@ -3281,11 +3650,10 @@ class PrismaConnectorRunRepository implements ConnectorRunRepository {
   async create(input: Omit<ConnectorRun, "id" | "createdAt">): Promise<ConnectorRun> {
     const id = nanoid();
     const now = new Date().toISOString();
-    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
-      INSERT INTO connector_runs (id, connector_id, status, started_at, finished_at, records_imported, records_failed, error_message, created_at)
-      VALUES (${id}, ${input.connectorId}, ${input.status}, ${input.startedAt?.toISOString() ?? null}, ${input.finishedAt?.toISOString() ?? null}, ${input.recordsImported}, ${input.recordsFailed}, ${input.errorMessage ?? null}, ${now})
-      RETURNING *
-    `;
+    const rows = await (this.prisma as any).$transaction(async (tx: any) => {
+      await tx.$executeRaw`INSERT INTO connector_runs (id, connector_id, status, started_at, finished_at, records_imported, records_failed, error_message, created_at) VALUES (${id}, ${input.connectorId}, ${input.status}, ${input.startedAt?.toISOString() ?? null}, ${input.finishedAt?.toISOString() ?? null}, ${input.recordsImported}, ${input.recordsFailed}, ${input.errorMessage ?? null}, ${now})`;
+      return tx.$queryRaw`SELECT * FROM connector_runs WHERE id = ${id}`;
+    });
     return this.mapRow(rows[0]);
   }
 
@@ -3293,11 +3661,15 @@ class PrismaConnectorRunRepository implements ConnectorRunRepository {
     const existing = await this.findById(id);
     if (!existing) return undefined;
 
-    const merged = { ...existing, ...input };
-    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
-      UPDATE connector_runs SET status = ${merged.status}, started_at = ${merged.startedAt?.toISOString() ?? null}, finished_at = ${merged.finishedAt?.toISOString() ?? null}, records_imported = ${merged.recordsImported}, records_failed = ${merged.recordsFailed}, error_message = ${merged.errorMessage ?? null} WHERE id = ${id}
-      RETURNING *
-    `;
+    const rows = await (this.prisma as any).$transaction(async (tx: any) => {
+      const locked = process.env.DATABASE_PROVIDER === "sqlite"
+        ? await tx.$queryRaw`SELECT * FROM connector_runs WHERE id = ${id}`
+        : await tx.$queryRaw`SELECT * FROM connector_runs WHERE id = ${id} FOR UPDATE`;
+      if (!locked[0]) return [];
+      const merged = { ...this.mapRow(locked[0]), ...input };
+      await tx.$executeRaw`UPDATE connector_runs SET status = ${merged.status}, started_at = ${merged.startedAt?.toISOString() ?? null}, finished_at = ${merged.finishedAt?.toISOString() ?? null}, records_imported = ${merged.recordsImported}, records_failed = ${merged.recordsFailed}, error_message = ${merged.errorMessage ?? null} WHERE id = ${id}`;
+      return tx.$queryRaw`SELECT * FROM connector_runs WHERE id = ${id}`;
+    });
     return rows.length > 0 ? this.mapRow(rows[0]) : undefined;
   }
 
@@ -3331,11 +3703,10 @@ class PrismaConnectorMappingRepository implements ConnectorMappingRepository {
   async create(input: Omit<ConnectorMapping, "id" | "createdAt" | "updatedAt">): Promise<ConnectorMapping> {
     const id = nanoid();
     const now = new Date().toISOString();
-    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
-      INSERT INTO connector_mappings (id, connector_id, source_field, target_field, transform, created_at, updated_at)
-      VALUES (${id}, ${input.connectorId}, ${input.sourceField}, ${input.targetField}, ${input.transform ?? null}, ${now}, ${now})
-      RETURNING *
-    `;
+    const rows = await (this.prisma as any).$transaction(async (tx: any) => {
+      await tx.$executeRaw`INSERT INTO connector_mappings (id, connector_id, source_field, target_field, transform, created_at, updated_at) VALUES (${id}, ${input.connectorId}, ${input.sourceField}, ${input.targetField}, ${input.transform ?? null}, ${now}, ${now})`;
+      return tx.$queryRaw`SELECT * FROM connector_mappings WHERE id = ${id}`;
+    });
     return this.mapRow(rows[0]);
   }
 
@@ -3343,14 +3714,15 @@ class PrismaConnectorMappingRepository implements ConnectorMappingRepository {
     const row = await this.prisma.$queryRaw<PrismaRow[]>`SELECT * FROM connector_mappings WHERE id = ${id}`;
     if (row.length === 0) return undefined;
 
-    const current = this.mapRow(row[0]);
-    const now = new Date().toISOString();
-    const merged = { ...current, ...input, updatedAt: new Date(now) };
-
-    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
-      UPDATE connector_mappings SET source_field = ${merged.sourceField}, target_field = ${merged.targetField}, transform = ${merged.transform ?? null}, updated_at = ${now} WHERE id = ${id}
-      RETURNING *
-    `;
+    const rows = await (this.prisma as any).$transaction(async (tx: any) => {
+      const locked = process.env.DATABASE_PROVIDER === "sqlite"
+        ? await tx.$queryRaw`SELECT * FROM connector_mappings WHERE id = ${id}`
+        : await tx.$queryRaw`SELECT * FROM connector_mappings WHERE id = ${id} FOR UPDATE`;
+      if (!locked[0]) return [];
+      const merged = { ...this.mapRow(locked[0]), ...input, updatedAt: new Date() };
+      await tx.$executeRaw`UPDATE connector_mappings SET source_field = ${merged.sourceField}, target_field = ${merged.targetField}, transform = ${merged.transform ?? null}, updated_at = ${merged.updatedAt.toISOString()} WHERE id = ${id}`;
+      return tx.$queryRaw`SELECT * FROM connector_mappings WHERE id = ${id}`;
+    });
     return rows.length > 0 ? this.mapRow(rows[0]) : undefined;
   }
 
@@ -3443,38 +3815,23 @@ class PrismaSuggestionRepository implements SuggestionRepository {
   async create(input: Omit<Suggestion, "id" | "createdAt" | "updatedAt">): Promise<Suggestion> {
     const id = nanoid();
     const now = new Date().toISOString();
-    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
-      INSERT INTO suggestions (
-        id, kind, app_id, proposed_name, title, body, image_urls_json, author_user_id, status, internal_notes, created_at, updated_at
-      )
-      VALUES (
-        ${id}, ${input.kind}, ${input.appId ?? null}, ${input.proposedName ?? null}, ${input.title}, ${input.body},
-        ${JSON.stringify(input.imageUrls)}, ${input.authorUserId}, ${input.status}, ${input.internalNotes ?? null}, ${now}, ${now}
-      )
-      RETURNING *
-    `;
+    const rows = await (this.prisma as any).$transaction(async (tx: any) => {
+      await tx.$executeRaw`INSERT INTO suggestions (id, kind, app_id, proposed_name, title, body, image_urls_json, author_user_id, status, internal_notes, created_at, updated_at) VALUES (${id}, ${input.kind}, ${input.appId ?? null}, ${input.proposedName ?? null}, ${input.title}, ${input.body}, ${JSON.stringify(input.imageUrls)}, ${input.authorUserId}, ${input.status}, ${input.internalNotes ?? null}, ${now}, ${now})`;
+      return tx.$queryRaw`SELECT * FROM suggestions WHERE id = ${id}`;
+    });
     return this.mapRow(rows[0]);
   }
 
   async update(id: string, input: Partial<Omit<Suggestion, "id" | "createdAt" | "authorUserId">>): Promise<Suggestion | undefined> {
-    const existing = await this.findById(id);
-    if (!existing) return undefined;
-
-    const merged = { ...existing, ...input, updatedAt: new Date() };
-    const rows = await this.prisma.$queryRaw<PrismaRow[]>`
-      UPDATE suggestions SET
-        kind = ${merged.kind},
-        app_id = ${merged.appId ?? null},
-        proposed_name = ${merged.proposedName ?? null},
-        title = ${merged.title},
-        body = ${merged.body},
-        image_urls_json = ${JSON.stringify(merged.imageUrls)},
-        status = ${merged.status},
-        internal_notes = ${merged.internalNotes ?? null},
-        updated_at = ${merged.updatedAt.toISOString()}
-      WHERE id = ${id}
-      RETURNING *
-    `;
+    const rows = await (this.prisma as any).$transaction(async (tx: any) => {
+      const locked = process.env.DATABASE_PROVIDER === "sqlite"
+        ? await tx.$queryRaw`SELECT * FROM suggestions WHERE id = ${id}`
+        : await tx.$queryRaw`SELECT * FROM suggestions WHERE id = ${id} FOR UPDATE`;
+      if (!locked[0]) return [];
+      const merged = { ...this.mapRow(locked[0]), ...input, updatedAt: new Date() };
+      await tx.$executeRaw`UPDATE suggestions SET kind = ${merged.kind}, app_id = ${merged.appId ?? null}, proposed_name = ${merged.proposedName ?? null}, title = ${merged.title}, body = ${merged.body}, image_urls_json = ${JSON.stringify(merged.imageUrls)}, status = ${merged.status}, internal_notes = ${merged.internalNotes ?? null}, updated_at = ${merged.updatedAt.toISOString()} WHERE id = ${id}`;
+      return tx.$queryRaw`SELECT * FROM suggestions WHERE id = ${id}`;
+    });
     return rows.length > 0 ? this.mapRow(rows[0]) : undefined;
   }
 }
@@ -3587,6 +3944,7 @@ export const createPrismaRepositories = (prisma: PrismaClientLike): RepositoryBu
   totpCredentialRepository: new PrismaTotpCredentialRepository(prisma),
   webauthnCredentialRepository: new PrismaWebauthnCredentialRepository(prisma),
   authorizationCodeRepository: new PrismaAuthorizationCodeRepository(prisma),
+  oauthConsentRequestRepository: new PrismaOAuthConsentRequestRepository(prisma),
   consentRepository: new PrismaConsentRepository(prisma),
   nexusHubDelegationConsentRepository: new PrismaNexusHubDelegationConsentRepository(prisma as PrismaClientLike & Record<string, unknown>),
   nexusHubDelegationTokenRepository: new PrismaNexusHubDelegationTokenRepository(prisma as PrismaClientLike & Record<string, unknown>),

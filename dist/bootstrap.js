@@ -21,6 +21,7 @@ import { EventHookService } from "./services/event-hook-service.js";
 import { EmailService } from "./services/email-service.js";
 import { InstanceSettingsService } from "./services/instance-settings-service.js";
 import { RecoveryService } from "./services/recovery-service.js";
+import { RetentionService } from "./services/retention-service.js";
 import { RoleService } from "./services/role-service.js";
 import { SecurityService } from "./services/security-service.js";
 import { ScopeService } from "./services/scope-service.js";
@@ -40,10 +41,22 @@ import { PluginService } from "./services/plugin-service.js";
 import { PluginRuntimeService } from "./services/plugin-runtime-service.js";
 import { UserAttributeService } from "./services/user-attribute-service.js";
 import { UserService } from "./services/user-service.js";
+import { SuggestionService } from "./services/suggestion-service.js";
 import { MediaService } from "./services/media-service.js";
 import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { readRuntimeDatabaseConfigSync, saveRuntimeDatabaseConfig } from "./core/runtime-database-config.js";
+import { PASSWORD_CHANGED_AT_BACKFILL_DATE } from "./services/password-expiration.js";
+const isPasswordChangedAtBackfillEnabled = () => {
+    if (process.env.NODE_ENV === "test") {
+        return false;
+    }
+    const raw = process.env.BACKFILL_PASSWORD_CHANGED_AT?.trim().toLowerCase();
+    if (raw === undefined || raw === "") {
+        return false;
+    }
+    return !["0", "false", "no", "off"].includes(raw);
+};
 const pinRuntimeDatabaseConfigIfNeeded = async (config, instanceSettingsService, userService) => {
     if (readRuntimeDatabaseConfigSync()) {
         return;
@@ -61,7 +74,7 @@ const pinRuntimeDatabaseConfigIfNeeded = async (config, instanceSettingsService,
 };
 export const bootstrap = async (config) => {
     const repositories = await createRepositoryBundle(config);
-    const { roleRepository, tenantRepository, appRepository, groupRepository, userGroupAssignmentRepository, userAppAssignmentRepository, groupAppAssignmentRepository, groupRoleAssignmentRepository, assignmentRepository, userRepository, clientRepository, scopeRepository, sessionRepository, totpCredentialRepository, webauthnCredentialRepository, authorizationCodeRepository, consentRepository, refreshTokenRepository, accessTokenRepository, auditRepository, authenticationFlowRepository, federationProviderRepository, federatedIdentityRepository, federationTransactionRepository, userAttributeRepository, groupUserAttributeAssignmentRepository, policyDefinitionRepository, policyAssignmentRepository, policyDecisionLogRepository, scimTokenRepository, provisioningMappingRepository, provisioningJobRepository, deprovisioningQueueRepository, accessRequestRepository, accessRequestApprovalRepository, accessReviewCampaignRepository, accessReviewItemRepository, elevationRequestRepository, elevationSessionRepository, eventHookRepository, eventNotificationRepository, instanceSettingsRepository, samlServiceProviderRepository, samlNameIdMappingRepository, samlAssertionAuditRepository } = repositories;
+    const { roleRepository, tenantRepository, appRepository, groupRepository, userGroupAssignmentRepository, userAppAssignmentRepository, groupAppAssignmentRepository, groupRoleAssignmentRepository, assignmentRepository, userRepository, clientRepository, scopeRepository, sessionRepository, totpCredentialRepository, webauthnCredentialRepository, authorizationCodeRepository, consentRepository, nexusHubDelegationConsentRepository, nexusHubDelegationTokenRepository, nexusBusManagementEnrollmentRepository, refreshTokenRepository, accessTokenRepository, auditRepository, authenticationFlowRepository, federationProviderRepository, federatedIdentityRepository, federationTransactionRepository, userAttributeRepository, groupUserAttributeAssignmentRepository, policyDefinitionRepository, policyAssignmentRepository, policyDecisionLogRepository, scimTokenRepository, provisioningMappingRepository, provisioningJobRepository, deprovisioningQueueRepository, accessRequestRepository, accessRequestApprovalRepository, accessReviewCampaignRepository, accessReviewItemRepository, elevationRequestRepository, elevationSessionRepository, eventHookRepository, eventNotificationRepository, instanceSettingsRepository, samlServiceProviderRepository, samlNameIdMappingRepository, samlAssertionAuditRepository, suggestionRepository } = repositories;
     const riskService = new RiskService(repositories.riskEventRepository);
     const eventHookService = new EventHookService(eventHookRepository, eventNotificationRepository);
     const connectorService = new ConnectorService(repositories.connectorRepository, repositories.connectorRunRepository, repositories.connectorMappingRepository, auditRepository, eventHookService);
@@ -78,6 +91,7 @@ export const bootstrap = async (config) => {
     const authenticationFlowService = new AuthenticationFlowService(authenticationFlowRepository);
     const groupService = new GroupService(groupRepository, appRepository, groupAppAssignmentRepository, userAttributeRepository, groupUserAttributeAssignmentRepository, groupRoleAssignmentRepository, userGroupAssignmentRepository, roleRepository, userRepository);
     const userService = new UserService(userRepository, appRepository, userAppAssignmentRepository, userAttributeRepository, userGroupAssignmentRepository, assignmentRepository, groupRepository, roleRepository, groupAppAssignmentRepository, groupRoleAssignmentRepository, groupUserAttributeAssignmentRepository, roleService, groupService);
+    const suggestionService = new SuggestionService(suggestionRepository, userRepository, appRepository, userService, auditRepository);
     const userAttributeService = new UserAttributeService(userAttributeRepository, groupUserAttributeAssignmentRepository, groupRepository);
     const existingUserAttributeDefinitions = await userAttributeService.listDefinitions();
     const existingUserAttributeKeys = new Set(existingUserAttributeDefinitions.map((attribute) => attribute.key));
@@ -90,7 +104,8 @@ export const bootstrap = async (config) => {
             enabled: true
         });
     }
-    if (!existingUserAttributeKeys.has("password_changed_at")) {
+    const passwordChangedAtDefinition = existingUserAttributeDefinitions.find((attribute) => attribute.key === "password_changed_at");
+    if (!passwordChangedAtDefinition) {
         await userAttributeService.createAttribute({
             key: "password_changed_at",
             name: "Password Changed At",
@@ -100,6 +115,16 @@ export const bootstrap = async (config) => {
             showOnPortal: false,
             userEditable: false
         });
+    }
+    else if (passwordChangedAtDefinition.userEditable || passwordChangedAtDefinition.showOnPortal) {
+        await userAttributeService.updateAttribute(passwordChangedAtDefinition.id, {
+            userEditable: false,
+            showOnPortal: false
+        });
+    }
+    if (isPasswordChangedAtBackfillEnabled()) {
+        const updated = await userService.backfillActiveUsersPasswordChangedAt(PASSWORD_CHANGED_AT_BACKFILL_DATE);
+        console.log(`[bootstrap] BACKFILL_PASSWORD_CHANGED_AT set password_changed_at=${PASSWORD_CHANGED_AT_BACKFILL_DATE} for ${updated} active user(s). Set BACKFILL_PASSWORD_CHANGED_AT=false to disable.`);
     }
     const policyService = new PolicyService(policyDefinitionRepository, policyAssignmentRepository, userGroupAssignmentRepository, totpCredentialRepository, userService);
     const authorizationService = new AuthorizationService(policyService);
@@ -326,6 +351,12 @@ export const bootstrap = async (config) => {
     const jwtService = new JwtService(signingKeys, config);
     const authService = new AuthService(userService, roleService, groupService, authenticationFlowService, clientRepository, sessionRepository, authorizationCodeRepository, consentRepository, refreshTokenRepository, accessTokenRepository, tenantRepository, jwtService, auditRepository, securityService, serviceIdentityService);
     const oidcService = new OidcService(config, jwtService, scopeService);
+    // Retention sweeps run passively for the life of the process: one small batch
+    // per tick, on an unref'd timer so they never hold the process open.
+    const retentionService = new RetentionService(repositories.retentionRepository, () => instanceSettingsService.getRetentionSettings());
+    if (process.env.NODE_ENV !== "test") {
+        retentionService.start();
+    }
     return {
         config,
         roleService,
@@ -341,6 +372,7 @@ export const bootstrap = async (config) => {
         databaseMigrationService,
         recoveryService,
         instanceSettingsService,
+        retentionService,
         tenantService,
         userService,
         scimService,
@@ -370,12 +402,19 @@ export const bootstrap = async (config) => {
         pluginService,
         pluginRuntimeService,
         mediaService,
+        suggestionService,
         authService,
         oidcService,
         auditRepository,
         policyDecisionLogRepository,
+        nexusHubDelegationConsentRepository,
+        nexusHubDelegationTokenRepository,
+        nexusBusManagementEnrollmentRepository,
         dispose: async () => {
+            retentionService.stop();
             await eventHookService.waitForIdle();
+            await pluginRuntimeService.dispose();
+            await policyService.dispose();
             await (repositories.dispose ?? (async () => undefined))();
         }
     };

@@ -111,6 +111,23 @@ const exchanged = await auth.exchangeToken({
   scope: ["tickets.read"]
 });
 
+// NexusHub's opt-in profile can carry the issuer-bound installation and
+// signed application actor tuple alongside the ordinary exchange fields.
+const delegated = await auth.exchangeToken({
+  subjectToken: refreshed.access_token,
+  subjectTokenType: "urn:ietf:params:oauth:token-type:access_token",
+  clientId: process.env.NEXUSHUB_OIDC_CLIENT_ID!,
+  clientSecret: process.env.NEXUSHUB_OIDC_CLIENT_SECRET!,
+  audience: "https://crm.example.com",
+  scope: ["crm.conversations:read"],
+  nexusHubProfile: "nexushub:1",
+  nexusHubInstallationId: process.env.NEXUSHUB_INSTALLATION_ID!,
+  nexusHubActorAppId: "crm",
+  nexusHubActorRegistrationId: "crm-registration",
+  nexusHubActorOrganizationId: "org-acme",
+  nexusHubActorProjectId: "project-ops"
+});
+
 await auth.revokeToken({
   token: refreshed.refresh_token ?? token.refresh_token!,
   tokenTypeHint: "refresh_token"

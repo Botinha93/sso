@@ -1,10 +1,31 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { nanoid } from "nanoid";
-import { AppError, AuthenticationError, ValidationError } from "../core/errors.js";
+import { AppError, AuthenticationError, ClientMisconfiguredError, LoginError, ValidationError } from "../core/errors.js";
 import { verifyPassword } from "../security/password.js";
 import { hashOpaqueToken } from "../security/token-hash.js";
 import { resolveAccessTokenTtlSeconds, resolveRefreshTokenTtlSeconds } from "../security/jwt.js";
 import { buildAccessTokenAuthorizationClaims, buildScopeGatedClaims, claimsWithoutSubject } from "../domain/oidc-scopes.js";
+import { pickUserForLoginIdentifier } from "../domain/login-identifier.js";
+/**
+ * First reason a client cannot complete an interactive sign-in, or undefined
+ * when its registration is usable. `redirectUris` only matters for flows that
+ * redirect back to the client (authorization_code).
+ */
+export const findClientMisconfiguration = (client, options = {}) => {
+    if (!client.secret?.trim()) {
+        return "client_secret_missing";
+    }
+    if (client.grants.length === 0) {
+        return "grants_missing";
+    }
+    if (client.allowedScopes.length === 0) {
+        return "allowed_scopes_missing";
+    }
+    if (options.requireRedirectUris && client.redirectUris.length === 0) {
+        return "redirect_uris_missing";
+    }
+    return undefined;
+};
 export class AuthService {
     userService;
     roleService;
@@ -53,22 +74,43 @@ export class AuthService {
     }
     async validateUserCredentials(identifier, password) {
         const normalized = identifier.trim();
-        await this.securityService.assertLoginAllowed(normalized);
-        const user = await this.userService.findUserByEmail(normalized) ?? await this.userService.findUserByUsername(normalized);
-        if (!user || !user.active || !verifyPassword(password, user.passwordHash)) {
-            throw new AuthenticationError("Invalid credentials");
+        const candidates = await this.userService.findLoginCandidates(normalized);
+        this.securityService.assertLoginAllowed(normalized, candidates.map((user) => user.id));
+        const matches = candidates.filter((user) => verifyPassword(password, user.passwordHash));
+        const user = pickUserForLoginIdentifier(normalized, matches.filter((candidate) => candidate.active));
+        if (!user) {
+            // Only an account whose password matched may be reported as disabled;
+            // anything else stays indistinguishable from a wrong password.
+            if (pickUserForLoginIdentifier(normalized, matches)) {
+                throw new LoginError("account_disabled");
+            }
+            throw new LoginError("invalid_credentials");
         }
         return user;
     }
+    /**
+     * Accounts a login identifier (email or username) resolves to, used to scope
+     * lockout bookkeeping to the account instead of the typed identifier alone.
+     */
+    async resolveLoginLockoutUserIds(identifier) {
+        try {
+            const candidates = await this.userService.findLoginCandidates(identifier.trim());
+            return candidates.map((user) => user.id);
+        }
+        catch {
+            return [];
+        }
+    }
     async completeLoginForUser(input) {
         const user = await this.userService.findUserById(input.userId);
-        if (!user || !user.active) {
-            throw new AuthenticationError("User no longer exists");
+        if (!user) {
+            throw new LoginError("account_unavailable");
         }
-        const client = await this.requireClient(input.clientId);
-        await this.assertClientSupportsActiveFlow(client);
+        if (!user.active) {
+            throw new LoginError("account_disabled");
+        }
+        const { client, tenant } = await this.assertLoginTargetValid({ clientId: input.clientId, tenantSlug: input.tenantSlug });
         const allowedScope = input.scope.filter((scope) => client.allowedScopes.includes(scope));
-        const tenant = input.tenantSlug ? await this.tenantRepository.findBySlug(input.tenantSlug) : undefined;
         const session = await this.sessionRepository.create({
             userId: user.id,
             clientId: client.id,
@@ -107,6 +149,7 @@ export class AuthService {
     async createAuthorizationCode(input) {
         await this.authenticationFlowService.assertGrantSupported("authorization_code");
         const client = await this.requireClient(input.clientId);
+        this.assertClientConfigured(client, { requireRedirectUris: true });
         await this.assertClientSupportsActiveFlow(client);
         if (!client.grants.includes("authorization_code")) {
             throw new AuthenticationError("Client does not support authorization_code grant");
@@ -128,6 +171,7 @@ export class AuthService {
             userId: input.userId,
             redirectUri: input.redirectUri,
             scope: input.scope.filter((scope) => client.allowedScopes.includes(scope)),
+            nonce: input.nonce,
             codeChallenge: input.codeChallenge,
             codeChallengeMethod: input.codeChallengeMethod,
             expiresAt: new Date(Date.now() + 1000 * 60 * 10)
@@ -163,7 +207,7 @@ export class AuthService {
             }
         }
         const user = await this.userService.findUserById(authorizationCode.userId);
-        if (!user) {
+        if (!user || !user.active) {
             throw new AuthenticationError("User no longer exists");
         }
         const session = await this.sessionRepository.create({
@@ -183,7 +227,8 @@ export class AuthService {
             user,
             client,
             sessionId: session.id,
-            scope: authorizationCode.scope
+            scope: authorizationCode.scope,
+            idTokenNonce: authorizationCode.nonce
         });
     }
     async requireClient(clientId) {
@@ -193,8 +238,39 @@ export class AuthService {
         }
         return client;
     }
+    /**
+     * Checks what a sign-in targets (client and tenant) before any credential is
+     * looked at, so a broken integration is reported as such and never burns a
+     * password attempt.
+     */
+    async assertLoginTargetValid(input) {
+        const client = await this.clientRepository.findById(input.clientId);
+        if (!client) {
+            throw new LoginError("client_not_found");
+        }
+        this.assertClientConfigured(client);
+        await this.assertClientSupportsActiveFlow(client);
+        const tenant = input.tenantSlug ? await this.tenantRepository.findBySlug(input.tenantSlug) : undefined;
+        if (input.tenantSlug && !tenant) {
+            throw new LoginError("tenant_not_found");
+        }
+        return { client, tenant };
+    }
+    assertClientConfigured(client, options = {}) {
+        const reason = findClientMisconfiguration(client, options);
+        if (reason) {
+            throw new ClientMisconfiguredError(reason);
+        }
+    }
     async authenticateClient(input) {
         const client = await this.requireClient(input.clientId);
+        const managedCheck = this.clientRepository.authenticateManagedProfileSecret
+            ? await this.clientRepository.authenticateManagedProfileSecret(input.clientId, input.clientSecret)
+            : undefined;
+        if (managedCheck === true)
+            return client;
+        if (managedCheck === false)
+            throw new AuthenticationError("Invalid client credentials");
         const provided = Buffer.from(input.clientSecret);
         const actual = Buffer.from(client.secret);
         if (provided.length !== actual.length || !timingSafeEqual(provided, actual)) {
@@ -208,7 +284,7 @@ export class AuthService {
             return;
         }
         if (client.flowIds.length > 0 && !client.flowIds.includes(activeFlow.id)) {
-            throw new AuthenticationError("Client is not allowed to use the active authentication flow");
+            throw new LoginError("client_flow_not_allowed");
         }
     }
     async refreshTokens(input) {
@@ -233,9 +309,15 @@ export class AuthService {
             await this.refreshTokenRepository.revokeByTokenId(refreshRecord.tokenId, new Date());
             throw new AuthenticationError("Refresh token has expired");
         }
+        // A refresh token is bound to the client it was issued to (RFC 6749 §6).
+        if (refreshRecord.clientId !== client.id || payload.client_id !== client.id) {
+            await this.refreshTokenRepository.revokeTokenFamily(refreshRecord.tokenId, new Date());
+            throw new AuthenticationError("Refresh token was not issued to this client");
+        }
         await this.refreshTokenRepository.markConsumed(refreshRecord.tokenId, new Date());
         const user = await this.userService.findUserById(String(payload.sub));
-        if (!user) {
+        if (!user || !user.active) {
+            await this.refreshTokenRepository.revokeTokenFamily(refreshRecord.tokenId, new Date());
             throw new AuthenticationError("User no longer exists");
         }
         return this.issuePersistedTokens({
@@ -251,6 +333,9 @@ export class AuthService {
         const client = await this.clientRepository.findById(input.clientId);
         if (!client) {
             return this.issueServiceIdentityClientCredentialsTokens(input);
+        }
+        if (input.audience !== undefined) {
+            throw new AppError("Audience is only supported for service identity credentials", 400);
         }
         await this.authenticationFlowService.assertGrantSupported("client_credentials");
         const authenticatedClient = await this.authenticateClient({
@@ -292,6 +377,18 @@ export class AuthService {
         if (requestedScope.some((scope) => !allowedScopes.has(scope))) {
             throw new AppError("Requested scope exceeds service identity policy", 400);
         }
+        // The issuer is always the configured NexusID issuer. Audience requests
+        // may only narrow the admin-configured service identity allowlist.
+        const requestedAudiences = input.audience === undefined
+            ? undefined
+            : Array.from(new Set(input.audience.split(/[\s,]+/).map((value) => value.trim()).filter(Boolean)));
+        if (requestedAudiences?.length === 0) {
+            throw new AppError("At least one audience must be requested", 400);
+        }
+        const allowedAudiences = new Set(serviceIdentity.allowedAudiences);
+        if (requestedAudiences?.some((audience) => !allowedAudiences.has(audience))) {
+            throw new AppError("Requested audience exceeds service identity policy", 400);
+        }
         const accessTokenId = nanoid();
         // Authorization claims are scope-gated, same as user access tokens:
         // embedding them unconditionally bloats tokens past proxy header limits.
@@ -305,6 +402,7 @@ export class AuthService {
             permissions: requestedScope.includes("permissions")
                 ? await this.roleService.resolvePermissionsForUser(serviceIdentity.id)
                 : undefined,
+            audiences: requestedAudiences,
             accessTokenId
         });
         await this.auditRepository.log({
@@ -332,12 +430,8 @@ export class AuthService {
             throw new AuthenticationError("Client does not support password grant");
         }
         const identifier = input.username.trim();
-        await this.securityService.assertLoginAllowed(identifier);
-        const user = await this.userService.findUserByEmail(identifier) ?? await this.userService.findUserByUsername(identifier);
-        if (!user || !user.active || !verifyPassword(input.password, user.passwordHash)) {
-            throw new AuthenticationError("Invalid credentials");
-        }
-        await this.securityService.clearLoginFailures(identifier);
+        const user = await this.validateUserCredentials(identifier, input.password);
+        this.securityService.clearLoginFailures(identifier, [user.id]);
         const requestedScope = input.scope ? input.scope.split(" ") : client.allowedScopes;
         const allowedScope = requestedScope.filter((scope) => client.allowedScopes.includes(scope));
         const session = await this.sessionRepository.create({
@@ -460,10 +554,7 @@ export class AuthService {
             throw new ValidationError("CIBA auth_req_id already consumed");
         }
         const identifier = input.username.trim();
-        const user = await this.userService.findUserByEmail(identifier) ?? await this.userService.findUserByUsername(identifier);
-        if (!user || !user.active || !verifyPassword(input.password, user.passwordHash)) {
-            throw new AuthenticationError("Invalid credentials");
-        }
+        const user = await this.validateUserCredentials(identifier, input.password);
         if (!input.approve) {
             record.status = "denied";
             record.userId = user.id;
@@ -572,6 +663,19 @@ export class AuthService {
         catch {
             throw new AuthenticationError("JWT bearer assertion validation failed");
         }
+        // Only access tokens this same client obtained may be presented as an
+        // assertion. Without this binding any token from any client (or a refresh
+        // token) could be laundered into tokens for a different client.
+        if (payload.type === "refresh" || payload.actor_type === "service_identity") {
+            throw new AuthenticationError("JWT bearer assertion must be a user access token");
+        }
+        if (payload.client_id !== client.id) {
+            throw new AuthenticationError("JWT bearer assertion was not issued to this client");
+        }
+        const assertionJti = typeof payload.jti === "string" ? payload.jti : undefined;
+        if (!assertionJti || await this.accessTokenRepository.isRevoked(assertionJti)) {
+            throw new AuthenticationError("JWT bearer assertion has been revoked");
+        }
         const subject = typeof payload.sub === "string" ? payload.sub : undefined;
         if (!subject) {
             throw new ValidationError("JWT bearer assertion is missing subject");
@@ -601,30 +705,14 @@ export class AuthService {
         if (!client.grants.includes("saml2_bearer")) {
             throw new AuthenticationError("Client does not support saml2_bearer grant");
         }
-        const rawAssertion = input.assertion.includes("<")
-            ? input.assertion
-            : Buffer.from(input.assertion, "base64").toString("utf8");
-        const nameIdMatch = rawAssertion.match(/<(?:[A-Za-z0-9_:-]+:)?NameID[^>]*>([^<]+)<\/(?:[A-Za-z0-9_:-]+:)?NameID>/);
-        const subject = nameIdMatch?.[1]?.trim();
-        if (!subject) {
-            throw new ValidationError("SAML bearer assertion is missing NameID subject");
-        }
-        const user = await this.userService.findUserById(subject)
-            ?? await this.userService.findUserByEmail(subject)
-            ?? await this.userService.findUserByUsername(subject);
-        if (!user || !user.active) {
-            throw new AuthenticationError("User not available for SAML bearer assertion");
-        }
-        const requestedScope = input.scope ? input.scope.split(" ").map((value) => value.trim()).filter(Boolean) : client.allowedScopes;
-        const allowedScope = requestedScope.filter((scope) => client.allowedScopes.includes(scope));
-        return this.issueUserScopedAccessToken({
-            user,
-            client,
-            scope: allowedScope,
-            grant: "saml2_bearer",
-            ip: input.ip,
-            userAgent: input.userAgent
-        });
+        // RFC 7522 requires the assertion to be signed by a trusted identity
+        // provider and checked for issuer, audience, validity window and replay.
+        // The previous implementation extracted <NameID> with a regular expression
+        // and performed none of those checks, which allowed any client with this
+        // grant to obtain tokens for any user. The grant stays refused until a
+        // trusted-IdP registration and a real XML-DSig verifier are available.
+        void input.assertion;
+        throw new AuthenticationError("saml2_bearer grant is not available: no trusted SAML identity provider is configured");
     }
     async verifyDeviceUserCode(input) {
         const normalizedUserCode = input.userCode.trim().toUpperCase();
@@ -636,10 +724,7 @@ export class AuthService {
             throw new ValidationError("Device code already consumed");
         }
         const identifier = input.username.trim();
-        const user = await this.userService.findUserByEmail(identifier) ?? await this.userService.findUserByUsername(identifier);
-        if (!user || !user.active || !verifyPassword(input.password, user.passwordHash)) {
-            throw new AuthenticationError("Invalid credentials");
-        }
+        const user = await this.validateUserCredentials(identifier, input.password);
         if (!input.approve) {
             record.status = "denied";
             record.userId = user.id;
@@ -903,6 +988,9 @@ export class AuthService {
     async revokeAccessToken(tokenId) {
         await this.accessTokenRepository.revokeByTokenId(tokenId, new Date());
     }
+    async isAccessTokenRevoked(tokenId) {
+        return this.accessTokenRepository.isRevoked(tokenId);
+    }
     async revokeRefreshToken(tokenId) {
         await this.refreshTokenRepository.revokeByTokenId(tokenId, new Date());
     }
@@ -957,6 +1045,7 @@ export class AuthService {
             accessTokenId,
             refreshTokenId,
             tenantId: input.tenantId,
+            nonce: input.idTokenNonce,
             idTokenClaims,
             accessTokenAuthorizationClaims
         });

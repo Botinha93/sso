@@ -305,6 +305,7 @@ export class SqliteDatabase {
         app_id TEXT,
         name TEXT NOT NULL,
         secret TEXT NOT NULL,
+        token_endpoint_auth_method TEXT NOT NULL DEFAULT 'client_secret_post',
         redirect_uris_json TEXT NOT NULL,
         allowed_scopes_json TEXT NOT NULL,
         grants_json TEXT NOT NULL,
@@ -363,6 +364,7 @@ export class SqliteDatabase {
         user_id TEXT NOT NULL,
         redirect_uri TEXT NOT NULL,
         scope_json TEXT NOT NULL,
+        nonce TEXT,
         code_challenge TEXT,
         code_challenge_method TEXT,
         expires_at TEXT NOT NULL,
@@ -966,6 +968,9 @@ export class SqliteDatabase {
     if (!clientColumns.some((column) => column.name === "resource_metadata_json")) {
       this.connection.exec("ALTER TABLE oauth_clients ADD COLUMN resource_metadata_json TEXT NOT NULL DEFAULT '{}';");
     }
+    if (!clientColumns.some((column) => column.name === "token_endpoint_auth_method")) {
+      this.connection.exec("ALTER TABLE oauth_clients ADD COLUMN token_endpoint_auth_method TEXT NOT NULL DEFAULT 'client_secret_post';");
+    }
     const hasFlowIdsColumn = clientColumns.some((column) => column.name === "flow_ids_json");
     if (!hasFlowIdsColumn) {
       this.connection.exec("ALTER TABLE oauth_clients ADD COLUMN flow_ids_json TEXT NOT NULL DEFAULT '[]';");
@@ -1213,6 +1218,10 @@ export class SqliteDatabase {
     const hasElevationSessionCorrelationId = elevationSessionColumns.some((column) => column.name === "correlation_id");
     if (!hasElevationSessionCorrelationId) {
       this.connection.exec("ALTER TABLE elevation_sessions ADD COLUMN correlation_id TEXT NOT NULL DEFAULT '';\nUPDATE elevation_sessions SET correlation_id = elevation_request_id WHERE correlation_id = '';\n");
+    }
+    const authorizationCodeColumns = this.connection.prepare("PRAGMA table_info(authorization_codes)").all() as Array<{ name: string }>;
+    if (!authorizationCodeColumns.some((column) => column.name === "nonce")) {
+      this.connection.exec("ALTER TABLE authorization_codes ADD COLUMN nonce TEXT;");
     }
   }
 

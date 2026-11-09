@@ -21,6 +21,7 @@ test("SQLite persists issuer-owned Bus enrollment with unique active authority a
     const input = {
       enrollmentId: "enrollment-1", installationId: "installation-1", serviceIdentityId: "service-identity-1",
       credentialId: "credential-1", credentialHash: "a".repeat(64), organizationId: "org-1", projectId: "project-1",
+      producerCredentialId: "producer-credential-1", producerCredentialHash: "b".repeat(64),
       tenant: "tenant-1", app: "nexusbus", roles: ["nexusbus.installation.read"]
     };
     const outcomes = await Promise.allSettled([repository.create(input), repository.create({ ...input, enrollmentId: "enrollment-2", credentialId: "credential-2" })]);
@@ -31,6 +32,7 @@ test("SQLite persists issuer-owned Bus enrollment with unique active authority a
     assert.equal(stored.credentialHash, input.credentialHash);
     assert.deepEqual(stored.roles, input.roles);
     assert.equal((await repository.findByCredential(stored.credentialId))?.installationId, input.installationId);
+    assert.equal((await repository.findByProducerCredential(input.producerCredentialId))?.producerCredentialHash, input.producerCredentialHash);
     assert.equal(await repository.revoke(input.serviceIdentityId), true);
     assert.equal(await repository.revoke(input.serviceIdentityId), false);
     assert.equal((await repository.findByCredential(stored.credentialId))?.status, "revoked");

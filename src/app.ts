@@ -140,6 +140,26 @@ export const buildApp = async () => {
       }
     }
   );
+  // OAuth token requests are application/x-www-form-urlencoded per RFC 6749.
+  // Keep the parser bounded and reject duplicate fields so downstream schema
+  // validation sees one unambiguous value for each credential or grant claim.
+  app.addContentTypeParser(
+    "application/x-www-form-urlencoded",
+    { parseAs: "string", bodyLimit: 8 * 1024 },
+    (_request, body, done) => {
+      try {
+        const params = new URLSearchParams(String(body));
+        const parsed: Record<string, string | string[]> = {};
+        for (const [key, value] of params) {
+          const previous = parsed[key];
+          parsed[key] = previous === undefined ? value : Array.isArray(previous) ? [...previous, value] : [previous, value];
+        }
+        done(null, parsed);
+      } catch (error) {
+        done(error as Error, undefined);
+      }
+    }
+  );
 
   await app.register(multipart, {
     limits: {

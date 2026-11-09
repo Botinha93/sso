@@ -20,7 +20,7 @@ import {
   Tooltip,
 } from '@mantine/core'
 import { Plus, Trash2, Shield, ChevronRight, X, Pencil, Copy, Check, KeyRound } from 'lucide-react'
-import { CopyField, PageHeader, RefreshButton, SearchInput, SectionCard, TableSkeleton } from '@nexus/design'
+import { CopyField, PageHeader, RefreshButton, SearchInput, SectionCard, TableSkeleton } from '@botinha93/nexus-design'
 import { useState } from 'react'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import ConfirmDialog from '../components/ConfirmDialog'

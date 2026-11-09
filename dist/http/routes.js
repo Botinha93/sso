@@ -1,7 +1,8 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { extname } from "node:path";
+import { z } from "zod";
 import { bootstrap } from "../bootstrap.js";
-import { AppError, AuthenticationError, ValidationError } from "../core/errors.js";
+import { AccountLockedError, AppError, AuthenticationError, LoginError, ValidationError } from "../core/errors.js";
 import { ensureExternalDatabaseSchema, saveRuntimeDatabaseConfig } from "../core/runtime-database-config.js";
 import { verifyPassword } from "../security/password.js";
 import { isJwtVerificationError } from "../security/jwt.js";
@@ -10,20 +11,39 @@ import { hasAdminPermission, isBootstrapAdminServiceIdentityMetadata, isUngatedA
 import { registerScimRoutes } from "./scim-routes.js";
 import { registerSamlAdminRoutes } from "./saml-routes.js";
 import { registerSamlProtocolRoutes } from "./saml-protocol-routes.js";
-import { clearSessionCookie, setSessionCookie } from "./session-cookie.js";
+import { clearFederationTxnCookie, clearSessionCookie, readFederationTxnFromRequest, readSessionIdFromRequest, setFederationTxnCookie, setSessionCookie } from "./session-cookie.js";
+import { assertSafeDatabaseUrl, assertSafeOutboundUrl, escapeHtml, isSafeLocalRedirect } from "./safe-url.js";
+import { hashOpaqueToken } from "../security/token-hash.js";
+import { toSessionRef } from "../security/session-ref.js";
+import { clampLimit } from "./query-limits.js";
 import { registerAccessGovernanceRoutes } from "./routes/access-governance.js";
 import { registerProvisioningRoutes } from "./routes/provisioning.js";
 import { registerElevationRoutes } from "./routes/elevations.js";
 import { registerServiceIdentityRoutes } from "./routes/service-identities.js";
-import { deriveRiskEventsFromAudit } from "./routes/security-risk-events.js";
+import { deriveRiskEventsFromAudit, riskSeverityForAuditType } from "./routes/security-risk-events.js";
 import { registerConnectorRoutes } from "./routes/connectors.js";
 import { registerPluginRoutes } from "./routes/plugins.js";
+import { registerSuggestionRoutes } from "./routes/suggestions.js";
 import { MAX_IMAGE_UPLOAD_BYTES } from "./upload-limits.js";
-import { assignGroupRoleSchema, assignRoleSchema, assignUserGroupSchema, backChannelLogoutSchema, authorizeSchema, createAppSchema, createClientSchema, createScopeSchema, createAuthenticationFlowSchema, cibaApprovalSchema, cibaAuthenticationRequestSchema, deviceAuthorizationSchema, deviceVerificationSchema, dynamicClientRegistrationSchema, frontChannelLogoutSchema, createFederationProviderSchema, createGroupSchema, createUserAttributeSchema, createPolicySchema, createEventHookSchema, createTenantSchema, createRoleSchema, updateGroupSchema, updateRoleSchema, createUserSchema, introspectSchema, loginSchema, migrateDatabaseSchema, oidcRevokeSchema, oauthLogoutSchema, portalChangePasswordSchema, portalUpdateProfileSchema, recoverySchema, recoveryRequestSchema, sendTestEmailSchema, testDatabaseConnectionSchema, mfaLoginSchema, changePasswordLoginSchema, verifyTotpEnrollmentSchema, webauthnLoginBeginSchema, webauthnLoginFinishSchema, webauthnRegisterBeginSchema, webauthnRegisterFinishSchema, resetUserPasswordSchema, revokeTokenSchema, tokenSchema, setUserAttributeGroupAssignmentSchema, setPolicyAssignmentSchema, evaluatePolicyDecisionSchema, authorizationCheckSchema, removePolicyAssignmentSchema, setupInitializeSchema, testEventHookSchema, updateInstanceSettingsSchema, updateAppSchema, updateAuthenticationFlowSchema, updateClientSchema, updateEventHookSchema, updateFederationProviderSchema, updatePolicySchema, updateTenantSchema, updateUserAttributeSchema, updateUserSchema } from "./schemas.js";
+import { assignGroupRoleSchema, assignRoleSchema, assignUserGroupSchema, backChannelLogoutSchema, authorizeSchema, createAppSchema, createClientSchema, createScopeSchema, createAuthenticationFlowSchema, cibaApprovalSchema, cibaAuthenticationRequestSchema, deviceAuthorizationSchema, deviceVerificationSchema, dynamicClientRegistrationSchema, frontChannelLogoutSchema, createFederationProviderSchema, createGroupSchema, createUserAttributeSchema, createPolicySchema, createEventHookSchema, createTenantSchema, createRoleSchema, updateGroupSchema, updateRoleSchema, createUserSchema, introspectSchema, loginSchema, migrateDatabaseSchema, oidcRevokeSchema, oauthLogoutSchema, portalChangePasswordSchema, portalUpdateProfileSchema, recoverySchema, recoveryRequestSchema, sendTestEmailSchema, testDatabaseConnectionSchema, mfaLoginSchema, changePasswordLoginSchema, verifyTotpEnrollmentSchema, webauthnLoginBeginSchema, webauthnLoginFinishSchema, webauthnRegisterBeginSchema, webauthnRegisterFinishSchema, resetUserPasswordSchema, tokenSchema, setUserAttributeGroupAssignmentSchema, setPolicyAssignmentSchema, evaluatePolicyDecisionSchema, authorizationCheckSchema, removePolicyAssignmentSchema, setupInitializeSchema, testEventHookSchema, updateInstanceSettingsSchema, updateAppSchema, updateAuthenticationFlowSchema, updateClientSchema, updateEventHookSchema, updateFederationProviderSchema, updatePolicySchema, updateTenantSchema, updateUserAttributeSchema, updateUserSchema } from "./schemas.js";
 import { filterAdminList, filterAdminUsers, parseAdminListQuery } from "./list-search.js";
 import { GeolocationService } from "../services/geolocation-service.js";
 import { TranslationService } from "../services/translation-service.js";
 export const registerRoutes = async (app, deps) => {
+    const adminClientView = async (client) => {
+        if (!client)
+            return undefined;
+        const managed = await deps.clientService.managedProfileCredentialStatus(client.id);
+        if (managed) {
+            const { secret: _secret, ...safeClient } = client;
+            return { ...safeClient, secretPreview: undefined, managedCredential: { generation: managed.generation, ...(managed.pendingOperationId ? { pendingOperationId: managed.pendingOperationId, pendingExpiresAt: managed.pendingExpiresAt } : {}) } };
+        }
+        return { ...client, secret: undefined, secretPreview: `${client.secret.slice(0, 4)}...${client.secret.slice(-4)}` };
+    };
+    const revokeHubGrantTokens = async (tuple) => {
+        const ids = await deps.nexusHubDelegationTokenRepository.revokeGrant(tuple);
+        await Promise.all(ids.map((id) => deps.authService.revokeAccessToken(id)));
+    };
     const USER_PICTURE_ATTRIBUTE_KEY = "picture";
     const allowedImageMimeTypes = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"]);
     const extensionToMimeType = {
@@ -207,7 +227,15 @@ export const registerRoutes = async (app, deps) => {
         return reply.type("text/html; charset=utf-8").send(html);
     };
     const sendFrontendFile = async (reply, frontend, relativePath) => {
-        const file = await readFrontendAsset(frontend, relativePath);
+        let file;
+        try {
+            file = await readFrontendAsset(frontend, relativePath);
+        }
+        catch {
+            // Unknown or out-of-root asset paths (including traversal attempts) are
+            // plain 404s; nothing about the filesystem is disclosed.
+            return reply.status(404).send({ error: "not_found" });
+        }
         return reply.type(getAssetContentType(relativePath)).send(file);
     };
     const prefersHtmlResponse = (request) => {
@@ -215,10 +243,7 @@ export const registerRoutes = async (app, deps) => {
         return typeof acceptHeader === "string" && acceptHeader.includes("text/html");
     };
     function asSafeRedirect(value) {
-        if (typeof value !== "string" || !value.startsWith("/")) {
-            return "/";
-        }
-        return value;
+        return isSafeLocalRedirect(value) ? value : "/";
     }
     async function isAllowedPostLogoutRedirect(clientId, redirectUri) {
         if (!clientId) {
@@ -243,9 +268,37 @@ export const registerRoutes = async (app, deps) => {
     function isSensitiveProtocolPath(path) {
         return path.startsWith("/auth") || path.startsWith("/oauth") || path.startsWith("/saml");
     }
+    function isLoginPath(path) {
+        return path === "/auth/login" || path.startsWith("/auth/login/");
+    }
+    /**
+     * Extra response fields that let clients tell a lockout (and how long to wait)
+     * or a misconfigured client (`reason`) apart from a wrong password.
+     */
+    function errorResponseDetails(error) {
+        if (!(error instanceof LoginError)) {
+            return {};
+        }
+        if (!(error instanceof AccountLockedError)) {
+            return { reason: error.reason };
+        }
+        return {
+            reason: error.reason,
+            // `code` predates `reason`; the admin and portal UIs still read it.
+            code: "account_locked",
+            lockedUntil: error.lockedUntil.toISOString(),
+            retryAfterSeconds: error.retryAfterSeconds
+        };
+    }
     function publicErrorMessageForPath(path, error) {
         if (path === "/oauth/introspect" || path === "/oauth/userinfo") {
             return "Token validation failed";
+        }
+        if (error instanceof LoginError) {
+            // Login errors are written to be shown: hiding a lockout or a broken
+            // client behind "Authentication failed" sends users retrying a password
+            // that was never the problem. Each one only says what its reason allows.
+            return error.message;
         }
         if (path === "/auth/login/mfa") {
             return "MFA verification failed";
@@ -255,6 +308,21 @@ export const registerRoutes = async (app, deps) => {
         }
         if (path === "/auth/login") {
             if (error instanceof ValidationError) {
+                return "Invalid request";
+            }
+            if (error.message === "Invalid credentials") {
+                return "Incorrect username or password";
+            }
+            return "Authentication failed";
+        }
+        if (path === "/oauth/device/verify") {
+            if (error instanceof ValidationError) {
+                if (error.message === "Device user code is invalid or expired") {
+                    return error.message;
+                }
+                if (error.message === "Device code already consumed") {
+                    return error.message;
+                }
                 return "Invalid request";
             }
             if (error.message === "Invalid credentials") {
@@ -316,7 +384,7 @@ export const registerRoutes = async (app, deps) => {
         return formatValidationIssue(issues[0]) ?? "Request validation failed";
     }
     async function getSession(request) {
-        const sid = request.cookies?.sid;
+        const sid = readSessionIdFromRequest(request);
         if (!sid)
             return null;
         let session;
@@ -324,69 +392,127 @@ export const registerRoutes = async (app, deps) => {
             session = await deps.authService.sessionRepository.findById(sid);
         }
         catch (error) {
-            request.log?.error({ err: error, sid }, "session lookup failed");
+            request.log?.error({ err: error }, "session lookup failed");
             return null;
         }
         if (!session || session.expiresAt.getTime() < Date.now() || session.revokedAt)
             return null;
+        // A deactivated account must lose access immediately, not at cookie expiry.
+        const user = await deps.userService.findUserById(session.userId);
+        if (!user || !user.active)
+            return null;
         return session;
+    }
+    async function revokeAllSessionsForUser(userId, reason) {
+        const now = new Date();
+        const sessions = (await deps.authService.sessionRepository.list())
+            .filter((session) => session.userId === userId && !session.revokedAt);
+        for (const session of sessions) {
+            deps.securityService.revokeSessionObservation(session.id);
+            await deps.authService.sessionRepository.revoke(session.id, now);
+        }
+        if (sessions.length > 0) {
+            await deps.auditRepository.log({
+                type: "session_revoked",
+                actorType: "system",
+                metadata: { userId, revokedSessions: sessions.length, reason }
+            });
+        }
+        return sessions.length;
     }
     function clientUserAgent(request) {
         const raw = request.headers?.["user-agent"];
         return typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : undefined;
     }
-    function deriveRateLimitActorKey(request) {
+    function deriveRateLimitActorKeys(request) {
         const ip = request.ip ?? "unknown";
         const bodyClientId = typeof request.body?.client_id === "string" && request.body.client_id.length > 0
             ? request.body.client_id
             : typeof request.body?.clientId === "string" && request.body.clientId.length > 0
                 ? request.body.clientId
                 : undefined;
+        // The IP bucket always applies: the client id is attacker-controlled and
+        // must never be the *only* key, otherwise rotating it bypasses the limit.
+        // A second, per-client bucket lets a noisy client hit its own limit
+        // without blocking other clients sharing the same egress IP.
+        const actorKeys = [`ip:${ip}`];
         if (bodyClientId) {
-            // Bucket per OAuth client + IP so a noisy client doesn't lock out
-            // other clients sharing the same egress IP (e.g. behind NAT/proxy).
-            return { actorKey: `client:${bodyClientId}|ip:${ip}`, clientId: bodyClientId };
+            actorKeys.push(`client:${bodyClientId.slice(0, 128)}|ip:${ip}`);
         }
-        return { actorKey: `ip:${ip}` };
+        return { actorKeys, clientId: bodyClientId };
     }
     async function enforceEndpointRateLimit(request, reply) {
         const { rateLimitMultiplier } = await deps.instanceSettingsService.getRateLimitSettings();
         const scaleLimit = (limit) => Math.max(1, Math.round(limit * rateLimitMultiplier));
         const path = request.url.split("?")[0];
         const configs = [];
-        const { actorKey, clientId } = deriveRateLimitActorKey(request);
+        const { actorKeys, clientId } = deriveRateLimitActorKeys(request);
         const baseMetadata = clientId ? { clientId } : undefined;
+        const ipActorKey = actorKeys[0];
+        const pushForAllActors = (endpointKey, limit, windowMs, metadata) => {
+            for (const actorKey of actorKeys) {
+                configs.push({ endpointKey, limit, windowMs, actorKey, metadata });
+            }
+        };
         if (path === "/auth/login") {
-            configs.push({ endpointKey: "auth_login", limit: scaleLimit(10), windowMs: 60_000, actorKey, metadata: baseMetadata });
+            pushForAllActors("auth_login", scaleLimit(10), 60_000, baseMetadata);
         }
         if (path === "/auth/login/mfa") {
-            configs.push({ endpointKey: "auth_login_mfa", limit: scaleLimit(10), windowMs: 60_000, actorKey, metadata: baseMetadata });
+            pushForAllActors("auth_login_mfa", scaleLimit(10), 60_000, baseMetadata);
         }
         if (path === "/auth/login/change-password") {
-            configs.push({ endpointKey: "auth_login_change_password", limit: scaleLimit(10), windowMs: 60_000, actorKey, metadata: baseMetadata });
+            pushForAllActors("auth_login_change_password", scaleLimit(10), 60_000, baseMetadata);
+        }
+        if (path === "/auth/login/webauthn/begin" || path === "/auth/login/webauthn/finish") {
+            pushForAllActors("auth_login_webauthn", scaleLimit(10), 60_000, baseMetadata);
         }
         if (path === "/auth/recovery/request") {
-            configs.push({ endpointKey: "auth_recovery_request", limit: scaleLimit(5), windowMs: 15 * 60_000, actorKey, metadata: baseMetadata });
+            pushForAllActors("auth_recovery_request", scaleLimit(5), 15 * 60_000, baseMetadata);
+            const identifier = typeof request.body?.identifier === "string" ? request.body.identifier.trim().toLowerCase() : "";
+            if (identifier) {
+                // Per-target limit: stops recovery mail-bombing of a single account
+                // from many source addresses.
+                configs.push({
+                    endpointKey: "auth_recovery_request_identifier",
+                    limit: 5,
+                    windowMs: 15 * 60_000,
+                    actorKey: `identifier:${hashOpaqueToken(identifier).slice(0, 32)}`
+                });
+            }
+        }
+        if (path === "/auth/recovery") {
+            pushForAllActors("auth_recovery_verify", scaleLimit(10), 15 * 60_000, baseMetadata);
         }
         if (path === "/api/setup/initialize") {
-            // No client_id is available for setup, fall back to IP-only key.
-            configs.push({ endpointKey: "setup_initialize", limit: scaleLimit(5), windowMs: 15 * 60_000, actorKey });
+            configs.push({ endpointKey: "setup_initialize", limit: scaleLimit(5), windowMs: 15 * 60_000, actorKey: ipActorKey });
+        }
+        if (path === "/connect/register") {
+            configs.push({ endpointKey: "connect_register", limit: scaleLimit(10), windowMs: 15 * 60_000, actorKey: ipActorKey });
+        }
+        if (path === "/oauth/consent") {
+            configs.push({ endpointKey: "oauth_consent", limit: scaleLimit(30), windowMs: 60_000, actorKey: ipActorKey });
+        }
+        if (path === "/api/portal/suggestions/images" || path === "/api/portal/avatar") {
+            configs.push({ endpointKey: "portal_media_upload", limit: scaleLimit(10), windowMs: 60_000, actorKey: ipActorKey });
         }
         if (path === "/oauth/device/verify") {
-            configs.push({ endpointKey: "oauth_device_verify", limit: scaleLimit(10), windowMs: 60_000, actorKey, metadata: baseMetadata });
+            pushForAllActors("oauth_device_verify", scaleLimit(10), 60_000, baseMetadata);
         }
         if (path === "/oauth/device/authorize") {
-            configs.push({ endpointKey: "oauth_device_authorize", limit: scaleLimit(10), windowMs: 60_000, actorKey, metadata: baseMetadata });
+            pushForAllActors("oauth_device_authorize", scaleLimit(10), 60_000, baseMetadata);
         }
-        if (path === "/oauth/token") {
+        if (path === "/oauth/ciba/approve") {
+            pushForAllActors("oauth_ciba_approve", scaleLimit(10), 60_000, baseMetadata);
+        }
+        if (path === "/oauth/token" || path === "/oauth/token/exchange") {
             const grantType = typeof request.body?.grant_type === "string" ? request.body.grant_type : undefined;
-            configs.push({
-                endpointKey: `oauth_token:${grantType ?? "unknown"}`,
-                limit: scaleLimit(grantType === "urn:ietf:params:oauth:grant-type:device_code" ? 30 : 20),
-                windowMs: 60_000,
-                actorKey,
-                metadata: { grantType, ...(baseMetadata ?? {}) }
-            });
+            pushForAllActors(`oauth_token:${grantType ?? "unknown"}`, scaleLimit(grantType === "urn:ietf:params:oauth:grant-type:device_code" ? 30 : 20), 60_000, { grantType, ...(baseMetadata ?? {}) });
+        }
+        if (path === "/saml/sso" || path === "/saml/slo" || path.startsWith("/saml/acs/")) {
+            configs.push({ endpointKey: "saml_protocol", limit: scaleLimit(30), windowMs: 60_000, actorKey: ipActorKey });
+        }
+        if (path.startsWith("/scim/v2")) {
+            configs.push({ endpointKey: "scim", limit: scaleLimit(60), windowMs: 60_000, actorKey: ipActorKey });
         }
         for (const config of configs) {
             const result = await deps.securityService.enforceEndpointRateLimit({
@@ -401,6 +527,7 @@ export const registerRoutes = async (app, deps) => {
                 return reply.status(429).header("Retry-After", String(result.retryAfterSeconds)).send({
                     error: "rate_limited",
                     message: "Too many requests for this endpoint",
+                    ...(isLoginPath(path) ? { reason: "rate_limited" } : {}),
                     retryAfterSeconds: result.retryAfterSeconds
                 });
             }
@@ -440,7 +567,6 @@ export const registerRoutes = async (app, deps) => {
         });
     }
     async function enforcePreCredentialStages(input) {
-        await deps.authenticationFlowService.assertStageEnabled("password");
         if (await deps.authenticationFlowService.isStageEnabled("risk_check")) {
             const riskScore = await deps.riskService.evaluateLoginRisk({
                 userId: input.user.id,
@@ -466,14 +592,14 @@ export const registerRoutes = async (app, deps) => {
                 ip: input.ip
             });
             if (riskScore.decision === "block") {
-                throw new AuthenticationError("Login blocked due to elevated risk");
+                throw new LoginError("login_blocked_risk");
             }
             if (riskScore.decision === "challenge" && input.promptAcknowledged !== true) {
-                throw new AuthenticationError("Additional verification required due to elevated risk");
+                throw new LoginError("risk_acknowledgement_required");
             }
         }
         if (await deps.authenticationFlowService.isStageEnabled("captcha") && !input.captchaToken) {
-            throw new AuthenticationError("Captcha verification is required");
+            throw new LoginError("captcha_required");
         }
         await enforcePoliciesForStage({
             stage: "password",
@@ -483,7 +609,7 @@ export const registerRoutes = async (app, deps) => {
             ip: input.ip
         });
         if (await deps.authenticationFlowService.isStageEnabled("prompt") && input.promptAcknowledged !== true) {
-            throw new AuthenticationError("Interactive prompt acknowledgement is required");
+            throw new LoginError("prompt_acknowledgement_required");
         }
     }
     async function enforcePostLoginStage(input) {
@@ -607,6 +733,7 @@ export const registerRoutes = async (app, deps) => {
         "/oauth/introspect",
         "/oauth/token/revoke",
     ]);
+    const isSelfServiceAdminPath = (path) => path === "/api/admin/me" || path === "/api/admin/change-password";
     app.addHook("preHandler", async (request, reply) => {
         const endpointLimitResult = await enforceEndpointRateLimit(request, reply);
         if (endpointLimitResult) {
@@ -615,7 +742,7 @@ export const registerRoutes = async (app, deps) => {
         const path = request.url.split("?")[0];
         const hasBearerToken = typeof request.headers.authorization === "string" && request.headers.authorization.startsWith("Bearer ");
         const requiresCsrf = csrfProtectedMethods.has(request.method) && !csrfExemptPaths.has(path) && !hasBearerToken;
-        if (requiresCsrf && (path.startsWith("/api/admin") || path.startsWith("/api/account") || path.startsWith("/api/portal") || path === "/auth/logout")) {
+        if (requiresCsrf && (path.startsWith("/api/admin") || path.startsWith("/api/account") || path.startsWith("/api/portal") || path === "/auth/logout" || path === "/oauth/consent")) {
             if (!verifyCsrf(request, reply)) {
                 return;
             }
@@ -637,7 +764,7 @@ export const registerRoutes = async (app, deps) => {
                     if (claims.actor_type !== "service_identity") {
                         return reply.status(401).send({ error: "unauthorized" });
                     }
-                    if (path === "/api/admin/me") {
+                    if (isSelfServiceAdminPath(path)) {
                         return;
                     }
                     const resource = toAdminResource(path);
@@ -666,7 +793,7 @@ export const registerRoutes = async (app, deps) => {
             if (!user) {
                 return reply.status(401).send({ error: "unauthorized" });
             }
-            if (path === "/api/admin/me") {
+            if (isSelfServiceAdminPath(path)) {
                 return;
             }
             const resource = toAdminResource(path);
@@ -698,7 +825,20 @@ export const registerRoutes = async (app, deps) => {
     });
     app.get("/api/setup/status", async () => deps.setupService.status());
     app.post("/api/setup/initialize", async (request, reply) => {
+        // The installer is unauthenticated by nature, so it must refuse to do any
+        // work (including connecting to a caller-supplied database) once the
+        // running instance has been initialised.
+        const currentStatus = await deps.setupService.status();
+        if (!currentStatus.requiresSetup) {
+            return reply.status(409).send({ error: "setup_already_completed", message: "Setup has already been completed" });
+        }
         const input = setupInitializeSchema.parse(request.body);
+        if (input.databaseProvider && input.databaseProvider !== "sqlite") {
+            if (!input.externalDatabaseUrl) {
+                return reply.status(400).send({ error: "validation_error", message: "externalDatabaseUrl is required for external database providers" });
+            }
+            assertSafeDatabaseUrl(input.externalDatabaseUrl, input.databaseProvider);
+        }
         const targetConfig = resolveSetupDatabaseConfig(input);
         const databaseChanged = isDifferentDatabaseConfig(deps.config, targetConfig);
         const bootstrappedServices = databaseChanged ? await (async () => {
@@ -748,6 +888,13 @@ export const registerRoutes = async (app, deps) => {
         }
         try {
             const uploaded = await deps.mediaService.readUploaded(relativePath);
+            // Uploaded media is user-supplied. SVG in particular can carry scripts,
+            // so it is served under a sandboxing CSP and never rendered as a page.
+            reply.header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox");
+            reply.header("X-Content-Type-Options", "nosniff");
+            if (uploaded.mimeType === "image/svg+xml") {
+                reply.header("Content-Disposition", "attachment");
+            }
             return reply.type(uploaded.mimeType).send(uploaded.data);
         }
         catch {
@@ -819,16 +966,67 @@ export const registerRoutes = async (app, deps) => {
     });
     app.get("/.well-known/openid-configuration", async () => await deps.oidcService.discoveryDocument());
     app.get("/.well-known/jwks.json", async () => deps.oidcService.jwks());
+    // Dynamic client registration (RFC 7591) mode:
+    //   disabled (default) - endpoint returns 403
+    //   admin              - requires an admin session (clients:add) or admin bearer token
+    //   open               - anonymous registration, limited to authorization_code/refresh_token
+    const dynamicClientRegistrationMode = () => {
+        const raw = (process.env.DYNAMIC_CLIENT_REGISTRATION ?? "disabled").trim().toLowerCase();
+        return raw === "open" || raw === "admin" ? raw : "disabled";
+    };
+    const OPEN_REGISTRATION_GRANTS = new Set(["authorization_code", "refresh_token"]);
     app.post("/connect/register", async (request, reply) => {
+        const mode = dynamicClientRegistrationMode();
+        if (mode === "disabled") {
+            return reply.status(403).send({ error: "access_denied", error_description: "Dynamic client registration is disabled" });
+        }
+        if (mode === "admin") {
+            const session = await getSession(request);
+            let authorized = false;
+            if (session) {
+                if (!verifyCsrf(request, reply)) {
+                    return;
+                }
+                const permissions = await deps.roleService.resolvePermissionsForUser(session.userId);
+                authorized = hasAdminPermission({ permissions, resource: "clients", action: "add" });
+            }
+            else if (typeof request.headers.authorization === "string" && request.headers.authorization.startsWith("Bearer ")) {
+                try {
+                    const claims = await deps.authService.jwtService.verifyAccessToken(request.headers.authorization.slice("Bearer ".length));
+                    const subject = String(claims.service_identity_id ?? claims.sub ?? "").trim();
+                    const clientIdClaim = String(claims.client_id ?? "").trim();
+                    if (isUngatedAdminClientId(clientIdClaim)) {
+                        authorized = true;
+                    }
+                    else if (claims.actor_type === "service_identity" && subject) {
+                        const permissions = await deps.roleService.resolvePermissionsForUser(subject);
+                        authorized = hasAdminPermission({ permissions, resource: "clients", action: "add" });
+                    }
+                }
+                catch {
+                    authorized = false;
+                }
+            }
+            if (!authorized) {
+                return reply.status(401).send({ error: "unauthorized", error_description: "Client registration requires administrator credentials" });
+            }
+        }
         const input = dynamicClientRegistrationSchema.parse(request.body);
         if (input.app_id && !await deps.appService.findAppById(input.app_id)) {
             return reply.status(400).send({ error: "invalid_request", error_description: "Unknown app_id" });
         }
         const clientId = `dyn_${randomBytes(8).toString("hex")}`;
         const clientSecret = randomBytes(24).toString("hex");
-        const grantTypes = input.grant_types?.length
+        const requestedGrants = input.grant_types?.length
             ? [...input.grant_types]
             : ["authorization_code"];
+        if (mode === "open" && requestedGrants.some((grant) => !OPEN_REGISTRATION_GRANTS.has(grant))) {
+            return reply.status(400).send({
+                error: "invalid_client_metadata",
+                error_description: "Anonymous registration only supports authorization_code and refresh_token grants"
+            });
+        }
+        const grantTypes = requestedGrants;
         const allowedScopes = input.scope
             ? input.scope.split(" ").map((s) => s.trim()).filter(Boolean)
             : ["openid", "profile", "email"];
@@ -858,6 +1056,161 @@ export const registerRoutes = async (app, deps) => {
             scope: created.allowedScopes.join(" ")
         });
     });
+    // How long after an explicit approval a prompt=consent request is treated
+    // as satisfied by that approval.
+    const CONSENT_FRESHNESS_MS = 5 * 60_000;
+    /**
+     * response_mode=form_post. All values are HTML-escaped and the inline
+     * submit script carries a per-response nonce so the global CSP (no
+     * 'unsafe-inline') still applies to anything an attacker might reflect.
+     */
+    const sendAutoSubmitForm = (reply, action, fields) => {
+        const nonce = randomBytes(16).toString("base64");
+        let formAction;
+        try {
+            formAction = new URL(action).origin;
+        }
+        catch {
+            formAction = "'none'";
+        }
+        const inputs = Object.entries(fields)
+            .map(([key, value]) => `<input type="hidden" name="${escapeHtml(key)}" value="${escapeHtml(value)}">`)
+            .join("");
+        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Redirecting</title></head><body>`
+            + `<form method="POST" action="${escapeHtml(action)}">${inputs}<noscript><button type="submit">Continue</button></noscript></form>`
+            + `<script nonce="${nonce}">document.forms[0].submit();</script></body></html>`;
+        reply.header("Content-Security-Policy", `default-src 'none'; script-src 'nonce-${nonce}'; form-action ${formAction}; base-uri 'none'; frame-ancestors 'none'`);
+        reply.header("Cache-Control", "no-store");
+        reply.header("Referrer-Policy", "no-referrer");
+        return reply.type("text/html; charset=utf-8").send(html);
+    };
+    /**
+     * Records the user's approval for a client. Requires the signed session
+     * cookie plus the CSRF double-submit token, so a third-party page cannot
+     * grant consent on the user's behalf. /oauth/authorize then finds the
+     * stored consent and issues the response.
+     */
+    app.get("/oauth/nexushub/resource-metadata", async (request, reply) => {
+        const query = request.query;
+        const clientId = typeof query.client_id === "string" ? query.client_id.trim() : "";
+        const resource = typeof query.resource_audience === "string" ? query.resource_audience.trim() : "";
+        if (!clientId || !resource)
+            return reply.status(400).send({ error: "invalid_request" });
+        const client = await deps.clientService.findClientById(clientId);
+        const metadata = client?.resourceMetadata?.[resource];
+        if (!client || !client.grants.includes("token_exchange") || !client.resources.includes(resource) || !metadata?.label?.trim() || !metadata.description?.trim()) {
+            return reply.status(404).send({ error: "unknown_resource", error_description: "This audience is not an administrator-described NexusHub resource for this client" });
+        }
+        return { resource, label: metadata.label, description: metadata.description };
+    });
+    app.post("/oauth/consent", async (request, reply) => {
+        const session = await getSession(request);
+        if (!session) {
+            return reply.status(401).send({ error: "unauthorized" });
+        }
+        const body = (request.body ?? {});
+        const clientId = typeof body.client_id === "string" ? body.client_id.trim() : "";
+        const redirectUri = typeof body.redirect_uri === "string" ? body.redirect_uri.trim() : "";
+        const scopeRaw = typeof body.scope === "string" ? body.scope : "";
+        const decision = body.decision === "deny" ? "deny" : "approve";
+        const hubProfile = body.nexushub_profile === "nexushub:1";
+        const installationId = typeof body.nexushub_installation_id === "string" ? body.nexushub_installation_id.trim() : "";
+        const resource = typeof body.resource_audience === "string" ? body.resource_audience.trim() : "";
+        if ((hubProfile || installationId || resource) && (!hubProfile || !installationId || !resource)) {
+            return reply.status(400).send({ error: "invalid_request", error_description: "Complete NexusHub profile, installation and resource details are required" });
+        }
+        if (!clientId || !redirectUri || !scopeRaw) {
+            return reply.status(400).send({ error: "invalid_request", error_description: "client_id, redirect_uri and scope are required" });
+        }
+        const client = await deps.clientService.findClientById(clientId);
+        if (!client) {
+            return reply.status(400).send({ error: "invalid_client", error_description: "Unknown client_id" });
+        }
+        if (!client.redirectUris.includes(redirectUri)) {
+            return reply.status(400).send({ error: "invalid_request", error_description: "redirect_uri not registered for client" });
+        }
+        if (hubProfile && (installationId !== client.id || !client.grants.includes("token_exchange") || !client.resources.includes(resource) || !client.resourceMetadata?.[resource]?.label?.trim() || !client.resourceMetadata?.[resource]?.description?.trim())) {
+            return reply.status(400).send({ error: "invalid_target", error_description: "NexusHub delegation resource is not configured for this client" });
+        }
+        if (decision === "deny") {
+            await deps.auditRepository.log({
+                type: "consent_denied",
+                actorId: session.userId,
+                actorType: "user",
+                clientId: client.id,
+                ip: request.ip
+            });
+            if (hubProfile) {
+                await deps.nexusHubDelegationConsentRepository.revoke({ userId: session.userId, clientId: client.id, installationId, resource });
+                await revokeHubGrantTokens({ userId: session.userId, clientId: client.id, installationId, resource });
+            }
+            return reply.status(200).send({ decision: "deny" });
+        }
+        if (hubProfile) {
+            const scopes = scopeRaw.split(" ").map((value) => value.trim()).filter(Boolean);
+            const grantedScopes = scopes.filter((scope) => client.allowedScopes.includes(scope));
+            const existing = await deps.authService.consentRepository.findByUserAndClient(session.userId, client.id);
+            const mergedScopes = Array.from(new Set([...(existing?.scope ?? []), ...grantedScopes]));
+            await deps.authService.consentRepository.upsert({ userId: session.userId, clientId: client.id, scope: mergedScopes });
+            const grant = await deps.nexusHubDelegationConsentRepository.upsert({
+                userId: session.userId,
+                clientId: client.id,
+                installationId,
+                resource,
+                scopes: grantedScopes,
+                expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+            });
+            await deps.auditRepository.log({
+                type: "consent_granted",
+                actorId: session.userId,
+                actorType: "user",
+                clientId: client.id,
+                ip: request.ip,
+                metadata: { profile: "nexushub:1", installationId, resource, grantId: grant.id, expiresAt: grant.expiresAt.toISOString(), scope: grantedScopes }
+            });
+            return reply.status(200).send({ decision: "approve", profile: "nexushub:1", consentId: grant.id, installationId, resource, expiresAt: grant.expiresAt.toISOString() });
+        }
+        const scopes = scopeRaw.split(" ").map((value) => value.trim()).filter(Boolean);
+        const grantedScopes = scopes.filter((scope) => client.allowedScopes.includes(scope));
+        const existing = await deps.authService.consentRepository.findByUserAndClient(session.userId, client.id);
+        const mergedScopes = Array.from(new Set([...(existing?.scope ?? []), ...grantedScopes]));
+        const consent = await deps.authService.consentRepository.upsert({
+            userId: session.userId,
+            clientId: client.id,
+            scope: mergedScopes
+        });
+        await deps.auditRepository.log({
+            type: "consent_granted",
+            actorId: session.userId,
+            actorType: "user",
+            clientId: client.id,
+            ip: request.ip,
+            metadata: { scope: grantedScopes }
+        });
+        return reply.status(200).send({ decision: "approve", consentId: consent.id, scope: consent.scope });
+    });
+    app.get("/api/account/nexushub-consents", async (request, reply) => {
+        const session = await getSession(request);
+        if (!session)
+            return reply.status(401).send({ error: "unauthorized" });
+        const grants = await deps.nexusHubDelegationConsentRepository.listByUser(session.userId);
+        return { consents: grants.map(({ id, clientId, installationId, resource, scopes, expiresAt, createdAt }) => ({ id, clientId, installationId, resource, scopes, expiresAt, createdAt })) };
+    });
+    app.delete("/api/account/nexushub-consents", async (request, reply) => {
+        const session = await getSession(request);
+        if (!session)
+            return reply.status(401).send({ error: "unauthorized" });
+        const body = (request.body ?? {});
+        const clientId = typeof body.client_id === "string" ? body.client_id.trim() : "";
+        const installationId = typeof body.installation_id === "string" ? body.installation_id.trim() : "";
+        const resource = typeof body.resource === "string" ? body.resource.trim() : "";
+        if (!clientId || !installationId || !resource)
+            return reply.status(400).send({ error: "invalid_request" });
+        await deps.nexusHubDelegationConsentRepository.revoke({ userId: session.userId, clientId, installationId, resource });
+        await revokeHubGrantTokens({ userId: session.userId, clientId, installationId, resource });
+        await deps.auditRepository.log({ type: "consent_revoked", actorId: session.userId, actorType: "user", clientId, metadata: { profile: "nexushub:1", installationId, resource } });
+        return reply.status(204).send();
+    });
     app.get("/oauth/authorize", async (request, reply) => {
         const input = authorizeSchema.parse(request.query);
         try {
@@ -879,7 +1232,27 @@ export const registerRoutes = async (app, deps) => {
         if (!client.redirectUris.includes(input.redirect_uri)) {
             return reply.status(400).send({ error: "invalid_request", error_description: "redirect_uri not registered for client" });
         }
+        if (!client.grants.includes("authorization_code")) {
+            // Every front-channel response type is issued under the authorization_code
+            // grant registration; fail before prompting the user for login/consent.
+            throw new AuthenticationError("Client does not support authorization_code grant");
+        }
+        const hubProfile = Boolean(input.nexushub_profile || input.nexushub_installation_id || input.resource_audience);
+        if (hubProfile && (input.nexushub_profile !== "nexushub:1" || input.nexushub_installation_id !== client.id || !input.resource_audience || !client.resources.includes(input.resource_audience) || !client.grants.includes("token_exchange"))) {
+            return reply.status(400).send({ error: "invalid_target", error_description: "NexusHub profile installation must match this NexusID-issued client and name one configured resource" });
+        }
         const session = await getSession(request);
+        // A browser can have a perfectly valid SSO cookie and still need to
+        // deliberately choose whether to use that account or authenticate as
+        // somebody else.  Make that choice the default for interactive requests;
+        // keep prompt=none non-interactive as required by OIDC.
+        const accountSelectionComplete = request.query.account_selection === "continue";
+        const requiresAccountChoice = input.prompt === "select_account" || prefersHtmlResponse(request);
+        if (session && requiresAccountChoice && input.prompt !== "none" && input.prompt !== "login" && !accountSelectionComplete) {
+            const params = new URLSearchParams(request.query);
+            params.set("account_selection", "1");
+            return reply.redirect(`/login?${params.toString()}`);
+        }
         const requireLogin = !session || input.prompt === "login";
         if (requireLogin) {
             const params = new URLSearchParams(request.query).toString();
@@ -889,6 +1262,25 @@ export const registerRoutes = async (app, deps) => {
         if (!user) {
             const params = new URLSearchParams(request.query).toString();
             return reply.redirect(`/login?${params}`);
+        }
+        const passwordExpiration = await deps.policyService.getPasswordExpirationStatus(user, await resolveTenantId(input.tenant));
+        const passwordExpirationNotice = deps.policyService.buildPasswordExpirationNotice(passwordExpiration);
+        if (passwordExpirationNotice) {
+            const authorizeQuery = new URLSearchParams(request.query);
+            authorizeQuery.delete("password_warning");
+            if (input.prompt === "none") {
+                if (passwordExpirationNotice.status === "expired") {
+                    const redirectUrl = new URL(input.redirect_uri);
+                    redirectUrl.searchParams.set("error", "login_required");
+                    redirectUrl.searchParams.set("error_description", "Password has expired");
+                    if (input.state)
+                        redirectUrl.searchParams.set("state", input.state);
+                    return reply.redirect(redirectUrl.toString());
+                }
+            }
+            else if (passwordExpirationNotice.status === "expired" || input.password_warning !== "continue") {
+                return reply.redirect(`/password-expiration?${authorizeQuery.toString()}`);
+            }
         }
         const consentStageEnabled = await deps.authenticationFlowService.isStageEnabled("consent");
         if (consentStageEnabled) {
@@ -909,22 +1301,63 @@ export const registerRoutes = async (app, deps) => {
                 throw error;
             }
         }
-        const forceConsent = input.prompt === "consent" || input.approval_prompt === "force";
-        const hasConsented = input.consent === "approve";
-        if (consentStageEnabled && !hasConsented && (forceConsent || input.prompt !== "none")) {
-            const params = new URLSearchParams(request.query).toString();
-            return reply.redirect(`/consent?${params}`);
-        }
-        if (consentStageEnabled && !hasConsented && input.prompt === "none") {
-            const redirectUrl = new URL(input.redirect_uri);
-            redirectUrl.searchParams.set("error", "interaction_required");
-            if (input.state)
-                redirectUrl.searchParams.set("state", input.state);
-            return reply.redirect(redirectUrl.toString());
-        }
         const responseTypes = new Set(input.response_type.split(" ").map((value) => value.trim()).filter(Boolean));
         const hasFrontChannelToken = responseTypes.has("token") || responseTypes.has("id_token");
         const responseMode = input.response_mode ?? (hasFrontChannelToken ? "fragment" : "query");
+        const requestedScopes = input.scope.split(" ").map((value) => value.trim()).filter(Boolean);
+        const grantableScopes = requestedScopes.filter((scope) => client.allowedScopes.includes(scope));
+        const sendErrorToClient = (error, description) => {
+            const errorParams = { error };
+            if (description)
+                errorParams.error_description = description;
+            if (input.state)
+                errorParams.state = input.state;
+            if (responseMode === "fragment") {
+                return reply.redirect(`${input.redirect_uri}#${new URLSearchParams(errorParams).toString()}`);
+            }
+            if (responseMode === "form_post") {
+                return sendAutoSubmitForm(reply, input.redirect_uri, errorParams);
+            }
+            const redirectUrl = new URL(input.redirect_uri);
+            Object.entries(errorParams).forEach(([key, value]) => redirectUrl.searchParams.set(key, value));
+            return reply.redirect(redirectUrl.toString());
+        };
+        // The user declined on the consent screen. The redirect target is still
+        // validated against the client registration above, so this cannot be
+        // abused as an open redirect.
+        if (input.consent === "deny") {
+            return sendErrorToClient("access_denied", "The user denied the request");
+        }
+        // Consent is only ever recorded server-side via POST /oauth/consent (CSRF
+        // protected, bound to the session). A query flag such as consent=approve
+        // is ignored: a cross-site link must not be able to approve on the user's
+        // behalf.
+        const forceConsent = input.prompt === "consent" || input.approval_prompt === "force";
+        const storedConsent = await deps.authService.consentRepository.findByUserAndClient(user.id, client.id);
+        const consentCoversScopes = Boolean(storedConsent) && grantableScopes.every((scope) => storedConsent.scope.includes(scope));
+        const consentIsFresh = Boolean(storedConsent) && Date.now() - storedConsent.updatedAt.getTime() <= CONSENT_FRESHNESS_MS;
+        const hubConsent = hubProfile ? await deps.nexusHubDelegationConsentRepository.findActive({
+            userId: user.id,
+            clientId: client.id,
+            installationId: input.nexushub_installation_id,
+            resource: input.resource_audience
+        }) : undefined;
+        const hasConsented = consentCoversScopes && (!forceConsent || consentIsFresh) && (!hubProfile || Boolean(hubConsent));
+        if (hubProfile && !hubConsent) {
+            if (input.prompt === "none")
+                return sendErrorToClient("interaction_required");
+            const consentQuery = new URLSearchParams(request.query);
+            consentQuery.delete("consent");
+            return reply.redirect(`/consent?${consentQuery.toString()}`);
+        }
+        if (consentStageEnabled && !hasConsented && input.prompt === "none") {
+            return sendErrorToClient("interaction_required");
+        }
+        if (consentStageEnabled && !hasConsented) {
+            const consentQuery = new URLSearchParams(request.query);
+            consentQuery.delete("consent");
+            return reply.redirect(`/consent?${consentQuery.toString()}`);
+        }
         if (hasFrontChannelToken && responseMode === "query") {
             return reply.status(400).send({ error: "invalid_request", error_description: "response_mode=query is not allowed for token or id_token responses" });
         }
@@ -938,6 +1371,7 @@ export const registerRoutes = async (app, deps) => {
                 userId: user.id,
                 redirectUri: input.redirect_uri,
                 scope: input.scope.split(" "),
+                nonce: input.nonce,
                 codeChallenge: input.code_challenge,
                 codeChallengeMethod: input.code_challenge_method
             });
@@ -977,11 +1411,7 @@ export const registerRoutes = async (app, deps) => {
             return reply.redirect(`${input.redirect_uri}#${fragment}`);
         }
         if (responseMode === "form_post") {
-            const fields = Object.entries(params)
-                .map(([k, v]) => `<input type="hidden" name="${k}" value="${v}">`)
-                .join("");
-            const html = `<!DOCTYPE html><html><body onload="document.forms[0].submit()"><form method="POST" action="${input.redirect_uri}">${fields}</form></body></html>`;
-            return reply.type("text/html").send(html);
+            return sendAutoSubmitForm(reply, input.redirect_uri, params);
         }
         // Default: query
         const redirectUrl = new URL(input.redirect_uri);
@@ -993,6 +1423,7 @@ export const registerRoutes = async (app, deps) => {
         if (!parsed.success) {
             return reply.status(400).send({ error: "invalid_request", error_description: "Invalid token request" });
         }
+        let passwordGrantCredentialsChecked = false;
         try {
             if (parsed.data.grant_type === "authorization_code") {
                 const tokens = await deps.authService.exchangeAuthorizationCode({
@@ -1032,10 +1463,22 @@ export const registerRoutes = async (app, deps) => {
                 return await deps.authService.issueClientCredentialsTokens({
                     clientId: parsed.data.client_id,
                     clientSecret: parsed.data.client_secret,
-                    scope: parsed.data.scope
+                    scope: parsed.data.scope,
+                    audience: parsed.data.audience
                 });
             }
             if (parsed.data.grant_type === "password") {
+                // Authenticate the client before touching user credentials so that an
+                // unauthenticated caller gets neither a password oracle nor the ability
+                // to trip account lockouts.
+                const passwordGrantClient = await deps.authService.authenticateClient({
+                    clientId: parsed.data.client_id,
+                    clientSecret: parsed.data.client_secret
+                });
+                if (!passwordGrantClient.grants.includes("password")) {
+                    throw new AuthenticationError("Client does not support password grant");
+                }
+                passwordGrantCredentialsChecked = true;
                 const user = await deps.authService.validateUserCredentials(parsed.data.username, parsed.data.password);
                 await enforcePreCredentialStages({
                     user,
@@ -1071,7 +1514,7 @@ export const registerRoutes = async (app, deps) => {
                     ip: request.ip,
                     userAgent: clientUserAgent(request)
                 });
-                deps.securityService.clearLoginFailures(parsed.data.username);
+                deps.securityService.clearLoginFailures(parsed.data.username, [user.id]);
                 return tokenResponse;
             }
             if (parsed.data.grant_type === "urn:ietf:params:oauth:grant-type:device_code") {
@@ -1122,9 +1565,10 @@ export const registerRoutes = async (app, deps) => {
             }
         }
         catch (err) {
-            if (parsed.data.grant_type === "password") {
+            if (parsed.data.grant_type === "password" && passwordGrantCredentialsChecked) {
                 await deps.securityService.recordLoginFailure({
                     identifier: parsed.data.username,
+                    userIds: await deps.authService.resolveLoginLockoutUserIds(parsed.data.username),
                     ip: request.ip,
                     reason: err instanceof Error ? err.message : "unknown"
                 });
@@ -1153,7 +1597,11 @@ export const registerRoutes = async (app, deps) => {
                 });
             }
             if (err instanceof AppError) {
-                return reply.status(err.statusCode).send({ error: "invalid_grant", error_description: publicErrorMessageForPath("/oauth/token", err) });
+                return reply.status(err.statusCode).send({
+                    error: "invalid_grant",
+                    error_description: publicErrorMessageForPath("/oauth/token", err),
+                    ...errorResponseDetails(err)
+                });
             }
             throw err;
         }
@@ -1166,6 +1614,14 @@ export const registerRoutes = async (app, deps) => {
             return reply.status(400).send({ error: "invalid_request", error_description: "Missing required fields for token exchange" });
         }
         const { subject_token, subject_token_type, scope, audience, client_id, client_secret } = parsed.data;
+        // The profile is opt-in. Ordinary RFC 8693 requests retain the existing path.
+        const hasHubDelegationField = Boolean(parsed.data.nexushub_profile || parsed.data.nexushub_installation_id);
+        if (hasHubDelegationField) {
+            if (parsed.data.nexushub_profile !== "nexushub:1" || !parsed.data.nexushub_installation_id || !audience) {
+                return reply.status(400).send({ error: "invalid_request", error_description: "NexusHub delegation requires profile, installation, and resource audience" });
+            }
+        }
+        const hubInstallationId = hasHubDelegationField ? parsed.data.nexushub_installation_id : undefined;
         try {
             await deps.authenticationFlowService.assertGrantSupported("token_exchange");
         }
@@ -1186,26 +1642,57 @@ export const registerRoutes = async (app, deps) => {
         catch {
             return reply.status(401).send({ error: "invalid_token", error_description: "Subject token validation failed" });
         }
+        // Refuse refresh tokens and revoked tokens as subjects.
+        if (subjectPayload.type === "refresh") {
+            return reply.status(400).send({ error: "invalid_request", error_description: "Refresh tokens cannot be exchanged" });
+        }
+        const subjectJti = typeof subjectPayload.jti === "string" ? subjectPayload.jti : undefined;
+        if (!subjectJti || await deps.authService.isAccessTokenRevoked(subjectJti)) {
+            return reply.status(401).send({ error: "invalid_token", error_description: "Subject token validation failed" });
+        }
         let exchangeActor;
-        // Optionally validate the caller presenting the exchange request.
-        // Accept either a registered OAuth client or a service identity credential.
-        if (client_id || client_secret) {
-            if (!client_id || !client_secret) {
-                return reply.status(400).send({ error: "invalid_request", error_description: "client_id and client_secret must be provided together" });
-            }
+        // RFC 8693: the party requesting the exchange must authenticate. Without
+        // this, anyone holding any access token could mint tokens with arbitrary
+        // scope and audience.
+        if (!client_id || !client_secret) {
+            return reply.status(401).send({ error: "invalid_client", error_description: "client_id and client_secret are required for token exchange" });
+        }
+        {
             let matchedClient = false;
+            let client;
             try {
-                const client = await deps.clientService.findClientById(client_id);
-                if (client && client.secret === client_secret) {
+                client = await deps.clientService.findClientById(client_id);
+            }
+            catch {
+                client = undefined;
+            }
+            if (client) {
+                let secretMatches;
+                try {
+                    secretMatches = await deps.clientService.authenticateClientSecret(client_id, client_secret);
+                }
+                catch {
+                    return reply.status(401).send({ error: "invalid_client" });
+                }
+                if (!secretMatches) {
+                    // A marked managed profile owns authentication for this client ID.
+                    // Never fall through and reinterpret its stale legacy verifier as a
+                    // service-identity credential.
+                    try {
+                        if (await deps.clientService.managedProfileCredentialStatus(client_id))
+                            return reply.status(401).send({ error: "invalid_client" });
+                    }
+                    catch {
+                        return reply.status(401).send({ error: "invalid_client" });
+                    }
+                }
+                else {
                     if (!client.grants.includes("token_exchange")) {
                         return reply.status(401).send({ error: "invalid_client", error_description: "Client does not support token_exchange grant" });
                     }
                     matchedClient = true;
                     exchangeActor = { type: "client", id: client.id };
                 }
-            }
-            catch {
-                // Fallback to service identity verification below.
             }
             if (!matchedClient) {
                 const serviceIdentity = await deps.serviceIdentityService.verifyCredential(client_id, client_secret);
@@ -1222,10 +1709,37 @@ export const registerRoutes = async (app, deps) => {
             }
         }
         const subjectSub = String(subjectPayload.sub ?? "");
-        const requestedScopes = scope ? scope.split(" ").map((value) => value.trim()).filter(Boolean) : (subjectPayload.scope ? String(subjectPayload.scope).split(" ").map((value) => value.trim()).filter(Boolean) : []);
+        if (!subjectSub) {
+            return reply.status(400).send({ error: "invalid_request", error_description: "Subject token has no subject" });
+        }
+        const subjectScopes = subjectPayload.scope ? String(subjectPayload.scope).split(" ").map((value) => value.trim()).filter(Boolean) : [];
+        const requestedScopes = scope ? scope.split(" ").map((value) => value.trim()).filter(Boolean) : subjectScopes;
         const requestedAudiences = audience
             ? audience.split(/[\s,]+/).map((value) => value.trim()).filter(Boolean)
             : [];
+        const logHubExchangeDenied = async (reason) => deps.auditRepository.log({
+            type: "token_exchange_denied",
+            actorType: "client",
+            clientId: exchangeActor?.type === "client" ? exchangeActor.id : client_id,
+            ip: request.ip,
+            metadata: {
+                grant: "token_exchange",
+                profile: "nexushub:1",
+                outcome: "denied",
+                reason,
+                sub: subjectSub,
+                installationId: hubInstallationId,
+                resource: requestedAudiences[0],
+                scopes: requestedScopes,
+                correlationId: request.id
+            }
+        });
+        // Exchange can narrow but never widen the privileges carried by the
+        // subject token.
+        const subjectScopeSet = new Set(subjectScopes);
+        if (requestedScopes.some((value) => !subjectScopeSet.has(value))) {
+            return reply.status(400).send({ error: "invalid_scope", error_description: "Requested scope exceeds the subject token" });
+        }
         let finalScopes = requestedScopes;
         if (exchangeActor?.type === "service_identity") {
             const allowedScopes = new Set(exchangeActor.allowedScopes);
@@ -1241,13 +1755,46 @@ export const registerRoutes = async (app, deps) => {
             }
         }
         let exchangeClient;
+        let delegationGrantExpiresAt;
         if (exchangeActor?.type === "client") {
             exchangeClient = await deps.clientService.findClientById(exchangeActor.id);
+            const clientAllowedScopes = new Set(exchangeClient?.allowedScopes ?? []);
+            if (finalScopes.some((value) => !clientAllowedScopes.has(value))) {
+                return reply.status(400).send({ error: "invalid_scope", error_description: "Requested scope exceeds client policy" });
+            }
             if (requestedAudiences.length > 0) {
                 const allowedAudiences = new Set(exchangeClient?.resources ?? []);
                 if (requestedAudiences.some((value) => !allowedAudiences.has(value))) {
                     return reply.status(400).send({ error: "invalid_target", error_description: "Requested audience exceeds client policy" });
                 }
+            }
+        }
+        if (hubInstallationId) {
+            if (exchangeActor?.type !== "client" || !exchangeClient || subjectPayload.client_id !== exchangeClient.id || hubInstallationId !== exchangeClient.id) {
+                await logHubExchangeDenied("same_client_binding_failed");
+                return reply.status(400).send({ error: "invalid_grant", error_description: "NexusHub delegation requires a subject token issued to the authenticated Hub client" });
+            }
+            if (typeof subjectPayload.exp !== "number" || subjectPayload.exp <= Math.floor(Date.now() / 1000)) {
+                return reply.status(401).send({ error: "invalid_token", error_description: "Subject token validation failed" });
+            }
+            if (requestedAudiences.length !== 1 || !exchangeClient.resources.includes(requestedAudiences[0])) {
+                await logHubExchangeDenied("resource_not_allowed");
+                return reply.status(400).send({ error: "invalid_target", error_description: "NexusHub delegation requires one resource configured for the Hub client" });
+            }
+            const approved = await deps.nexusHubDelegationConsentRepository.findActive({
+                userId: subjectSub,
+                clientId: exchangeClient.id,
+                installationId: hubInstallationId,
+                resource: requestedAudiences[0]
+            });
+            if (!approved) {
+                await logHubExchangeDenied("consent_missing_or_inactive");
+                return reply.status(403).send({ error: "consent_required", error_description: "No active NexusHub consent exists for this installation and resource" });
+            }
+            delegationGrantExpiresAt = approved.expiresAt;
+            if (finalScopes.some((value) => !approved.scopes.includes(value))) {
+                await logHubExchangeDenied("scope_exceeds_consent");
+                return reply.status(400).send({ error: "invalid_scope", error_description: "Requested scope exceeds the user's NexusHub consent for this resource" });
             }
         }
         const { nanoid } = await import("nanoid");
@@ -1258,8 +1805,28 @@ export const registerRoutes = async (app, deps) => {
             scopes: finalScopes,
             audiences: requestedAudiences,
             accessTokenId,
-            client: exchangeClient
+            client: exchangeClient,
+            ...(hubInstallationId && exchangeClient ? { actorClientId: exchangeClient.id } : {}),
+            ...(hubInstallationId ? {
+                maxLifetimeSeconds: Math.min(typeof subjectPayload.exp === "number" ? subjectPayload.exp - Math.floor(Date.now() / 1000) : 0, delegationGrantExpiresAt ? Math.floor((delegationGrantExpiresAt.getTime() - Date.now()) / 1000) : 0)
+            } : {}),
+            ...(hubInstallationId && exchangeClient ? {
+                additionalClaims: {
+                    nexushub_profile: "nexushub:1",
+                    nexushub_installation_id: hubInstallationId,
+                    client_id: exchangeClient.id
+                }
+            } : {})
         });
+        if (hubInstallationId && exchangeClient && requestedAudiences.length === 1) {
+            const recordedActive = await deps.nexusHubDelegationTokenRepository.record({
+                tokenId: accessTokenId, userId: subjectSub, clientId: exchangeClient.id,
+                installationId: hubInstallationId, resource: requestedAudiences[0],
+                expiresAt: new Date(Date.now() + newToken.expiresIn * 1000)
+            });
+            if (!recordedActive)
+                await deps.authService.revokeAccessToken(accessTokenId);
+        }
         await deps.auditRepository.log({
             type: "token_issued",
             actorType: "client",
@@ -1267,10 +1834,14 @@ export const registerRoutes = async (app, deps) => {
             ip: request.ip,
             metadata: {
                 grant: "token_exchange",
+                profile: hubInstallationId ? "nexushub:1" : undefined,
+                outcome: "issued",
                 sub: subjectSub,
                 scopes: finalScopes,
                 audiences: requestedAudiences,
                 accessTokenId,
+                installationId: hubInstallationId,
+                correlationId: request.id,
                 exchangeActorType: exchangeActor?.type,
                 serviceIdentityId: exchangeActor?.type === "service_identity" ? exchangeActor.id : undefined,
                 serviceIdentityClientId: exchangeActor?.type === "service_identity" ? exchangeActor.clientId : undefined
@@ -1295,6 +1866,9 @@ export const registerRoutes = async (app, deps) => {
     });
     app.post("/oauth/ciba/authenticate", async (request, reply) => {
         const input = cibaAuthenticationRequestSchema.parse(request.body);
+        if (input.client_notification_endpoint) {
+            await assertSafeOutboundUrl(input.client_notification_endpoint, { label: "client_notification_endpoint" });
+        }
         const issued = await deps.authService.createCibaAuthenticationRequest({
             clientId: input.client_id,
             clientSecret: input.client_secret,
@@ -1336,15 +1910,112 @@ export const registerRoutes = async (app, deps) => {
             clientSecret: input.client_secret
         });
     });
+    // Hub's source token remains source-audience scoped. This opt-in endpoint
+    // gives that resource server a durable revocation check bound to the exact
+    // NexusID issuer, registered Hub client, installation, and requested audience.
+    app.post("/oauth/nexushub/delegation/introspect", async (request, reply) => {
+        reply.header("Cache-Control", "no-store");
+        const parsed = z.object({ token: z.string().min(1).max(16_384), client_id: z.string().min(1).max(200), client_secret: z.string().min(1).max(512), resource_audience: z.string().url().max(2048) }).safeParse(request.body);
+        if (!parsed.success)
+            return reply.status(400).send({ error: "invalid_request" });
+        let caller;
+        try {
+            caller = await deps.authService.authenticateClient({ clientId: parsed.data.client_id, clientSecret: parsed.data.client_secret });
+        }
+        catch {
+            return reply.status(401).send({ error: "invalid_client" });
+        }
+        try {
+            const claims = await deps.authService.jwtService.verifyAccessToken(parsed.data.token);
+            const id = typeof claims.jti === "string" ? claims.jti : "";
+            const token = id ? await deps.nexusHubDelegationTokenRepository.findActive(id) : undefined;
+            const revoked = id ? await deps.authService.isAccessTokenRevoked(id) : true;
+            const audiences = Array.isArray(claims.aud) ? claims.aud.map(String) : typeof claims.aud === "string" ? [claims.aud] : [];
+            const active = Boolean(token && !revoked && token.clientId === caller.id && token.installationId === caller.id
+                && token.resource === parsed.data.resource_audience && audiences.length === 1 && audiences[0] === token.resource
+                && claims.nexushub_profile === "nexushub:1" && claims.nexushub_installation_id === caller.id
+                && claims.sub === token.userId && claims.iss === deps.config.issuer);
+            return { active };
+        }
+        catch {
+            return { active: false };
+        }
+    });
+    // An independently configured resource server (for example NexusContext)
+    // authenticates with its own admin-managed OAuth client. It may check only
+    // an audience explicitly registered on that caller; it does not need the
+    // NexusHub installation's client secret. The source token remains scoped to
+    // the single resource recorded at issuance and in its signed audience.
+    app.post("/oauth/nexushub/delegation/resource-introspect", async (request, reply) => {
+        reply.header("Cache-Control", "no-store");
+        const parsed = z.object({ token: z.string().min(1).max(16_384), client_id: z.string().min(1).max(200), client_secret: z.string().min(1).max(512), resource_audience: z.string().url().max(2048) }).safeParse(request.body);
+        if (!parsed.success)
+            return reply.status(400).send({ error: "invalid_request" });
+        let caller;
+        try {
+            caller = await deps.authService.authenticateClient({ clientId: parsed.data.client_id, clientSecret: parsed.data.client_secret });
+        }
+        catch {
+            return reply.status(401).send({ error: "invalid_client" });
+        }
+        if (!caller.resources.includes(parsed.data.resource_audience)) {
+            return { active: false };
+        }
+        try {
+            const claims = await deps.authService.jwtService.verifyAccessToken(parsed.data.token);
+            const id = typeof claims.jti === "string" ? claims.jti : "";
+            const token = id ? await deps.nexusHubDelegationTokenRepository.findActive(id) : undefined;
+            const revoked = id ? await deps.authService.isAccessTokenRevoked(id) : true;
+            const audiences = Array.isArray(claims.aud) ? claims.aud.map(String) : typeof claims.aud === "string" ? [claims.aud] : [];
+            const active = Boolean(token && !revoked
+                && token.clientId === token.installationId
+                && token.resource === parsed.data.resource_audience
+                && audiences.length === 1 && audiences[0] === token.resource
+                && claims.nexushub_profile === "nexushub:1"
+                && claims.nexushub_installation_id === token.installationId
+                && claims.client_id === token.clientId
+                && claims.act && typeof claims.act === "object"
+                && claims.act.sub === token.installationId
+                && claims.sub === token.userId && claims.iss === deps.config.issuer);
+            return { active };
+        }
+        catch {
+            return { active: false };
+        }
+    });
     app.post("/oauth/token/revoke", async (request, reply) => {
-        const { token } = oidcRevokeSchema.parse(request.body);
+        const { token, client_id, client_secret } = oidcRevokeSchema.parse(request.body);
+        // RFC 7009 §2.1: the client authenticates, and may only revoke tokens
+        // that were issued to it.
+        if (!client_id || !client_secret) {
+            return reply.status(401).send({ error: "invalid_client", error_description: "Client authentication is required" });
+        }
+        let callerClientId;
+        try {
+            callerClientId = (await deps.authService.authenticateClient({ clientId: client_id, clientSecret: client_secret })).id;
+        }
+        catch {
+            const serviceIdentity = await deps.serviceIdentityService.verifyCredential(client_id, client_secret);
+            if (!serviceIdentity) {
+                return reply.status(401).send({ error: "invalid_client" });
+            }
+            callerClientId = client_id;
+        }
         try {
             const payload = await deps.authService.jwtService.verifyAccessToken(token);
+            if (payload.client_id !== callerClientId) {
+                // RFC 7009 §2.2: a token the client does not own is treated as invalid
+                // and acknowledged without action.
+                return reply.status(200).send({});
+            }
             if (payload.type === "refresh" && payload.jti) {
-                deps.authService.revokeRefreshToken(String(payload.jti));
+                await deps.authService.revokeRefreshToken(String(payload.jti));
             }
             else if (payload.jti) {
-                deps.authService.revokeAccessToken(String(payload.jti));
+                await deps.authService.revokeAccessToken(String(payload.jti));
+                if (payload.nexushub_profile === "nexushub:1") {
+                    await deps.nexusHubDelegationTokenRepository.revokeToken(String(payload.jti));
+                }
             }
         }
         catch { /* invalid tokens - return 200 per spec */ }
@@ -1390,6 +2061,12 @@ export const registerRoutes = async (app, deps) => {
     });
     app.post("/auth/login", async (request, reply) => {
         const input = loginSchema.parse(request.body);
+        // Checked before the password so a broken integration never burns an
+        // attempt toward the user's lockout.
+        await deps.authService.assertLoginTargetValid({ clientId: input.clientId, tenantSlug: input.tenantSlug });
+        if (!await deps.authenticationFlowService.isStageEnabled("password")) {
+            throw new LoginError("password_login_disabled");
+        }
         try {
             const user = await deps.authService.validateUserCredentials(input.email, input.password);
             await enforcePreCredentialStages({
@@ -1428,12 +2105,12 @@ export const registerRoutes = async (app, deps) => {
                 ip: request.ip,
                 userAgent: clientUserAgent(request)
             });
-            deps.securityService.clearLoginFailures(input.email);
+            deps.securityService.clearLoginFailures(input.email, [user.id]);
             await runBestEffort(request, "auth.login.succeeded", async () => {
                 await deps.eventHookService.emit("auth.login.succeeded", {
                     userId: loginResult.session.userId,
                     clientId: loginResult.session.clientId,
-                    sessionId: loginResult.session.id,
+                    sessionRef: toSessionRef(loginResult.session.id),
                     ip: request.ip
                 });
             });
@@ -1442,32 +2119,37 @@ export const registerRoutes = async (app, deps) => {
         }
         catch (err) {
             const reason = err instanceof Error ? err.message : "unknown";
-            await runBestEffort(request, "security.recordLoginFailure", async () => {
-                await deps.securityService.recordLoginFailure({
-                    identifier: input.email,
-                    ip: request.ip,
-                    reason
-                });
-            });
-            await runBestEffort(request, "risk.recordEvent", async () => {
-                await deps.riskService.recordEvent({
-                    userId: undefined,
-                    ip: request.ip,
-                    confidence: 40,
-                    reason: "failed_login",
-                    decision: "challenge",
-                    metadata: {
+            // Only a wrong password counts toward lockout and risk: every later
+            // failure happens after the password matched, so it is not guessing.
+            if (err instanceof LoginError && err.reason === "invalid_credentials") {
+                await runBestEffort(request, "security.recordLoginFailure", async () => {
+                    await deps.securityService.recordLoginFailure({
                         identifier: input.email,
-                        grant: "interactive"
-                    }
+                        userIds: await deps.authService.resolveLoginLockoutUserIds(input.email),
+                        ip: request.ip,
+                        reason
+                    });
                 });
-            });
+                await runBestEffort(request, "risk.recordEvent", async () => {
+                    await deps.riskService.recordEvent({
+                        userId: undefined,
+                        ip: request.ip,
+                        confidence: 40,
+                        reason: "failed_login",
+                        decision: "challenge",
+                        metadata: {
+                            identifier: input.email,
+                            grant: "interactive"
+                        }
+                    });
+                });
+            }
             await runBestEffort(request, "audit.login_failed", async () => {
                 await deps.auditRepository.log({
                     type: "login_failed",
                     actorType: "user",
                     ip: request.ip,
-                    metadata: { email: input.email }
+                    metadata: { email: input.email, ...(err instanceof LoginError ? { reason: err.reason } : {}) }
                 });
             });
             await runBestEffort(request, "auth.login.failed", async () => {
@@ -1482,163 +2164,151 @@ export const registerRoutes = async (app, deps) => {
     });
     app.post("/auth/login/mfa", async (request, reply) => {
         const input = mfaLoginSchema.parse(request.body);
-        try {
-            const challenge = deps.totpService.consumeLoginChallenge(input.mfaTicket);
-            const user = await deps.userService.findUserById(challenge.userId);
-            if (!user) {
-                throw new AuthenticationError("User not found");
-            }
-            if (!await deps.totpService.verifyUserCode({ userId: user.id, code: input.code })) {
-                throw new AuthenticationError("Invalid one-time code");
-            }
-            const tenant = challenge.tenantSlug ? (await deps.tenantService.listTenants()).find((item) => item.slug === challenge.tenantSlug) : undefined;
-            await deps.policyService.enforceStagePolicies({
-                stage: "mfa_totp",
-                user,
-                tenantId: tenant?.id,
-                clientId: challenge.clientId,
-                ip: challenge.ip ?? request.ip
-            });
-            const loginResult = await completeInteractiveLogin({
-                user,
-                clientId: challenge.clientId,
-                scope: challenge.scope,
-                tenantSlug: challenge.tenantSlug,
-                ip: challenge.ip ?? request.ip,
-                userAgent: clientUserAgent(request)
-            });
-            await runBestEffort(request, "auth.login.succeeded.mfa_totp", async () => {
-                await deps.eventHookService.emit("auth.login.succeeded", {
-                    userId: loginResult.session.userId,
-                    clientId: loginResult.session.clientId,
-                    sessionId: loginResult.session.id,
-                    ip: request.ip,
-                    mfa: "totp"
-                });
-            });
-            await setSessionCookie(reply, deps.instanceSettingsService, loginResult.session.id);
-            return loginResult;
+        const challenge = deps.totpService.consumeLoginChallenge(input.mfaTicket);
+        const user = await deps.userService.findUserById(challenge.userId);
+        if (!user) {
+            throw new LoginError("account_unavailable");
         }
-        catch (err) {
-            return reply.status(401).send({ error: "invalid_grant", error_description: "MFA verification failed" });
+        if (!await deps.totpService.verifyUserCode({ userId: user.id, code: input.code })) {
+            throw new LoginError("invalid_mfa_code");
         }
+        const tenant = challenge.tenantSlug ? (await deps.tenantService.listTenants()).find((item) => item.slug === challenge.tenantSlug) : undefined;
+        await deps.policyService.enforceStagePolicies({
+            stage: "mfa_totp",
+            user,
+            tenantId: tenant?.id,
+            clientId: challenge.clientId,
+            ip: challenge.ip ?? request.ip
+        });
+        const loginResult = await completeInteractiveLogin({
+            user,
+            clientId: challenge.clientId,
+            scope: challenge.scope,
+            tenantSlug: challenge.tenantSlug,
+            ip: challenge.ip ?? request.ip,
+            userAgent: clientUserAgent(request)
+        });
+        await runBestEffort(request, "auth.login.succeeded.mfa_totp", async () => {
+            await deps.eventHookService.emit("auth.login.succeeded", {
+                userId: loginResult.session.userId,
+                clientId: loginResult.session.clientId,
+                sessionRef: toSessionRef(loginResult.session.id),
+                ip: request.ip,
+                mfa: "totp"
+            });
+        });
+        await setSessionCookie(reply, deps.instanceSettingsService, loginResult.session.id);
+        return loginResult;
     });
     app.post("/auth/login/change-password", async (request, reply) => {
         const input = changePasswordLoginSchema.parse(request.body);
+        if (input.confirmPassword !== undefined && input.confirmPassword !== input.newPassword) {
+            throw new LoginError("password_confirmation_mismatch");
+        }
+        const challenge = deps.passwordChangeService.consumeLoginChallenge(input.changePasswordTicket);
+        const user = await deps.userService.findUserById(challenge.userId);
+        if (!user) {
+            throw new LoginError("account_unavailable");
+        }
         try {
-            if (input.confirmPassword !== undefined && input.confirmPassword !== input.newPassword) {
-                throw new ValidationError("New password and confirmation do not match");
-            }
-            const challenge = deps.passwordChangeService.consumeLoginChallenge(input.changePasswordTicket);
-            const user = await deps.userService.findUserById(challenge.userId);
-            if (!user) {
-                throw new AuthenticationError("User not found");
-            }
             await deps.policyService.enforceUserCreationPolicies(input.newPassword);
-            await deps.userService.resetPassword(user.id, input.newPassword);
-            const refreshedUser = await deps.userService.findUserById(user.id);
-            if (!refreshedUser) {
-                throw new AuthenticationError("User not found");
-            }
-            const mfaChallenge = await maybeIssueMfaChallenge({
-                user: refreshedUser,
-                clientId: challenge.clientId,
-                scope: challenge.scope,
-                tenantSlug: challenge.tenantSlug,
-                ip: challenge.ip ?? request.ip
-            });
-            if (mfaChallenge) {
-                return reply.status(mfaChallenge.statusCode).send(mfaChallenge.body);
-            }
-            const loginResult = await completeInteractiveLogin({
-                user: refreshedUser,
-                clientId: challenge.clientId,
-                scope: challenge.scope,
-                tenantSlug: challenge.tenantSlug,
-                ip: challenge.ip ?? request.ip,
-                userAgent: clientUserAgent(request)
-            });
-            await runBestEffort(request, "auth.login.succeeded.password_change", async () => {
-                await deps.eventHookService.emit("auth.login.succeeded", {
-                    userId: loginResult.session.userId,
-                    clientId: loginResult.session.clientId,
-                    sessionId: loginResult.session.id,
-                    ip: request.ip,
-                    passwordChanged: true
-                });
-            });
-            await setSessionCookie(reply, deps.instanceSettingsService, loginResult.session.id);
-            return loginResult;
         }
         catch (err) {
             if (err instanceof ValidationError) {
-                return reply.status(err.statusCode).send({ error: "invalid_request", error_description: err.message });
+                throw new LoginError("password_policy_violation", err.message);
             }
-            return reply.status(401).send({ error: "invalid_grant", error_description: publicErrorMessageForPath("/auth/login/change-password", err instanceof AppError ? err : new AuthenticationError()) });
+            throw err;
         }
+        await deps.userService.resetPassword(user.id, input.newPassword);
+        const refreshedUser = await deps.userService.findUserById(user.id);
+        if (!refreshedUser) {
+            throw new LoginError("account_unavailable");
+        }
+        const mfaChallenge = await maybeIssueMfaChallenge({
+            user: refreshedUser,
+            clientId: challenge.clientId,
+            scope: challenge.scope,
+            tenantSlug: challenge.tenantSlug,
+            ip: challenge.ip ?? request.ip
+        });
+        if (mfaChallenge) {
+            return reply.status(mfaChallenge.statusCode).send(mfaChallenge.body);
+        }
+        const loginResult = await completeInteractiveLogin({
+            user: refreshedUser,
+            clientId: challenge.clientId,
+            scope: challenge.scope,
+            tenantSlug: challenge.tenantSlug,
+            ip: challenge.ip ?? request.ip,
+            userAgent: clientUserAgent(request)
+        });
+        await runBestEffort(request, "auth.login.succeeded.password_change", async () => {
+            await deps.eventHookService.emit("auth.login.succeeded", {
+                userId: loginResult.session.userId,
+                clientId: loginResult.session.clientId,
+                sessionRef: toSessionRef(loginResult.session.id),
+                ip: request.ip,
+                passwordChanged: true
+            });
+        });
+        await setSessionCookie(reply, deps.instanceSettingsService, loginResult.session.id);
+        return loginResult;
     });
     app.post("/auth/login/webauthn/begin", async (request, reply) => {
         const input = webauthnLoginBeginSchema.parse(request.body);
-        try {
-            const user = await deps.userService.findUserByEmail(input.identifier.trim()) ?? await deps.userService.findUserByUsername(input.identifier.trim());
-            if (!user || !user.active) {
-                throw new AuthenticationError("Invalid credentials");
-            }
-            const challenge = await deps.webauthnService.startLogin({
-                user,
-                clientId: input.clientId,
-                scope: input.scope,
-                tenantSlug: input.tenantSlug,
-                ip: request.ip
-            });
-            return reply.status(200).send(challenge);
+        await deps.authService.assertLoginTargetValid({ clientId: input.clientId, tenantSlug: input.tenantSlug });
+        // Same reason as an account without passkeys, so this cannot probe for accounts.
+        const user = await deps.userService.findUserByLoginIdentifier(input.identifier.trim());
+        if (!user || !user.active) {
+            throw new LoginError("webauthn_not_available");
         }
-        catch (error) {
-            return reply.status(401).send({ error: "invalid_grant", error_description: "Authentication failed" });
-        }
+        const challenge = await deps.webauthnService.startLogin({
+            user,
+            clientId: input.clientId,
+            scope: input.scope,
+            tenantSlug: input.tenantSlug,
+            ip: request.ip
+        });
+        return reply.status(200).send(challenge);
     });
     app.post("/auth/login/webauthn/finish", async (request, reply) => {
         const input = webauthnLoginFinishSchema.parse(request.body);
-        try {
-            const result = await deps.webauthnService.finishLogin(input);
-            const user = await deps.userService.findUserById(result.userId);
-            if (!user) {
-                throw new AuthenticationError("User not found");
-            }
-            await deps.policyService.enforceStagePolicies({
-                stage: "mfa_webauthn",
-                user,
-                tenantId: await resolveTenantId(result.tenantSlug),
-                clientId: result.clientId,
-                ip: result.ip ?? request.ip
-            });
-            const loginResult = await completeInteractiveLogin({
-                user,
-                clientId: result.clientId,
-                scope: result.scope,
-                tenantSlug: result.tenantSlug,
-                ip: result.ip ?? request.ip,
-                userAgent: clientUserAgent(request)
-            });
-            await runBestEffort(request, "auth.login.succeeded.mfa_webauthn", async () => {
-                await deps.eventHookService.emit("auth.login.succeeded", {
-                    userId: loginResult.session.userId,
-                    clientId: loginResult.session.clientId,
-                    sessionId: loginResult.session.id,
-                    ip: request.ip,
-                    mfa: "webauthn"
-                });
-            });
-            await setSessionCookie(reply, deps.instanceSettingsService, loginResult.session.id);
-            return loginResult;
+        const result = await deps.webauthnService.finishLogin(input);
+        const user = await deps.userService.findUserById(result.userId);
+        if (!user) {
+            throw new LoginError("account_unavailable");
         }
-        catch (error) {
-            return reply.status(401).send({ error: "invalid_grant", error_description: "Authentication failed" });
-        }
+        await deps.policyService.enforceStagePolicies({
+            stage: "mfa_webauthn",
+            user,
+            tenantId: await resolveTenantId(result.tenantSlug),
+            clientId: result.clientId,
+            ip: result.ip ?? request.ip
+        });
+        const loginResult = await completeInteractiveLogin({
+            user,
+            clientId: result.clientId,
+            scope: result.scope,
+            tenantSlug: result.tenantSlug,
+            ip: result.ip ?? request.ip,
+            userAgent: clientUserAgent(request)
+        });
+        await runBestEffort(request, "auth.login.succeeded.mfa_webauthn", async () => {
+            await deps.eventHookService.emit("auth.login.succeeded", {
+                userId: loginResult.session.userId,
+                clientId: loginResult.session.clientId,
+                sessionRef: toSessionRef(loginResult.session.id),
+                ip: request.ip,
+                mfa: "webauthn"
+            });
+        });
+        await setSessionCookie(reply, deps.instanceSettingsService, loginResult.session.id);
+        return loginResult;
     });
     app.get("/auth/federation/providers", async () => deps.federationService.listProviders());
     app.get("/api/admin/federation/providers", async (request) => {
-        const providers = await deps.federationService.listConfiguredProviders();
+        const providers = (await deps.federationService.listConfiguredProviders())
+            .map((provider) => ({ ...provider, clientSecret: undefined }));
         return filterAdminList(providers, request.query, [
             (provider) => provider.id,
             (provider) => provider.label
@@ -1653,6 +2323,7 @@ export const registerRoutes = async (app, deps) => {
         if (!user) {
             return reply.status(401).send({ error: "unauthorized" });
         }
+        const passwordExpirationWarning = await buildPasswordExpirationWarningForUser(user);
         return {
             id: user.id,
             email: user.email,
@@ -1662,7 +2333,43 @@ export const registerRoutes = async (app, deps) => {
             avatarUrl: user.avatarUrl,
             roles: await deps.roleService.resolveNamesForUser(user.id),
             groups: await deps.groupService.resolveGroupNamesForUser(user.id),
-            permissions: await deps.roleService.resolvePermissionsForUser(user.id)
+            permissions: await deps.roleService.resolvePermissionsForUser(user.id),
+            ...(passwordExpirationWarning ? { passwordExpirationWarning } : {})
+        };
+    });
+    app.post("/api/admin/change-password", async (request, reply) => {
+        const session = await getSession(request);
+        if (!session) {
+            return reply.status(401).send({ error: "unauthorized" });
+        }
+        const { currentPassword, newPassword } = portalChangePasswordSchema.parse(request.body);
+        const user = await deps.userService.findUserById(session.userId);
+        if (!user) {
+            return reply.status(401).send({ error: "unauthorized" });
+        }
+        if (!verifyPassword(currentPassword, user.passwordHash)) {
+            return reply.status(400).send({ error: "InvalidPassword", message: "Current password is incorrect" });
+        }
+        await deps.policyService.enforceUserCreationPolicies(newPassword);
+        await deps.userService.resetPassword(session.userId, newPassword);
+        return reply.status(204).send();
+    });
+    app.get("/api/account/password-expiration", async (request, reply) => {
+        const auth = await requireSessionUser(request, reply);
+        if (!auth) {
+            return;
+        }
+        const status = await deps.policyService.getPasswordExpirationStatus(auth.user);
+        const notice = deps.policyService.buildPasswordExpirationNotice(status);
+        if (!status.active) {
+            return { active: false };
+        }
+        return {
+            active: true,
+            status: status.status,
+            daysRemaining: status.daysRemaining,
+            expiresAt: status.expiresAt.toISOString(),
+            ...(notice ? { message: notice.message } : {})
         };
     });
     app.get("/api/account/mfa/totp", async (request, reply) => {
@@ -1746,7 +2453,42 @@ export const registerRoutes = async (app, deps) => {
         await deps.webauthnService.removeCredential(auth.user.id, credentialId);
         return reply.status(204).send();
     });
-    app.get("/api/admin/settings", async () => deps.instanceSettingsService.getSettings());
+    app.get("/api/admin/settings", async () => {
+        const settings = await deps.instanceSettingsService.getSettings();
+        // Secrets are write-only from the console. An empty value on save keeps
+        // the stored credential (see updateSettings' `??` semantics).
+        return {
+            ...settings,
+            smtpPass: undefined,
+            hasSmtpPass: Boolean(settings.smtpPass),
+            externalDatabaseUrl: settings.externalDatabaseUrl ? redactUrlCredentials(settings.externalDatabaseUrl) : settings.externalDatabaseUrl
+        };
+    });
+    function redactUrlCredentials(raw) {
+        try {
+            const parsed = new URL(raw);
+            if (parsed.password) {
+                parsed.password = "***";
+            }
+            return parsed.toString();
+        }
+        catch {
+            return raw;
+        }
+    }
+    async function requirePlatformAdmin(request, reply) {
+        const session = await getSession(request);
+        if (!session) {
+            reply.status(401).send({ error: "unauthorized" });
+            return false;
+        }
+        const permissions = await deps.roleService.resolvePermissionsForUser(session.userId);
+        if (!permissions.includes("*:*")) {
+            reply.status(403).send({ error: "forbidden", message: "This operation requires the platform administrator role" });
+            return false;
+        }
+        return true;
+    }
     // Delegation: provisioning, access governance, elevations
     await registerProvisioningRoutes(app, {
         scimTokenService: deps.scimTokenService,
@@ -1765,12 +2507,55 @@ export const registerRoutes = async (app, deps) => {
         elevationService: deps.elevationService,
         requireSessionUser
     });
-    registerServiceIdentityRoutes(app, deps.serviceIdentityService, deps.roleService, deps.groupService);
+    registerServiceIdentityRoutes(app, deps.serviceIdentityService, deps.roleService, deps.groupService, deps.authService, deps.auditRepository, async (request) => {
+        const session = await getSession(request);
+        if (session)
+            return { actorId: session.userId, actorType: "user" };
+        const token = typeof request.headers.authorization === "string" ? request.headers.authorization.slice("Bearer ".length) : "";
+        try {
+            const claims = await deps.authService.jwtService.verifyAccessToken(token);
+            return { actorId: String(claims.client_id ?? "") || undefined, actorType: "client" };
+        }
+        catch {
+            return { actorType: "system" };
+        }
+    }, deps.authService.jwtService, deps.nexusBusManagementEnrollmentRepository, deps.clientService);
     registerConnectorRoutes(app, deps.connectorService, deps.authMetricsService);
     registerPluginRoutes(app, deps.pluginService, deps.pluginRuntimeService);
     app.put("/api/admin/settings", async (request) => {
         const input = updateInstanceSettingsSchema.parse(request.body);
         return deps.instanceSettingsService.updateSettings(input);
+    });
+    // Stores a logo for UI customizations. The caller saves the returned URL into
+    // `uiCustomizations`; the file is not tied to a surface until then.
+    app.post("/api/admin/settings/branding-logo", async (request, reply) => {
+        const uploaded = await readImageUpload(request, reply);
+        if (!uploaded) {
+            return;
+        }
+        const saved = await deps.mediaService.saveUploadedImage({
+            bucket: "branding",
+            ownerId: "instance",
+            bytes: uploaded.bytes,
+            mimeType: uploaded.mimeType
+        });
+        return reply.status(200).send({ logoUrl: saved.url });
+    });
+    // Read-only view of the background retention sweep: what each policy is set
+    // to, what it has deleted since this process started, and how much is still
+    // waiting. `?backlog=true` adds a count per policy, which scans the tables and
+    // is therefore opt-in rather than part of the default payload.
+    app.get("/api/admin/retention", async (request) => {
+        const { backlog } = request.query;
+        const status = await deps.retentionService.getStatus();
+        if (backlog !== "true") {
+            return status;
+        }
+        const counts = new Map((await deps.retentionService.getBacklog()).map((entry) => [entry.key, entry.expired]));
+        return {
+            ...status,
+            policies: status.policies.map((policy) => ({ ...policy, expired: counts.get(policy.key) ?? 0 }))
+        };
     });
     app.post("/api/admin/settings/test-email", async (request, reply) => {
         const input = sendTestEmailSchema.parse(request.body);
@@ -1782,15 +2567,26 @@ export const registerRoutes = async (app, deps) => {
         return reply.status(200).send({ ok: true, ...result });
     });
     app.post("/api/admin/settings/database/test", async (request, reply) => {
+        if (!await requirePlatformAdmin(request, reply)) {
+            return;
+        }
         const input = testDatabaseConnectionSchema.parse(request.body);
+        assertSafeDatabaseUrl(input.externalDatabaseUrl, input.provider);
         const result = await deps.databaseMigrationService.testConnection(input.provider, input.externalDatabaseUrl);
         return reply.status(200).send(result);
     });
     app.post("/api/admin/settings/database/migrate", async (request, reply) => {
+        if (!await requirePlatformAdmin(request, reply)) {
+            return;
+        }
         const input = migrateDatabaseSchema.parse(request.body);
+        assertSafeDatabaseUrl(input.externalDatabaseUrl, input.provider);
         const instanceSettings = await deps.instanceSettingsService.getSettings();
+        // The source is always the configured SQLite database. Accepting an
+        // arbitrary path here would let an operator copy any readable SQLite file
+        // on the host into an external database they control.
         const result = await deps.databaseMigrationService.migrateFromSqlite({
-            sqlitePath: input.sqlitePath ?? instanceSettings.databasePath,
+            sqlitePath: instanceSettings.databasePath,
             provider: input.provider,
             externalDatabaseUrl: input.externalDatabaseUrl
         });
@@ -2024,8 +2820,7 @@ export const registerRoutes = async (app, deps) => {
         return result;
     });
     app.get("/api/admin/policies/decisions", async (request) => {
-        const { limit } = request.query;
-        return deps.policyDecisionLogRepository.list(limit ? Number(limit) : 100);
+        return deps.policyDecisionLogRepository.list(clampLimit(request.query?.limit, 100));
     });
     app.get("/api/admin/events/hooks", async (request) => {
         const hooks = await deps.eventHookService.listHooks();
@@ -2058,8 +2853,7 @@ export const registerRoutes = async (app, deps) => {
         return reply.status(204).send();
     });
     app.get("/api/admin/events/notifications", async (request) => {
-        const { limit } = request.query;
-        return deps.eventHookService.listNotifications(limit ? Number(limit) : 100);
+        return deps.eventHookService.listNotifications(clampLimit(request.query?.limit, 100));
     });
     app.post("/api/admin/federation/providers", async (request, reply) => {
         const input = createFederationProviderSchema.parse(request.body);
@@ -2068,8 +2862,7 @@ export const registerRoutes = async (app, deps) => {
         return {
             ...provider,
             clientSecret: undefined,
-            hasSecret: true,
-            secretPreview: `${provider.clientSecret.slice(0, 4)}...${provider.clientSecret.slice(-4)}`
+            hasSecret: true
         };
     });
     app.put("/api/admin/federation/providers/:id", async (request, reply) => {
@@ -2079,8 +2872,7 @@ export const registerRoutes = async (app, deps) => {
         return {
             ...provider,
             clientSecret: undefined,
-            hasSecret: true,
-            secretPreview: `${provider.clientSecret.slice(0, 4)}...${provider.clientSecret.slice(-4)}`
+            hasSecret: true
         };
     });
     app.delete("/api/admin/federation/providers/:id", async (request, reply) => {
@@ -2091,8 +2883,9 @@ export const registerRoutes = async (app, deps) => {
     app.get("/auth/federation/:providerId/start", async (request, reply) => {
         const { providerId } = request.params;
         const redirectAfterLogin = asSafeRedirect(request.query.redirect);
-        const destination = await deps.federationService.getAuthorizationRedirect(providerId, redirectAfterLogin);
-        return reply.redirect(destination);
+        const started = await deps.federationService.getAuthorizationRedirect(providerId, redirectAfterLogin);
+        await setFederationTxnCookie(reply, deps.instanceSettingsService, started.state);
+        return reply.redirect(started.url);
     });
     app.get("/auth/federation/:providerId/callback", async (request, reply) => {
         const { providerId } = request.params;
@@ -2100,7 +2893,12 @@ export const registerRoutes = async (app, deps) => {
         if (!code || !state) {
             return reply.status(400).send({ error: "invalid_request", message: "Missing code or state" });
         }
-        const completed = await deps.federationService.completeLogin({ providerId, code, state });
+        const completed = await deps.federationService.completeLogin({
+            providerId,
+            code,
+            state,
+            binding: readFederationTxnFromRequest(request)
+        });
         await deps.policyService.enforceStagePolicies({
             stage: "federation",
             user: completed.user,
@@ -2130,9 +2928,10 @@ export const registerRoutes = async (app, deps) => {
             actorId: completed.user.id,
             actorType: "user",
             clientId: "sso-admin-ui",
-            metadata: { method: "federation", providerId, sessionId: session.id }
+            metadata: { method: "federation", providerId, sessionRef: toSessionRef(session.id) }
         });
         await setSessionCookie(reply, deps.instanceSettingsService, session.id);
+        await clearFederationTxnCookie(reply, deps.instanceSettingsService);
         return reply.redirect(asSafeRedirect(completed.redirectAfterLogin));
     });
     app.post("/auth/logout", async (request, reply) => {
@@ -2144,11 +2943,11 @@ export const registerRoutes = async (app, deps) => {
                 type: "logout",
                 actorId: session.userId,
                 actorType: "user",
-                metadata: { sessionId: session.id }
+                metadata: { sessionRef: toSessionRef(session.id) }
             });
             await deps.eventHookService.emit("auth.logout", {
                 userId: session.userId,
-                sessionId: session.id,
+                sessionRef: toSessionRef(session.id),
                 ip: request.ip
             });
         }
@@ -2178,7 +2977,11 @@ export const registerRoutes = async (app, deps) => {
         }
         await clearSessionCookie(reply, deps.instanceSettingsService);
         if (post_logout_redirect_uri) {
-            const redirectClientId = session?.clientId ?? hintedClientId ?? client_id;
+            // RP-initiated logout: the relying party identifies itself via
+            // id_token_hint or client_id; the browser session's original client is
+            // only a fallback. Redirects are still restricted to that client's
+            // registered URIs.
+            const redirectClientId = hintedClientId ?? client_id ?? session?.clientId;
             if (!redirectClientId) {
                 return reply.status(401).send({ error: "unauthorized" });
             }
@@ -2246,7 +3049,7 @@ export const registerRoutes = async (app, deps) => {
     });
     app.post("/auth/recovery/request", async (request, reply) => {
         const input = recoveryRequestSchema.parse(request.body);
-        const user = await deps.userService.findUserByEmail(input.identifier) ?? await deps.userService.findUserByUsername(input.identifier);
+        const user = await deps.userService.findUserByLoginIdentifier(input.identifier);
         // Keep enumeration-safe response semantics regardless of account existence.
         if (!user || !user.active) {
             return reply.status(200).send({ status: "sent_if_account_exists" });
@@ -2277,18 +3080,23 @@ export const registerRoutes = async (app, deps) => {
                 });
             }
             const response = {
-                status: "sent_if_account_exists",
-                expiresIn: challenge.expiresIn
+                status: "sent_if_account_exists"
             };
-            if (process.env.NODE_ENV !== "production") {
+            // The ticket and code are only ever echoed to the automated test suite.
+            // Any other environment (including one that forgot NODE_ENV=production)
+            // must deliver them out-of-band.
+            if (process.env.NODE_ENV === "test") {
                 response.recoveryTicket = challenge.ticket;
                 response.verificationCode = challenge.verificationCode;
+                response.expiresIn = challenge.expiresIn;
             }
             return reply.status(200).send(response);
         }
         catch (err) {
             if (err instanceof AppError) {
-                return reply.status(err.statusCode).send({ error: "invalid_request", error_description: publicErrorMessageForPath("/auth/recovery/request", err) });
+                // Do not distinguish policy/transport failures from unknown accounts.
+                request.log.warn({ err }, "recovery request failed");
+                return reply.status(200).send({ status: "sent_if_account_exists" });
             }
             throw err;
         }
@@ -2438,8 +3246,12 @@ export const registerRoutes = async (app, deps) => {
                 }
             }
         }
-        if (active !== undefined)
+        if (active !== undefined) {
             await deps.userService.setUserActive(id, active);
+            if (active === false) {
+                await revokeAllSessionsForUser(id, "user_deactivated");
+            }
+        }
         if (customAttributes)
             await deps.userService.setCustomAttributes(id, customAttributes);
         if (roleIds) {
@@ -2544,7 +3356,9 @@ export const registerRoutes = async (app, deps) => {
         return reply.status(204).send();
     });
     app.get("/api/admin/clients", async (request) => {
-        const clients = await deps.clientService.listClients();
+        // Managed profile credentials expose only generation/status. Their legacy
+        // oauth_clients.secret value is intentionally not presented as current.
+        const clients = (await deps.clientService.listClients()).map((client) => ({ ...client, secret: undefined }));
         return filterAdminList(clients, request.query, [
             (client) => client.id,
             (client) => client.name,
@@ -2585,6 +3399,8 @@ export const registerRoutes = async (app, deps) => {
     app.put("/api/admin/clients/:id", async (request, reply) => {
         const { id } = request.params;
         const input = updateClientSchema.parse(request.body);
+        if (await deps.clientService.managedProfileCredentialStatus(id))
+            return reply.status(409).send({ error: "managed_profile_update_not_supported" });
         const client = await deps.clientService.updateClient(id, input);
         if (!client)
             return reply.status(404).send({ error: "not_found" });
@@ -2594,7 +3410,7 @@ export const registerRoutes = async (app, deps) => {
             grants: client.grants,
             allowedScopes: client.allowedScopes
         });
-        return { ...client, secret: undefined, secretPreview: `${client.secret.slice(0, 4)}...${client.secret.slice(-4)}` };
+        return adminClientView(client);
     });
     app.delete("/api/admin/clients/:id", async (request, reply) => {
         const { id } = request.params;
@@ -2810,9 +3626,9 @@ export const registerRoutes = async (app, deps) => {
         const { id } = request.params;
         deps.securityService.revokeSessionObservation(id);
         await deps.authService.sessionRepository.revoke(id, new Date());
-        await deps.auditRepository.log({ type: "session_revoked", actorType: "system", metadata: { sessionId: id } });
+        await deps.auditRepository.log({ type: "session_revoked", actorType: "system", metadata: { sessionRef: toSessionRef(id) } });
         await deps.eventHookService.emit("session.revoked", {
-            sessionId: id,
+            sessionRef: toSessionRef(id),
             source: "admin"
         });
         return reply.status(204).send();
@@ -2875,10 +3691,10 @@ export const registerRoutes = async (app, deps) => {
         await deps.auditRepository.log({
             type: "session_revoked",
             actorType: "system",
-            metadata: { sessionId: id, kind: "device_session" }
+            metadata: { sessionRef: toSessionRef(id), kind: "device_session" }
         });
         await deps.eventHookService.emit("device.session.revoked", {
-            sessionId: id,
+            sessionRef: toSessionRef(id),
             source: "admin"
         });
         return reply.status(204).send();
@@ -2901,17 +3717,87 @@ export const registerRoutes = async (app, deps) => {
         });
         return reply.status(204).send();
     });
-    app.get("/api/admin/audit", async (request) => {
-        const { limit } = request.query;
-        const events = await deps.auditRepository.list(limit ? Number(limit) : 200);
-        return filterAdminList(events, request.query, [
-            (event) => event.type,
-            (event) => event.actorId,
-            (event) => event.actorType,
-            (event) => event.clientId,
-            (event) => event.ip,
-            (event) => event.id
-        ]);
+    // Admin emergency revocation for one already-issued NexusHub delegation.
+    // The global /api/admin preHandler maps this path to consents:delete; the
+    // submitted tuple only selects the grant and never supplies authority.
+    app.delete("/api/admin/consents/nexushub-delegations", async (request, reply) => {
+        const body = (request.body ?? {});
+        const userId = typeof body.user_id === "string" ? body.user_id.trim() : "";
+        const clientId = typeof body.client_id === "string" ? body.client_id.trim() : "";
+        const installationId = typeof body.installation_id === "string" ? body.installation_id.trim() : "";
+        const resource = typeof body.resource === "string" ? body.resource.trim() : "";
+        if (!userId || !clientId || !installationId || !resource || userId.length > 200 || clientId.length > 200 || installationId.length > 200 || resource.length > 2048) {
+            return reply.status(400).send({ error: "invalid_request" });
+        }
+        // Installation identity is NexusID-issued (the Hub OAuth client ID), and
+        // the resource must still be in that client's administrator-managed list.
+        const client = await deps.clientService.findClientById(clientId);
+        if (installationId !== clientId || !client?.resources.includes(resource)) {
+            return reply.status(400).send({ error: "invalid_target" });
+        }
+        await deps.nexusHubDelegationConsentRepository.revoke({ userId, clientId, installationId, resource });
+        await revokeHubGrantTokens({ userId, clientId, installationId, resource });
+        const session = await getSession(request);
+        let actorId = session?.userId;
+        if (!actorId && typeof request.headers.authorization === "string" && request.headers.authorization.startsWith("Bearer ")) {
+            try {
+                const claims = await deps.authService.jwtService.verifyAccessToken(request.headers.authorization.slice("Bearer ".length));
+                actorId = String(claims.service_identity_id ?? claims.sub ?? "") || undefined;
+            }
+            catch { /* The admin preHandler already rejects invalid bearer credentials. */ }
+        }
+        await deps.auditRepository.log({
+            type: "consent_revoked", actorId, actorType: actorId ? (session ? "user" : "client") : "system",
+            clientId, metadata: { profile: "nexushub:1", userId, installationId, resource, source: "admin" }
+        });
+        await deps.eventHookService.emit("nexushub.delegation.revoked", { userId, clientId, installationId, resource, source: "admin" });
+        return reply.status(204).send();
+    });
+    app.get("/api/admin/audit", async (request, reply) => {
+        const query = request.query;
+        const parsed = parseAdminListQuery(query);
+        const optionalString = (value) => (typeof value === "string" && value.trim() ? value.trim() : undefined);
+        const optionalDate = (value) => {
+            const raw = optionalString(value);
+            if (!raw)
+                return undefined;
+            const date = new Date(raw);
+            return Number.isNaN(date.getTime()) ? null : date;
+        };
+        const from = optionalDate(query.from);
+        const to = optionalDate(query.to);
+        const beforeAt = optionalDate(query.before);
+        const beforeId = optionalString(query.beforeId);
+        if (from === null || to === null || beforeAt === null) {
+            return reply.status(400).send({ error: "invalid_request", error_description: "from, to and before must be ISO-8601 timestamps" });
+        }
+        // Legacy page/pageSize still works; new callers should page with before/beforeId.
+        const limit = clampLimit(parsed.pageSize ?? query.limit, 200);
+        return deps.auditRepository.search({
+            limit,
+            offset: parsed.page ? (parsed.page - 1) * limit : undefined,
+            search: parsed.search,
+            type: optionalString(query.type),
+            actorId: optionalString(query.actorId),
+            clientId: optionalString(query.clientId),
+            from,
+            to,
+            // No id sorts below "", so a bare `before` means strictly older than that instant.
+            before: beforeAt ? { createdAt: beforeAt, id: beforeId ?? "" } : undefined
+        });
+    });
+    app.get("/api/admin/audit/stats", async (request) => {
+        const days = clampLimit(request.query.days, 14, 1, 90);
+        const to = new Date();
+        const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
+        const stats = await deps.auditRepository.stats(from, to);
+        const riskBySeverity = { medium: 0, high: 0, critical: 0 };
+        for (const row of stats.byType) {
+            const severity = riskSeverityForAuditType(row.type);
+            if (severity)
+                riskBySeverity[severity] += row.count;
+        }
+        return { ...stats, days, riskBySeverity };
     });
     app.get("/api/admin/security/risk-events", async (request) => {
         const { limit } = request.query;
@@ -2919,89 +3805,13 @@ export const registerRoutes = async (app, deps) => {
         const sourceEvents = await deps.auditRepository.list(Math.max(200, requestedLimit * 5));
         return deriveRiskEventsFromAudit(sourceEvents, requestedLimit);
     });
-    app.get("/users", async (request, reply) => {
-        if (prefersHtmlResponse(request)) {
-            return sendFrontendIndex(reply, "admin");
-        }
-        return deps.userService.listUsers();
-    });
-    app.get("/clients", async (request, reply) => {
-        if (prefersHtmlResponse(request)) {
-            return sendFrontendIndex(reply, "admin");
-        }
-        return deps.clientService.listClients();
-    });
-    app.get("/roles", async (request, reply) => {
-        if (prefersHtmlResponse(request)) {
-            return sendFrontendIndex(reply, "admin");
-        }
-        return deps.roleService.listRoles();
-    });
-    app.get("/groups", async (request, reply) => {
-        if (prefersHtmlResponse(request)) {
-            return sendFrontendIndex(reply, "admin");
-        }
-        return deps.groupService.listGroups();
-    });
-    app.get("/tenants", async (request, reply) => {
-        if (prefersHtmlResponse(request)) {
-            return sendFrontendIndex(reply, "admin");
-        }
-        return deps.tenantService.listTenants();
-    });
-    app.post("/users", async (request, reply) => {
-        const input = createUserSchema.parse(request.body);
-        if (input.password) {
-            await deps.policyService.enforceUserCreationPolicies(input.password);
-        }
-        const user = await deps.userService.createUser(input);
-        await deps.eventHookService.emit("user.created", {
-            userId: user.id,
-            email: user.email,
-            username: user.username
-        });
-        reply.code(201);
-        return { id: user.id, email: user.email, username: user.username };
-    });
-    app.post("/roles", async (request, reply) => {
-        const input = createRoleSchema.parse(request.body);
-        reply.code(201);
-        return deps.roleService.createRole(input);
-    });
-    app.post("/role-assignments", async (request, reply) => {
-        const input = assignRoleSchema.parse(request.body);
-        reply.code(201);
-        return deps.roleService.assignRole(input);
-    });
-    app.post("/groups", async (request, reply) => {
-        const input = createGroupSchema.parse(request.body);
-        reply.code(201);
-        return deps.groupService.createGroup(input);
-    });
-    app.post("/tenants", async (request, reply) => {
-        const input = createTenantSchema.parse(request.body);
-        reply.code(201);
-        return deps.tenantService.createTenant(input);
-    });
-    app.post("/oauth/revoke", async (request) => {
-        const input = revokeTokenSchema.parse(request.body);
-        if (input.tokenType === "access") {
-            deps.authService.revokeAccessToken(input.tokenId);
-        }
-        else {
-            deps.authService.revokeRefreshToken(input.tokenId);
-        }
-        return { revoked: true };
-    });
+    // The former unauthenticated helper routes (/users, /clients, /roles,
+    // /groups, /tenants, /role-assignments, /oauth/revoke) were removed: they
+    // exposed client secrets and allowed anonymous creation of privileged
+    // accounts. Use the /api/admin/* equivalents.
     // ─── User Portal API ──────────────────────────────────────────────────────────
     async function getPortalSession(request) {
-        const sid = request.cookies?.sid;
-        if (!sid)
-            return null;
-        const session = await deps.authService.sessionRepository.findById(sid);
-        if (!session || session.expiresAt.getTime() < Date.now() || session.revokedAt)
-            return null;
-        return session;
+        return getSession(request);
     }
     // Resolves the current portal user id from either a Bearer access token or a
     // cookie session. Bearer tokens take precedence so API clients are not
@@ -3023,6 +3833,14 @@ export const registerRoutes = async (app, deps) => {
             return session.userId;
         return null;
     }
+    await registerSuggestionRoutes(app, {
+        suggestionService: deps.suggestionService,
+        roleService: deps.roleService,
+        mediaService: deps.mediaService,
+        getPortalUserId,
+        requireSessionUser,
+        readImageUpload
+    });
     app.get("/api/portal/language/default", async (request) => {
         const countryHeaders = ["cf-ipcountry", "x-vercel-ip-country", "x-country-code"];
         let countryCode = null;
@@ -3068,6 +3886,7 @@ export const registerRoutes = async (app, deps) => {
         const customAttributeFields = await deps.userService.listPortalCustomAttributeFields(user.id, {
             pictureKey: USER_PICTURE_ATTRIBUTE_KEY
         });
+        const passwordExpirationWarning = await buildPasswordExpirationWarningForUser(user);
         return {
             id: user.id,
             email: user.email,
@@ -3094,7 +3913,8 @@ export const registerRoutes = async (app, deps) => {
             groups: await deps.groupService.resolveGroupNamesForUser(user.id),
             permissions: await deps.roleService.resolvePermissionsForUser(user.id),
             rolePermissions: roleDetails,
-            apps: userApps.map(a => ({ id: a.id, name: a.name, description: a.description, icon: a.icon, imageUrl: a.imageUrl, url: a.url }))
+            apps: userApps.map(a => ({ id: a.id, name: a.name, description: a.description, icon: a.icon, imageUrl: a.imageUrl, url: a.url })),
+            ...(passwordExpirationWarning ? { passwordExpirationWarning } : {})
         };
     });
     // PATCH /api/portal/profile — update own profile
@@ -3197,7 +4017,7 @@ export const registerRoutes = async (app, deps) => {
     });
     app.get("/portal/*", async (request, reply) => {
         const relativePath = String(request.params["*"] ?? "");
-        if (relativePath.startsWith("assets/")) {
+        if (relativePath.startsWith("assets/") || ["favicon.svg", "logo.svg"].includes(relativePath)) {
             return sendFrontendFile(reply, "portal", relativePath);
         }
         return sendFrontendIndex(reply, "portal");
@@ -3215,10 +4035,14 @@ export const registerRoutes = async (app, deps) => {
     app.setErrorHandler((error, request, reply) => {
         if (error instanceof AppError) {
             const path = request.url.split("?")[0];
+            if (error instanceof AccountLockedError) {
+                reply.header("Retry-After", String(error.retryAfterSeconds));
+            }
             if (isSensitiveProtocolPath(path)) {
                 return reply.status(error.statusCode).send({
                     error: error.name,
-                    message: publicErrorMessageForPath(path, error)
+                    message: publicErrorMessageForPath(path, error),
+                    ...errorResponseDetails(error)
                 });
             }
             return reply.status(error.statusCode).send({ error: error.name, message: error.message });
@@ -3228,6 +4052,7 @@ export const registerRoutes = async (app, deps) => {
             return reply.status(422).send({
                 error: "ValidationError",
                 message: validationErrorMessageFromIssues(details),
+                ...(isLoginPath(request.url.split("?")[0]) ? { reason: "invalid_request" } : {}),
                 details
             });
         }
@@ -3240,18 +4065,37 @@ export const registerRoutes = async (app, deps) => {
                 }
                 return reply.status(429).send({
                     error: "rate_limited",
-                    message: error instanceof Error ? error.message : "Rate limit exceeded"
+                    message: error instanceof Error ? error.message : "Rate limit exceeded",
+                    ...(isLoginPath(request.url.split("?")[0]) ? { reason: "rate_limited" } : {})
                 });
             }
         }
         if (isJwtVerificationError(error)) {
             const path = request.url.split("?")[0];
+            // A token we refuse to verify is a client-side problem, not a server fault:
+            // every route answers 401 so the caller re-authenticates. Falling through to
+            // 500 here left clients retrying the same expired token until the rate
+            // limiter cut them off.
+            request.log.warn({ err: error, path }, "rejected an invalid or expired token");
             if (path === "/oauth/userinfo" || path === "/oauth/introspect") {
                 return reply.status(401).send({
                     error: "invalid_token",
                     error_description: "Access token is invalid or expired"
                 });
             }
+            if (isSensitiveProtocolPath(path)) {
+                // RFC 6749 §5.2 calls a rejected grant `invalid_grant`; bearer-token
+                // endpoints use `invalid_token` (RFC 6750 §3.1).
+                const isGrantExchange = path === "/oauth/token" || path === "/oauth/token/exchange";
+                return reply.status(401).send({
+                    error: isGrantExchange ? "invalid_grant" : "invalid_token",
+                    error_description: "Token is invalid or expired"
+                });
+            }
+            return reply.status(401).send({
+                error: "AuthenticationError",
+                message: "Token is invalid or expired"
+            });
         }
         request.log.error(error);
         return reply.status(500).send({ error: "InternalServerError", message: "Unexpected server error" });

@@ -10,14 +10,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY . .
 
-# @nexus/design comes from GitHub Packages (scope mapped in .npmrc). Set GITHUB_TOKEN (read:packages)
-# in the deploy platform's environment; it arrives here as a build arg. It only exists in this build
-# stage and the npmrc is deleted after install, so it never reaches the runtime image below.
-ARG GITHUB_TOKEN
-RUN test -n "$GITHUB_TOKEN" || { echo "GITHUB_TOKEN build arg is required" >&2; exit 1; }; \
-  printf '//npm.pkg.github.com/:_authToken=%s\n' "$GITHUB_TOKEN" > /tmp/.npmrc \
-  && NPM_CONFIG_USERCONFIG=/tmp/.npmrc npm ci; \
-  status=$?; rm -f /tmp/.npmrc; exit $status
+RUN npm ci
 
 RUN npm run prisma:generate \
   && npm run build \

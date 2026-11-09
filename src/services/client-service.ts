@@ -1,4 +1,5 @@
 import type { GrantType, OAuthClient } from "../domain/models.js";
+import { timingSafeEqual } from "node:crypto";
 import type { ClientRepository } from "../repositories/contracts.js";
 import type { InstanceSettingsService } from "./instance-settings-service.js";
 
@@ -10,9 +11,15 @@ export class ClientService {
 
   async listClients() {
     const clients = await this.clientRepository.list();
-    return clients.map((client) => ({
-      ...client,
-      secretPreview: `${client.secret.slice(0, 4)}...${client.secret.slice(-4)}`
+    return Promise.all(clients.map(async (client) => {
+      const managedCredential = this.clientRepository.managedProfileCredentialStatus
+        ? await this.clientRepository.managedProfileCredentialStatus(client.id)
+        : undefined;
+      if (managedCredential) {
+        const { secret: _secret, ...publicClient } = client;
+        return { ...publicClient, secretPreview: undefined, managedCredential: { generation: managedCredential.generation, ...(managedCredential.pendingOperationId ? { pendingOperationId: managedCredential.pendingOperationId, pendingExpiresAt: managedCredential.pendingExpiresAt } : {}) } };
+      }
+      return { ...client, secretPreview: `${client.secret.slice(0, 4)}...${client.secret.slice(-4)}` };
     }));
   }
 
@@ -20,11 +27,49 @@ export class ClientService {
     return this.clientRepository.findById(id);
   }
 
+  async authenticateClientSecret(id: string, secret: string): Promise<boolean> {
+    const managed = this.clientRepository.authenticateManagedProfileSecret
+      ? await this.clientRepository.authenticateManagedProfileSecret(id, secret)
+      : undefined;
+    if (managed !== undefined) return managed;
+    const client = await this.clientRepository.findById(id);
+    if (!client) return false;
+    const a = Buffer.from(client.secret, "utf8");
+    const b = Buffer.from(secret, "utf8");
+    return a.length === b.length && timingSafeEqual(a, b);
+  }
+
+  async ensureManagedProfileCredential(input: { clientId: string; installationId: string; profileId: "nexushub" | "liberide"; profileVersion: 1; secret: string }) {
+    if (!this.clientRepository.ensureManagedProfileCredential) throw new Error("managed_profile_credential_storage_unavailable");
+    return this.clientRepository.ensureManagedProfileCredential(input);
+  }
+
+  async stageManagedProfileCredential(input: { clientId: string; operationId: string; secret: string; expiresAt: Date }) {
+    if (!this.clientRepository.stageManagedProfileCredential) throw new Error("managed_profile_credential_storage_unavailable");
+    return this.clientRepository.stageManagedProfileCredential(input);
+  }
+
+  async activateManagedProfileCredential(input: { clientId: string; operationId: string; now?: Date }) {
+    if (!this.clientRepository.activateManagedProfileCredential) throw new Error("managed_profile_credential_storage_unavailable");
+    return this.clientRepository.activateManagedProfileCredential(input);
+  }
+
+  async abortManagedProfileCredential(input: { clientId: string; operationId: string }) {
+    if (!this.clientRepository.abortManagedProfileCredential) throw new Error("managed_profile_credential_storage_unavailable");
+    return this.clientRepository.abortManagedProfileCredential(input);
+  }
+
+  async managedProfileCredentialStatus(id: string, now?: Date, operationId?: string) {
+    if (!this.clientRepository.managedProfileCredentialStatus) throw new Error("managed_profile_credential_storage_unavailable");
+    return this.clientRepository.managedProfileCredentialStatus(id, now, operationId);
+  }
+
   async createClient(input: {
     appId?: string;
     id: string;
     name: string;
     secret: string;
+    tokenEndpointAuthMethod?: "client_secret_post" | "none";
     redirectUris: string[];
     allowedScopes: string[];
     grants: GrantType[];
@@ -38,6 +83,7 @@ export class ClientService {
     this.instanceSettingsService.validateRedirectUris(input.redirectUris);
     return this.clientRepository.create({
       ...input,
+      tokenEndpointAuthMethod: input.tokenEndpointAuthMethod ?? "client_secret_post",
       resources: input.resources ?? [],
       resourceMetadata: input.resourceMetadata ?? {},
       flowIds: input.flowIds ?? []

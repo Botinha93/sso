@@ -8,6 +8,7 @@ import { bootstrap } from "../bootstrap.js";
 import { AccountLockedError, AppError, AuthenticationError, LoginError, ValidationError } from "../core/errors.js";
 import { ensureExternalDatabaseSchema, saveRuntimeDatabaseConfig } from "../core/runtime-database-config.js";
 import { verifyPassword } from "../security/password.js";
+import { managedNexusHubExchangeBindingMismatch } from "../security/nexushub-managed-exchange.js";
 import { isJwtVerificationError } from "../security/jwt.js";
 import { getAssetContentType, readFrontendAsset } from "./view-assets.js";
 import { hasAdminPermission, isBootstrapAdminServiceIdentityMetadata, isUngatedAdminClientId, toAdminAction, toAdminResource } from "./admin-authorization.js";
@@ -149,7 +150,8 @@ import type {
   SamlServiceProviderRepository,
   NexusHubDelegationConsentRepository,
   NexusHubDelegationTokenRepository,
-  NexusBusManagementEnrollmentRepository
+  NexusBusManagementEnrollmentRepository,
+  OAuthConsentRequestRepository
 } from "../repositories/contracts.js";
 
 interface RouteDeps {
@@ -205,9 +207,19 @@ interface RouteDeps {
   nexusHubDelegationConsentRepository: NexusHubDelegationConsentRepository;
   nexusHubDelegationTokenRepository: NexusHubDelegationTokenRepository;
   nexusBusManagementEnrollmentRepository: NexusBusManagementEnrollmentRepository;
+  oauthConsentRequestRepository: OAuthConsentRequestRepository;
 }
 
 export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
+  const adminClientView = async (client: Awaited<ReturnType<typeof deps.clientService.findClientById>>) => {
+    if (!client) return undefined;
+    const managed = await deps.clientService.managedProfileCredentialStatus(client.id);
+    if (managed) {
+      const { secret: _secret, ...safeClient } = client;
+      return { ...safeClient, secretPreview: undefined, managedCredential: { generation: managed.generation, ...(managed.pendingOperationId ? { pendingOperationId: managed.pendingOperationId, pendingExpiresAt: managed.pendingExpiresAt } : {}) } };
+    }
+    return { ...client, secret: undefined, secretPreview: `${client.secret.slice(0, 4)}...${client.secret.slice(-4)}` };
+  };
   const revokeHubGrantTokens = async (tuple: { userId: string; clientId: string; installationId: string; resource: string }) => {
     const ids = await deps.nexusHubDelegationTokenRepository.revokeGrant(tuple);
     await Promise.all(ids.map((id) => deps.authService.revokeAccessToken(id)));
@@ -1385,6 +1397,12 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       });
     }
     const grantTypes = requestedGrants;
+    if (input.token_endpoint_auth_method === "none" && (grantTypes.length !== 1 || grantTypes[0] !== "authorization_code")) {
+      return reply.status(400).send({
+        error: "invalid_client_metadata",
+        error_description: "Public clients using token_endpoint_auth_method=none must use authorization_code only"
+      });
+    }
     const allowedScopes = input.scope
       ? input.scope.split(" ").map((s) => s.trim()).filter(Boolean)
       : ["openid", "profile", "email"];
@@ -1396,6 +1414,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       id: clientId,
       name: input.client_name,
       secret: clientSecret,
+      tokenEndpointAuthMethod: input.token_endpoint_auth_method,
       redirectUris: input.redirect_uris,
       allowedScopes,
       grants: grantTypes,
@@ -1406,14 +1425,14 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
     return reply.status(201).send({
       client_id: created.id,
-      client_secret: created.secret,
+      ...(input.token_endpoint_auth_method === "none" ? {} : { client_secret: created.secret }),
       client_id_issued_at: Math.floor(created.createdAt.getTime() / 1000),
       client_secret_expires_at: 0,
       app_id: created.appId,
       client_name: created.name,
       redirect_uris: created.redirectUris,
       grant_types: created.grants,
-      token_endpoint_auth_method: "client_secret_post",
+      token_endpoint_auth_method: input.token_endpoint_auth_method,
       scope: created.allowedScopes.join(" ")
     });
   });
@@ -1421,6 +1440,8 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   // How long after an explicit approval a prompt=consent request is treated
   // as satisfied by that approval.
   const CONSENT_FRESHNESS_MS = 5 * 60_000;
+  const NEXUSHUB_DELEGATION_MAX_LIFETIME_SECONDS = 600;
+  const NEXUSHUB_DELEGATION_MIN_LIFETIME_SECONDS = 30;
 
   /**
    * response_mode=form_post. All values are HTML-escaped and the inline
@@ -1469,6 +1490,41 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return { resource, label: metadata.label, description: metadata.description };
   });
 
+  // Render data for the first-party consent screen only after binding the
+  // request to a signed-in user, registered client, exact callback and the
+  // code+PKCE authorization parameters that will be resumed after approval.
+  app.get<{ Querystring: Record<string, string | undefined> }>("/oauth/consent/request", async (request, reply) => {
+    const session = await getSession(request);
+    if (!session) return reply.status(401).send({ error: "unauthorized" });
+    const query = request.query;
+    const clientId = query.client_id?.trim() ?? "";
+    const redirectUri = query.redirect_uri?.trim() ?? "";
+    const requestedScope = query.scope?.trim() ?? "";
+    if (query.response_type !== "code" || !clientId || !redirectUri || !requestedScope || !query.state || !query.nonce ||
+        !query.code_challenge || query.code_challenge_method !== "S256") {
+      return reply.status(400).send({ error: "invalid_authorization_request" });
+    }
+    const client = await deps.clientService.findClientById(clientId);
+    if (!client || !client.grants.includes("authorization_code") || !client.redirectUris.includes(redirectUri)) {
+      return reply.status(400).send({ error: "invalid_client_or_redirect" });
+    }
+    const scopes = Array.from(new Set(requestedScope.split(/\s+/).filter(scope => scope && client.allowedScopes.includes(scope))));
+    if (!scopes.length) return reply.status(400).send({ error: "no_grantable_scopes" });
+    const authorization: Record<string, string> = {};
+    for (const key of ["response_type", "client_id", "redirect_uri", "scope", "state", "nonce", "code_challenge", "code_challenge_method", "response_mode", "prompt", "tenant", "nexushub_profile", "nexushub_installation_id", "resource_audience"]) {
+      const value = query[key];
+      if (typeof value === "string") authorization[key] = value;
+    }
+    // Continue only with the exact scopes that the user can review and that
+    // the client is registered to receive.
+    authorization.scope = scopes.join(" ");
+    const now = Date.now();
+    await deps.oauthConsentRequestRepository.deleteExpired(new Date(now));
+    const requestId = randomBytes(24).toString("base64url");
+    await deps.oauthConsentRequestRepository.create(requestId, { userId: session.userId, clientId, redirectUri, scopes, state: query.state, nonce: query.nonce, authorization, expiresAt: new Date(now + 5 * 60_000) });
+    return { requestId, client: { id: client.id, name: client.name }, redirectUri, scopes, state: query.state, authorization };
+  });
+
   app.post("/oauth/consent", async (request, reply) => {
     const session = await getSession(request);
     if (!session) {
@@ -1480,6 +1536,10 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const redirectUri = typeof body.redirect_uri === "string" ? body.redirect_uri.trim() : "";
     const scopeRaw = typeof body.scope === "string" ? body.scope : "";
     const decision = body.decision === "deny" ? "deny" : "approve";
+    const requestId = typeof body.consent_request_id === "string" ? body.consent_request_id : "";
+    if (requestId && body.decision !== "approve" && body.decision !== "deny") return reply.status(400).send({ error: "invalid_consent_request" });
+    const state = typeof body.state === "string" ? body.state : "";
+    const nonce = typeof body.nonce === "string" ? body.nonce : "";
     const hubProfile = body.nexushub_profile === "nexushub:1";
     const installationId = typeof body.nexushub_installation_id === "string" ? body.nexushub_installation_id.trim() : "";
     const resource = typeof body.resource_audience === "string" ? body.resource_audience.trim() : "";
@@ -1499,6 +1559,22 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     }
     if (hubProfile && (installationId !== client.id || !client.grants.includes("token_exchange") || !client.resources.includes(resource) || !client.resourceMetadata?.[resource]?.label?.trim() || !client.resourceMetadata?.[resource]?.description?.trim())) {
       return reply.status(400).send({ error: "invalid_target", error_description: "NexusHub delegation resource is not configured for this client" });
+    }
+
+    // Consume only after all displayed request fields are validated. The
+    // repository performs one conditional database update, so concurrent
+    // approval/replay across processes can succeed at most once.
+    const pending = requestId ? await deps.oauthConsentRequestRepository.consume(requestId, {
+      userId: session.userId, clientId, redirectUri, scopes: scopeRaw.split(" ").filter(Boolean), state, nonce
+    }) : undefined;
+    if (requestId && !pending) return reply.status(400).send({ error: "invalid_consent_request" });
+    if (pending) {
+      const reviewed = pending.authorization;
+      const reviewedHubProfile = reviewed.nexushub_profile === "nexushub:1";
+      if (reviewedHubProfile !== hubProfile ||
+          (reviewedHubProfile && (reviewed.nexushub_installation_id !== installationId || reviewed.resource_audience !== resource))) {
+        return reply.status(400).send({ error: "invalid_consent_request" });
+      }
     }
 
     if (decision === "deny") {
@@ -1611,6 +1687,10 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       // grant registration; fail before prompting the user for login/consent.
       throw new AuthenticationError("Client does not support authorization_code grant");
     }
+    if ((client.tokenEndpointAuthMethod ?? "client_secret_post") === "none" &&
+        (!client.requirePkce || !input.code_challenge || !/^[A-Za-z0-9_-]{43}$/.test(input.code_challenge) || input.code_challenge_method !== "S256")) {
+      return reply.status(400).send({ error: "invalid_request", error_description: "Public clients require S256 PKCE" });
+    }
     const hubProfile = Boolean(input.nexushub_profile || input.nexushub_installation_id || input.resource_audience);
     if (hubProfile && (input.nexushub_profile !== "nexushub:1" || input.nexushub_installation_id !== client.id || !input.resource_audience || !client.resources.includes(input.resource_audience) || !client.grants.includes("token_exchange"))) {
       return reply.status(400).send({ error: "invalid_target", error_description: "NexusHub profile installation must match this NexusID-issued client and name one configured resource" });
@@ -1720,11 +1800,20 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       installationId: input.nexushub_installation_id!,
       resource: input.resource_audience!
     }) : undefined;
-    const hasConsented = consentCoversScopes && (!forceConsent || consentIsFresh) && (!hubProfile || Boolean(hubConsent));
-    if (hubProfile && !hubConsent) {
+    const hubConsentCoversScopes = !hubProfile || Boolean(hubConsent) && grantableScopes.every((scope) => hubConsent!.scopes.includes(scope));
+    const hasConsented = consentCoversScopes && (!forceConsent || consentIsFresh) && hubConsentCoversScopes;
+    if (hubProfile && !hubConsentCoversScopes) {
       if (input.prompt === "none") return sendErrorToClient("interaction_required");
       const consentQuery = new URLSearchParams(request.query as Record<string, string>);
       consentQuery.delete("consent");
+      // Re-review the complete effective resource grant. Approval replaces
+      // the active snapshot, so previously granted scopes remain enabled only
+      // when the user explicitly approves them again alongside new scopes.
+      const scopesForReview = Array.from(new Set([
+        ...(hubConsent?.scopes ?? []).filter((scope) => client.allowedScopes.includes(scope)),
+        ...grantableScopes,
+      ]));
+      consentQuery.set("scope", scopesForReview.join(" "));
       return reply.redirect(`/consent?${consentQuery.toString()}`);
     }
     if (consentStageEnabled && !hasConsented && input.prompt === "none") {
@@ -1752,6 +1841,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         userId: user.id,
         redirectUri: input.redirect_uri,
         scope: input.scope.split(" "),
+        nonce: input.nonce,
         codeChallenge: input.code_challenge,
         codeChallengeMethod: input.code_challenge_method as "S256" | undefined
       });
@@ -2013,6 +2103,12 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
     // The profile is opt-in. Ordinary RFC 8693 requests retain the existing path.
     const hasHubDelegationField = Boolean(parsed.data.nexushub_profile || parsed.data.nexushub_installation_id);
+    const hubActorFields = [parsed.data.nexushub_actor_app_id, parsed.data.nexushub_actor_registration_id,
+      parsed.data.nexushub_actor_organization_id, parsed.data.nexushub_actor_project_id];
+    const hasHubActor = hubActorFields.some((value) => value !== undefined);
+    if (hasHubActor && (!hasHubDelegationField || hubActorFields.some((value) => value === undefined))) {
+      return reply.status(400).send({ error: "invalid_request", error_description: "NexusHub actor attribution requires a complete actor binding and profile" });
+    }
     if (hasHubDelegationField) {
       if (parsed.data.nexushub_profile !== "nexushub:1" || !parsed.data.nexushub_installation_id || !audience) {
         return reply.status(400).send({ error: "invalid_request", error_description: "NexusHub delegation requires profile, installation, and resource audience" });
@@ -2051,6 +2147,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     }
 
     let exchangeActor: { type: "client"; id: string } | { type: "service_identity"; id: string; clientId: string; allowedScopes: string[]; allowedAudiences: string[] } | undefined;
+    let managedExchangeProfile: { profileId: "nexushub" | "liberide"; profileVersion: 1; installationId: string } | undefined;
 
     // RFC 8693: the party requesting the exchange must authenticate. Without
     // this, anyone holding any access token could mint tokens with arbitrary
@@ -2061,23 +2158,37 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
 
     {
       let matchedClient = false;
-
+      let client;
       try {
-        const client = await deps.clientService.findClientById(client_id);
-        if (client) {
-          const provided = Buffer.from(client_secret);
-          const actual = Buffer.from(client.secret);
-          const secretMatches = provided.length === actual.length && timingSafeEqual(provided, actual);
-          if (secretMatches) {
-            if (!client.grants.includes("token_exchange")) {
-              return reply.status(401).send({ error: "invalid_client", error_description: "Client does not support token_exchange grant" });
-            }
-            matchedClient = true;
-            exchangeActor = { type: "client", id: client.id };
-          }
-        }
+        client = await deps.clientService.findClientById(client_id);
       } catch {
-        // Fallback to service identity verification below.
+        client = undefined;
+      }
+      if (client) {
+        let secretMatches: boolean;
+        try { secretMatches = await deps.clientService.authenticateClientSecret(client_id, client_secret); }
+        catch { return reply.status(401).send({ error: "invalid_client" }); }
+        if (!secretMatches) {
+          // A marked managed profile owns authentication for this client ID.
+          // Never fall through and reinterpret its stale legacy verifier as a
+          // service-identity credential.
+          try {
+            if (await deps.clientService.managedProfileCredentialStatus(client_id)) return reply.status(401).send({ error: "invalid_client" });
+          } catch { return reply.status(401).send({ error: "invalid_client" }); }
+        } else {
+          if (!client.grants.includes("token_exchange")) {
+            return reply.status(401).send({ error: "invalid_client", error_description: "Client does not support token_exchange grant" });
+          }
+          try {
+            managedExchangeProfile = await deps.clientService.managedProfileCredentialStatus(client.id);
+          } catch {
+            // A managed client must never fall back to generic exchange if its
+            // profile binding cannot be read.
+            return reply.status(503).send({ error: "temporarily_unavailable" });
+          }
+          matchedClient = true;
+          exchangeActor = { type: "client", id: client.id };
+        }
       }
 
       if (!matchedClient) {
@@ -2190,6 +2301,31 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       }
     }
 
+    // Managed NexusHub clients are trusted specifically for consent-bound,
+    // resource-scoped delegation. Omitting the profile used to route them
+    // through generic RFC 8693 and bypass both the consent tuple and the
+    // short delegated-token lifetime. Ordinary clients retain generic RFC
+    // 8693 behavior.
+    if (managedNexusHubExchangeBindingMismatch(managedExchangeProfile, {
+      profileId: hasHubDelegationField ? parsed.data.nexushub_profile : undefined,
+      profileVersion: hasHubDelegationField ? 1 : undefined,
+      installationId: hubInstallationId
+    })) {
+      return reply.status(400).send({ error: "invalid_request", error_description: "Managed NexusHub clients require their registered delegation profile and installation binding" });
+    }
+
+    const hubDelegationLifetimeSeconds = hubInstallationId
+      ? Math.min(
+          NEXUSHUB_DELEGATION_MAX_LIFETIME_SECONDS,
+          typeof subjectPayload.exp === "number" ? subjectPayload.exp - Math.floor(Date.now() / 1000) : 0,
+          delegationGrantExpiresAt ? Math.floor((delegationGrantExpiresAt.getTime() - Date.now()) / 1000) : 0
+        )
+      : undefined;
+    if (hubInstallationId && (hubDelegationLifetimeSeconds ?? 0) < NEXUSHUB_DELEGATION_MIN_LIFETIME_SECONDS) {
+      await logHubExchangeDenied("delegation_lifetime_too_short");
+      return reply.status(400).send({ error: "invalid_grant", error_description: "NexusHub delegation expires too soon" });
+    }
+
     const { nanoid } = await import("nanoid");
     const accessTokenId = nanoid();
 
@@ -2201,13 +2337,20 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       accessTokenId,
       client: exchangeClient,
       ...(hubInstallationId && exchangeClient ? { actorClientId: exchangeClient.id } : {}),
+      ...(hasHubActor ? { actorApplication: {
+        appId: parsed.data.nexushub_actor_app_id!, registrationId: parsed.data.nexushub_actor_registration_id!,
+        organizationId: parsed.data.nexushub_actor_organization_id!, projectId: parsed.data.nexushub_actor_project_id!,
+      } } : {}),
       ...(hubInstallationId ? {
-        maxLifetimeSeconds: Math.min(
-          typeof subjectPayload.exp === "number" ? subjectPayload.exp - Math.floor(Date.now() / 1000) : 0,
-          delegationGrantExpiresAt ? Math.floor((delegationGrantExpiresAt.getTime() - Date.now()) / 1000) : 0
-        )
+        maxLifetimeSeconds: hubDelegationLifetimeSeconds!
       } : {}),
-      ...(hubInstallationId ? { additionalClaims: { nexushub_profile: "nexushub:1", nexushub_installation_id: hubInstallationId } } : {})
+      ...(hubInstallationId && exchangeClient ? {
+        additionalClaims: {
+          nexushub_profile: "nexushub:1",
+          nexushub_installation_id: hubInstallationId,
+          client_id: exchangeClient.id
+        }
+      } : {})
     });
 
     if (hubInstallationId && exchangeClient && requestedAudiences.length === 1) {
@@ -2323,10 +2466,53 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       const claims = await deps.authService.jwtService.verifyAccessToken(parsed.data.token);
       const id = typeof claims.jti === "string" ? claims.jti : "";
       const token = id ? await deps.nexusHubDelegationTokenRepository.findActive(id) : undefined;
+      const revoked = id ? await deps.authService.isAccessTokenRevoked(id) : true;
       const audiences = Array.isArray(claims.aud) ? claims.aud.map(String) : typeof claims.aud === "string" ? [claims.aud] : [];
-      const active = Boolean(token && token.clientId === caller.id && token.installationId === caller.id
+      const active = Boolean(token && !revoked && token.clientId === caller.id && token.installationId === caller.id
         && token.resource === parsed.data.resource_audience && audiences.length === 1 && audiences[0] === token.resource
         && claims.nexushub_profile === "nexushub:1" && claims.nexushub_installation_id === caller.id
+        && claims.sub === token.userId && claims.iss === deps.config.issuer);
+      return { active };
+    } catch { return { active: false }; }
+  });
+
+  // An independently configured resource server (for example NexusContext)
+  // authenticates with its own admin-managed OAuth client. It may check only
+  // an audience explicitly registered on that caller; it does not need the
+  // NexusHub installation's client secret. The source token remains scoped to
+  // the single resource recorded at issuance and in its signed audience.
+  app.post("/oauth/nexushub/delegation/resource-introspect", async (request, reply) => {
+    reply.header("Cache-Control", "no-store");
+    const parsed = z.object({ token: z.string().min(1).max(16_384), client_id: z.string().min(1).max(200), client_secret: z.string().min(1).max(512), resource_audience: z.string().url().max(2048) }).safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: "invalid_request" });
+    let caller;
+    try { caller = await deps.authService.authenticateClient({ clientId: parsed.data.client_id, clientSecret: parsed.data.client_secret }); }
+    catch { return reply.status(401).send({ error: "invalid_client" }); }
+    if (!caller.resources.includes(parsed.data.resource_audience)) {
+      return { active: false };
+    }
+    try {
+      const claims = await deps.authService.jwtService.verifyAccessToken(parsed.data.token);
+      const id = typeof claims.jti === "string" ? claims.jti : "";
+      const token = id ? await deps.nexusHubDelegationTokenRepository.findActive(id) : undefined;
+      const revoked = id ? await deps.authService.isAccessTokenRevoked(id) : true;
+      const audiences = Array.isArray(claims.aud) ? claims.aud.map(String) : typeof claims.aud === "string" ? [claims.aud] : [];
+      const actor = claims.act && typeof claims.act === "object" ? claims.act as Record<string, unknown> : undefined;
+      const parentActor = actor?.act && typeof actor.act === "object" ? actor.act as Record<string, unknown> : undefined;
+      const legacyActor = actor !== undefined && actor.sub === token?.installationId && actor.act === undefined;
+      const appActor = actor !== undefined && typeof actor.sub === "string" && /^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+$/.test(actor.sub) &&
+        typeof actor.registration_id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(actor.registration_id) &&
+        typeof actor.organization_id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(actor.organization_id) &&
+        typeof actor.project_id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(actor.project_id) &&
+        parentActor !== undefined && parentActor.sub === token?.installationId && parentActor.act === undefined;
+      const active = Boolean(token && !revoked
+        && token.clientId === token.installationId
+        && token.resource === parsed.data.resource_audience
+        && audiences.length === 1 && audiences[0] === token.resource
+        && claims.nexushub_profile === "nexushub:1"
+        && claims.nexushub_installation_id === token.installationId
+        && claims.client_id === token.clientId
+        && (legacyActor || appActor)
         && claims.sub === token.userId && claims.iss === deps.config.issuer);
       return { active };
     } catch { return { active: false }; }
@@ -2362,6 +2548,9 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         await deps.authService.revokeRefreshToken(String(payload.jti));
       } else if (payload.jti) {
         await deps.authService.revokeAccessToken(String(payload.jti));
+        if (payload.nexushub_profile === "nexushub:1") {
+          await deps.nexusHubDelegationTokenRepository.revokeToken(String(payload.jti));
+        }
       }
     } catch { /* invalid tokens - return 200 per spec */ }
     return reply.status(200).send({});
@@ -3855,8 +4044,8 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     return reply.status(204).send();
   });
   app.get("/api/admin/clients", async (request) => {
-    // Never return live client secrets to the console; the preview is enough
-    // for identification and rotation happens through the update endpoint.
+    // Managed profile credentials expose only generation/status. Their legacy
+    // oauth_clients.secret value is intentionally not presented as current.
     const clients = (await deps.clientService.listClients()).map((client) => ({ ...client, secret: undefined }));
     return filterAdminList(clients, request.query as Record<string, unknown>, [
       (client) => client.id,
@@ -3898,6 +4087,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
   app.put("/api/admin/clients/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     const input = updateClientSchema.parse(request.body);
+    if (await deps.clientService.managedProfileCredentialStatus(id)) return reply.status(409).send({ error: "managed_profile_update_not_supported" });
     const client = await deps.clientService.updateClient(id, input);
     if (!client) return reply.status(404).send({ error: "not_found" });
     await deps.eventHookService.emit("client.updated", {
@@ -3906,7 +4096,7 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       grants: client.grants,
       allowedScopes: client.allowedScopes
     });
-    return { ...client, secret: undefined, secretPreview: `${client.secret.slice(0, 4)}...${client.secret.slice(-4)}` };
+    return adminClientView(client);
   });
   app.delete("/api/admin/clients/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -4018,6 +4208,33 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     const permissions = await deps.roleService.resolvePermissionsForUser(id);
     return { permissions };
   });
+  app.get("/api/admin/users/:id/effective-permissions", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = await deps.userService.findUserById(id);
+    if (!user) {
+      return reply.status(404).send({ error: "not_found", message: "User not found" });
+    }
+
+    const { tenantId } = request.query as { tenantId?: string };
+    const [roleBreakdown, groups, applicablePolicies, elevationSessions] = await Promise.all([
+      deps.roleService.resolveRoleBreakdownForUser(id, tenantId),
+      deps.groupService.resolveGroupsForUser(id),
+      deps.policyService.listApplicablePoliciesForUser(id, tenantId),
+      deps.elevationService.listSessions({ requesterId: id, status: "active" })
+    ]);
+
+    const now = new Date();
+    const activeElevations = elevationSessions.filter((session) => session.expiresAt > now);
+
+    return {
+      userId: id,
+      roles: roleBreakdown.roles,
+      groups: groups.map((group) => ({ id: group.id, name: group.name })),
+      permissions: roleBreakdown.permissions,
+      applicablePolicies,
+      activeElevations
+    };
+  });
   app.get("/api/admin/groups/:id/users", async (request, reply) => {
     const { id } = request.params as { id: string };
     const group = await deps.groupService.findGroupById(id);
@@ -4045,6 +4262,29 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
       customAttributes: user.customAttributes ?? {}
     }));
     return { userIds: users.map((user) => user.id), users };
+  });
+  app.get("/api/admin/groups/:id/effective-permissions", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const group = await deps.groupService.findGroupById(id);
+    if (!group) {
+      return reply.status(404).send({ error: "not_found", message: "Group not found" });
+    }
+
+    const { tenantId } = request.query as { tenantId?: string };
+    const [roles, permissions, applicablePolicies, memberIds] = await Promise.all([
+      deps.roleService.resolveRolePermissionDetailsForGroup(id),
+      deps.roleService.resolvePermissionsForGroup(id),
+      deps.policyService.listApplicablePoliciesForGroup(id, tenantId),
+      deps.groupService.listUserIdsForGroup(id)
+    ]);
+
+    return {
+      groupId: id,
+      roles,
+      permissions,
+      applicablePolicies,
+      memberCount: memberIds.length
+    };
   });
   app.get("/api/admin/tenants", async (request) => {
     const tenants = await deps.tenantService.listTenants();

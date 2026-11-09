@@ -2,7 +2,7 @@ import { Group, Select, SimpleGrid, Table, Text, TextInput } from '@mantine/core
 import { AreaChart } from '@mantine/charts'
 import { useMemo, useState } from 'react'
 import { Activity, BarChart3, Clock, Hash, Search } from 'lucide-react'
-import { MeterBar, PageHeader, SectionCard, StatCard, TableSkeleton } from '@nexus/design'
+import { MeterBar, PageHeader, SectionCard, StatCard, TableSkeleton } from '@botinha93/nexus-design'
 import EmptyState from '../components/EmptyState'
 import { useAuthMetrics } from '../hooks/useApi'
 

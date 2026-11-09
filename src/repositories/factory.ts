@@ -9,6 +9,7 @@ import type {
   AuditRepository,
   AuthenticationFlowRepository,
   AuthorizationCodeRepository,
+  OAuthConsentRequestRepository,
   ClientRepository,
   ConsentRepository,
   NexusHubDelegationConsentRepository,
@@ -77,6 +78,7 @@ export interface RepositoryBundle {
   totpCredentialRepository: TotpCredentialRepository;
   webauthnCredentialRepository: WebauthnCredentialRepository;
   authorizationCodeRepository: AuthorizationCodeRepository;
+  oauthConsentRequestRepository: OAuthConsentRequestRepository;
   consentRepository: ConsentRepository;
   nexusHubDelegationConsentRepository: NexusHubDelegationConsentRepository;
   nexusHubDelegationTokenRepository: NexusHubDelegationTokenRepository;

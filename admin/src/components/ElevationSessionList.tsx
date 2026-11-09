@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Group, NativeSelect, Paper, Stack, Text } from '@mantine/core'
 import { Clock3 } from 'lucide-react'
-import { ExpiryBadge, SectionCard, StatusBadge } from '@nexus/design'
+import { ExpiryBadge, SectionCard, StatusBadge } from '@botinha93/nexus-design'
 import { useElevationSessions, type ElevationSessionDto } from '../hooks/useApi'
 
 const statusLabels: Record<ElevationSessionDto['status'], string> = {

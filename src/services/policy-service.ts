@@ -377,7 +377,23 @@ type EffectivePolicy = {
     decisionStrategy?: PolicyDecisionStrategy;
     config: Record<string, unknown>;
   };
+  matchedScope: "user" | "group" | "tenant" | "global";
+  matchedScopeId?: string;
 };
+
+export interface ApplicablePolicySummary {
+  policyId: string;
+  key: string;
+  name: string;
+  category: PolicyCategory;
+  effect: PolicyEffect;
+  resourcePattern?: string;
+  actionPattern?: string;
+  priority?: number;
+  decisionStrategy?: PolicyDecisionStrategy;
+  matchedScope: "user" | "group" | "tenant" | "global";
+  matchedScopeId?: string;
+}
 
 export interface PolicySimulationDecision {
   policyId: string;
@@ -971,8 +987,13 @@ export class PolicyService {
   }
 
   private async resolveEffectivePolicies(userId: string, tenantId?: string) {
-    const result = new Map<string, EffectivePolicy>();
     const groupIds = new Set((await this.userGroupAssignmentRepository.listByUser(userId)).map((assignment) => assignment.groupId));
+    return this.resolveEffectivePoliciesForScope({ userId, groupIds, tenantId });
+  }
+
+  private async resolveEffectivePoliciesForScope(input: { userId?: string; groupIds: Set<string>; tenantId?: string }) {
+    const { userId, groupIds, tenantId } = input;
+    const result = new Map<string, EffectivePolicy>();
 
     for (const definition of await this.policyDefinitionRepository.list()) {
       if (!definition.enabled) {
@@ -994,6 +1015,14 @@ export class PolicyService {
 
       const effective = userMatch ?? groupMatch ?? tenantMatch ?? globalMatch;
       if (effective) {
+        const matchedScope: EffectivePolicy["matchedScope"] = effective === userMatch
+          ? "user"
+          : effective === groupMatch
+            ? "group"
+            : effective === tenantMatch
+              ? "tenant"
+              : "global";
+
         result.set(definition.id, {
           definition,
           assignment: {
@@ -1001,12 +1030,43 @@ export class PolicyService {
             priority: effective.priority,
             decisionStrategy: effective.decisionStrategy,
             config: effective.config
-          }
+          },
+          matchedScope,
+          matchedScopeId: effective.scopeId
         });
       }
     }
 
     return result;
+  }
+
+  async listApplicablePoliciesForUser(userId: string, tenantId?: string): Promise<ApplicablePolicySummary[]> {
+    const effective = await this.resolveEffectivePolicies(userId, tenantId);
+    return this.toApplicablePolicySummaries(effective);
+  }
+
+  async listApplicablePoliciesForGroup(groupId: string, tenantId?: string): Promise<ApplicablePolicySummary[]> {
+    const effective = await this.resolveEffectivePoliciesForScope({ groupIds: new Set([groupId]), tenantId });
+    return this.toApplicablePolicySummaries(effective);
+  }
+
+  private toApplicablePolicySummaries(effective: Map<string, EffectivePolicy>): ApplicablePolicySummary[] {
+    return Array.from(effective.values()).map((policy) => {
+      const resolved = this.withResolvedDefinition(policy.definition);
+      return {
+        policyId: resolved.id,
+        key: resolved.key,
+        name: resolved.name,
+        category: resolved.category,
+        effect: resolvePolicyEffect(policy.assignment.config, resolved.effect),
+        resourcePattern: resolved.resourcePattern,
+        actionPattern: resolved.actionPattern,
+        priority: resolvePolicyPriority(policy.assignment.config, policy.assignment.priority),
+        decisionStrategy: resolvePolicyDecisionStrategy(policy.assignment.decisionStrategy),
+        matchedScope: policy.matchedScope,
+        matchedScopeId: policy.matchedScopeId
+      };
+    });
   }
 
   private withResolvedDefinition(definition: PolicyDefinition): PolicyDefinition {

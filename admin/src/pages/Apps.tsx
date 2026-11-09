@@ -1,6 +1,6 @@
 import { ActionIcon, Alert, Badge, Box, Button, Center, Checkbox, Group, Image, Paper, ScrollArea, SimpleGrid, Stack, Tabs, Text, TextInput, Tooltip } from '@mantine/core'
 import { Boxes, ExternalLink, Globe, Pencil, Plus, Trash2, Users, Shield, Key, Server } from 'lucide-react'
-import { CardSkeleton, ListEditor, PageHeader, RefreshButton, ResourceCard, SearchInput } from '@nexus/design'
+import { CardSkeleton, ListEditor, PageHeader, RefreshButton, ResourceCard, SearchInput } from '@botinha93/nexus-design'
 import { useState } from 'react'
 import ImageField from '../components/ImageField'
 import EmptyState from '../components/EmptyState'

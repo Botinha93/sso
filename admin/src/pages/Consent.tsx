@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Alert, Button, Group, Image, Paper, Stack, Text } from "@mantine/core";
-import { AuthCard, AuthLayout, ColorSchemeToggle } from "@nexus/design";
+import { AuthCard, AuthLayout, ColorSchemeToggle } from "@botinha93/nexus-design";
 import { ShieldCheck, AlertCircle, KeyRound } from "lucide-react";
 import LanguageSelector from '../components/LanguageSelector'
 import { consentScopeLabel, useI18n } from '../i18n'

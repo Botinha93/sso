@@ -1,6 +1,6 @@
 import { ActionIcon, Alert, Badge, Box, Button, Checkbox, Group, NativeSelect, Paper, Stack, Table, Text, TextInput, ThemeIcon, Tooltip } from '@mantine/core'
 import { Check, ChevronDown, ChevronUp, ClipboardList, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
-import { PageHeader, SearchInput, SectionCard, TableSkeleton } from '@nexus/design'
+import { PageHeader, SearchInput, SectionCard, TableSkeleton } from '@botinha93/nexus-design'
 import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import ConfirmDialog from '../components/ConfirmDialog'

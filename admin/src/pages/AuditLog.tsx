@@ -1,6 +1,6 @@
 import { Badge, Box, Button, Group, NativeSelect, Stack, Table, Text, TextInput } from '@mantine/core'
 import { RefreshCw, ChevronDown, ChevronRight } from 'lucide-react'
-import { PageHeader, SearchInput, SectionCard, TableSkeleton } from '@nexus/design'
+import { PageHeader, SearchInput, SectionCard, TableSkeleton } from '@botinha93/nexus-design'
 import EmptyState from '../components/EmptyState'
 import CodeBlock from '../components/CodeBlock'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'

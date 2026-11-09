@@ -18,7 +18,7 @@ import {
   Textarea,
   Title,
 } from '@mantine/core'
-import { PageHeader, PageHeaderSkeleton, SearchInput, SectionCard, TableSkeleton } from '@nexus/design'
+import { PageHeader, PageHeaderSkeleton, SearchInput, SectionCard, TableSkeleton } from '@botinha93/nexus-design'
 import { ScrollText } from 'lucide-react'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import Editor from '@monaco-editor/react'

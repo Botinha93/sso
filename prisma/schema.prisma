@@ -149,6 +149,7 @@ model authorization_codes {
   user_id               String
   redirect_uri          String
   scope_json            String
+  nonce                 String?
   code_challenge        String?
   code_challenge_method String?
   expires_at            String
@@ -307,6 +308,7 @@ model oauth_clients {
   id                         String?               @id
   name                       String
   secret                     String
+  token_endpoint_auth_method String                @default("client_secret_post")
   redirect_uris_json         String
   allowed_scopes_json        String
   grants_json                String

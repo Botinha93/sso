@@ -20,7 +20,7 @@ import {
   TextInput,
   ThemeIcon
 } from '@mantine/core'
-import { AuthCard, AuthLayout, PageHeader, PageHeaderSkeleton, SectionCard } from '@nexus/design'
+import { AuthCard, AuthLayout, PageHeader, PageHeaderSkeleton, SectionCard } from '@botinha93/nexus-design'
 import { AppWindow, ArrowUpRight, CheckCircle2, Monitor, RotateCcw, Save, ShieldCheck, Smartphone, Undo2, XCircle } from 'lucide-react'
 import ImageField from '../components/ImageField'
 import { useApps, useClients, useInstanceSettings, useUpdateInstanceSettings, useUploadBrandingLogo } from '../hooks/useApi'

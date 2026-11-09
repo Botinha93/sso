@@ -27,8 +27,8 @@ import {
   SectionCard,
   StatusBadge,
   TableSkeleton,
-} from '@nexus/design'
-import { Plus, Trash2, Key, RotateCw, Pencil, Bot } from 'lucide-react'
+} from '@botinha93/nexus-design'
+import { Plus, Trash2, Key, RotateCw, Pencil, Bot, ShieldCheck } from 'lucide-react'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EmptyState from '../components/EmptyState'
@@ -43,11 +43,18 @@ import {
   useServiceIdentity,
   useServiceIdentityUsage,
   useIssueServiceIdentityCredential,
+  useEnrollNexusHubServiceIdentity,
   useRotateServiceIdentityCredential,
   useRevokeServiceIdentityCredential,
   type ServiceIdentityDto,
   type ServiceIdentityCredentialDto
 } from '../hooks/useApi'
+import {
+  canonicalHttpsOrigin,
+  prepareNexusHubSetup,
+  serializeNexusHubCredentials,
+  type NexusHubSetupBundle,
+} from '../lib/nexushub-provisioning'
 
 const defaultForm = () => ({
   name: '',
@@ -64,6 +71,83 @@ type IdentityForm = ReturnType<typeof defaultForm>
 interface NewSecretInfo {
   clientId: string
   plainClientSecret: string
+}
+
+function downloadNexusHubCredentials(bundle: NexusHubSetupBundle) {
+  const body = serializeNexusHubCredentials(bundle)
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(new Blob([body], { type: 'application/json' }))
+  link.download = 'nexushub-issuer-credentials.json'
+  link.click()
+  window.setTimeout(() => URL.revokeObjectURL(link.href), 1000)
+}
+
+function NexusHubProvisioningWizard({ opened, onClose, onComplete }: { opened: boolean; onClose: () => void; onComplete: () => void }) {
+  const [publicOrigin, setPublicOrigin] = useState('')
+  const [liberideOrigin, setLiberideOrigin] = useState('')
+  const [adoptClientId, setAdoptClientId] = useState('')
+  const [expiresInDays, setExpiresInDays] = useState<string>('365')
+  const [bundle, setBundle] = useState<NexusHubSetupBundle | null>(null)
+  const [error, setError] = useState('')
+  const [running, setRunning] = useState(false)
+  const createIdentity = useCreateServiceIdentity()
+  const issueCredential = useIssueServiceIdentityCredential()
+  const enroll = useEnrollNexusHubServiceIdentity()
+
+  const provision = async () => {
+    setError('')
+    let progress: NexusHubSetupBundle
+    try {
+      progress = bundle ? { ...bundle } : { publicOrigin: canonicalHttpsOrigin(publicOrigin), ...(liberideOrigin.trim() ? { liberideOrigin: canonicalHttpsOrigin(liberideOrigin) } : {}), ...(adoptClientId.trim() ? { adoptClientId: adoptClientId.trim() } : {}) }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Invalid origin')
+      return
+    }
+    setRunning(true)
+    try {
+      progress = await prepareNexusHubSetup(progress, Number(expiresInDays) || undefined, {
+        createIdentity: input => createIdentity.mutateAsync(input),
+        issueCredential: input => issueCredential.mutateAsync(input),
+        enroll: input => enroll.mutateAsync(input),
+      }, setBundle)
+      onComplete()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'NexusHub identity setup failed. Preserve any displayed credential and inspect NexusID before retrying.')
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  const completed = Boolean(bundle?.runnerSecret)
+  const hasSecrets = Boolean(bundle?.provisionerSecret || bundle?.runnerSecret)
+  return (
+    <Modal isOpen={opened} onClose={onClose} title="Prepare NexusHub issuer credentials" size="lg" closeOnClickOutside={!running} closeOnEscape={!running}>
+      <Stack gap="md">
+        {!bundle?.provisionerIdentityId && <>
+          <Alert color="blue" title="Creates two narrowly scoped identities">
+            NexusID binds one provisioning credential to the exact Hub origin. It then creates a separate build runner restricted to the derived Hub client audience and the two build-job scopes. Neither identity receives admin roles.
+          </Alert>
+          <TextInput label="NexusHub public origin" placeholder="https://hub.example.com" value={publicOrigin} onChange={event => setPublicOrigin(event.currentTarget.value)} disabled={running} required />
+          <TextInput label="LiberIDE API origin (optional)" placeholder="https://ide.example.com" value={liberideOrigin} onChange={event => setLiberideOrigin(event.currentTarget.value)} disabled={running} description="When set, NexusID also enrolls the liberide:1 user-login profile for this exact origin." />
+          <TextInput label="Existing NexusHub OAuth client ID (optional)" placeholder="nh_existing-client" value={adoptClientId} onChange={event => setAdoptClientId(event.currentTarget.value)} disabled={running} description="Use only to adopt an existing client. NexusID verifies its redirect, grants, scopes and PKCE policy exactly; provide its existing secret to the Hub installer separately." />
+          <NumberInput label="Credential lifetime (days)" min={1} max={3650} value={expiresInDays} onChange={value => setExpiresInDays(String(value))} disabled={running} />
+          <Group justify="flex-end"><Button variant="default" onClick={onClose} disabled={running}>Cancel</Button><Button leftSection={<ShieldCheck size={16} />} onClick={() => void provision()} loading={running}>Create and enroll</Button></Group>
+        </>}
+        {error && bundle?.provisionerIdentityId && !completed && <Group justify="flex-end"><Button onClick={() => void provision()} loading={running} disabled={running}>Resume setup</Button></Group>}
+        {error && <Alert color="red" title="Setup stopped">{error} {bundle?.provisionerIdentityId && 'Do not repeat the wizard blindly; inspect the identity and enrollment shown below first.'}</Alert>}
+        {bundle?.installationId && <CopyField label="NexusHub installation ID" value={bundle.installationId} />}
+        {bundle?.hubClientId && <CopyField label="Derived NexusHub OAuth client ID / runner audience" value={bundle.hubClientId} />}
+        {bundle?.provisionerClientId && <CopyField label="Provisioning service identity client ID" value={bundle.provisionerClientId} />}
+        {bundle?.runnerClientId && <CopyField label="LiberIDE build runner client ID" value={bundle.runnerClientId} />}
+        {hasSecrets && <SecretReveal title="One-time service identity secrets" message="Save the credential bundle on a trusted machine. Set its mode to 0600, keep it out of source control, and provide each secret through the installer’s owner-private file setting. NexusID will not reveal these values again." items={[
+          ...(bundle?.provisionerSecret ? [{ label: 'Hub profile provisioning secret', value: bundle.provisionerSecret, secret: true }] : []),
+          ...(bundle?.runnerSecret ? [{ label: 'LiberIDE build runner secret', value: bundle.runnerSecret, secret: true }] : []),
+        ]} />}
+        {hasSecrets && <Group justify="space-between"><Button variant="default" onClick={() => bundle && downloadNexusHubCredentials(bundle)}>Download credential bundle</Button><Text size="xs" c="dimmed">After saving: chmod 600 nexushub-issuer-credentials.json</Text></Group>}
+        {completed && <Alert color="green" title="NexusID setup complete">The issuer has enrolled the Hub and created its audience-bound build runner. Configure the Hub and runner secret-file inputs from this bundle, then rerun installer preflight.</Alert>}
+      </Stack>
+    </Modal>
+  )
 }
 
 const STATUS_OPTIONS = [
@@ -423,6 +507,7 @@ const CredentialsPanel = ({
 }
 
 const ServiceIdentities = () => {
+  const [nexusHubWizardOpen, setNexusHubWizardOpen] = useState(false)
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [manageModalOpen, setManageModalOpen] = useState(false)
@@ -527,14 +612,19 @@ const ServiceIdentities = () => {
         title="Service Identities"
         description="M2M / workload accounts. These are not shown in the Users directory by default; list them here via GET /api/admin/service-identities, or pass includeServiceUsers=true on GET /api/admin/users when a combined listing is required."
         actions={
-          <Button
-            onClick={() => { setCreateFormError(''); setFormData(defaultForm()); setCreateModalOpen(true) }}
-            leftSection={<Plus size={16} />}
-          >
-            New Identity
-          </Button>
+          <Group>
+            <Button variant="light" leftSection={<ShieldCheck size={16} />} onClick={() => setNexusHubWizardOpen(true)}>Prepare NexusHub</Button>
+            <Button
+              onClick={() => { setCreateFormError(''); setFormData(defaultForm()); setCreateModalOpen(true) }}
+              leftSection={<Plus size={16} />}
+            >
+              New Identity
+            </Button>
+          </Group>
         }
       />
+
+      <NexusHubProvisioningWizard opened={nexusHubWizardOpen} onClose={() => setNexusHubWizardOpen(false)} onComplete={() => refetch()} />
 
       <NativeSelect
         label="Filter by Status"

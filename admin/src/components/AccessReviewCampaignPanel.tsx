@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Box, Button, Group, Paper, SimpleGrid, Stack, Text, TextInput, Textarea } from '@mantine/core'
-import { SectionCard, StatusBadge } from '@nexus/design'
+import { SectionCard, StatusBadge } from '@botinha93/nexus-design'
 import {
   useAccessReviewCampaign,
   useCreateAccessReviewCampaign,

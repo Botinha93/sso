@@ -190,7 +190,7 @@ Objective: establish a reliable typed client base and initial auth support.
 - [x] Add timeout and retry support.
 - [x] Add typed error classes and error normalization.
 - [x] Define client initialization API.
-- [ ] Add CI for build, lint, and tests.
+- [ ] Add documented local commands for build, lint, and tests.
 - [ ] Add release versioning strategy.
 
 ## Phase 2: Authentication

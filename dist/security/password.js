@@ -6,14 +6,19 @@ export const hashPassword = (password) => {
     return `${salt}:${derivedKey}`;
 };
 export const verifyPassword = (password, passwordHash) => {
-    const [salt, storedKey] = passwordHash.split(":");
-    if (!salt || !storedKey) {
+    try {
+        const [salt, storedKey] = passwordHash.split(":");
+        if (!salt || !storedKey) {
+            return false;
+        }
+        const derivedKey = scryptSync(password, salt, KEY_LENGTH);
+        const storedBuffer = Buffer.from(storedKey, "hex");
+        if (derivedKey.length !== storedBuffer.length) {
+            return false;
+        }
+        return timingSafeEqual(derivedKey, storedBuffer);
+    }
+    catch {
         return false;
     }
-    const derivedKey = scryptSync(password, salt, KEY_LENGTH);
-    const storedBuffer = Buffer.from(storedKey, "hex");
-    if (derivedKey.length !== storedBuffer.length) {
-        return false;
-    }
-    return timingSafeEqual(derivedKey, storedBuffer);
 };

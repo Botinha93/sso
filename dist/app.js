@@ -9,24 +9,6 @@ import { registerRoutes } from "./http/routes.js";
 import { MAX_IMAGE_UPLOAD_BYTES } from "./http/upload-limits.js";
 import { bootstrap } from "./bootstrap.js";
 import { hasSqlInjectionPayload } from "./http/sql-injection-guard.js";
-const parseBasicAuthClient = (authorization) => {
-    const header = Array.isArray(authorization) ? authorization[0] : authorization;
-    if (!header || !header.toLowerCase().startsWith("basic ")) {
-        return undefined;
-    }
-    try {
-        const decoded = Buffer.from(header.slice("basic ".length).trim(), "base64").toString("utf8");
-        const separator = decoded.indexOf(":");
-        if (separator <= 0) {
-            return undefined;
-        }
-        const clientId = decoded.slice(0, separator);
-        return clientId.length > 0 ? clientId : undefined;
-    }
-    catch {
-        return undefined;
-    }
-};
 export const emitStartupConfigWarnings = async (app, instanceSettingsService) => {
     const settings = await instanceSettingsService.getSettings();
     if (settings.allowImplicitFlow) {
@@ -39,7 +21,13 @@ export const emitStartupConfigWarnings = async (app, instanceSettingsService) =>
 };
 export const buildApp = async () => {
     const config = loadConfig();
-    const app = Fastify({ logger: process.env.NODE_ENV !== "test", trustProxy: config.trustProxy });
+    const serverOptions = {
+        logger: process.env.NODE_ENV !== "test",
+        // Fastify accepts a numeric hop count at runtime (proxy-addr); the type
+        // definitions only list the other shapes.
+        trustProxy: config.trustProxy
+    };
+    const app = Fastify(serverOptions);
     const services = await bootstrap(config);
     await emitStartupConfigWarnings(app, services.instanceSettingsService);
     app.addHook("onClose", async () => {
@@ -69,7 +57,9 @@ export const buildApp = async () => {
         contentSecurityPolicy: {
             directives: {
                 defaultSrc: ["'self'"],
-                scriptSrc: ["'self'", "'unsafe-inline'"],
+                // The SPA bundles are external module scripts; the only inline scripts the
+                // server emits (auto-submit forms) carry a per-response nonce instead.
+                scriptSrc: ["'self'"],
                 styleSrc: ["'self'", "'unsafe-inline'"],
                 imgSrc: ["'self'", "data:"],
                 connectSrc: ["'self'"],
@@ -91,14 +81,23 @@ export const buildApp = async () => {
     });
     await app.register(cookie, { secret: config.cookieSecret });
     await app.register(cors, {
-        origin(origin, callback) {
+        delegator: (request, callback) => {
+            const origin = request.headers.origin;
             services.instanceSettingsService
-                .isCorsOriginAllowed(origin)
-                .then((allowed) => callback(null, allowed))
-                .catch((error) => callback(error, false));
-        },
-        credentials: true,
-        methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+                .getSettings()
+                .then((settings) => {
+                const explicitlyAllowed = Boolean(origin) && settings.corsAllowedOrigins.includes(origin);
+                const allowed = !origin || explicitlyAllowed || settings.allowAnyCorsOrigin;
+                callback(null, {
+                    origin: allowed,
+                    // Credentialed cross-origin access is only granted to origins the
+                    // operator listed explicitly, never to a wildcard.
+                    credentials: explicitlyAllowed,
+                    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+                });
+            })
+                .catch((error) => callback(error, {}));
+        }
     });
     await app.register(rateLimit, {
         max: async () => {
@@ -106,30 +105,37 @@ export const buildApp = async () => {
             return Math.max(1, Math.round(100 * rateLimitMultiplier));
         },
         timeWindow: "1 minute",
-        // Run after body parsing so the OAuth client_id is available when keying.
         hook: "preHandler",
-        keyGenerator: (req) => {
-            const ip = req.ip ?? "unknown";
-            const body = (req.body ?? {});
-            const bodyClientId = typeof body.client_id === "string" && body.client_id.length > 0
-                ? body.client_id
-                : typeof body.clientId === "string" && body.clientId.length > 0
-                    ? body.clientId
-                    : undefined;
-            if (bodyClientId) {
-                // Bucket per OAuth client + IP so one client hitting its limit does
-                // not block other clients sharing the same egress IP (NAT/proxy).
-                return `client:${bodyClientId}|ip:${ip}`;
+        // Key strictly on the caller's IP. Body fields such as client_id and the
+        // session cookie are attacker-controlled and would let a caller mint a
+        // fresh bucket per request. Per-client buckets are applied on top of this
+        // limit by the endpoint-specific limiter in routes.ts.
+        keyGenerator: (req) => `ip:${req.ip ?? "unknown"}`
+    });
+    // SCIM clients send application/scim+json (RFC 7644 §3.1); parse it as JSON.
+    app.addContentTypeParser(["application/scim+json", "application/scim+json; charset=utf-8"], { parseAs: "string" }, (_request, body, done) => {
+        try {
+            done(null, body.length > 0 ? JSON.parse(String(body)) : {});
+        }
+        catch (error) {
+            done(error, undefined);
+        }
+    });
+    // OAuth token requests are application/x-www-form-urlencoded per RFC 6749.
+    // Keep the parser bounded and reject duplicate fields so downstream schema
+    // validation sees one unambiguous value for each credential or grant claim.
+    app.addContentTypeParser("application/x-www-form-urlencoded", { parseAs: "string", bodyLimit: 8 * 1024 }, (_request, body, done) => {
+        try {
+            const params = new URLSearchParams(String(body));
+            const parsed = {};
+            for (const [key, value] of params) {
+                const previous = parsed[key];
+                parsed[key] = previous === undefined ? value : Array.isArray(previous) ? [...previous, value] : [previous, value];
             }
-            const basic = parseBasicAuthClient(req.headers.authorization);
-            if (basic) {
-                return `client:${basic}|ip:${ip}`;
-            }
-            const sid = req.cookies?.sid;
-            if (sid) {
-                return `sid:${sid}|ip:${ip}`;
-            }
-            return `ip:${ip}`;
+            done(null, parsed);
+        }
+        catch (error) {
+            done(error, undefined);
         }
     });
     await app.register(multipart, {
@@ -138,9 +144,19 @@ export const buildApp = async () => {
             fileSize: MAX_IMAGE_UPLOAD_BYTES
         }
     });
+    // The data layer is fully parameterised; this heuristic guard is defence in
+    // depth. Natural-language text ("select the users from the list") trips it,
+    // so operators can switch it to log-only with SQLI_GUARD_MODE=log.
+    const resolveSqlInjectionGuardMode = () => {
+        if (process.env.SQLI_GUARD_ENABLED === "false") {
+            return "off";
+        }
+        const mode = (process.env.SQLI_GUARD_MODE ?? "block").trim().toLowerCase();
+        return mode === "log" || mode === "off" ? mode : "block";
+    };
     app.addHook("preValidation", async (request, reply) => {
-        const guardEnabled = process.env.SQLI_GUARD_ENABLED !== "false";
-        if (!guardEnabled) {
+        const guardMode = resolveSqlInjectionGuardMode();
+        if (guardMode === "off") {
             return;
         }
         const suspicious = hasSqlInjectionPayload({
@@ -175,8 +191,13 @@ export const buildApp = async () => {
             method: request.method,
             url: request.url,
             ip: request.ip,
-            userAgent: request.headers["user-agent"]
+            userAgent: request.headers["user-agent"],
+            mode: guardMode
         });
+        if (guardMode === "log") {
+            request.log.warn({ event: "security.sql_injection_suspected", method: request.method, url: request.url, ip: request.ip }, "Suspicious SQL-like payload recorded (log-only mode)");
+            return;
+        }
         return reply.status(400).send({
             error: "invalid_request",
             message: "Request blocked by SQL injection protection"

@@ -13,6 +13,7 @@ function createRig(enabled: boolean) {
   const originalFlag = process.env.NEXUSID_NEXUSHUB_PROVISIONING_ENABLED;
   const originalBusFlag = process.env.NEXUSID_NEXUSBUS_MANAGEMENT_ENABLED;
   const originalBusBindings = process.env.NEXUSID_NEXUSBUS_MANAGEMENT_BINDINGS_JSON;
+  const originalProducerFlag = process.env.NEXUSID_NEXUSBUS_PRODUCER_ENABLED;
   if (enabled) process.env.NEXUSID_NEXUSHUB_PROVISIONING_ENABLED = "true";
   else delete process.env.NEXUSID_NEXUSHUB_PROVISIONING_ENABLED;
   process.env.NEXUSID_NEXUSBUS_MANAGEMENT_BINDINGS_JSON = JSON.stringify([{ organizationId: "org-1", projectId: "project-2", tenant: "tenant-a", app: "nexusbus", roles: ["nexusbus.installation.read", "nexusbus.installation.apply"] }]);
@@ -37,9 +38,54 @@ function createRig(enabled: boolean) {
   const claimsByToken = new Map<string, Record<string, unknown>>();
   const busEnrollments = new Map<string, any>();
   const oauthClients = new Map<string, any>();
+  const managedCredentials = new Map<string, any>();
   let failAfterClientWrite = false;
   const clientService = {
     findClientById: async (id: string) => oauthClients.get(id),
+    authenticateClientSecret: async (id: string, secret: string) => {
+      const managed = managedCredentials.get(id);
+      return managed ? managed.active === secret || (managed.pending === secret && managed.expiresAt > Date.now()) : oauthClients.get(id)?.secret === secret;
+    },
+    ensureManagedProfileCredential: async (input: any) => {
+      const managed = managedCredentials.get(input.clientId);
+      if (!managed) { managedCredentials.set(input.clientId, { ...input, active: input.secret, generation: 1, operations: new Map() }); return { generation: 1 }; }
+      if (managed.installationId !== input.installationId || managed.profileId !== input.profileId || ![managed.active, ...(managed.pending && managed.expiresAt > Date.now() ? [managed.pending] : [])].includes(input.secret)) throw new Error("managed profile conflict");
+      return { generation: managed.generation };
+    },
+    stageManagedProfileCredential: async (input: any) => {
+      const managed = managedCredentials.get(input.clientId);
+      if (!managed) return { state: "conflict" };
+      if (managed.pending) return managed.operationId === input.operationId && managed.pending === input.secret ? { state: "replayed", generation: managed.generation, pendingExpiresAt: new Date(managed.expiresAt) } : { state: "conflict" };
+      if (managed.activatedOperationId === input.operationId && managed.active === input.secret) return { state: "replayed", generation: managed.generation };
+      if (managed.active === input.secret) return { state: "conflict" };
+      Object.assign(managed, { operationId: input.operationId, pending: input.secret, expiresAt: input.expiresAt.getTime() });
+      managed.operations.set(input.operationId, { state: "pending", generation: managed.generation, expiresAt: input.expiresAt.getTime() });
+      return { state: "staged", generation: managed.generation, pendingExpiresAt: input.expiresAt };
+    },
+    activateManagedProfileCredential: async (input: any) => {
+      const managed = managedCredentials.get(input.clientId);
+      if (managed?.operationId === input.operationId && managed.pending && managed.expiresAt > Date.now()) {
+        managed.active = managed.pending; managed.pending = undefined; managed.expiresAt = undefined; managed.operationId = undefined; managed.activatedOperationId = input.operationId; managed.operations.get(input.operationId).state = "activated"; managed.generation++;
+        return { state: "activated", generation: managed.generation };
+      }
+      return managed?.activatedOperationId === input.operationId ? { state: "replayed", generation: managed.generation } : { state: "conflict" };
+    },
+    abortManagedProfileCredential: async (input: any) => {
+      const managed = managedCredentials.get(input.clientId);
+      if (managed?.operationId !== input.operationId) return false;
+      managed.pending = undefined; managed.expiresAt = undefined; managed.operationId = undefined; return true;
+    },
+    managedProfileCredentialStatus: async (id: string, _now?: Date, operationId?: string) => {
+      const managed = managedCredentials.get(id);
+      if (!managed) return undefined;
+      if (operationId) {
+        const operation = managed.operations.get(operationId);
+        if (!operation) return { generation: managed.generation, operationState: "conflict" };
+        if (operation.state === "pending" && operation.expiresAt <= (_now ?? new Date()).getTime()) operation.state = "expired";
+        return { generation: operation.state === "activated" ? operation.generation + 1 : operation.generation, operationState: operation.state, ...(operation.state === "pending" ? { pendingOperationId: operationId, pendingExpiresAt: new Date(operation.expiresAt) } : {}) };
+      }
+      return { generation: managed.generation, ...(managed.pending && managed.expiresAt > Date.now() ? { pendingOperationId: managed.operationId, pendingExpiresAt: new Date(managed.expiresAt) } : {}), ...(managed.activatedOperationId ? { activatedOperationId: managed.activatedOperationId } : {}) };
+    },
     createClient: async (input: any) => {
       if (oauthClients.has(input.id)) throw new Error("duplicate client id");
       const client = { ...input, createdAt: new Date() };
@@ -57,6 +103,7 @@ function createRig(enabled: boolean) {
     },
     findByServiceIdentity: async (id: string) => busEnrollments.get(id),
     findByCredential: async (credentialId: string) => [...busEnrollments.values()].find((row) => row.credentialId === credentialId),
+    findByProducerCredential: async (credentialId: string) => [...busEnrollments.values()].find((row) => row.producerCredentialId === credentialId),
     revoke: async (id: string) => { const row = busEnrollments.get(id); if (!row || row.status !== "active") return false; row.status = "revoked"; row.revokedAt = new Date(); return true; }
   };
 
@@ -82,13 +129,17 @@ function createRig(enabled: boolean) {
     } } } as any,
     { log: async (event: Record<string, unknown>) => { auditEvents.push(event); } } as any,
     async () => ({ actorId: "admin-1", actorType: "user" }),
-    { issueNexusBusManagementToken: async (params: Record<string, unknown>) => { claimsByToken.set("minted", params); return "minted.jwt"; } } as any,
+    {
+      issueNexusBusManagementToken: async (params: Record<string, unknown>) => { claimsByToken.set("minted", params); return "minted.jwt"; },
+      issueNexusBusProducerToken: async (params: Record<string, unknown>) => { claimsByToken.set("producer", params); return "producer.jwt"; },
+      issueNexusBusManagementEnrollmentProof: async (params: Record<string, unknown>) => { claimsByToken.set("management-proof", params); return "signed.management-proof.jwt"; }
+    } as any,
     busManagementEnrollmentRepository as any,
     clientService as any
   );
 
   return {
-    app, identity, updates, auditEvents, claimsByToken, busEnrollments, oauthClients,
+    app, identity, updates, auditEvents, claimsByToken, busEnrollments, oauthClients, managedCredentials, clientService,
     failNextClientWriteAcknowledgement() { failAfterClientWrite = true; },
     async close() {
       await app.close();
@@ -98,6 +149,8 @@ function createRig(enabled: boolean) {
       else process.env.NEXUSID_NEXUSBUS_MANAGEMENT_ENABLED = originalBusFlag;
       if (originalBusBindings === undefined) delete process.env.NEXUSID_NEXUSBUS_MANAGEMENT_BINDINGS_JSON;
       else process.env.NEXUSID_NEXUSBUS_MANAGEMENT_BINDINGS_JSON = originalBusBindings;
+      if (originalProducerFlag === undefined) delete process.env.NEXUSID_NEXUSBUS_PRODUCER_ENABLED;
+      else process.env.NEXUSID_NEXUSBUS_PRODUCER_ENABLED = originalProducerFlag;
     }
   };
 }
@@ -110,10 +163,29 @@ test("NexusHub enrollment endpoints are hidden while the opt-in feature is off",
   const enroll = await rig.app.inject({ method: "PUT", url: "/api/admin/service-identities/si-hub/nexushub-enrollment", payload: { credentialId: "credential-1", publicOrigin: ORIGIN } });
   const read = await rig.app.inject({ method: "GET", url: "/api/nexushub/v1/enrollment", headers: bearer("valid") });
   const revoke = await rig.app.inject({ method: "DELETE", url: "/api/admin/service-identities/si-hub/nexushub-enrollment" });
+  const proof = await rig.app.inject({ method: "POST", url: "/api/nexusbus/v1/management-enrollment-proof", payload: { client_id: "client", client_secret: "secret", challenge: "A".repeat(43) } });
   assert.equal(enroll.statusCode, 404);
   assert.equal(read.statusCode, 404);
   assert.equal(revoke.statusCode, 404);
+  assert.equal(proof.statusCode, 404);
   assert.equal(rig.updates.length, 0);
+});
+
+test("NexusHub enrollment rejects bootstrap and ungated superuser service identities", async (t) => {
+  const rig = createRig(true);
+  t.after(() => rig.close());
+  for (const flag of ["bootstrap_admin", "ungated_admin"]) {
+    rig.identity.metadata = { ...(rig.identity.metadata ?? {}), [flag]: true };
+    const response = await rig.app.inject({
+      method: "PUT",
+      url: "/api/admin/service-identities/si-hub/nexushub-enrollment",
+      payload: { credentialId: "credential-1", publicOrigin: ORIGIN }
+    });
+    assert.equal(response.statusCode, 409, flag);
+    assert.equal(response.json().error, "privileged_service_identity_cannot_be_enrolled");
+    assert.equal(rig.identity.metadata?.nexushub_enrollment, undefined);
+    assert.equal(rig.updates.length, 0);
+  }
 });
 
 test("NexusBus management enrollment mints only bound role subsets and revocation blocks future minting", async (t) => {
@@ -161,6 +233,79 @@ test("NexusBus management enrollment mints only bound role subsets and revocatio
   assert.equal(denied.statusCode, 401);
 });
 
+test("management enrollment proof is short-lived, challenge-bound, and never asserts Hub owner consent", async (t) => {
+  process.env.NEXUSID_NEXUSBUS_MANAGEMENT_ENABLED = "true";
+  const rig = createRig(true);
+  t.after(() => rig.close());
+  await rig.app.inject({ method: "PUT", url: "/api/admin/service-identities/si-hub/nexushub-enrollment", payload: { credentialId: "credential-1", publicOrigin: ORIGIN } });
+  const enroll = await rig.app.inject({ method: "PUT", url: "/api/admin/service-identities/si-hub/nexusbus-management-enrollment", payload: {
+    organizationId: "org-1", projectId: "project-2", tenant: "tenant-a", app: "nexusbus", roles: ["nexusbus.installation.read", "nexusbus.installation.apply"]
+  } });
+  const binding = enroll.json().data;
+  const challenge = "A".repeat(43);
+  const hubInstanceId = "8c52fe50-0d98-49c6-8dd5-1ee09271d213";
+  const response = await rig.app.inject({ method: "POST", url: "/api/nexusbus/v1/management-enrollment-proof", payload: { client_id: binding.clientId, client_secret: binding.clientSecret, challenge, hub_instance_id: hubInstanceId } });
+  assert.equal(response.statusCode, 200, response.body);
+  assert.deepEqual(response.json(), { assertion: "signed.management-proof.jwt", token_type: "Bearer", expires_in: 60, audience: "nexushub-nexusbus-management-proof" });
+  assert.deepEqual(rig.claimsByToken.get("management-proof"), {
+    subject: "si-hub", challenge, hubInstanceId, hubInstallationId: (rig.identity.metadata?.nexushub_enrollment as any).installationId,
+    enrollment: {
+      enrollmentId: rig.busEnrollments.get("si-hub").enrollmentId, revision: 1, status: "active",
+      credentialId: binding.credentialId, installationId: binding.installationId, organizationId: "org-1",
+      projectId: "project-2", tenant: "tenant-a", app: "nexusbus", roles: binding.roles
+    }
+  });
+  const callerClaimedAnotherProject = await rig.app.inject({ method: "POST", url: "/api/nexusbus/v1/management-enrollment-proof", payload: { client_id: binding.clientId, client_secret: binding.clientSecret, challenge, hub_instance_id: hubInstanceId, projectId: "other-project" } });
+  assert.equal(callerClaimedAnotherProject.statusCode, 400);
+  const revoked = await rig.app.inject({ method: "DELETE", url: "/api/admin/service-identities/si-hub/nexusbus-management-enrollment" });
+  assert.equal(revoked.statusCode, 204);
+  const afterRevoke = await rig.app.inject({ method: "POST", url: "/api/nexusbus/v1/management-enrollment-proof", payload: { client_id: binding.clientId, client_secret: binding.clientSecret, challenge, hub_instance_id: hubInstanceId } });
+  assert.equal(afterRevoke.statusCode, 401);
+});
+
+test("NexusBus publisher credentials are purpose-separated, tenant/app-bound, short-lived, and revoked with the issuer enrollment", async (t) => {
+  process.env.NEXUSID_NEXUSBUS_MANAGEMENT_ENABLED = "true";
+  process.env.NEXUSID_NEXUSBUS_PRODUCER_ENABLED = "true";
+  const rig = createRig(true);
+  t.after(() => rig.close());
+  process.env.NEXUSID_NEXUSBUS_MANAGEMENT_BINDINGS_JSON = JSON.stringify([{ organizationId: "org-1", projectId: "project-2", tenant: "tenant-a", app: "gitflow", roles: ["nexusbus.installation.read"] }]);
+  const enroll = await rig.app.inject({ method: "PUT", url: "/api/admin/service-identities/si-hub/nexusbus-management-enrollment", payload: {
+    organizationId: "org-1", projectId: "project-2", tenant: "tenant-a", app: "gitflow", roles: ["nexusbus.installation.read"]
+  } });
+  assert.equal(enroll.statusCode, 201, enroll.body);
+  const issued = enroll.json().data;
+  assert.equal(issued.audience, "nexusbus-management");
+  assert.equal(issued.producerCredential.audience, "nexusbus");
+  assert.notEqual(issued.producerCredential.credentialId, issued.credentialId);
+  assert.notEqual(issued.producerCredential.clientSecret, issued.clientSecret);
+  const row = rig.busEnrollments.get("si-hub");
+  assert.equal(row.producerCredentialHash.length, 64);
+  assert.equal(JSON.stringify(row).includes(issued.producerCredential.clientSecret), false);
+
+  const token = await rig.app.inject({ method: "POST", url: "/api/nexusbus/v1/producer-token", payload: {
+    grant_type: "nexusbus_producer", client_id: issued.producerCredential.credentialId, client_secret: issued.producerCredential.clientSecret
+  } });
+  assert.equal(token.statusCode, 200, token.body);
+  assert.deepEqual(token.json(), { access_token: "producer.jwt", token_type: "Bearer", expires_in: 60, audience: "nexusbus" });
+  assert.deepEqual(rig.claimsByToken.get("producer"), { subject: "si-hub", installationId: row.installationId, tenant: "tenant-a", app: "gitflow", tokenId: (rig.claimsByToken.get("producer") as any).tokenId, lifetimeSeconds: 60 });
+
+  const managementSecretCannotPublish = await rig.app.inject({ method: "POST", url: "/api/nexusbus/v1/producer-token", payload: {
+    grant_type: "nexusbus_producer", client_id: issued.credentialId, client_secret: issued.clientSecret
+  } });
+  assert.equal(managementSecretCannotPublish.statusCode, 401);
+  const unknownCredential = await rig.app.inject({ method: "POST", url: "/api/nexusbus/v1/producer-token", payload: {
+    grant_type: "nexusbus_producer", client_id: "unknown", client_secret: "x".repeat(43)
+  } });
+  assert.equal(unknownCredential.statusCode, 401);
+
+  const revoked = await rig.app.inject({ method: "DELETE", url: "/api/admin/service-identities/si-hub/nexusbus-management-enrollment" });
+  assert.equal(revoked.statusCode, 204);
+  const afterRevoke = await rig.app.inject({ method: "POST", url: "/api/nexusbus/v1/producer-token", payload: {
+    grant_type: "nexusbus_producer", client_id: issued.producerCredential.credentialId, client_secret: issued.producerCredential.clientSecret
+  } });
+  assert.equal(afterRevoke.statusCode, 401);
+});
+
 test("issuer enrollment binds one active credential and canonical Hub origin; same binding is idempotent", async (t) => {
   const rig = createRig(true);
   t.after(() => rig.close());
@@ -181,6 +326,17 @@ test("issuer enrollment binds one active credential and canonical Hub origin; sa
 
   const changed = await rig.app.inject({ method: "PUT", url: "/api/admin/service-identities/si-hub/nexushub-enrollment", payload: { credentialId: "credential-2", publicOrigin: ORIGIN } });
   assert.equal(changed.statusCode, 409);
+  assert.equal(changed.json().error, "installation_already_enrolled");
+  // The active binding stays attached to credential-1; there is no overlap
+  // window or partial replacement when the issuer rejects credential-2.
+  assert.equal((rig.identity.metadata?.nexushub_enrollment as any).installationId, initial.installationId);
+  assert.equal((rig.identity.metadata?.nexushub_enrollment as any).credentialId, "credential-1");
+  assert.equal((rig.identity.metadata?.nexushub_enrollment as any).credentialClientId, "hub-client-1");
+  assert.equal(rig.updates.length, 1);
+  rig.claimsByToken.set("old-credential", { actor_type: "service_identity", service_identity_id: rig.identity.id, client_id: "hub-client-1", aud: [HUB_AUDIENCE] });
+  const oldCredentialStillReadsEnrollment = await rig.app.inject({ method: "GET", url: "/api/nexushub/v1/enrollment", headers: bearer("old-credential") });
+  assert.equal(oldCredentialStillReadsEnrollment.statusCode, 200, oldCredentialStillReadsEnrollment.body);
+  assert.equal(oldCredentialStillReadsEnrollment.json().data.installationId, initial.installationId);
   const invalidOrigin = await rig.app.inject({ method: "PUT", url: "/api/admin/service-identities/si-hub/nexushub-enrollment", payload: { credentialId: "credential-1", publicOrigin: "https://hub.example.test/other" } });
   assert.equal(invalidOrigin.statusCode, 400);
   const invalidScheme = await rig.app.inject({ method: "PUT", url: "/api/admin/service-identities/si-hub/nexushub-enrollment", payload: { credentialId: "credential-1", publicOrigin: "http://hub.example.test" } });
@@ -257,6 +413,10 @@ test("NexusHub client profile ensure is installation-bound, idempotent, and neve
 
   const changedSecret = await rig.app.inject({ method: "PUT", url, headers: bearer("good"), payload: { ...payload, clientSecret: "different_secret_0123456789ABCDEF" } });
   assert.equal(changedSecret.statusCode, 409);
+  assert.equal(rig.oauthClients.get(clientId).secret, payload.clientSecret);
+  const oldProfileStillAuthenticates = await rig.app.inject({ method: "PUT", url, headers: bearer("good"), payload });
+  assert.equal(oldProfileStillAuthenticates.statusCode, 200, oldProfileStillAuthenticates.body);
+  assert.equal(oldProfileStillAuthenticates.json().data.clientId, clientId);
   const foreignId = await rig.app.inject({ method: "PUT", url, headers: bearer("good"), payload: { ...payload, clientId: "some-other-client" } });
   assert.equal(foreignId.statusCode, 409);
   const wrongOwner = await rig.app.inject({ method: "PUT", url, headers: bearer("wrong-client"), payload });
@@ -268,6 +428,61 @@ test("NexusHub client profile ensure is installation-bound, idempotent, and neve
   assert.equal(afterRevoke.statusCode, 403);
   assert.equal(rig.oauthClients.get(clientId).secret, payload.clientSecret);
   assert.equal(typeof installationId, "string");
+});
+
+test("managed NexusHub profile rotation stages an overlap, reports status only, and activates idempotently", async (t) => {
+  const rig = createRig(true);
+  t.after(() => rig.close());
+  await rig.app.inject({ method: "PUT", url: "/api/admin/service-identities/si-hub/nexushub-enrollment", payload: { credentialId: "credential-1", publicOrigin: ORIGIN } });
+  rig.claimsByToken.set("good", { actor_type: "service_identity", service_identity_id: rig.identity.id, client_id: "hub-client-1", aud: [HUB_AUDIENCE] });
+  const setupSecret = "Hub_generated_secret_0123456789ABCDEF";
+  const setup = await rig.app.inject({ method: "PUT", url: "/api/nexushub/v1/client-profile", headers: bearer("good"), payload: { profileId: "nexushub", profileVersion: 1, clientSecret: setupSecret } });
+  assert.equal(setup.statusCode, 201, setup.body);
+  const clientId = setup.json().data.clientId;
+  const operationId = "rotation-op-0000001";
+  const nextSecret = "Hub_next_secret_0123456789ABCDEF";
+  const stagePayload = { profileId: "nexushub", profileVersion: 1, operationId, clientSecret: nextSecret };
+  const stage = await rig.app.inject({ method: "PUT", url: "/api/nexushub/v1/client-profile/credential-rotation", headers: bearer("good"), payload: stagePayload });
+  assert.equal(stage.statusCode, 201, stage.body);
+  assert.equal(stage.body.includes(nextSecret), false);
+  assert.equal(await (rig.clientService as any).authenticateClientSecret(clientId, setupSecret), true);
+  assert.equal(await (rig.clientService as any).authenticateClientSecret(clientId, nextSecret), true);
+  const retry = await rig.app.inject({ method: "PUT", url: "/api/nexushub/v1/client-profile/credential-rotation", headers: bearer("good"), payload: stagePayload });
+  assert.equal(retry.statusCode, 200, retry.body);
+  assert.equal(retry.body.includes(nextSecret), false);
+  const status = await rig.app.inject({ method: "GET", url: "/api/nexushub/v1/client-profile/nexushub/credential-rotation", headers: bearer("good") });
+  assert.equal(status.statusCode, 200, status.body);
+  assert.equal(status.json().data.pendingOperationId, operationId);
+  assert.equal(status.body.includes(nextSecret), false);
+  const operationStatus = await rig.app.inject({ method: "GET", url: `/api/nexushub/v1/client-profile/nexushub/credential-rotation?operationId=${operationId}`, headers: bearer("good") });
+  assert.equal(operationStatus.json().data.operationState, "pending");
+
+  const activatePayload = { profileId: "nexushub", profileVersion: 1, operationId };
+  const activated = await rig.app.inject({ method: "POST", url: "/api/nexushub/v1/client-profile/credential-rotation/activate", headers: bearer("good"), payload: activatePayload });
+  assert.equal(activated.statusCode, 200, activated.body);
+  const activationRetry = await rig.app.inject({ method: "POST", url: "/api/nexushub/v1/client-profile/credential-rotation/activate", headers: bearer("good"), payload: activatePayload });
+  assert.equal(activationRetry.statusCode, 200, activationRetry.body);
+  assert.equal(await (rig.clientService as any).authenticateClientSecret(clientId, setupSecret), false);
+  assert.equal(await (rig.clientService as any).authenticateClientSecret(clientId, nextSecret), true);
+  const activatedStatus = await rig.app.inject({ method: "GET", url: `/api/nexushub/v1/client-profile/nexushub/credential-rotation?operationId=${operationId}`, headers: bearer("good") });
+  assert.equal(activatedStatus.json().data.operationState, "activated");
+  const lostStageResponseReplay = await rig.app.inject({ method: "PUT", url: "/api/nexushub/v1/client-profile/credential-rotation", headers: bearer("good"), payload: stagePayload });
+  assert.equal(lostStageResponseReplay.statusCode, 200, lostStageResponseReplay.body);
+  assert.equal(lostStageResponseReplay.json().data.state, "active", "stage retry after a lost activation response reports the completed state");
+  assert.equal(lostStageResponseReplay.json().data.operationState, "activated");
+  assert.equal(lostStageResponseReplay.body.includes(nextSecret), false);
+
+  const laterOperationId = "rotation-op-0000002";
+  const laterSecret = "Hub_later_secret_0123456789ABCDEF";
+  const laterStage = await rig.app.inject({ method: "PUT", url: "/api/nexushub/v1/client-profile/credential-rotation", headers: bearer("good"), payload: { profileId: "nexushub", profileVersion: 1, operationId: laterOperationId, clientSecret: laterSecret } });
+  assert.equal(laterStage.statusCode, 201, laterStage.body);
+  const laterActivation = await rig.app.inject({ method: "POST", url: "/api/nexushub/v1/client-profile/credential-rotation/activate", headers: bearer("good"), payload: { profileId: "nexushub", profileVersion: 1, operationId: laterOperationId } });
+  assert.equal(laterActivation.statusCode, 200, laterActivation.body);
+  const priorOperationReadback = await rig.app.inject({ method: "GET", url: `/api/nexushub/v1/client-profile/nexushub/credential-rotation?operationId=${operationId}`, headers: bearer("good") });
+  assert.equal(priorOperationReadback.statusCode, 200, priorOperationReadback.body);
+  assert.equal(priorOperationReadback.json().data.operationState, "activated", "operation history remains queryable after a newer rotation completes");
+  assert.equal(priorOperationReadback.json().data.generation, activatedStatus.json().data.generation);
+  assert.equal(priorOperationReadback.body.includes(laterSecret), false);
 });
 
 test("LiberIDE client ensure/adopt is bound to issuer-enrolled origin and fixed profile", async (t) => {
@@ -333,6 +548,9 @@ test("deployment admin can explicitly bind an exact existing client for adopt-ex
   assert.equal(enroll.statusCode, 201, enroll.body);
   assert.equal(enroll.json().data.adoptedClientId, "legacy-hub-client");
   rig.claimsByToken.set("good", { actor_type: "service_identity", service_identity_id: rig.identity.id, client_id: "hub-client-1", aud: [HUB_AUDIENCE] });
+  const wrongSecret = await rig.app.inject({ method: "PUT", url: "/api/nexushub/v1/client-profile", headers: bearer("good"), payload: { profileId: "nexushub", profileVersion: 1, mode: "adopt-existing", clientSecret: "Wrong_Hub_secret_0123456789ABCDEF" } });
+  assert.equal(wrongSecret.statusCode, 409);
+  assert.equal(rig.managedCredentials.has("legacy-hub-client"), false, "a managed marker is not seeded from an unproven replacement secret");
   const adopted = await rig.app.inject({ method: "PUT", url: "/api/nexushub/v1/client-profile", headers: bearer("good"), payload: { profileId: "nexushub", profileVersion: 1, mode: "adopt-existing", clientSecret: "Hub_generated_secret_0123456789ABCDEF" } });
   assert.equal(adopted.statusCode, 200, adopted.body);
   assert.equal(adopted.json().data.clientId, "legacy-hub-client");

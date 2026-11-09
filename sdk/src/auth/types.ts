@@ -146,6 +146,15 @@ export interface TokenExchangeInput {
   clientSecret?: string;
   requestedTokenType?: string;
   scope?: OAuthScope;
+  /** NexusID's opt-in NexusHub delegation profile. Omit for ordinary RFC 8693 exchange. */
+  nexusHubProfile?: "nexushub:1";
+  /** The issuer-assigned installation ID bound to the authenticated Hub OAuth client. */
+  nexusHubInstallationId?: string;
+  /** Signed application actor context, required when the exchange represents an app action. */
+  nexusHubActorAppId?: string;
+  nexusHubActorRegistrationId?: string;
+  nexusHubActorOrganizationId?: string;
+  nexusHubActorProjectId?: string;
 }
 
 export interface LoginInput {

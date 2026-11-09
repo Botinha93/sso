@@ -18,6 +18,7 @@ export const NEXUSHUB_CLIENT_SCOPES = [
   "nexushub.organizations:write",
   "nexushub.projects:read",
   "nexushub.projects:write",
+  "nexushub.project-membership:check",
   "nexushub.applications:read",
   "nexushub.applications:write"
 ] as const;

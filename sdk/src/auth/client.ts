@@ -121,7 +121,13 @@ const tokenExchangeBody = (input: TokenExchangeInput) => ({
   audience: serializeAudience(input.audience),
   scope: serializeScope(input.scope),
   client_id: input.clientId,
-  client_secret: input.clientSecret
+  client_secret: input.clientSecret,
+  nexushub_profile: input.nexusHubProfile,
+  nexushub_installation_id: input.nexusHubInstallationId,
+  nexushub_actor_app_id: input.nexusHubActorAppId,
+  nexushub_actor_registration_id: input.nexusHubActorRegistrationId,
+  nexushub_actor_organization_id: input.nexusHubActorOrganizationId,
+  nexushub_actor_project_id: input.nexusHubActorProjectId
 });
 
 const loginBody = (input: LoginInput) => ({

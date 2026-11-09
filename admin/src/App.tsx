@@ -1,7 +1,7 @@
 import { ReactElement, Suspense, lazy, useEffect, useState } from 'react'
 import { Alert, Anchor, AppShell, Box, Center, Group, Loader, Stack, Text } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
-import { AppHeaderBar, ColorSchemeToggle, hasPermission as nexusHasPermission } from '@nexus/design'
+import { AppHeaderBar, ColorSchemeToggle, hasPermission as nexusHasPermission } from '@botinha93/nexus-design'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import { ShieldAlert } from 'lucide-react'
@@ -16,6 +16,7 @@ const Clients = lazy(() => import('./pages/Clients'))
 const Users = lazy(() => import('./pages/Users'))
 const Groups = lazy(() => import('./pages/Groups'))
 const Roles = lazy(() => import('./pages/Roles'))
+const EffectivePermissions = lazy(() => import('./pages/EffectivePermissions'))
 const Sessions = lazy(() => import('./pages/Sessions'))
 const AuditLog = lazy(() => import('./pages/AuditLog'))
 const Consents = lazy(() => import('./pages/Consents'))
@@ -216,6 +217,7 @@ function AppContent() {
                           <Route path="/users" element={require('users:view', <Users />)} />
                           <Route path="/groups" element={require('groups:view', <Groups />)} />
                           <Route path="/roles" element={require('roles:view', <Roles />)} />
+                          <Route path="/effective-permissions" element={require('roles:view', <EffectivePermissions />)} />
                           <Route path="/sessions" element={require('sessions:view', <Sessions />)} />
                           <Route path="/devices" element={require('sessions:view', <Devices />)} />
                           <Route path="/audit" element={require('audit_log:view', <AuditLog />)} />

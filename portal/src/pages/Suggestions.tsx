@@ -1,5 +1,5 @@
 import { Alert, Badge, Box, Button, Group, Image, Loader, NativeSelect, Paper, SegmentedControl, Stack, Text, Textarea, TextInput } from '@mantine/core'
-import { CardSkeleton, PageHeader, SectionCard, SectionHeader } from '@nexus/design'
+import { CardSkeleton, PageHeader, SectionCard, SectionHeader } from '@botinha93/nexus-design'
 import { ImagePlus, Lightbulb } from 'lucide-react'
 import { useRef, useState, type FormEvent } from 'react'
 import type { PortalUser } from '../hooks'

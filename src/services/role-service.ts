@@ -113,6 +113,56 @@ export class RoleService {
     return this.assignmentRepository.listByUser(userId);
   }
 
+  async resolveRolePermissionDetailsForGroup(groupId: string) {
+    const roleIds = (await this.groupRoleAssignmentRepository.listByGroup(groupId)).map((assignment) => assignment.roleId);
+    return this.resolveRolePermissionDetailsForAssignments(roleIds, []);
+  }
+
+  async resolvePermissionsForGroup(groupId: string) {
+    const roleIds = (await this.groupRoleAssignmentRepository.listByGroup(groupId)).map((assignment) => assignment.roleId);
+    return this.resolvePermissionsForAssignments(roleIds, []);
+  }
+
+  /** Per-role breakdown of why each role is effective for the user: assigned directly, or inherited via one or more groups. */
+  async resolveRoleBreakdownForUser(userId: string, tenantId?: string) {
+    const assignments = await this.assignmentRepository.listByUser(userId);
+    const directRoleIds = assignments
+      .filter((assignment) => !assignment.tenantId || assignment.tenantId === tenantId)
+      .map((assignment) => assignment.roleId);
+
+    const groupIds = (await this.userGroupAssignmentRepository.listByUser(userId)).map((assignment) => assignment.groupId);
+    const groupRoleAssignments = await this.groupRoleAssignmentRepository.listByGroups(groupIds);
+
+    const groupIdsByRoleId = new Map<string, Set<string>>();
+    for (const assignment of groupRoleAssignments) {
+      const set = groupIdsByRoleId.get(assignment.roleId) ?? new Set<string>();
+      set.add(assignment.groupId);
+      groupIdsByRoleId.set(assignment.roleId, set);
+    }
+
+    const directRoleIdSet = new Set(directRoleIds);
+    const effectiveRoleIds = Array.from(new Set([...directRoleIds, ...groupIdsByRoleId.keys()]));
+    const roles = await this.roleRepository.findByIds(effectiveRoleIds);
+
+    const roleBreakdown = roles.map((role) => ({
+      ...canonicalizeRolePermissionDetails({
+        id: role.id,
+        name: role.name,
+        scope: role.scope,
+        appId: role.appId,
+        permissions: role.permissions
+      }),
+      direct: directRoleIdSet.has(role.id),
+      viaGroupIds: Array.from(groupIdsByRoleId.get(role.id) ?? [])
+    }));
+
+    return {
+      roles: roleBreakdown,
+      groupIds,
+      permissions: flattenRolePermissions(roles)
+    };
+  }
+
   async deleteRole(id: string) {
     await this.roleRepository.delete(id);
   }

@@ -1,7 +1,7 @@
 import { Building2, Pencil, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { ActionIcon, Box, Button, Checkbox, Group, Stack, Table, Text, TextInput, ThemeIcon } from '@mantine/core'
-import { PageHeader, RefreshButton, SearchInput, SectionCard, TableSkeleton } from '@nexus/design'
+import { PageHeader, RefreshButton, SearchInput, SectionCard, TableSkeleton } from '@botinha93/nexus-design'
 import EmptyState from '../components/EmptyState'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import Modal from '../components/Modal'

@@ -18,7 +18,7 @@ import {
   TextInput,
   Title,
 } from '@mantine/core'
-import { PageHeader, SearchInput, SectionCard } from '@nexus/design'
+import { PageHeader, SearchInput, SectionCard } from '@botinha93/nexus-design'
 import { BookText, Code2, Server } from 'lucide-react'
 import { parse } from 'yaml'
 import CodeBlock from '../components/CodeBlock'

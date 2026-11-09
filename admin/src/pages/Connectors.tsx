@@ -2,7 +2,7 @@ import { ActionIcon, Alert, Badge, Button, Group, Select, Stack, Table, Text, Te
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Trash2, Play, Settings2, GitMerge, Activity } from 'lucide-react'
-import { PageHeader, RefreshButton, SectionCard, StatusBadge, TableSkeleton } from '@nexus/design'
+import { PageHeader, RefreshButton, SectionCard, StatusBadge, TableSkeleton } from '@botinha93/nexus-design'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EmptyState from '../components/EmptyState'

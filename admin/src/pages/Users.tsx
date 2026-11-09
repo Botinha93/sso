@@ -24,7 +24,7 @@ import {
   Textarea,
   Tooltip,
 } from '@mantine/core'
-import { PageHeader, RefreshButton, SearchInput, SectionCard, TableSkeleton } from '@nexus/design'
+import { PageHeader, RefreshButton, SearchInput, SectionCard, TableSkeleton } from '@botinha93/nexus-design'
 import EmptyState from '../components/EmptyState'
 import ImageField from '../components/ImageField'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'

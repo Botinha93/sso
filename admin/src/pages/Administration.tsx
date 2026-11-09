@@ -28,7 +28,7 @@ import {
   SettingRow,
   SettingsList,
   StatusBadge
-} from '@nexus/design'
+} from '@botinha93/nexus-design'
 import {
   AlertTriangle,
   ArrowRight,

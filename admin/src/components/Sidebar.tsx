@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 import { Box, Group, Image, Text } from '@mantine/core'
-import { SidebarNav, UserMenu, hasPermission, type SidebarNavGroup } from '@nexus/design'
+import { SidebarNav, UserMenu, hasPermission, type SidebarNavGroup } from '@botinha93/nexus-design'
 import {
   LayoutDashboard,
   AppWindow,
@@ -29,7 +29,8 @@ import {
   Bot,
   GitMerge,
   Puzzle,
-  Sparkles
+  Sparkles,
+  ListChecks
 } from 'lucide-react'
 import { logout } from '../hooks/useApi'
 
@@ -62,6 +63,7 @@ const navGroups: SidebarNavGroup[] = [
       { href: '/service-identities', label: 'Service Identities', icon: icon(Bot), permission: 'service_identities:view' },
       { href: '/groups', label: 'Groups', icon: icon(UsersRound), permission: 'groups:view' },
       { href: '/roles', label: 'Roles', icon: icon(Shield), permission: 'roles:view' },
+      { href: '/effective-permissions', label: 'Effective Permissions', icon: icon(ListChecks), permission: 'roles:view' },
       { href: '/clients', label: 'Clients', icon: icon(AppWindow), permission: 'clients:view' },
       { href: '/apps', label: 'Apps', icon: icon(Boxes), permission: 'apps:view' },
       { href: '/consents', label: 'Consents', icon: icon(CheckSquare), permission: 'consents:view' },

@@ -140,6 +140,7 @@ export class SqliteDatabase {
         image_url TEXT,
         url TEXT,
         resources_json TEXT NOT NULL DEFAULT '[]',
+        resource_metadata_json TEXT NOT NULL DEFAULT '{}',
         created_at TEXT NOT NULL
       );
 
@@ -240,6 +241,7 @@ export class SqliteDatabase {
         user_id TEXT NOT NULL,
         redirect_uri TEXT NOT NULL,
         scope_json TEXT NOT NULL,
+        nonce TEXT,
         code_challenge TEXT,
         code_challenge_method TEXT,
         expires_at TEXT NOT NULL,
@@ -775,6 +777,21 @@ export class SqliteDatabase {
         created_at TEXT NOT NULL,
         PRIMARY KEY (bucket, event)
       );
+
+      CREATE TABLE IF NOT EXISTS suggestions (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        app_id TEXT,
+        proposed_name TEXT,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        image_urls_json TEXT NOT NULL DEFAULT '[]',
+        author_user_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        internal_notes TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
     `);
         this.migrateLegacyServiceIdentitiesToUsers();
         this.ensureServiceIdentityCredentialForeignKey();
@@ -819,6 +836,9 @@ export class SqliteDatabase {
         const hasResourcesColumn = clientColumns.some((column) => column.name === "resources_json");
         if (!hasResourcesColumn) {
             this.connection.exec("ALTER TABLE oauth_clients ADD COLUMN resources_json TEXT NOT NULL DEFAULT '[]';");
+        }
+        if (!clientColumns.some((column) => column.name === "resource_metadata_json")) {
+            this.connection.exec("ALTER TABLE oauth_clients ADD COLUMN resource_metadata_json TEXT NOT NULL DEFAULT '{}';");
         }
         const hasFlowIdsColumn = clientColumns.some((column) => column.name === "flow_ids_json");
         if (!hasFlowIdsColumn) {
@@ -1054,6 +1074,10 @@ export class SqliteDatabase {
         const hasElevationSessionCorrelationId = elevationSessionColumns.some((column) => column.name === "correlation_id");
         if (!hasElevationSessionCorrelationId) {
             this.connection.exec("ALTER TABLE elevation_sessions ADD COLUMN correlation_id TEXT NOT NULL DEFAULT '';\nUPDATE elevation_sessions SET correlation_id = elevation_request_id WHERE correlation_id = '';\n");
+        }
+        const authorizationCodeColumns = this.connection.prepare("PRAGMA table_info(authorization_codes)").all();
+        if (!authorizationCodeColumns.some((column) => column.name === "nonce")) {
+            this.connection.exec("ALTER TABLE authorization_codes ADD COLUMN nonce TEXT;");
         }
     }
     close() {

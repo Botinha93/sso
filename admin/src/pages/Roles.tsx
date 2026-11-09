@@ -1,7 +1,7 @@
 import { ChevronRight, Plus, Shield, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { ActionIcon, Badge, Box, Button, Group, NativeSelect, SimpleGrid, Stack, Table, Text, TextInput, ThemeIcon } from '@mantine/core'
-import { CheckboxMatrix, PageHeader, RefreshButton, SearchInput, SectionCard, TableSkeleton } from '@nexus/design'
+import { CheckboxMatrix, PageHeader, RefreshButton, SearchInput, SectionCard, TableSkeleton } from '@botinha93/nexus-design'
 import EmptyState from '../components/EmptyState'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import ConfirmDialog from '../components/ConfirmDialog'

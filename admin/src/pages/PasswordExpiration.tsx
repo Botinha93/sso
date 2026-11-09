@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Alert, Button, Group, Image, PasswordInput, Stack, Text } from "@mantine/core";
-import { AuthCard, AuthLayout, ColorSchemeToggle } from "@nexus/design";
+import { AuthCard, AuthLayout, ColorSchemeToggle } from "@botinha93/nexus-design";
 import { AlertCircle, ArrowLeft, KeyRound, ShieldCheck } from "lucide-react";
 import LanguageSelector from "../components/LanguageSelector";
 import { useAdminChangePassword } from "../hooks/useApi";

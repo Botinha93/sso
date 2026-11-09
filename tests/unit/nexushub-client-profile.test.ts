@@ -17,7 +17,8 @@ test("derives the reviewed OAuth profile from only the issuer-pinned origin", ()
   assert.deepEqual(profile.grants, ["authorization_code", "refresh_token", "token_exchange"]);
   assert.equal(profile.requirePkce, true);
   assert.equal(profile.tokenEndpointAuthMethod, "client_secret_post");
-  assert.equal(profile.allowedScopes.length, 12);
+  assert.equal(profile.allowedScopes.length, 13);
+  assert.ok(profile.allowedScopes.includes("nexushub.project-membership:check"));
 });
 
 test("matches the checked-in NexusHub OIDC profile scope and grant contract", () => {

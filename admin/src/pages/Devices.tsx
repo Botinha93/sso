@@ -1,7 +1,7 @@
 import { Clock, Layers, MonitorSmartphone, ShieldOff, Smartphone } from 'lucide-react'
 import { useState } from 'react'
 import { ActionIcon, Badge, Box, Group, SimpleGrid, Stack, Table, Text, Tooltip } from '@mantine/core'
-import { PageHeader, RefreshButton, SectionCard, StatCard, StatusBadge, TableSkeleton } from '@nexus/design'
+import { PageHeader, RefreshButton, SectionCard, StatCard, StatusBadge, TableSkeleton } from '@botinha93/nexus-design'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EmptyState from '../components/EmptyState'
 

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Group, NativeSelect, Stack, Table, Text } from '@mantine/core'
 import { Clock3, ShieldAlert } from 'lucide-react'
-import { ExpiryBadge, PageHeader, SectionCard, StatGroup, StatusBadge, TableSkeleton } from '@nexus/design'
+import { ExpiryBadge, PageHeader, SectionCard, StatGroup, StatusBadge, TableSkeleton } from '@botinha93/nexus-design'
 import EmptyState from '../components/EmptyState'
 import { type ElevationSessionDto, useElevationSessions } from '../hooks/useApi'
 import React from 'react';

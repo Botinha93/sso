@@ -1,6 +1,6 @@
 import { Button, Card, Code, Group, Paper, SimpleGrid, Stack, Text, ThemeIcon, Title } from '@mantine/core'
 import { ArrowUpRight, KeyRound, LogIn, MonitorSmartphone, ShieldCheck } from 'lucide-react'
-import { PageHeader, SectionCard } from '@nexus/design'
+import { PageHeader, SectionCard } from '@botinha93/nexus-design'
 
 const cards = [
   {

@@ -325,7 +325,7 @@ test("SSO authorize shows password expiration before redirecting to the app", as
   const login = await loginAs(app, "sso-expiring@example.com", "Change-Me-Now1!");
   assert.equal(login.statusCode, 200, login.body);
   const sid = extractCookie(login.headers["set-cookie"], "sid");
-  const codeVerifier = "code-verifier-for-password-expiration-sso";
+  const codeVerifier = "code-verifier-for-password-expiration-sso-0123456789";
   const codeChallenge = createHash("sha256").update(codeVerifier).digest("base64url");
   const authorizeUrl = `/oauth/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent("http://localhost:3000/callback")}&scope=${encodeURIComponent("openid profile email")}&state=sso-warn&code_challenge=${encodeURIComponent(codeChallenge)}&code_challenge_method=S256`;
   await approveConsent(app, sid, authorizeUrl);

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Alert, Box, Button, Group, NativeSelect, Paper, SimpleGrid, Stack, Text, TextInput, Textarea, Title } from '@mantine/core'
 import { ShieldAlert, Plus, CheckCircle, PlayCircle, XCircle, Clock, Zap } from 'lucide-react'
-import { ExpiryBadge, SectionCard, StatusBadge } from '@nexus/design'
+import { ExpiryBadge, SectionCard, StatusBadge } from '@botinha93/nexus-design'
 import {
   useElevationRequests,
   useCreateElevationRequest,

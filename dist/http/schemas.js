@@ -1,12 +1,14 @@
 import { z } from "zod";
 import { nullableIconSchema, nullableImageUrlSchema, optionalImageUrlSchema } from "./media-schemas.js";
 const appUrlSchema = z.string().refine((value) => {
-    if (value.startsWith("/")) {
+    // Relative launcher paths are allowed; absolute URLs must be http(s) so an
+    // administrator cannot plant javascript:/data: links for every portal user.
+    if (value.startsWith("/") && !value.startsWith("//") && !value.startsWith("/\\")) {
         return true;
     }
     try {
-        new URL(value);
-        return true;
+        const parsed = new URL(value);
+        return parsed.protocol === "https:" || parsed.protocol === "http:";
     }
     catch {
         return false;
@@ -167,8 +169,8 @@ export const authorizeSchema = z.object({
     client_id: z.string().min(2),
     redirect_uri: z.string().url(),
     scope: z.string().min(1),
-    state: z.string().optional(),
-    nonce: z.string().optional(),
+    state: z.string().max(2048).optional(),
+    nonce: z.string().max(1024).optional(),
     acr_values: z.string().optional(),
     ui_locales: z.string().optional(),
     id_token_hint: z.string().optional(),
@@ -179,8 +181,12 @@ export const authorizeSchema = z.object({
     tenant: z.string().min(2).optional(),
     code_challenge: z.string().optional(),
     code_challenge_method: z.enum(["S256", "plain"]).optional(),
-    consent: z.enum(["approve"]).optional(),
-    response_mode: z.enum(["query", "fragment", "form_post"]).optional()
+    consent: z.enum(["approve", "deny"]).optional(),
+    password_warning: z.enum(["continue"]).optional(),
+    response_mode: z.enum(["query", "fragment", "form_post"]).optional(),
+    nexushub_profile: z.literal("nexushub:1").optional(),
+    nexushub_installation_id: z.string().trim().min(1).max(200).optional(),
+    resource_audience: z.string().trim().min(1).max(512).optional()
 });
 export const authorizationCodeTokenSchema = z.object({
     grant_type: z.literal("authorization_code"),
@@ -200,7 +206,8 @@ export const clientCredentialsSchema = z.object({
     grant_type: z.literal("client_credentials"),
     client_id: z.string().min(2),
     client_secret: z.string().min(8),
-    scope: z.string().optional()
+    scope: z.string().optional(),
+    audience: z.string().trim().min(1).max(2048).optional()
 });
 export const passwordGrantSchema = z.object({
     grant_type: z.literal("password"),
@@ -317,7 +324,11 @@ export const revokeTokenSchema = z.object({
 });
 export const oidcRevokeSchema = z.object({
     token: z.string().min(2),
-    token_type_hint: z.enum(["access_token", "refresh_token"]).optional()
+    token_type_hint: z.enum(["access_token", "refresh_token"]).optional(),
+    // RFC 7009 §2.1: the client must authenticate. Kept optional in the schema so
+    // the endpoint can answer with invalid_client instead of a validation error.
+    client_id: z.string().min(2).optional(),
+    client_secret: z.string().min(8).optional()
 });
 const accessTokenTtlSchema = z.number().int().min(60).max(86_400);
 const refreshTokenTtlSchema = z.number().int().min(300).max(31_536_000);
@@ -331,10 +342,14 @@ export const createClientSchema = z.object({
     grants: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"])).min(1),
     requirePkce: z.boolean().default(false),
     resources: z.array(z.string().min(1)).default([]),
+    resourceMetadata: z.record(z.object({ label: z.string().trim().min(1).max(120), description: z.string().trim().min(1).max(500) })).default({}),
     flowIds: z.array(z.string().min(1)).default([]),
     accessTokenTtlSeconds: accessTokenTtlSchema.optional(),
     refreshTokenTtlSeconds: refreshTokenTtlSchema.optional()
 }).superRefine((input, ctx) => {
+    for (const resource of Object.keys(input.resourceMetadata))
+        if (!input.resources.includes(resource))
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["resourceMetadata", resource], message: "Metadata may only describe a configured resource audience" });
     if (input.grants.includes("authorization_code") && input.redirectUris.length === 0) {
         ctx.addIssue({
             code: z.ZodIssueCode.custom,
@@ -352,6 +367,7 @@ export const updateClientSchema = z.object({
     grants: z.array(z.enum(["authorization_code", "client_credentials", "refresh_token", "password", "device_code", "token_exchange", "jwt_bearer", "saml2_bearer", "ciba"])).optional(),
     requirePkce: z.boolean().optional(),
     resources: z.array(z.string().min(1)).optional(),
+    resourceMetadata: z.record(z.object({ label: z.string().trim().min(1).max(120), description: z.string().trim().min(1).max(500) })).optional(),
     flowIds: z.array(z.string().min(1)).optional(),
     accessTokenTtlSeconds: accessTokenTtlSchema.nullable().optional(),
     refreshTokenTtlSeconds: refreshTokenTtlSchema.nullable().optional()
@@ -590,7 +606,8 @@ const uiSurfaceSchema = z.enum(["admin_login", "consent", "portal_login", "porta
 const uiSurfaceCustomizationSchema = z.object({
     title: z.string().min(1).max(120).optional(),
     subtitle: z.string().min(1).max(300).optional(),
-    logoUrl: z.string().url().optional(),
+    // Absolute http(s) URLs or same-origin paths such as uploaded `/media/...` logos.
+    logoUrl: z.string().max(2048).refine((value) => /^https?:\/\//i.test(value) || /^\/(?![\/\\])/.test(value), "Logo must be an http(s) URL or a path starting with /").optional(),
     primaryColor: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/).optional(),
     accentColor: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/).optional(),
     backgroundCss: z.string().min(1).max(500).optional()
@@ -599,6 +616,12 @@ const uiCustomizationSettingsSchema = z.object({
     defaultBySurface: z.record(uiSurfaceSchema, uiSurfaceCustomizationSchema).default({}),
     byClientId: z.record(z.string().min(1), z.record(uiSurfaceSchema, uiSurfaceCustomizationSchema)).default({}),
     byAppId: z.record(z.string().min(1), z.record(uiSurfaceSchema, uiSurfaceCustomizationSchema)).default({})
+});
+export const retentionSettingsSchema = z.object({
+    enabled: z.boolean().optional(),
+    // Unknown keys are dropped and out-of-range days are rejected by
+    // InstanceSettingsService, which owns the per-policy floors.
+    policies: z.record(z.string(), z.number().int().min(0).max(3650)).optional()
 });
 export const updateInstanceSettingsSchema = z.object({
     databaseProvider: z.enum(["sqlite", "postgresql", "mysql"]).optional(),
@@ -623,7 +646,8 @@ export const updateInstanceSettingsSchema = z.object({
     smtpSecure: z.boolean().optional(),
     smtpUser: z.string().optional(),
     smtpPass: z.string().optional(),
-    uiCustomizations: uiCustomizationSettingsSchema.optional()
+    uiCustomizations: uiCustomizationSettingsSchema.optional(),
+    retention: retentionSettingsSchema.optional()
 });
 export const sendTestEmailSchema = z.object({
     to: z.string().email(),
@@ -731,7 +755,10 @@ export const tokenExchangeSchema = z.object({
     audience: z.string().optional(),
     scope: z.string().optional(),
     client_id: z.string().optional(),
-    client_secret: z.string().optional()
+    client_secret: z.string().optional(),
+    /** Opt-in NexusHub delegation profile; generic RFC 8693 remains unchanged. */
+    nexushub_profile: z.literal("nexushub:1").optional(),
+    nexushub_installation_id: z.string().trim().min(1).max(200).optional()
 });
 // ---------------------------------------------------------------------------
 // EPIC 8 – Connector Framework
@@ -775,4 +802,24 @@ export const uploadPluginSchema = z.object({
     manifest: pluginManifestSchema,
     bundleBase64: z.string().min(8),
     activate: z.boolean().default(false)
+});
+export const createPortalSuggestionSchema = z.object({
+    kind: z.enum(["existing_app", "new_system"]),
+    appId: z.string().min(1).optional(),
+    proposedName: z.string().max(200).optional(),
+    title: z.string().min(1).max(200),
+    body: z.string().min(1).max(20000),
+    imageUrls: z.array(z.string().min(1)).max(12).default([])
+}).superRefine((input, ctx) => {
+    if (input.kind === "existing_app" && !input.appId) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["appId"],
+            message: "App is required for existing-app suggestions"
+        });
+    }
+});
+export const updateAdminSuggestionSchema = z.object({
+    status: z.enum(["open", "in_review", "planned", "completed", "declined"]).optional(),
+    internalNotes: z.string().max(10000).nullable().optional()
 });

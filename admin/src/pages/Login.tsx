@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Alert, Box, Button, Divider, Group, Image, PasswordInput, Skeleton, Stack, Text, TextInput, UnstyledButton } from "@mantine/core";
-import { AuthCard, AuthLayout, ColorSchemeToggle, OtpStep, ProviderButtons } from "@nexus/design";
+import { AuthCard, AuthLayout, ColorSchemeToggle, OtpStep, ProviderButtons } from "@botinha93/nexus-design";
 import { AlertCircle, ArrowLeft, KeyRound, Lock, ShieldCheck, User, UserRound } from "lucide-react";
 import LanguageSelector from "../components/LanguageSelector";
 import { useI18n } from "../i18n";
