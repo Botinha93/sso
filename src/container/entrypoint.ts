@@ -99,10 +99,23 @@ const maybeAutoSetup = async () => {
 };
 
 export const runContainerEntrypoint = async () => {
-  await ensureExternalDatabaseSchema(loadConfig());
-  await maybeImportSqliteData();
-  await maybeAutoSetup();
-  await startServer();
+  try {
+    await ensureExternalDatabaseSchema(loadConfig());
+    await maybeImportSqliteData();
+    await maybeAutoSetup();
+    await startServer();
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException)?.code;
+    if (code === "SELF_SIGNED_CERT_IN_CHAIN" || code === "UNABLE_TO_VERIFY_LEAF_SIGNATURE" || code === "DEPTH_ZERO_SELF_SIGNED_CERT") {
+      log(
+        `Startup failed: the external database's TLS certificate is not trusted (${code}). ` +
+        "Mount its CA certificate and set DATABASE_CA_CERT_PATH to its path so the container trusts it."
+      );
+    } else {
+      log(`Startup failed: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+    }
+    process.exit(1);
+  }
 };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

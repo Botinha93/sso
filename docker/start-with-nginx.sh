@@ -24,6 +24,20 @@ if [ ! -f "$SSL_CERT_PATH" ] || [ ! -f "$SSL_KEY_PATH" ]; then
     -out /etc/nginx/certs/server.crt >/dev/null 2>&1
 fi
 
+# Mount an internal/self-signed database (or other outbound TLS peer) CA at
+# DATABASE_CA_CERT_PATH so the app trusts it instead of failing bootstrap with
+# SELF_SIGNED_CERT_IN_CHAIN. Installed system-wide for `prisma db push` (which
+# relies on the OS trust store) and exported via NODE_EXTRA_CA_CERTS for the
+# Node process itself (pg/mysql2 TLS, which Node validates against its own
+# bundled CA list, not the OS store).
+DATABASE_CA_CERT_PATH="${DATABASE_CA_CERT_PATH:-}"
+if [ -n "$DATABASE_CA_CERT_PATH" ] && [ -f "$DATABASE_CA_CERT_PATH" ]; then
+  echo "[container-init] installing database CA certificate from ${DATABASE_CA_CERT_PATH}" >&2
+  cp "$DATABASE_CA_CERT_PATH" /usr/local/share/ca-certificates/database-ca.crt
+  update-ca-certificates >/dev/null
+  export NODE_EXTRA_CA_CERTS="$DATABASE_CA_CERT_PATH"
+fi
+
 PORT="$APP_PORT" HOST="127.0.0.1" node /app/dist/container/entrypoint.js &
 NODE_PID=$!
 

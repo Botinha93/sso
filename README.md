@@ -99,6 +99,7 @@ Notes:
 - On first boot, the image defaults to the first-run installer (`AUTO_SETUP=false`).
 - To auto-run setup instead, set `AUTO_SETUP=true` and provide `ADMIN_NAME`, `ADMIN_USERNAME`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD`.
 - For PostgreSQL/MySQL, the entrypoint runs `prisma db push` by default before the server starts.
+- If your external database presents a self-signed or private-CA TLS certificate, mount its CA cert into the container and set `DATABASE_CA_CERT_PATH` to its path. Without it, startup fails with `SELF_SIGNED_CERT_IN_CHAIN` because Node validates the database connection's certificate chain.
 - To perform a one-time SQLite import into PostgreSQL/MySQL at startup, set `MIGRATE_FROM_SQLITE_PATH` and keep `INIT_SENTINEL_PATH` on persistent storage so the import is not repeated on restart.
 - Set `COOKIE_SECRET` for every deployment. In production, startup now fails if it is missing.
 - Set `TRUST_PROXY=true` only when the app is actually behind a trusted reverse proxy or load balancer.
