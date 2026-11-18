@@ -22,6 +22,7 @@ const ADMIN_RESOURCE_MAP: Record<string, string> = {
   "access-reviews": "administration",
   settings: "administration",
   retention: "administration",
+  observability: "administration",
   administration: "administration",
   apps: "apps",
   "role-assignments": "roles",

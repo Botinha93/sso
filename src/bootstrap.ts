@@ -38,6 +38,7 @@ import { WebauthnService } from "./services/webauthn-service.js";
 import { RiskService } from "./services/risk-service.js";
 import { ServiceIdentityService } from "./services/service-identity-service.js";
 import { ConnectorService, AuthMetricsService } from "./services/connector-service.js";
+import { ObservabilityService } from "./services/observability-service.js";
 import { PluginService } from "./services/plugin-service.js";
 import { PluginRuntimeService } from "./services/plugin-runtime-service.js";
 import { UserAttributeService } from "./services/user-attribute-service.js";
@@ -149,6 +150,7 @@ export const bootstrap = async (config: AppConfig) => {
     eventHookService
   );
   const authMetricsService = new AuthMetricsService(repositories.authMetricRepository);
+  const observabilityService = new ObservabilityService(auditRepository);
   const pluginStorageRoot = resolve(process.cwd(), dirname(config.databasePath), "plugins");
   const mediaStorageRoot = resolve(process.cwd(), dirname(config.databasePath), "uploads");
   await mkdir(mediaStorageRoot, { recursive: true });
@@ -611,6 +613,7 @@ export const bootstrap = async (config: AppConfig) => {
     serviceIdentityService,
     connectorService,
     authMetricsService,
+    observabilityService,
     pluginService,
     pluginRuntimeService,
     mediaService,
@@ -625,6 +628,7 @@ export const bootstrap = async (config: AppConfig) => {
     oauthConsentRequestRepository,
     dispose: async () => {
       retentionService.stop();
+      await observabilityService.flush();
       await eventHookService.waitForIdle();
       await pluginRuntimeService.dispose();
       await policyService.dispose();

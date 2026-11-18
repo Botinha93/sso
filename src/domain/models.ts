@@ -617,6 +617,9 @@ export type AuditEventType =
   | "plugin_runtime_load_failed"
   | "plugin_runtime_executed"
   | "plugin_runtime_failed"
+  // An unhandled exception or an error-level log line of the server itself
+  // (src/services/observability-service.ts).
+  | "server_error"
   | "plugin_runtime_console"
   | "plugin_runtime_log"
   | "suggestion_created"

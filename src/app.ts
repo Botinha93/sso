@@ -6,6 +6,7 @@ import helmet from "@fastify/helmet";
 import multipart from "@fastify/multipart";
 import { loadConfig } from "./core/config.js";
 import { registerRoutes } from "./http/routes.js";
+import type { ObservabilityService } from "./services/observability-service.js";
 import { MAX_IMAGE_UPLOAD_BYTES } from "./http/upload-limits.js";
 import { bootstrap } from "./bootstrap.js";
 import { hasSqlInjectionPayload } from "./http/sql-injection-guard.js";
@@ -29,14 +30,28 @@ export const emitStartupConfigWarnings = async (
 
 export const buildApp = async () => {
   const config = loadConfig();
+  // Bound once the services exist; nothing worth keeping is logged before that.
+  let observability: ObservabilityService | undefined;
   const serverOptions: FastifyServerOptions = {
-    logger: process.env.NODE_ENV !== "test",
+    logger:
+      process.env.NODE_ENV !== "test"
+        ? {
+            hooks: {
+              // Warnings and errors also go to the observability status (see ObservabilityService.recordLog).
+              logMethod(args, method, level) {
+                observability?.recordLog(level, args, this.bindings());
+                return method.apply(this, args);
+              }
+            }
+          }
+        : false,
     // Fastify accepts a numeric hop count at runtime (proxy-addr); the type
     // definitions only list the other shapes.
     trustProxy: config.trustProxy as FastifyServerOptions["trustProxy"]
   };
   const app = Fastify(serverOptions);
   const services = await bootstrap(config);
+  observability = services.observabilityService;
   await emitStartupConfigWarnings(app, services.instanceSettingsService);
 
   app.addHook("onClose", async () => {
@@ -66,6 +81,11 @@ export const buildApp = async () => {
       error: "https_required",
       message: "HTTPS is required by instance settings"
     });
+  });
+
+  // Requests answered per minute, for GET /api/admin/observability/status.
+  app.addHook("onResponse", async (request, reply) => {
+    services.observabilityService.recordResponse(request.url.split("?")[0] ?? "", reply.statusCode, reply.elapsedTime);
   });
 
   await app.register(helmet, {

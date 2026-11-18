@@ -28,6 +28,7 @@ import { deriveRiskEventsFromAudit, riskSeverityForAuditType } from "./routes/se
 import { registerConnectorRoutes } from "./routes/connectors.js";
 import { registerPluginRoutes } from "./routes/plugins.js";
 import { registerSuggestionRoutes } from "./routes/suggestions.js";
+import { registerObservabilityRoutes } from "./routes/observability.js";
 import { MAX_IMAGE_UPLOAD_BYTES } from "./upload-limits.js";
 import {
   assignGroupRoleSchema,
@@ -135,6 +136,7 @@ import { SamlReplayProtectionService } from "../services/saml-replay-protection-
 import { SamlSignatureService } from "../services/saml-signature-service.js";
 import { RiskService } from "../services/risk-service.js";
 import { ConnectorService, AuthMetricsService } from "../services/connector-service.js";
+import type { ObservabilityService } from "../services/observability-service.js";
 import { PluginService } from "../services/plugin-service.js";
 import { PluginRuntimeService } from "../services/plugin-runtime-service.js";
 import { MediaService } from "../services/media-service.js";
@@ -189,6 +191,7 @@ interface RouteDeps {
   riskService: RiskService;
   connectorService: ConnectorService;
   authMetricsService: AuthMetricsService;
+  observabilityService: ObservabilityService;
   pluginService: PluginService;
   pluginRuntimeService: PluginRuntimeService;
   mediaService: MediaService;
@@ -3128,6 +3131,8 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
     deps.clientService
   );
   registerConnectorRoutes(app, deps.connectorService, deps.authMetricsService);
+  // One audit row read: proves the database answers, not just the process.
+  registerObservabilityRoutes(app, deps.observabilityService, async () => deps.auditRepository.list(1));
   registerPluginRoutes(app, deps.pluginService, deps.pluginRuntimeService);
 
   app.put("/api/admin/settings", async (request) => {
@@ -4874,6 +4879,15 @@ export const registerRoutes = async (app: FastifyInstance, deps: RouteDeps) => {
         message: "Token is invalid or expired"
       });
     }
+    // Recorded with its request before it is logged, so the logger hook does not record it twice.
+    deps.observabilityService.recordError({
+      error,
+      method: request.method,
+      // The route pattern, not the URL: no ids or query strings leave the process.
+      path: request.routeOptions?.url ?? request.url.split("?")[0],
+      status: 500,
+      request: String(request.id ?? "")
+    });
     request.log.error(error);
     return reply.status(500).send({ error: "InternalServerError", message: "Unexpected server error" });
   });
